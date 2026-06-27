@@ -557,6 +557,9 @@ function handleChat(req, res) {
 }
 app.post('/chat', handleChat);
 app.get('/chat', handleChat);
+// Alias: the ManyChat flow points here (it was simplest to edit "send-photos" -> "send-chat").
+app.post('/send-chat', handleChat);
+app.get('/send-chat', handleChat);
 
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
