@@ -379,6 +379,8 @@ async function handleSendPhotos(req, res) {
     try { results.push(await sendChunk(subscriberId, messages.slice(i, i + CHUNK), token)); }
     catch (e) { results.push({ ok: false, error: String(e).slice(0, 200) }); }
   }
+  // Record the ManyChat Sending API outcome so /last shows why a send failed.
+  record(req, { endpoint: 'send-result', subscriberId, sent: messages.length, sendResults: results });
   res.json({ ok: results.every(r => r.ok), sent: messages.length, count: shoes.length, chunks: results });
 }
 app.post('/send-photos', handleSendPhotos);
