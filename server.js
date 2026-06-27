@@ -272,10 +272,12 @@ function handleLookup(req, res) {
     });
   }
 
-  const lines = shoes.map(formatShoeMessage);
+  // Numbered summary so the list lines up with the photos sent after it.
+  const numbered = shoes.map((s, i) =>
+    `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 ${sizesOf(s)}`).join('\n');
   const message = shoes.length === 1
-    ? `Yes! Here's what I have:\n\n${lines[0]}`
-    : `Found ${shoes.length} options:\n\n` + lines.join('\n\n');
+    ? `Yes! Here's what I've got 👇\n\n${numbered}`
+    : `Found ${shoes.length} options 👇\n\n${numbered}`;
 
   const flat = {};
   shoes.forEach((s, i) => {
@@ -284,6 +286,7 @@ function handleLookup(req, res) {
     flat[`shoe_${n}_price`] = `$${s.price}`;
     flat[`shoe_${n}_sizes`] = sizesOf(s);
     flat[`shoe_${n}_color`] = s.color;
+    flat[`shoe_${n}_caption`] = `${i + 1}. ${displayName(s)} — $${s.price} | 📏 ${sizesOf(s)}`;
     flat[`image_${n}`] = s.image || null;
   });
 
