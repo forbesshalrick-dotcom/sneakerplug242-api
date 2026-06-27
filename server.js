@@ -103,7 +103,15 @@ function extractQuery(req) {
 
 // ── Keyword scoring ───────────────────────────────────────────────────────────
 function tokenize(str) {
-  return (str || '').toLowerCase().replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/).filter(Boolean);
+  return (str || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9.\s]/g, ' ')
+    // Split glued words like "jordan4" / "aj4" → "jordan 4" / "aj 4", so a URL
+    // param or a no-space message still matches (leaves sizes like "9.5" alone).
+    .replace(/([a-z])(\d)/g, '$1 $2')
+    .replace(/(\d)([a-z])/g, '$1 $2')
+    .split(/\s+/)
+    .filter(Boolean);
 }
 
 function extractSize(tokens) {
