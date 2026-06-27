@@ -4,9 +4,64 @@ const catalog = require('./catalog.json');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+
+// Accept the customer's text no matter how ManyChat (or anything else) sends it:
+// JSON (application/json), form-encoded, and — for any other or missing
+// Content-Type — a raw text/plain body. Each parser skips a request a previous
+// one already handled, so text() only catches what json()/urlencoded() didn't.
+const saveRaw = (req, res, buf) => { if (buf && buf.length) req.rawBody = buf.toString().trim(); };
+app.use(express.json({ strict: false, verify: saveRaw }));
+app.use(express.urlencoded({ extended: true, verify: saveRaw }));
+app.use(express.text({ type: () => true, verify: saveRaw }));
+// If JSON parsing fails (e.g. ManyChat sends raw text labelled as application/json),
+// don't 500 — keep the raw string so extractQuery can still read it.
+app.use((err, req, res, next) => {
+  if (err && err.type === 'entity.parse.failed') {
+    req.body = (err.body !== undefined ? err.body : '');
+    return next();
+  }
+  next(err);
+});
 
 const PORT = process.env.PORT || 3000;
+
+// Pull the search text out of the request, however it arrived:
+// query params (?q= / ?message=), a JSON/form field under any common name,
+// a raw text/plain body, or — as a last resort — the first string value present.
+function extractQuery(req) {
+  const FIELDS = ['message', 'query', 'text', 'q', 'input', 'msg',
+                  'last_text_input', 'lastTextInput', 'body', 'question'];
+
+  if (req.query) {
+    for (const k of FIELDS) {
+      const v = req.query[k];
+      if (v != null && String(v).trim()) return String(v);
+    }
+  }
+
+  const b = req.body;
+  if (b == null) return '';
+  if (typeof b === 'string') return b;                 // raw text/plain body
+  if (typeof b === 'object') {
+    for (const k of FIELDS) {
+      if (b[k] != null && String(b[k]).trim()) return String(b[k]);
+    }
+    // Fallback: ManyChat sent the text under some unexpected key — grab the
+    // first non-empty string value in the object.
+    for (const v of Object.values(b)) {
+      if (typeof v === 'string' && v.trim()) return v;
+    }
+    // Keyless form post (body arrived as "jordan 4" with a form Content-Type,
+    // so it parsed to { "jordan 4": "" }) — the text is the key itself.
+    for (const k of Object.keys(b)) {
+      if (!FIELDS.includes(k.toLowerCase()) && b[k] === '' && /[a-z]/i.test(k)) return k;
+    }
+  }
+  // Last resort: the raw request body as it arrived, but ignore structural
+  // JSON like "{}" / "[]" so an empty payload still gets the friendly greeting.
+  if (req.rawBody && req.rawBody.trim() && !/^[\[{]/.test(req.rawBody.trim())) return req.rawBody;
+  return '';
+}
 
 // ── Keyword scoring ───────────────────────────────────────────────────────────
 
@@ -15,16 +70,27 @@ function tokenize(str) {
 }
 
 function extractSize(tokens) {
-  // Patterns: "size 8", "size 8.5", standalone "8", "8.5", "9.5"
+  // A shoe size only counts when it's stated unambiguously, in one of two forms:
+  //   1. Right after a size word:  "size 9", "sz 9.5", "in 10"
+  //   2. A standalone half size:   "8.5", "9.5"  (no model number ends in .5)
+  // A bare whole number like "4" or "11" is NOT treated as a size — those are
+  // almost always model numbers ("Jordan 4", "Jordan 11"). Reading them as sizes
+  // was filtering every real result out, so model searches returned nothing.
   const sizeWords = ['size', 'sz', 'in'];
+  const fmt = n => String(n % 1 === 0 ? n : n.toFixed(1)).replace('.0', '');
+
+  // 1. Number stated right after a size word (this wins over a standalone half size)
   for (let i = 0; i < tokens.length; i++) {
     if (sizeWords.includes(tokens[i]) && tokens[i + 1]) {
       const n = parseFloat(tokens[i + 1]);
-      if (!isNaN(n) && n >= 3 && n <= 20) return String(n % 1 === 0 ? n : n.toFixed(1)).replace('.0','');
+      if (!isNaN(n) && n >= 3 && n <= 20) return fmt(n);
     }
-    const n = parseFloat(tokens[i]);
-    if (!isNaN(n) && n >= 3 && n <= 20 && String(n).replace('.0','') === tokens[i].replace(/\.0$/, '')) {
-      return String(n % 1 === 0 ? n : n.toFixed(1)).replace('.0','');
+  }
+  // 2. Standalone half size, e.g. "9.5"
+  for (const t of tokens) {
+    if (/^\d{1,2}\.5$/.test(t)) {
+      const n = parseFloat(t);
+      if (n >= 3 && n <= 20) return fmt(n);
     }
   }
   return null;
@@ -108,7 +174,7 @@ app.get('/health', (req, res) => {
 });
 
 app.post('/lookup', (req, res) => {
-  const raw = (req.body && (req.body.message || req.body.query || req.body.text)) || '';
+  const raw = extractQuery(req);
   if (!raw.trim()) {
     return res.json({
       found: false,
@@ -182,9 +248,7 @@ app.post('/lookup', (req, res) => {
 
 // GET version (useful for testing in browser)
 app.get('/lookup', (req, res) => {
-  req.body = { message: req.query.q || '' };
-  // Re-route to POST handler logic inline
-  const raw = req.query.q || '';
+  const raw = extractQuery(req);
   if (!raw.trim()) return res.json({ found: false, message: 'Provide ?q=your+question' });
 
   const tokens = tokenize(raw);
