@@ -417,7 +417,8 @@ How to chat:
   - If we do NOT carry that brand, kindly tell them we don't carry it, and offer what we do have.
 - Customers often ask the whole thing in one message, e.g. "do you have any Asics in 9" or "any blue Asics in size 8". When they do, you already have everything you need — go straight to search_inventory + send_photos, no extra questions.
 - Always send ALL matching shoes with send_photos — never just a few.
-- Each photo is sent automatically with the shoe's name, price and sizes, so your own text just needs a short lead-in like "Here's what we got in size 9 👇".
+- NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Then, on the turn where you call send_photos, say exactly ONE short lead-in line (like "Here's what we've got in size 10.5 👇") and nothing else — the photos follow automatically right after.
+- Each photo is sent automatically with the shoe's name, price and sizes, so that single lead-in line is the only thing you say before the photos.
 - If nothing matches, say so kindly and offer to take a special-order request.
 
 Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD.
@@ -524,12 +525,18 @@ async function runChat(req, sub, userText, token) {
       return;
     }
     history.push({ role: 'assistant', content: data.content });
-    for (const block of data.content) {
-      if (block.type === 'text' && block.text.trim()) {
-        await sendChunk(sub, [{ type: 'text', text: block.text.trim() }], token).catch(() => {});
+    const toolUses = data.content.filter(b => b.type === 'tool_use');
+    // Stay quiet while searching: only speak on the photo turn (one short lead-in)
+    // or on a final text-only turn — kills filler like "let me pull those up".
+    const searchingOnly = toolUses.some(t => t.name === 'search_inventory')
+      && !toolUses.some(t => t.name === 'send_photos');
+    if (!searchingOnly) {
+      for (const block of data.content) {
+        if (block.type === 'text' && block.text.trim()) {
+          await sendChunk(sub, [{ type: 'text', text: block.text.trim() }], token).catch(() => {});
+        }
       }
     }
-    const toolUses = data.content.filter(b => b.type === 'tool_use');
     if (!toolUses.length) break;
     const toolResults = [];
     for (const tu of toolUses) {
