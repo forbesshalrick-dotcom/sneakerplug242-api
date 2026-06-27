@@ -2,13 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const catalog = require('./catalog.json');
 
-// Sneakers sell on the side profile (the outside lateral view — what you see
-// when someone walks past). Each shoe is a 360° spin and the stored "-thumb"
-// image is frame 0, whose angle varies (sometimes toe-on or heel-on). Frame 9
-// (~90° around) is reliably the outside lateral side-profile across the whole
-// catalog, so use it as every shoe's photo everywhere we send/return images.
+// Each shoe is a 360° spin (frames 0..35). The stored "-thumb" image is frame 0.
+// Per-shoe side-profile overrides live in FRAME_OVERRIDES below: any shoe id not
+// listed uses frame 0; listed shoes use their chosen frame number. (Rodney picks
+// the ones that need a different angle.)
+const FRAME_OVERRIDES = {
+  // 'jordan4pizza001': 9,
+};
 for (const s of catalog) {
-  if (s.image) s.image = s.image.replace(/-thumb\.(jpe?g|png|webp)$/i, '-9.$1');
+  if (!s.image) continue;
+  const frame = FRAME_OVERRIDES[s.id] != null ? FRAME_OVERRIDES[s.id] : 0;
+  s.image = s.image.replace(/-thumb\.(jpe?g|png|webp)$/i, `-${frame}.$1`);
 }
 
 const app = express();
