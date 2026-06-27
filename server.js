@@ -374,14 +374,20 @@ async function handleSendPhotos(req, res) {
     for (const s of pics) messages.push({ type: 'image', url: s.image });
   }
 
-  const results = [];
-  for (let i = 0; i < messages.length; i += CHUNK) {
-    try { results.push(await sendChunk(subscriberId, messages.slice(i, i + CHUNK), token)); }
-    catch (e) { results.push({ ok: false, error: String(e).slice(0, 200) }); }
-  }
-  // Record the ManyChat Sending API outcome so /last shows why a send failed.
-  record(req, { endpoint: 'send-result', subscriberId, sent: messages.length, sendResults: results });
-  res.json({ ok: results.every(r => r.ok), sent: messages.length, count: shoes.length, chunks: results });
+  // Reply to ManyChat IMMEDIATELY so its External Request doesn't time out (and
+  // possibly retry, double-sending). The actual photos go out in the background
+  // via the Sending API, which is independent of this response.
+  res.json({ ok: true, queued: messages.length, count: shoes.length });
+
+  (async () => {
+    const results = [];
+    for (let i = 0; i < messages.length; i += CHUNK) {
+      try { results.push(await sendChunk(subscriberId, messages.slice(i, i + CHUNK), token)); }
+      catch (e) { results.push({ ok: false, error: String(e).slice(0, 200) }); }
+    }
+    // Record the ManyChat Sending API outcome so /last shows why a send failed.
+    record(req, { endpoint: 'send-result', subscriberId, sent: messages.length, sendResults: results });
+  })();
 }
 app.post('/send-photos', handleSendPhotos);
 app.get('/send-photos', handleSendPhotos);
