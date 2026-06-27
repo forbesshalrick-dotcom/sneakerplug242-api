@@ -1,0 +1,2411 @@
+[
+  {
+    "id": "jordan4pizza001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Pizza",
+    "color": "Tan/Black/Red",
+    "price": 180,
+    "sizes": [
+      "7",
+      "7",
+      "7.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "7",
+      "7.5"
+    ],
+    "nickname": "Pizza",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-thumb.jpg"
+  },
+  {
+    "id": "jordan4purple001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Purple/Black/Yellow",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8.5",
+      "9",
+      "9.5",
+      "9.5",
+      "10",
+      "10.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "8.5",
+      "9",
+      "9.5",
+      "9.5",
+      "10",
+      "10.5"
+    ],
+    "nickname": "Lakers",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4purple001-thumb.jpg"
+  },
+  {
+    "id": "jordan4red001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "White/Red",
+    "price": 180,
+    "sizes": [
+      "6.5",
+      "7.5",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "6.5",
+      "7.5",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13"
+    ],
+    "nickname": "Valentine's Day",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4red001-thumb.jpg"
+  },
+  {
+    "id": "jordan4green001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "White/Green",
+    "price": 180,
+    "sizes": [
+      "9.5",
+      "10"
+    ],
+    "sizesRaw": [
+      "9.5",
+      "10"
+    ],
+    "nickname": "Metallic Green",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4green001-thumb.jpg"
+  },
+  {
+    "id": "jordan4yellow001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Yellow/Grey",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "nickname": "Lightning",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4yellow001-thumb.jpg"
+  },
+  {
+    "id": "jordan11red001",
+    "brand": "Jordan",
+    "name": "Air Jordan 11 Retro",
+    "color": "White/Red",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "9",
+      "9.5",
+      "9.5",
+      "10.5",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "9",
+      "9.5",
+      "9.5",
+      "10.5",
+      "12",
+      "13"
+    ],
+    "nickname": "Cherry",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11red001-thumb.jpg"
+  },
+  {
+    "id": "jordan4redcement001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "White/Red Cement",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8"
+    ],
+    "sizesRaw": [
+      "7",
+      "8"
+    ],
+    "nickname": "Red Cement",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4redcement001-thumb.jpg"
+  },
+  {
+    "id": "jordan4blackwhite001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Black/White",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "9.5",
+      "10.5",
+      "11",
+      "12"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "9.5",
+      "10.5",
+      "11",
+      "12"
+    ],
+    "nickname": "White Thunder",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackwhite001-thumb.jpg"
+  },
+  {
+    "id": "jordan14black001",
+    "brand": "Jordan",
+    "name": "Air Jordan 14 Retro",
+    "color": "Black/White",
+    "price": 180,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "University Blue",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan14black001-thumb.jpg"
+  },
+  {
+    "id": "jordan13red001",
+    "brand": "Jordan",
+    "name": "Air Jordan 13 Retro",
+    "color": "White/Red",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8",
+      "8.5",
+      "9.5",
+      "10",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "8.5",
+      "9.5",
+      "10",
+      "13"
+    ],
+    "nickname": "Chicago / True Red",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan13red001-thumb.jpg"
+  },
+  {
+    "id": "jordan4blackred001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Black/Red",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "13",
+      "13"
+    ],
+    "nickname": "Bred Reimagined",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackred001-thumb.jpg"
+  },
+  {
+    "id": "jordan4military001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "White/Black/Gold",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8",
+      "8.5",
+      "9.5",
+      "12",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "8.5",
+      "9.5",
+      "12",
+      "12",
+      "13"
+    ],
+    "nickname": "Military Blue",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4military001-thumb.jpg"
+  },
+  {
+    "id": "jordan11grey001",
+    "brand": "Jordan",
+    "name": "Air Jordan 11 Retro",
+    "color": "Cool Grey/White",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8",
+      "10.5",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "10.5",
+      "12",
+      "13"
+    ],
+    "nickname": "Cool Grey",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11grey001-thumb.jpg"
+  },
+  {
+    "id": "jordan4taupe001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Taupe/Grey",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "nickname": "Taupe Haze",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4taupe001-thumb.jpg"
+  },
+  {
+    "id": "jordan11tan001",
+    "brand": "Jordan",
+    "name": "Air Jordan 11 Retro",
+    "color": "Tan/Wheat",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8",
+      "10.5",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "10.5",
+      "12",
+      "13"
+    ],
+    "nickname": "H Town",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11tan001-thumb.jpg"
+  },
+  {
+    "id": "jordan4purple002",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "White/Purple",
+    "price": 180,
+    "sizes": [
+      "7",
+      "7",
+      "7",
+      "8",
+      "8",
+      "9",
+      "9.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "7",
+      "7",
+      "8",
+      "8",
+      "9",
+      "9.5"
+    ],
+    "nickname": "Hyper Violet",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4purple002-thumb.jpg"
+  },
+  {
+    "id": "jordan4blackcat001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Black Cat",
+    "price": 180,
+    "sizes": [
+      "7",
+      "7",
+      "7.5",
+      "7.5",
+      "8",
+      "8",
+      "8.5",
+      "9"
+    ],
+    "sizesRaw": [
+      "7",
+      "7",
+      "7.5",
+      "7.5",
+      "8",
+      "8",
+      "8.5",
+      "9"
+    ],
+    "nickname": "Black Cat",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackcat001-thumb.jpg"
+  },
+  {
+    "id": "jordan5blue001",
+    "brand": "Jordan",
+    "name": "Air Jordan 5 Retro",
+    "color": "Black/Blue",
+    "price": 180,
+    "sizes": [
+      "10.5",
+      "10.5"
+    ],
+    "sizesRaw": [
+      "10.5",
+      "10.5"
+    ],
+    "nickname": "SB Navy",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5blue001-thumb.jpg"
+  },
+  {
+    "id": "jordan5white001",
+    "brand": "Jordan",
+    "name": "Air Jordan 5 Retro",
+    "color": "All White",
+    "price": 180,
+    "sizes": [
+      "7",
+      "7.5",
+      "8",
+      "11",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "7.5",
+      "8",
+      "11",
+      "13"
+    ],
+    "nickname": "White Metallic",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5white001-thumb.jpg"
+  },
+  {
+    "id": "jordan4thunder001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Black/Yellow Thunder",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10.5",
+      "10.5",
+      "10.5",
+      "12",
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10.5",
+      "10.5",
+      "10.5",
+      "12",
+      "13",
+      "13"
+    ],
+    "nickname": "Thunder",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4thunder001-thumb.jpg"
+  },
+  {
+    "id": "jordan4pink001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Pink/White",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5"
+    ],
+    "nickname": "Orchid",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pink001-thumb.jpg"
+  },
+  {
+    "id": "jordan4blackred002",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Black/Red",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10.5",
+      "10.5",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10.5",
+      "10.5",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "nickname": "Red Thunder",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackred002-thumb.jpg"
+  },
+  {
+    "id": "jordan4allred001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "All Red",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "7.5",
+      "8",
+      "13"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "7.5",
+      "8",
+      "13"
+    ],
+    "nickname": "Brick by Brick",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4allred001-thumb.jpg"
+  },
+  {
+    "id": "jordan11white001",
+    "brand": "Jordan",
+    "name": "Air Jordan 11 Retro",
+    "color": "All White/Legend Blue",
+    "price": 180,
+    "sizes": [
+      "7",
+      "10.5",
+      "10.5",
+      "12"
+    ],
+    "sizesRaw": [
+      "7",
+      "10.5",
+      "10.5",
+      "12"
+    ],
+    "nickname": "Legend Blue",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11white001-thumb.jpg"
+  },
+  {
+    "id": "jordan5grey001",
+    "brand": "Jordan",
+    "name": "Air Jordan 5 Retro",
+    "color": "All Grey",
+    "price": 180,
+    "sizes": [
+      "10.5",
+      "13"
+    ],
+    "sizesRaw": [
+      "10.5",
+      "13"
+    ],
+    "nickname": "Wolf Grey",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5grey001-thumb.jpg"
+  },
+  {
+    "id": "jordan11volt001",
+    "brand": "Jordan",
+    "name": "Air Jordan 11 Retro",
+    "color": "Black/Volt",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8",
+      "8.5",
+      "9",
+      "9.5",
+      "10.5",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "8.5",
+      "9",
+      "9.5",
+      "10.5",
+      "13"
+    ],
+    "nickname": "Black Barely Volt",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11volt001-thumb.jpg"
+  },
+  {
+    "id": "jordan4milblue001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "White/Military Blue",
+    "price": 180,
+    "sizes": [
+      "4",
+      "4",
+      "5",
+      "5",
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "4",
+      "4",
+      "5",
+      "5",
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13",
+      "13"
+    ],
+    "nickname": "Military Blue",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4milblue001-thumb.jpg"
+  },
+  {
+    "id": "jordan4gum001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "White/Blue/Gum",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "9.5",
+      "9.5",
+      "10",
+      "10",
+      "10.5",
+      "10.5",
+      "10.5",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "nickname": "SB Navy",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4gum001-thumb.jpg"
+  },
+  {
+    "id": "jordan11black001",
+    "brand": "Jordan",
+    "name": "Air Jordan 11 Retro",
+    "color": "All Black",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "7",
+      "8"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "7",
+      "8"
+    ],
+    "nickname": "Gamma Blue",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11black001-thumb.jpg"
+  },
+  {
+    "id": "jordan3peach001",
+    "brand": "Jordan",
+    "name": "Air Jordan 3 Retro",
+    "color": "Peach/Rose Gold",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "6.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "6.5"
+    ],
+    "nickname": "Treat Yourself",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan3peach001-thumb.jpg"
+  },
+  {
+    "id": "jordan5wblack001",
+    "brand": "Jordan",
+    "name": "Air Jordan 5 Retro",
+    "color": "White/Black",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "8.5"
+    ],
+    "nickname": "White and Black",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5wblack001-thumb.jpg"
+  },
+  {
+    "id": "jordan14blue001",
+    "brand": "Jordan",
+    "name": "Air Jordan 14 Retro",
+    "color": "Black/Blue",
+    "price": 180,
+    "sizes": [
+      "8",
+      "9.5",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "8",
+      "9.5",
+      "12",
+      "13"
+    ],
+    "nickname": "Black/University Blue",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan14blue001-thumb.jpg"
+  },
+  {
+    "id": "jordan3green001",
+    "brand": "Jordan",
+    "name": "Air Jordan 3 Retro",
+    "color": "Black/Green",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8.5",
+      "9",
+      "9.5",
+      "11",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "8.5",
+      "9",
+      "9.5",
+      "11",
+      "12",
+      "13"
+    ],
+    "nickname": "Pine Green",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan3green001-thumb.jpg"
+  },
+  {
+    "id": "jordan11royalblue001",
+    "brand": "Jordan",
+    "name": "Air Jordan 11 Retro",
+    "color": "White/Royal Blue",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8.5",
+      "11",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "8.5",
+      "11",
+      "12",
+      "13"
+    ],
+    "nickname": "Rare Air",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11royalblue001-thumb.jpg"
+  },
+  {
+    "id": "jordan12black001",
+    "brand": "Jordan",
+    "name": "Air Jordan 12 Retro",
+    "color": "All Black",
+    "price": 180,
+    "sizes": [
+      "7",
+      "7",
+      "7",
+      "8"
+    ],
+    "sizesRaw": [
+      "7",
+      "7",
+      "7",
+      "8"
+    ],
+    "nickname": "Winter",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan12black001-thumb.jpg"
+  },
+  {
+    "id": "jordan13blackred001",
+    "brand": "Jordan",
+    "name": "Air Jordan 13 Retro",
+    "color": "Black/Red",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8",
+      "8.5",
+      "9",
+      "9.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "8.5",
+      "9",
+      "9.5"
+    ],
+    "nickname": "Bred",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan13blackred001-thumb.jpg"
+  },
+  {
+    "id": "jordan4bblured001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 Retro",
+    "color": "Black/Blue/Red",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "5.5",
+      "7.5",
+      "7.5",
+      "8",
+      "8",
+      "9.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "5.5",
+      "7.5",
+      "7.5",
+      "8",
+      "8",
+      "9.5"
+    ],
+    "nickname": "Rare Air",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4bblured001-thumb.jpg"
+  },
+  {
+    "id": "jordan6blackred001",
+    "brand": "Jordan",
+    "name": "Air Jordan 6 Retro",
+    "color": "Black/Infrared",
+    "price": 180,
+    "sizes": [
+      "7",
+      "8"
+    ],
+    "sizesRaw": [
+      "7",
+      "8"
+    ],
+    "nickname": "Infrared",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan6blackred001-thumb.jpg"
+  },
+  {
+    "id": "nikemuleblack001",
+    "brand": "Nike",
+    "name": "Nike Mule Slipper",
+    "color": "Black/Orange",
+    "price": 120,
+    "sizes": [
+      "5",
+      "5",
+      "6",
+      "6",
+      "7",
+      "7",
+      "7",
+      "8",
+      "8",
+      "9",
+      "9",
+      "9",
+      "10",
+      "11",
+      "11",
+      "12",
+      "12"
+    ],
+    "sizesRaw": [
+      "5",
+      "5",
+      "6",
+      "6",
+      "7",
+      "7",
+      "7",
+      "8",
+      "8",
+      "9",
+      "9",
+      "9",
+      "10",
+      "11",
+      "11",
+      "12",
+      "12"
+    ],
+    "nickname": "Black/Orange",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemuleblack001-thumb.jpg"
+  },
+  {
+    "id": "vapormax2020grey001",
+    "brand": "Nike",
+    "name": "Air VaporMax 2020",
+    "color": "Grey",
+    "price": 120,
+    "sizes": [
+      "6.5"
+    ],
+    "sizesRaw": [
+      "6.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormax2020grey001-thumb.jpg"
+  },
+  {
+    "id": "airmaxplus3001",
+    "brand": "Nike",
+    "name": "Air Max Plus 3",
+    "color": "White",
+    "price": 130,
+    "sizes": [
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplus3001-thumb.jpg"
+  },
+  {
+    "id": "airmax97bkrbow001",
+    "brand": "Nike",
+    "name": "Air Max 97",
+    "color": "Black/Rainbow",
+    "price": 130,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97bkrbow001-thumb.jpg"
+  },
+  {
+    "id": "airmax97white001",
+    "brand": "Nike",
+    "name": "Air Max 97",
+    "color": "White",
+    "price": 130,
+    "sizes": [
+      "5.5",
+      "7"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97white001-thumb.jpg"
+  },
+  {
+    "id": "airmaxpluspurp001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "Purple",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluspurp001-thumb.jpg"
+  },
+  {
+    "id": "airmaxpluswstr001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "White Stripe",
+    "price": 120,
+    "sizes": [
+      "8"
+    ],
+    "sizesRaw": [
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswstr001-thumb.jpg"
+  },
+  {
+    "id": "airmaxterr001",
+    "brand": "Nike",
+    "name": "Air Max Terrascape",
+    "color": "Black/Green",
+    "price": 120,
+    "sizes": [
+      "8"
+    ],
+    "sizesRaw": [
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxterr001-thumb.jpg"
+  },
+  {
+    "id": "vapormaxevo001",
+    "brand": "Nike",
+    "name": "Air VaporMax Evo",
+    "color": "Black",
+    "price": 120,
+    "sizes": [
+      "8"
+    ],
+    "sizesRaw": [
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxevo001-thumb.jpg"
+  },
+  {
+    "id": "airtrainer001",
+    "brand": "Nike",
+    "name": "Air Trainer 1",
+    "color": "Black",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airtrainer001-thumb.jpg"
+  },
+  {
+    "id": "nikedunkhigh001",
+    "brand": "Nike",
+    "name": "Dunk High",
+    "color": "Blue/White",
+    "price": 120,
+    "sizes": [
+      "11"
+    ],
+    "sizesRaw": [
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikedunkhigh001-thumb.jpg"
+  },
+  {
+    "id": "airmaxpluswpur001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "White/Purple",
+    "price": 120,
+    "sizes": [
+      "7",
+      "7",
+      "8",
+      "8"
+    ],
+    "sizesRaw": [
+      "7",
+      "7",
+      "8",
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswpur001-thumb.jpg"
+  },
+  {
+    "id": "airmax95bkyel001",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "Black/Yellow",
+    "price": 130,
+    "sizes": [
+      "7",
+      "7",
+      "7"
+    ],
+    "sizesRaw": [
+      "7",
+      "7",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkyel001-thumb.jpg"
+  },
+  {
+    "id": "airmax97cheet001",
+    "brand": "Nike",
+    "name": "Air Max 97",
+    "color": "Red/Cheetah Print",
+    "price": 130,
+    "sizes": [
+      "5.5",
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97cheet001-thumb.jpg"
+  },
+  {
+    "id": "airmaxplusgrb001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "Grey/Blue/Black",
+    "price": 120,
+    "sizes": [
+      "7",
+      "7",
+      "8"
+    ],
+    "sizesRaw": [
+      "7",
+      "7",
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusgrb001-thumb.jpg"
+  },
+  {
+    "id": "airmaxplusptn001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "Pink",
+    "price": 120,
+    "sizes": [
+      "7",
+      "8",
+      "10"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "10"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusptn001-thumb.jpg"
+  },
+  {
+    "id": "nikescorpion001",
+    "brand": "Nike",
+    "name": "Scorpion",
+    "color": "Khaki",
+    "price": 130,
+    "sizes": [
+      "7",
+      "8",
+      "8.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "8.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikescorpion001-thumb.jpg"
+  },
+  {
+    "id": "airmaxplusblue001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "Blue",
+    "price": 120,
+    "sizes": [
+      "8"
+    ],
+    "sizesRaw": [
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusblue001-thumb.jpg"
+  },
+  {
+    "id": "newbalance001",
+    "brand": "New Balance",
+    "name": "New Balance",
+    "color": "Blue/Brown",
+    "price": 130,
+    "sizes": [
+      "6.5"
+    ],
+    "sizesRaw": [
+      "6.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/newbalance001-thumb.jpg"
+  },
+  {
+    "id": "asics001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Green/White",
+    "price": 130,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asics001-thumb.jpg"
+  },
+  {
+    "id": "airmax90grn001",
+    "brand": "Nike",
+    "name": "Air Max 90",
+    "color": "Green/Beige",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90grn001-thumb.jpg"
+  },
+  {
+    "id": "vapormaxtealbk001",
+    "brand": "Nike",
+    "name": "Air VaporMax",
+    "color": "Teal/Black",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxtealbk001-thumb.jpg"
+  },
+  {
+    "id": "vapormaxbkgrn001",
+    "brand": "Nike",
+    "name": "Air VaporMax",
+    "color": "Black/Green",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxbkgrn001-thumb.jpg"
+  },
+  {
+    "id": "jordan1grn001",
+    "brand": "Jordan",
+    "name": "Air Jordan 1",
+    "color": "Green/Orange/Blue",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan1grn001-thumb.jpg"
+  },
+  {
+    "id": "airmax90brn001",
+    "brand": "Nike",
+    "name": "Air Max 90",
+    "color": "Brown/Black",
+    "price": 120,
+    "sizes": [
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "13",
+      "13"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90brn001-thumb.jpg"
+  },
+  {
+    "id": "airmaxplusbkbr001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "Black/Blue/Red",
+    "price": 120,
+    "sizes": [
+      "8",
+      "8"
+    ],
+    "sizesRaw": [
+      "8",
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusbkbr001-thumb.jpg"
+  },
+  {
+    "id": "vapormaxbkred001",
+    "brand": "Nike",
+    "name": "Air VaporMax",
+    "color": "Black/Red",
+    "price": 120,
+    "sizes": [
+      "7",
+      "8"
+    ],
+    "sizesRaw": [
+      "7",
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxbkred001-thumb.jpg"
+  },
+  {
+    "id": "airmax95yel001",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "Yellow",
+    "price": 130,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "7"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95yel001-thumb.jpg"
+  },
+  {
+    "id": "jordanorwht001",
+    "brand": "Jordan",
+    "name": "Air Jordan",
+    "color": "Orange/White",
+    "price": 120,
+    "sizes": [
+      "13"
+    ],
+    "sizesRaw": [
+      "13"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordanorwht001-thumb.jpg"
+  },
+  {
+    "id": "airmax97crm001",
+    "brand": "Nike",
+    "name": "Air Max 97",
+    "color": "Cream/Peach/Gold",
+    "price": 130,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97crm001-thumb.jpg"
+  },
+  {
+    "id": "airmax97burg001",
+    "brand": "Nike",
+    "name": "Air Max 97",
+    "color": "Burgundy/Black",
+    "price": 130,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97burg001-thumb.jpg"
+  },
+  {
+    "id": "airmax90whtpnk001",
+    "brand": "Nike",
+    "name": "Air Max 90",
+    "color": "White/Pink",
+    "price": 120,
+    "sizes": [
+      "6.5"
+    ],
+    "sizesRaw": [
+      "6.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90whtpnk001-thumb.jpg"
+  },
+  {
+    "id": "airmax90bkyel001",
+    "brand": "Nike",
+    "name": "Air Max 90",
+    "color": "Black/Yellow",
+    "price": 120,
+    "sizes": [
+      "7",
+      "8",
+      "8.5",
+      "8.5",
+      "9.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "8.5",
+      "8.5",
+      "9.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90bkyel001-thumb.jpg"
+  },
+  {
+    "id": "vapormaxutil001",
+    "brand": "Nike",
+    "name": "Air VaporMax Utility",
+    "color": "Khaki",
+    "price": 120,
+    "sizes": [
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "8",
+      "8.5",
+      "8.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxutil001-thumb.jpg"
+  },
+  {
+    "id": "huarache001",
+    "brand": "Nike",
+    "name": "Huarache",
+    "color": "White",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/huarache001-thumb.jpg"
+  },
+  {
+    "id": "vapormaxpurp001",
+    "brand": "Nike",
+    "name": "Air VaporMax",
+    "color": "Purple",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "7",
+      "7"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "7",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxpurp001-thumb.jpg"
+  },
+  {
+    "id": "airmax95bkwht001",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "Black/White",
+    "price": 130,
+    "sizes": [
+      "7",
+      "7",
+      "7",
+      "11"
+    ],
+    "sizesRaw": [
+      "7",
+      "7",
+      "7",
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkwht001-thumb.jpg"
+  },
+  {
+    "id": "airmax95gryorg001",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "Grey/Black/Orange",
+    "price": 130,
+    "sizes": [
+      "7",
+      "10",
+      "12"
+    ],
+    "sizesRaw": [
+      "7",
+      "10",
+      "12"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95gryorg001-thumb.jpg"
+  },
+  {
+    "id": "airmaxpluspkwht001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "Pink/White",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "7",
+      "8"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "7",
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluspkwht001-thumb.jpg"
+  },
+  {
+    "id": "airmaxpluswpkbk001",
+    "brand": "Nike",
+    "name": "Air Max Plus",
+    "color": "Pink/Black",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "8",
+      "8.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "8",
+      "8.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswpkbk001-thumb.jpg"
+  },
+  {
+    "id": "airmax270001",
+    "brand": "Nike",
+    "name": "Air Max 270",
+    "color": "Black/White",
+    "price": 120,
+    "sizes": [
+      "8",
+      "8",
+      "8.5"
+    ],
+    "sizesRaw": [
+      "8",
+      "8",
+      "8.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax270001-thumb.jpg"
+  },
+  {
+    "id": "airmax95bkbl001",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "Black/Blue",
+    "price": 130,
+    "sizes": [
+      "8",
+      "8",
+      "9.5",
+      "10",
+      "12"
+    ],
+    "sizesRaw": [
+      "8",
+      "8",
+      "9.5",
+      "10",
+      "12"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkbl001-thumb.jpg"
+  },
+  {
+    "id": "nikemulewhite001",
+    "brand": "Nike",
+    "name": "Nike Mule Slipper",
+    "color": "White/Orange",
+    "price": 120,
+    "sizes": [
+      "5",
+      "5",
+      "6",
+      "6",
+      "7",
+      "7",
+      "7",
+      "8",
+      "8",
+      "9",
+      "9",
+      "10",
+      "10",
+      "11",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "sizesRaw": [
+      "5",
+      "5",
+      "6",
+      "6",
+      "7",
+      "7",
+      "7",
+      "8",
+      "8",
+      "9",
+      "9",
+      "10",
+      "10",
+      "11",
+      "11",
+      "11",
+      "12",
+      "12",
+      "13",
+      "13"
+    ],
+    "nickname": "White/Orange",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemulewhite001-thumb.jpg"
+  },
+  {
+    "id": "asicsgrywht001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Grey/White",
+    "price": 120,
+    "sizes": [
+      "7",
+      "8",
+      "8",
+      "9",
+      "9.5",
+      "10.5"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "8",
+      "9",
+      "9.5",
+      "10.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrywht001-thumb.jpg"
+  },
+  {
+    "id": "asicsgrnsil001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Green/White/Silver",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "7",
+      "7.5",
+      "8"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "7",
+      "7.5",
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrnsil001-thumb.jpg"
+  },
+  {
+    "id": "asicsbrnwht001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Brown/White",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsbrnwht001-thumb.jpg"
+  },
+  {
+    "id": "asicsgnsuede001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Green Suede",
+    "price": 120,
+    "sizes": [
+      "7",
+      "8",
+      "10"
+    ],
+    "sizesRaw": [
+      "7",
+      "8",
+      "10"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgnsuede001-thumb.jpg"
+  },
+  {
+    "id": "asicsbkwht001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Black/White",
+    "price": 120,
+    "sizes": [
+      "6",
+      "6",
+      "6",
+      "6",
+      "6",
+      "6.5"
+    ],
+    "sizesRaw": [
+      "6",
+      "6",
+      "6",
+      "6",
+      "6",
+      "6.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsbkwht001-thumb.jpg"
+  },
+  {
+    "id": "asicsgrncream001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Green/Cream",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "7.5",
+      "7.5",
+      "9.5",
+      "9.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "7.5",
+      "7.5",
+      "9.5",
+      "9.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrncream001-thumb.jpg"
+  },
+  {
+    "id": "asicsdkblue001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Dark Blue",
+    "price": 120,
+    "sizes": [
+      "11.5"
+    ],
+    "sizesRaw": [
+      "11.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsdkblue001-thumb.jpg"
+  },
+  {
+    "id": "asicswhtblk001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "White/Black",
+    "price": 120,
+    "sizes": [
+      "8",
+      "8",
+      "8",
+      "8",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "10",
+      "10",
+      "10"
+    ],
+    "sizesRaw": [
+      "8",
+      "8",
+      "8",
+      "8",
+      "8.5",
+      "9",
+      "9",
+      "9",
+      "9.5",
+      "10",
+      "10",
+      "10"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicswhtblk001-thumb.jpg"
+  },
+  {
+    "id": "asicspink001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Pink",
+    "price": 120,
+    "sizes": [
+      "11.5"
+    ],
+    "sizesRaw": [
+      "11.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicspink001-thumb.jpg"
+  },
+  {
+    "id": "asicspnksuede001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Pink Suede",
+    "price": 120,
+    "sizes": [
+      "7",
+      "11"
+    ],
+    "sizesRaw": [
+      "7",
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicspnksuede001-thumb.jpg"
+  },
+  {
+    "id": "asicsred001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Red",
+    "price": 120,
+    "sizes": [
+      "6.5",
+      "7"
+    ],
+    "sizesRaw": [
+      "6.5",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsred001-thumb.jpg"
+  },
+  {
+    "id": "asicsblk001",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Black",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "7",
+      "7",
+      "7.5",
+      "7.5",
+      "7.5",
+      "7.5",
+      "8",
+      "8",
+      "8",
+      "8",
+      "8",
+      "8",
+      "8",
+      "9",
+      "9.5",
+      "11.5",
+      "11.5",
+      "11.5",
+      "11.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "7",
+      "7",
+      "7.5",
+      "7.5",
+      "7.5",
+      "7.5",
+      "8",
+      "8",
+      "8",
+      "8",
+      "8",
+      "8",
+      "8",
+      "9",
+      "9.5",
+      "11.5",
+      "11.5",
+      "11.5",
+      "11.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsblk001-thumb.jpg"
+  },
+  {
+    "id": "nb1906black001",
+    "brand": "New Balance",
+    "name": "New Balance 1906",
+    "color": "Black",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1906black001-thumb.jpg"
+  },
+  {
+    "id": "nb1000fgreen001",
+    "brand": "New Balance",
+    "name": "New Balance 1000",
+    "color": "Forest Green",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "6.5",
+      "7",
+      "7.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "6.5",
+      "7",
+      "7.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1000fgreen001-thumb.jpg"
+  },
+  {
+    "id": "nb9060white001",
+    "brand": "New Balance",
+    "name": "New Balance 9060",
+    "color": "White",
+    "price": 120,
+    "sizes": [
+      "9.5",
+      "10.5",
+      "11",
+      "11",
+      "11"
+    ],
+    "sizesRaw": [
+      "9.5",
+      "10.5",
+      "11",
+      "11",
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb9060white001-thumb.jpg"
+  },
+  {
+    "id": "nb1906navy001",
+    "brand": "New Balance",
+    "name": "New Balance 1906",
+    "color": "Navy Blue",
+    "price": 120,
+    "sizes": [
+      "5",
+      "5",
+      "5.5",
+      "9",
+      "11"
+    ],
+    "sizesRaw": [
+      "5",
+      "5",
+      "5.5",
+      "9",
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1906navy001-thumb.jpg"
+  },
+  {
+    "id": "nb740pinksilv001",
+    "brand": "New Balance",
+    "name": "New Balance 740",
+    "color": "Pink/Silver",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "7",
+      "7",
+      "7.5",
+      "7.5",
+      "9",
+      "9.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "7",
+      "7",
+      "7.5",
+      "7.5",
+      "9",
+      "9.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb740pinksilv001-thumb.jpg"
+  },
+  {
+    "id": "nb550white001",
+    "brand": "New Balance",
+    "name": "New Balance 550",
+    "color": "White",
+    "price": 120,
+    "sizes": [
+      "5",
+      "5",
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5",
+      "5",
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb550white001-thumb.jpg"
+  }
+]
