@@ -319,7 +319,11 @@ function getContactId(req) {
   const keys = ['contact_id', 'subscriber_id', 'subscriberId', 'contactId', 'user_id'];
   const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
   for (const src of srcs) for (const k of keys) {
-    if (src[k] != null && String(src[k]).trim() && !isJunk(src[k])) return String(src[k]).trim();
+    if (src[k] == null) continue;
+    // ManyChat subscriber ids are numeric; strip any stray characters (e.g. a
+    // leftover "{" if the merge tag in the URL was malformed) before using it.
+    const cleaned = String(src[k]).replace(/[^0-9]/g, '');
+    if (cleaned && !isJunk(cleaned)) return cleaned;
   }
   return null;
 }
