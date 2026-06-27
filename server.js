@@ -312,7 +312,7 @@ app.get('/lookup', handleLookup);
 // is open — always true the moment they search. Token comes from the
 // MANYCHAT_TOKEN env var (set in Railway), or an Authorization header as fallback.
 const MC_API = 'https://api.manychat.com/fb/sending/sendContent';
-const MAX_PHOTOS = 30;          // safety backstop on how many pics we'll push
+const MAX_PHOTOS = catalog.length;  // send a photo for EVERY matching shoe (capped only by total inventory)
 const CHUNK = 10;               // ManyChat caps messages per content payload
 
 function getContactId(req) {
