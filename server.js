@@ -2,6 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const catalog = require('./catalog.json');
 
+// Sneakers sell on the side profile (the outside lateral view — what you see
+// when someone walks past). Each shoe is a 360° spin and the stored "-thumb"
+// image is frame 0, whose angle varies (sometimes toe-on or heel-on). Frame 9
+// (~90° around) is reliably the outside lateral side-profile across the whole
+// catalog, so use it as every shoe's photo everywhere we send/return images.
+for (const s of catalog) {
+  if (s.image) s.image = s.image.replace(/-thumb\.(jpe?g|png|webp)$/i, '-9.$1');
+}
+
 const app = express();
 app.use(cors());
 
