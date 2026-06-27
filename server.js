@@ -305,6 +305,81 @@ function handleLookup(req, res) {
 app.post('/lookup', handleLookup);
 app.get('/lookup', handleLookup);
 
+// ── Push the photos straight to the customer via ManyChat's Sending API ───────
+// WhatsApp image blocks won't render a per-search (dynamic) photo, so instead the
+// flow hands us the subscriber id and WE send the text + one image per matching
+// shoe through ManyChat's back-end API. Works while the 24h customer-care window
+// is open — always true the moment they search. Token comes from the
+// MANYCHAT_TOKEN env var (set in Railway), or an Authorization header as fallback.
+const MC_API = 'https://api.manychat.com/fb/sending/sendContent';
+const MAX_PHOTOS = 30;          // safety backstop on how many pics we'll push
+const CHUNK = 10;               // ManyChat caps messages per content payload
+
+function getContactId(req) {
+  const keys = ['contact_id', 'subscriber_id', 'subscriberId', 'contactId', 'user_id'];
+  const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
+  for (const src of srcs) for (const k of keys) {
+    if (src[k] != null && String(src[k]).trim() && !isJunk(src[k])) return String(src[k]).trim();
+  }
+  return null;
+}
+
+function getToken(req) {
+  if (process.env.MANYCHAT_TOKEN) return process.env.MANYCHAT_TOKEN.trim();
+  const h = req.headers['authorization'];
+  if (h) return h.replace(/^Bearer\s+/i, '').trim();
+  if (req.headers['x-mc-token']) return String(req.headers['x-mc-token']).trim();
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  if (b.token) return String(b.token).trim();
+  return null;
+}
+
+async function sendChunk(subscriberId, messages, token) {
+  const r = await fetch(MC_API, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subscriber_id: subscriberId,
+      data: { version: 'v2', content: { type: 'whatsapp', messages } },
+    }),
+  });
+  const body = await r.text();
+  return { ok: r.ok, status: r.status, body: body.slice(0, 300) };
+}
+
+async function handleSendPhotos(req, res) {
+  const raw = extractQuery(req);
+  const subscriberId = getContactId(req);
+  const token = getToken(req);
+  const { shoes } = raw.trim() ? findMatches(raw) : { shoes: [] };
+  record(req, { endpoint: 'send-photos', extractedQuery: raw, matchCount: shoes.length, subscriberId, hasToken: !!token });
+
+  if (!token) return res.json({ ok: false, error: 'no_token (set MANYCHAT_TOKEN)', sent: 0 });
+  if (!subscriberId) return res.json({ ok: false, error: 'no_contact_id', sent: 0 });
+
+  let messages;
+  if (!raw.trim()) {
+    messages = [{ type: 'text', text: 'Hi! 👋 What shoe are you looking for? e.g. *Jordan 4* or *Air Max 95*' }];
+  } else if (!shoes.length) {
+    messages = [{ type: 'text', text: "Hmm, I don't have that in stock right now. DM me for special orders! 📲" }];
+  } else {
+    const pics = shoes.filter(s => s.image).slice(0, MAX_PHOTOS);
+    const numbered = shoes.map((s, i) => `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 ${sizesOf(s)}`).join('\n');
+    const header = shoes.length === 1 ? "Yes! Here's what I've got 👇" : `Found ${shoes.length} 👇`;
+    messages = [{ type: 'text', text: `${header}\n\n${numbered}` }];
+    for (const s of pics) messages.push({ type: 'image', url: s.image });
+  }
+
+  const results = [];
+  for (let i = 0; i < messages.length; i += CHUNK) {
+    try { results.push(await sendChunk(subscriberId, messages.slice(i, i + CHUNK), token)); }
+    catch (e) { results.push({ ok: false, error: String(e).slice(0, 200) }); }
+  }
+  res.json({ ok: results.every(r => r.ok), sent: messages.length, count: shoes.length, chunks: results });
+}
+app.post('/send-photos', handleSendPhotos);
+app.get('/send-photos', handleSendPhotos);
+
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
   console.log(`${catalog.length} shoes loaded`);
