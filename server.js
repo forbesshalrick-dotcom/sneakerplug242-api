@@ -392,6 +392,172 @@ async function handleSendPhotos(req, res) {
 app.post('/send-photos', handleSendPhotos);
 app.get('/send-photos', handleSendPhotos);
 
+// ── Claude-powered conversational assistant (/chat) ───────────────────────────
+// ManyChat relays EVERY customer message here. We run Claude (with an inventory
+// search tool and a photo-sending tool), keep a short per-customer memory, and
+// push Claude's replies + the shoe photos back through ManyChat's Sending API.
+// Needs ANTHROPIC_API_KEY (Claude) in the env and a ManyChat token (header).
+const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
+const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-4-5-20251001';
+
+const BRANDS = [...new Set(catalog.map(s => s.brand))];
+const ALL_SIZES = [...new Set(catalog.flatMap(s => s.sizesRaw.map(x => parseFloat(x))))].sort((a, b) => a - b);
+const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.length - 1]}` : 'various';
+
+const SYSTEM_PROMPT = `You are the friendly WhatsApp shopping assistant for THE PLUG 242, a sneaker store.
+
+How to chat:
+- This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
+- On a brand-new conversation, greet the customer and ask whether they're after a SPECIFIC shoe, or want OPTIONS to pick from.
+- Specific shoe: ask which one, use search_inventory to find it, then call send_photos with the matches.
+- Options, a style ("all white", "something clean"), or a brand ("what Asics you got?"): FIRST ask the customer's shoe SIZE. Do NOT ask for their name. Once you have the size, call search_inventory with that size (plus brand/color/style if given) and call send_photos with EVERY match.
+- Always send ALL matching shoes with send_photos — never just a few.
+- Each photo is sent automatically with the shoe's name, price and sizes, so your own text just needs a short lead-in like "Here's what we got in size 9 👇".
+- If nothing matches, say so kindly and offer to take a special-order request.
+
+Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD.
+Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything.`;
+
+const AI_TOOLS = [
+  {
+    name: 'search_inventory',
+    description: 'Search the live shoe inventory. Combine any of size, brand, color/style or a free-text query. Returns matching shoes with id, name, price and available sizes. Always pass the size filter once the customer has given a size.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        size: { type: 'string', description: 'Size to filter by, e.g. "9" or "10.5". Only returns shoes available in this size.' },
+        brand: { type: 'string', description: 'Brand, e.g. "Jordan", "Nike", "Asics", "New Balance".' },
+        color: { type: 'string', description: 'A colour/style word, e.g. "white", "black", "red".' },
+        query: { type: 'string', description: 'Free text such as a model or nickname, e.g. "Jordan 4" or "Air Max 95".' },
+      },
+    },
+  },
+  {
+    name: 'send_photos',
+    description: "Send the customer a photo of each shoe (its name, price and sizes are added under each photo) over WhatsApp. Pass the ids from search_inventory. Send ALL the matching shoes.",
+    input_schema: {
+      type: 'object',
+      properties: { ids: { type: 'array', items: { type: 'integer' }, description: 'Shoe ids to send photos for.' } },
+      required: ['ids'],
+    },
+  },
+];
+
+function searchInventory({ size, brand, color, query } = {}) {
+  let rows = catalog.map((s, id) => ({ s, id }));
+  if (size != null && String(size).trim()) {
+    const want = String(parseFloat(size));
+    rows = rows.filter(({ s }) => s.sizesRaw.some(x => String(parseFloat(x)) === want));
+  }
+  if (brand && brand.trim()) {
+    const b = brand.toLowerCase();
+    rows = rows.filter(({ s }) => s.brand.toLowerCase().includes(b) || b.includes(s.brand.toLowerCase()));
+  }
+  if (color && color.trim()) {
+    const c = color.toLowerCase();
+    rows = rows.filter(({ s }) => `${s.color || ''} ${s.nickname || ''} ${s.name}`.toLowerCase().includes(c));
+  }
+  if (query && query.trim()) {
+    const words = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2 || /\d/.test(w));
+    rows = rows.filter(({ s }) => {
+      const hay = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''}`.toLowerCase();
+      return words.every(w => hay.includes(w));
+    });
+  }
+  return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
+}
+
+async function sendShoePhotos(sub, ids, token) {
+  const chosen = (ids || []).map(id => catalog[id]).filter(s => s && s.image);
+  const messages = [];
+  for (const s of chosen) {
+    messages.push({ type: 'image', url: s.image, caption: `${displayName(s)} — $${s.price}\n📏 ${sizesOf(s)}` });
+  }
+  let sent = 0;
+  for (let i = 0; i < messages.length; i += CHUNK) {
+    const slice = messages.slice(i, i + CHUNK);
+    try { await sendChunk(sub, slice, token); sent += slice.length; } catch (e) { /* keep going */ }
+  }
+  return { sent, requested: (ids || []).length };
+}
+
+async function callClaude(messages) {
+  const r = await fetch(ANTHROPIC_API, {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ model: AI_MODEL, max_tokens: 1024, system: SYSTEM_PROMPT, tools: AI_TOOLS, messages }),
+  });
+  const data = await r.json();
+  return { ok: r.ok, status: r.status, data };
+}
+
+const convos = new Map();    // subscriberId -> message history
+const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
+
+// Keep memory bounded without splitting a tool_use/tool_result pair: trim to a
+// window that begins on a genuine customer text turn.
+function trimHistory(h, maxLen = 24) {
+  if (h.length <= maxLen) return h;
+  let start = h.length - maxLen;
+  while (start < h.length && !(h[start].role === 'user' && typeof h[start].content === 'string')) start++;
+  return start < h.length ? h.slice(start) : h.slice(-2);
+}
+
+async function runChat(req, sub, userText, token) {
+  const history = convos.get(sub) || [];
+  history.push({ role: 'user', content: userText });
+
+  for (let step = 0; step < 6; step++) {
+    const { ok, status, data } = await callClaude(history);
+    if (!ok) {
+      record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
+      await sendChunk(sub, [{ type: 'text', text: "Sorry, I'm having a little hiccup 🤕 try again in a sec." }], token).catch(() => {});
+      return;
+    }
+    history.push({ role: 'assistant', content: data.content });
+    for (const block of data.content) {
+      if (block.type === 'text' && block.text.trim()) {
+        await sendChunk(sub, [{ type: 'text', text: block.text.trim() }], token).catch(() => {});
+      }
+    }
+    const toolUses = data.content.filter(b => b.type === 'tool_use');
+    if (!toolUses.length) break;
+    const toolResults = [];
+    for (const tu of toolUses) {
+      let result;
+      if (tu.name === 'search_inventory') result = { shoes: searchInventory(tu.input || {}) };
+      else if (tu.name === 'send_photos') result = await sendShoePhotos(sub, (tu.input || {}).ids, token);
+      else result = { error: 'unknown_tool' };
+      toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
+    }
+    history.push({ role: 'user', content: toolResults });
+  }
+  convos.set(sub, trimHistory(history));
+}
+
+function handleChat(req, res) {
+  const userText = extractQuery(req);
+  const sub = getContactId(req);
+  const token = getToken(req);
+  record(req, { endpoint: 'chat', extractedQuery: userText, sub, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
+
+  res.json({ ok: true }); // answer ManyChat instantly; do the AI work in the background
+
+  if (!process.env.ANTHROPIC_API_KEY) { record(req, { endpoint: 'chat-skip', reason: 'no ANTHROPIC_API_KEY' }); return; }
+  if (!token || !sub || !userText.trim()) return;
+
+  const prev = chatLocks.get(sub) || Promise.resolve();
+  const next = prev.then(() => runChat(req, sub, userText, token))
+    .catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
+  chatLocks.set(sub, next);
+}
+app.post('/chat', handleChat);
+app.get('/chat', handleChat);
+
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
   console.log(`${catalog.length} shoes loaded`);
