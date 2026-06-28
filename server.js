@@ -75,6 +75,7 @@ for (const s of catalog) {
 
 const app = express();
 app.use(cors());
+app.set('trust proxy', true); // Railway runs behind a proxy → correct https in self-built links
 
 // ── Body parsing: accept the customer's text no matter how it arrives ─────────
 // ManyChat (WhatsApp/IG/Messenger) can send JSON, form-encoded, or raw text with
@@ -799,6 +800,9 @@ app.get('/chat', handleChat);
 // Alias: the ManyChat flow points here (it was simplest to edit "send-photos" -> "send-chat").
 app.post('/send-chat', handleChat);
 app.get('/send-chat', handleChat);
+
+// Live delivery tracking (driver GPS → customer + manager watch a map).
+require('./delivery').mount(app);
 
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
