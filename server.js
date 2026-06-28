@@ -64,8 +64,8 @@ const FRAME_OVERRIDES = {
   // New Balance
   'nb9060white001': 31,
   'nb740pinksilv001': 1,
-  // Jordan 5 (size 10.5 list — frame 0 wasn't a clean side profile)
-  'jordan5blue001': 19,
+  // Jordan 5 (size 10.5 list — frame 0 wasn't a clean side profile; 19 was tilted)
+  'jordan5blue001': 9,
 };
 for (const s of catalog) {
   if (!s.image) continue;
