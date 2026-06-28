@@ -1985,6 +1985,544 @@
     "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemulewhite001-thumb.jpg"
   },
   {
+    "id": "p41",
+    "brand": "Jordan",
+    "name": "Air Jordan 8",
+    "color": "White/Red/Black",
+    "price": 180,
+    "sizes": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "7",
+      "8",
+      "12",
+      "12"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5",
+      "6.5",
+      "6.5",
+      "7",
+      "7",
+      "7",
+      "8",
+      "12",
+      "12"
+    ],
+    "nickname": "Bugs Bunny",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p41-thumb.jpg"
+  },
+  {
+    "id": "p42",
+    "brand": "Nike",
+    "name": "Air Max Plus TN",
+    "color": "Blue/Teal",
+    "price": 120,
+    "sizes": [
+      "7",
+      "7"
+    ],
+    "sizesRaw": [
+      "7",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p42-thumb.jpg"
+  },
+  {
+    "id": "p43",
+    "brand": "Nike",
+    "name": "Vapormax",
+    "color": "Pink",
+    "price": 120,
+    "sizes": [
+      "5.5",
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5",
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p43-thumb.jpg"
+  },
+  {
+    "id": "p44",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "White/Grey/Purple",
+    "price": 130,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p44-thumb.jpg"
+  },
+  {
+    "id": "p45",
+    "brand": "Nike",
+    "name": "Air Max 97",
+    "color": "Peach",
+    "price": 130,
+    "sizes": [
+      "7",
+      "7"
+    ],
+    "sizesRaw": [
+      "7",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p45-thumb.jpg"
+  },
+  {
+    "id": "p46",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "Teal/Mint",
+    "price": 130,
+    "sizes": [
+      "8.5",
+      "7"
+    ],
+    "sizesRaw": [
+      "8.5",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p46-thumb.jpg"
+  },
+  {
+    "id": "p47",
+    "brand": "Nike",
+    "name": "Air Max Plus TN",
+    "color": "Teal",
+    "price": 120,
+    "sizes": [
+      "6.5",
+      "7"
+    ],
+    "sizesRaw": [
+      "6.5",
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p47-thumb.jpg"
+  },
+  {
+    "id": "p48",
+    "brand": "Jordan",
+    "name": "Air Jordan 1",
+    "color": "Orange/White/Forest Green",
+    "price": 120,
+    "sizes": [
+      "9"
+    ],
+    "sizesRaw": [
+      "9"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p48-thumb.jpg"
+  },
+  {
+    "id": "p49",
+    "brand": "Nike",
+    "name": "Air Max 90",
+    "color": "Light Brown",
+    "price": 120,
+    "sizes": [
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p49-thumb.jpg"
+  },
+  {
+    "id": "p50",
+    "brand": "Nike",
+    "name": "Air Force 1",
+    "color": "Red/White",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p50-thumb.jpg"
+  },
+  {
+    "id": "p51",
+    "brand": "Jordan",
+    "name": "Air Jordan 5",
+    "color": "Metallic",
+    "price": 180,
+    "sizes": [
+      "7.5"
+    ],
+    "sizesRaw": [
+      "7.5"
+    ],
+    "nickname": "Metallic",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p51-thumb.jpg"
+  },
+  {
+    "id": "p52",
+    "brand": "Jordan",
+    "name": "Air Jordan 13",
+    "color": "Dune Red",
+    "price": 180,
+    "sizes": [
+      "10"
+    ],
+    "sizesRaw": [
+      "10"
+    ],
+    "nickname": "Dune Red",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p52-thumb.jpg"
+  },
+  {
+    "id": "p53",
+    "brand": "Nike",
+    "name": "Air Max Plus TN",
+    "color": "Black/White",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p53-thumb.jpg"
+  },
+  {
+    "id": "p54",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "Grey/Black",
+    "price": 130,
+    "sizes": [
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p54-thumb.jpg"
+  },
+  {
+    "id": "p55",
+    "brand": "Nike",
+    "name": "Air Max 95",
+    "color": "Pink/Black",
+    "price": 130,
+    "sizes": [
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p55-thumb.jpg"
+  },
+  {
+    "id": "p56",
+    "brand": "Nike",
+    "name": "Nike Drift",
+    "color": "Black",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p56-thumb.jpg"
+  },
+  {
+    "id": "p57",
+    "brand": "Nike",
+    "name": "Air Max Plus 3 TN3",
+    "color": "Black/Green",
+    "price": 130,
+    "sizes": [
+      "8"
+    ],
+    "sizesRaw": [
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p57-thumb.jpg"
+  },
+  {
+    "id": "p58",
+    "brand": "Nike",
+    "name": "Nike Roshe",
+    "color": "Black",
+    "price": 120,
+    "sizes": [
+      "6.5"
+    ],
+    "sizesRaw": [
+      "6.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p58-thumb.jpg"
+  },
+  {
+    "id": "p59",
+    "brand": "Nike",
+    "name": "Air Max Plus TN",
+    "color": "Pink/Yellow",
+    "price": 120,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p59-thumb.jpg"
+  },
+  {
+    "id": "p60",
+    "brand": "Nike",
+    "name": "Nike Scorpion",
+    "color": "Black",
+    "price": 130,
+    "sizes": [
+      "8"
+    ],
+    "sizesRaw": [
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p60-thumb.jpg"
+  },
+  {
+    "id": "p61",
+    "brand": "Jordan",
+    "name": "Air Jordan 1",
+    "color": "Red/White",
+    "price": 120,
+    "sizes": [
+      "10"
+    ],
+    "sizesRaw": [
+      "10"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p61-thumb.jpg"
+  },
+  {
+    "id": "p62",
+    "brand": "Nike",
+    "name": "Dunk",
+    "color": "Burgundy/White",
+    "price": 120,
+    "sizes": [
+      "13"
+    ],
+    "sizesRaw": [
+      "13"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p62-thumb.jpg"
+  },
+  {
+    "id": "p63",
+    "brand": "Jordan",
+    "name": "Air Jordan 1",
+    "color": "Red/Black/White",
+    "price": 120,
+    "sizes": [
+      "13"
+    ],
+    "sizesRaw": [
+      "13"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p63-thumb.jpg"
+  },
+  {
+    "id": "p64",
+    "brand": "Nike",
+    "name": "Air Max 97",
+    "color": "Orange/Blue",
+    "price": 130,
+    "sizes": [
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p64-thumb.jpg"
+  },
+  {
+    "id": "p65",
+    "brand": "Nike",
+    "name": "Huarache",
+    "color": "White/Blue",
+    "price": 120,
+    "sizes": [
+      "11"
+    ],
+    "sizesRaw": [
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p65-thumb.jpg"
+  },
+  {
+    "id": "p66",
+    "brand": "Asics",
+    "name": "Asics",
+    "color": "Silver",
+    "price": 130,
+    "sizes": [
+      "8"
+    ],
+    "sizesRaw": [
+      "8"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p66-thumb.jpg"
+  },
+  {
+    "id": "p67",
+    "brand": "Nike",
+    "name": "Air Max Plus TN",
+    "color": "Tan/Orange",
+    "price": 120,
+    "sizes": [
+      "8.5"
+    ],
+    "sizesRaw": [
+      "8.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p67-thumb.jpg"
+  },
+  {
+    "id": "p68",
+    "brand": "Jordan",
+    "name": "Air Jordan 12",
+    "color": "White/Blue",
+    "price": 180,
+    "sizes": [
+      "10.5"
+    ],
+    "sizesRaw": [
+      "10.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p68-thumb.jpg"
+  },
+  {
+    "id": "p69",
+    "brand": "Jordan",
+    "name": "Air Jordan 6 DMP",
+    "color": "Black/Silver",
+    "price": 180,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p69-thumb.jpg"
+  },
+  {
+    "id": "p70",
+    "brand": "Jordan",
+    "name": "Air Jordan 1",
+    "color": "Yellow/White/Black",
+    "price": 120,
+    "sizes": [
+      "4Y"
+    ],
+    "sizesRaw": [
+      "4Y"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p70-thumb.jpg"
+  },
+  {
+    "id": "p71",
+    "brand": "Jordan",
+    "name": "Air Jordan 1",
+    "color": "Green/White",
+    "price": 120,
+    "sizes": [
+      "12"
+    ],
+    "sizesRaw": [
+      "12"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p71-thumb.jpg"
+  },
+  {
+    "id": "p72",
+    "brand": "Nike",
+    "name": "Nike Scorpion",
+    "color": "Black/Rainbow",
+    "price": 130,
+    "sizes": [
+      "5.5"
+    ],
+    "sizesRaw": [
+      "5.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p72-thumb.jpg"
+  },
+  {
+    "id": "p73",
+    "brand": "Nike",
+    "name": "Air Max 21",
+    "color": "2021",
+    "price": 120,
+    "sizes": [
+      "6.5"
+    ],
+    "sizesRaw": [
+      "6.5"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p73-thumb.jpg"
+  },
+  {
+    "id": "p74",
+    "brand": "Jordan",
+    "name": "Air Jordan 6",
+    "color": "White/Black",
+    "price": 180,
+    "sizes": [
+      "7"
+    ],
+    "sizesRaw": [
+      "7"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p74-thumb.jpg"
+  },
+  {
     "id": "asicsgrywht001",
     "brand": "Asics",
     "name": "Asics",
