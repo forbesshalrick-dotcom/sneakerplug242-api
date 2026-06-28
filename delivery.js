@@ -114,6 +114,11 @@ $("start").onclick=async function(){
   var body={code:$("code").value.trim(),customer:$("customer").value.trim(),phone:$("phone").value.replace(/[^0-9]/g,''),address:$("address").value.trim()};
   if(!body.customer||!body.phone){$("err").textContent="Add the customer name and number.";return}
   $("start").textContent="Starting…";$("start").disabled=true;
+  // Geocode the address here on the phone (Nominatim allows normal devices), send coords.
+  if(body.address){try{
+    var g=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(body.address+", Bahamas"));
+    var gj=await g.json(); if(gj&&gj[0])body.dest={lat:parseFloat(gj[0].lat),lng:parseFloat(gj[0].lon)};
+  }catch(e){}}
   try{
     var r=await fetch(BASE+"/delivery/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     var j=await r.json();
@@ -203,7 +208,10 @@ function mount(app) {
     if (String(b.code || '') !== DRIVER_CODE) return res.json({ ok: false, error: 'Wrong driver code.' });
     if (!b.customer || !b.phone) return res.json({ ok: false, error: 'Customer name and number required.' });
     const id = genId();
-    const dest = b.address ? await geocode(b.address) : null;
+    // Prefer coords the driver's phone already resolved; fall back to server geocode.
+    let dest = (b.dest && b.dest.lat != null && b.dest.lng != null)
+      ? { lat: parseFloat(b.dest.lat), lng: parseFloat(b.dest.lng) } : null;
+    if (!dest && b.address) dest = await geocode(b.address);
     const d = { id, customer: String(b.customer), phone: String(b.phone).replace(/[^0-9]/g, ''),
       address: b.address || '', dest, driver: null, status: 'active', createdAt: Date.now(), updatedAt: Date.now() };
     deliveries.set(id, d);
