@@ -133,7 +133,9 @@ function isJunk(v) {
 // as the search text in the catch-all fallbacks below.
 const NON_MESSAGE_KEYS = new Set(['name', 'full_name', 'fullname', 'first_name',
   'firstname', 'last_name', 'lastname', 'store', 'contact_name', 'token',
-  'contact_id', 'subscriber_id', 'subscriberid', 'contactid', 'user_id']);
+  'contact_id', 'subscriber_id', 'subscriberid', 'contactid', 'user_id',
+  'audio_url', 'voice_url', 'voice', 'audio', 'attachment_url', 'media_url',
+  'file_url', 'last_audio_url', 'attachment', 'url']);
 
 function extractQuery(req) {
   // 1. Query string (?q= / ?message= ...)
@@ -425,6 +427,21 @@ function getName(req) {
   return null;
 }
 
+// A voice-note / audio file URL, if the message was a voice note. ManyChat hands
+// us the attachment URL; we transcribe it (Whisper) and treat it like typed text.
+function getAudioUrl(req) {
+  const keys = ['audio_url', 'voice_url', 'voice', 'audio', 'attachment_url',
+    'media_url', 'file_url', 'last_audio_url', 'attachment', 'url'];
+  const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
+  for (const src of srcs) for (const k of keys) {
+    const v = src[k];
+    if (v == null || isJunk(v)) continue;
+    const s = String(v).trim();
+    if (/^https?:\/\//i.test(s)) return s;
+  }
+  return null;
+}
+
 function getToken(req) {
   if (process.env.MANYCHAT_TOKEN) return process.env.MANYCHAT_TOKEN.trim();
   const h = req.headers['authorization'];
@@ -623,6 +640,30 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true) {
   return { sent, requested: (ids || []).length };
 }
 
+// ── Voice notes → text (OpenAI Whisper) ───────────────────────────────────────
+// Claude can't hear audio, so when a customer sends a WhatsApp voice note we
+// download the audio file ManyChat points us at and transcribe it with Whisper,
+// then feed the text into the normal chat. Needs OPENAI_API_KEY in the env.
+const WHISPER_API = 'https://api.openai.com/v1/audio/transcriptions';
+async function transcribeAudio(url) {
+  if (!process.env.OPENAI_API_KEY) return null;
+  const audio = await fetch(url);
+  if (!audio.ok) return null;
+  const buf = Buffer.from(await audio.arrayBuffer());
+  // WhatsApp voice notes are ogg/opus; the filename extension tells Whisper the format.
+  const form = new FormData();
+  form.append('file', new Blob([buf]), 'voice.ogg');
+  form.append('model', 'whisper-1');
+  const r = await fetch(WHISPER_API, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY.trim()}` },
+    body: form,
+  });
+  if (!r.ok) return null;
+  const data = await r.json().catch(() => null);
+  return data && data.text ? String(data.text).trim() : null;
+}
+
 async function callClaude(messages, system) {
   const r = await fetch(ANTHROPIC_API, {
     method: 'POST',
@@ -718,22 +759,36 @@ async function runChat(req, sub, userText, token, ctx = {}) {
 
 function handleChat(req, res) {
   const userText = extractQuery(req);
+  const audioUrl = getAudioUrl(req);
   const sub = getContactId(req);
   const token = getToken(req);
   const store = getStore(req);
   const name = getName(req);
-  record(req, { endpoint: 'chat', extractedQuery: userText, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
+  record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
 
   res.json({ ok: true }); // answer ManyChat instantly; do the AI work in the background
 
   if (!process.env.ANTHROPIC_API_KEY) { record(req, { endpoint: 'chat-skip', reason: 'no ANTHROPIC_API_KEY' }); return; }
-  if (!token || !sub || !userText.trim()) return;
+  if (!token || !sub) return;
+  if (!userText.trim() && !audioUrl) return; // nothing to act on
 
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
 
   const prev = chatLocks.get(sub) || Promise.resolve();
-  const next = prev.then(() => runChat(req, sub, userText, token, { store, name }))
-    .catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
+  const next = prev.then(async () => {
+    let text = userText;
+    // Voice note with no typed text: transcribe it first, then chat as normal.
+    if (!text.trim() && audioUrl) {
+      const t = await transcribeAudio(audioUrl).catch(() => null);
+      record(req, { endpoint: 'voice-transcribe', sub, audioUrl, transcript: t, hasOpenAI: !!process.env.OPENAI_API_KEY });
+      if (!t) {
+        await sendChunk(sub, [{ type: 'text', text: "Sorry, I couldn't quite catch that voice note 🙉 mind typing it or sending it again?" }], token).catch(() => {});
+        return;
+      }
+      text = t;
+    }
+    return runChat(req, sub, text, token, { store, name });
+  }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
 app.post('/chat', handleChat);
