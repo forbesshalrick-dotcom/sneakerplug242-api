@@ -129,6 +129,12 @@ function isJunk(v) {
   return false;
 }
 
+// Keys that are metadata, NOT the customer's message — never treat their values
+// as the search text in the catch-all fallbacks below.
+const NON_MESSAGE_KEYS = new Set(['name', 'full_name', 'fullname', 'first_name',
+  'firstname', 'last_name', 'lastname', 'store', 'contact_name', 'token',
+  'contact_id', 'subscriber_id', 'subscriberid', 'contactid', 'user_id']);
+
 function extractQuery(req) {
   // 1. Query string (?q= / ?message= ...)
   if (req.query) {
@@ -152,14 +158,16 @@ function extractQuery(req) {
     for (const o of objs) {
       for (const k of FIELDS) if (!isJunk(o[k])) return String(o[k]).trim();
     }
-    // Any non-empty string value anywhere (1 level deep)
+    // Any non-empty string value anywhere (1 level deep), skipping metadata keys
     for (const o of objs) {
-      for (const v of Object.values(o)) if (typeof v === 'string' && !isJunk(v)) return v.trim();
+      for (const [k, v] of Object.entries(o)) {
+        if (typeof v === 'string' && !isJunk(v) && !NON_MESSAGE_KEYS.has(k.toLowerCase())) return v.trim();
+      }
     }
     // Keyless form post: "jordan 4" arrived with a form Content-Type and parsed
     // to { "jordan 4": "" } — the text is the key itself.
     for (const k of Object.keys(b)) {
-      if (b[k] === '' && /[a-z]/i.test(k) && !isJunk(k)) return k.trim();
+      if (b[k] === '' && /[a-z]/i.test(k) && !isJunk(k) && !NON_MESSAGE_KEYS.has(k.toLowerCase())) return k.trim();
     }
   }
 
@@ -397,6 +405,26 @@ function getContactId(req) {
   return null;
 }
 
+// Which store the message came from (each ManyChat flow sends a constant "store"),
+// used to greet with the right shop name.
+function getStore(req) {
+  const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
+  for (const src of srcs) {
+    if (src.store != null && !isJunk(src.store)) return String(src.store).trim();
+  }
+  return null;
+}
+
+// The customer's saved name (ManyChat sends it), used for name-based greetings.
+function getName(req) {
+  const keys = ['name', 'full_name', 'fullName', 'first_name', 'firstName', 'contact_name'];
+  const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
+  for (const src of srcs) for (const k of keys) {
+    if (src[k] != null && !isJunk(src[k])) return String(src[k]).trim();
+  }
+  return null;
+}
+
 function getToken(req) {
   if (process.env.MANYCHAT_TOKEN) return process.env.MANYCHAT_TOKEN.trim();
   const h = req.headers['authorization'];
@@ -473,11 +501,20 @@ const BRANDS = [...new Set(catalog.map(s => s.brand))];
 const ALL_SIZES = [...new Set(catalog.flatMap(s => s.sizesRaw.map(x => parseFloat(x))))].sort((a, b) => a - b);
 const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.length - 1]}` : 'various';
 
-const SYSTEM_PROMPT = `You are the friendly WhatsApp shopping assistant for THE PLUG 242, a sneaker store.
+const STORE_DEFAULT = 'THE PLUG 242';
+const WEBSITE = '242plug.netlify.app';
+const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes
+const END_OF_PHOTOS_MSG = `There's the photos! 👟 If you want to check out even more, visit our website and search what you need in the search bar. 👉 ${WEBSITE}`;
+const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked, or did you get sorted?';
+
+function buildSystemPrompt({ store, name } = {}) {
+  const storeName = store || STORE_DEFAULT;
+  const who = name && name.trim() ? name.trim() : '';
+  return `You are the friendly WhatsApp shopping assistant for ${storeName}, a sneaker store in The Bahamas.
 
 How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
-- On a brand-new conversation, greet the customer and ask whether they're after a SPECIFIC shoe, or want OPTIONS to pick from.
+- WELCOME: On your very FIRST reply in a brand-new conversation, greet the customer with exactly this line: "Hi! Welcome! 👟 This is ${storeName}! Are you looking for a specific shoe you already have in mind, or do you want me to show you what we've got?" (If their first message already names a shoe or a size, still open with that greeting, then go straight to helping them.)
 - The ONE thing you must have before showing options is the customer's SIZE. Do NOT ask for their name. Do NOT ask which brand, colour or style — just the size — UNLESS the customer brings up a brand/style themselves.
 - As soon as you know the size, immediately call search_inventory with that size (plus any brand/colour/style the customer already mentioned) and call send_photos with EVERY match. Do not ask any more questions first — just show them what we've got.
 - Specific shoe: if they name a shoe ("Jordan 4", "Air Max 95"), search for it and send_photos with the matches (ask their size only if you need it to narrow things down).
@@ -487,11 +524,31 @@ How to chat:
 - Customers often ask the whole thing in one message, e.g. "do you have any Asics in 9" or "any blue Asics in size 8". When they do, you already have everything you need — go straight to search_inventory + send_photos, no extra questions.
 - Always send ALL matching shoes with send_photos — never just a few.
 - NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Then, on the turn where you call send_photos, say exactly ONE short lead-in line (like "Here's what we've got in size 10.5 👇") and nothing else — the photos follow automatically right after.
-- Each photo is sent automatically with the shoe's name, price and sizes, so that single lead-in line is the only thing you say before the photos.
 - If nothing matches, say so kindly and offer to take a special-order request.
 
-Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD.
+PHOTOS — whether to show sizes under each photo:
+- If the customer has NOT told you a size (general browsing like "what Jordans do you have?"), call send_photos with include_sizes = true. Each photo then shows the shoe's name, price AND the available sizes, so the customer can see what fits and pick.
+- If the customer HAS given a size, call send_photos with include_sizes = false. We already filtered to their size, so the photos go out with just the name and price — no sizes line needed.
+
+You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
+
+PAYMENT: If they ask about payment, tell them: we accept cash only, no cards right now, but bank transfer is available if they need it. Then ask which bank they prefer — Scotiabank or CIBC — and send the matching details:
+- Scotiabank → "Scotiabank 🏦\nAccount #: 201727284\nTransit #: 09766\nName: Rodney Munnings"
+- CIBC → "CIBC 🏦\nAccount #: 004005357\nTransit #: 70045\nName: Rodney Munnings"
+
+SHIPPING: If they ask about shipping, tell them: yes we ship to ALL the Family Islands! Boat is $10 flat rate (only on certain sailing days, not every day). Plane is $35 (goes every day, charged by weight). Then ask whether they prefer Boat or Plane. Once they choose, ask them to confirm the island name, plus the full name and phone number of the person receiving it.
+
+LOCATION: If they ask where you're located, tell them: we're on Carmichael Road West, but we're mobile and delivery-only — we'll come to your nearest spot. 📍
+
+SPECIAL CONTACTS:
+- If the customer's message is just the name "Rodney" (spelled R-O-D-N-E-Y), it's probably Rodney's mom. First reply ONLY with: "Hey! Is this Mommy? 😊" If she replies yes, then reply warmly: "Hi Mo! How are you doing? Love you. Hope everything is okay! 💛"
+${who ? `- The customer's saved name is "${who}".\n` : ''}- If the customer's saved name is exactly "Deashinique", greet her with: "Hey Deashinique! What's up? 👟" (always spell it exactly "Deashinique").
+
+FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get sorted?" and they reply: if they say NO / nothing caught their eye → reply "Okay, no worries! Maybe next time. Have a good day! 👟". If they say YES / they liked something → reply "Nice! Can you send me a screenshot or reply to the photo you liked so I can sort it out for you? 📸".
+
+Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD. Website: ${WEBSITE}.
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything.`;
+}
 
 const AI_TOOLS = [
   {
@@ -509,10 +566,13 @@ const AI_TOOLS = [
   },
   {
     name: 'send_photos',
-    description: "Send the customer a photo of each shoe (its name, price and sizes are added under each photo) over WhatsApp. Pass the ids from search_inventory. Send ALL the matching shoes.",
+    description: "Send the customer a photo of each shoe over WhatsApp. Pass the ids from search_inventory. Send ALL the matching shoes. A short closing message with the website link is added automatically after the photos.",
     input_schema: {
       type: 'object',
-      properties: { ids: { type: 'array', items: { type: 'integer' }, description: 'Shoe ids to send photos for.' } },
+      properties: {
+        ids: { type: 'array', items: { type: 'integer' }, description: 'Shoe ids to send photos for.' },
+        include_sizes: { type: 'boolean', description: 'true = show name, price AND available sizes under each photo (use when the customer has NOT given a size / is just browsing). false = show only name and price (use when the customer already gave a size, since we filtered to it). Defaults to true.' },
+      },
       required: ['ids'],
     },
   },
@@ -542,21 +602,28 @@ function searchInventory({ size, brand, color, query } = {}) {
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
 }
 
-async function sendShoePhotos(sub, ids, token) {
+async function sendShoePhotos(sub, ids, token, includeSizes = true) {
   const chosen = (ids || []).map(id => catalog[id]).filter(s => s && s.image);
   const messages = [];
   for (const s of chosen) {
-    messages.push({ type: 'image', url: s.image, caption: `${displayName(s)} — $${s.price}\n📏 ${sizesOf(s)}` });
+    const caption = includeSizes
+      ? `${displayName(s)} — $${s.price}\nSizes: ${sizesOf(s)}`   // browsing: show sizes
+      : `${displayName(s)} — $${s.price}`;                         // already filtered by size
+    messages.push({ type: 'image', url: s.image, caption });
   }
   let sent = 0;
   for (let i = 0; i < messages.length; i += CHUNK) {
     const slice = messages.slice(i, i + CHUNK);
     try { await sendChunk(sub, slice, token); sent += slice.length; } catch (e) { /* keep going */ }
   }
+  // Always close with the website prompt once photos have actually gone out.
+  if (sent > 0) {
+    try { await sendChunk(sub, [{ type: 'text', text: END_OF_PHOTOS_MSG }], token); } catch (e) { /* non-fatal */ }
+  }
   return { sent, requested: (ids || []).length };
 }
 
-async function callClaude(messages) {
+async function callClaude(messages, system) {
   const r = await fetch(ANTHROPIC_API, {
     method: 'POST',
     headers: {
@@ -564,7 +631,7 @@ async function callClaude(messages) {
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ model: AI_MODEL, max_tokens: 1024, system: SYSTEM_PROMPT, tools: AI_TOOLS, messages }),
+    body: JSON.stringify({ model: AI_MODEL, max_tokens: 1024, system: system || buildSystemPrompt(), tools: AI_TOOLS, messages }),
   });
   const data = await r.json();
   return { ok: r.ok, status: r.status, data };
@@ -572,6 +639,29 @@ async function callClaude(messages) {
 
 const convos = new Map();    // subscriberId -> message history
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
+const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
+
+// Schedule the "did you see anything you liked?" nudge for 10 min after we send
+// shoes. Resets if called again. Cancelled (clearFollowUp) when the customer
+// messages again — so we only nudge customers who went quiet.
+function scheduleFollowUp(sub, token) {
+  clearFollowUp(sub);
+  const handle = setTimeout(async () => {
+    followUps.delete(sub);
+    try {
+      await sendChunk(sub, [{ type: 'text', text: FOLLOWUP_MSG }], token);
+      const h = convos.get(sub) || [];
+      h.push({ role: 'assistant', content: FOLLOWUP_MSG }); // so Claude knows it asked
+      convos.set(sub, trimHistory(h));
+    } catch (e) { /* non-fatal */ }
+  }, FOLLOWUP_MS);
+  if (handle.unref) handle.unref();
+  followUps.set(sub, handle);
+}
+function clearFollowUp(sub) {
+  const h = followUps.get(sub);
+  if (h) { clearTimeout(h); followUps.delete(sub); }
+}
 
 // Keep memory bounded without splitting a tool_use/tool_result pair: trim to a
 // window that begins on a genuine customer text turn.
@@ -582,12 +672,13 @@ function trimHistory(h, maxLen = 24) {
   return start < h.length ? h.slice(start) : h.slice(-2);
 }
 
-async function runChat(req, sub, userText, token) {
+async function runChat(req, sub, userText, token, ctx = {}) {
+  const system = buildSystemPrompt({ store: ctx.store, name: ctx.name });
   const history = convos.get(sub) || [];
   history.push({ role: 'user', content: userText });
 
   for (let step = 0; step < 6; step++) {
-    const { ok, status, data } = await callClaude(history);
+    const { ok, status, data } = await callClaude(history, system);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
       await sendChunk(sub, [{ type: 'text', text: "Sorry, I'm having a little hiccup 🤕 try again in a sec." }], token).catch(() => {});
@@ -611,7 +702,12 @@ async function runChat(req, sub, userText, token) {
     for (const tu of toolUses) {
       let result;
       if (tu.name === 'search_inventory') result = { shoes: searchInventory(tu.input || {}) };
-      else if (tu.name === 'send_photos') result = await sendShoePhotos(sub, (tu.input || {}).ids, token);
+      else if (tu.name === 'send_photos') {
+        const inp = tu.input || {};
+        const includeSizes = inp.include_sizes !== false; // default true
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes);
+        if (result.sent > 0) scheduleFollowUp(sub, token); // nudge 10 min later if they go quiet
+      }
       else result = { error: 'unknown_tool' };
       toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
     }
@@ -624,15 +720,19 @@ function handleChat(req, res) {
   const userText = extractQuery(req);
   const sub = getContactId(req);
   const token = getToken(req);
-  record(req, { endpoint: 'chat', extractedQuery: userText, sub, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
+  const store = getStore(req);
+  const name = getName(req);
+  record(req, { endpoint: 'chat', extractedQuery: userText, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
 
   res.json({ ok: true }); // answer ManyChat instantly; do the AI work in the background
 
   if (!process.env.ANTHROPIC_API_KEY) { record(req, { endpoint: 'chat-skip', reason: 'no ANTHROPIC_API_KEY' }); return; }
   if (!token || !sub || !userText.trim()) return;
 
+  clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
+
   const prev = chatLocks.get(sub) || Promise.resolve();
-  const next = prev.then(() => runChat(req, sub, userText, token))
+  const next = prev.then(() => runChat(req, sub, userText, token, { store, name }))
     .catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
