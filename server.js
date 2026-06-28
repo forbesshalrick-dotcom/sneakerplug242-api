@@ -810,6 +810,10 @@ app.get('/send-chat', handleChat);
 // Live delivery tracking (driver GPS → customer + manager watch a map).
 require('./delivery').mount(app);
 
+// Shared shop "brain": notes/tasks, sales, log, inventory synced across devices
+// + WhatsApp alerts to employees on new notes.
+require('./shop').mount(app);
+
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
   console.log(`${catalog.length} shoes loaded`);
