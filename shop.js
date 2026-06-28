@@ -45,7 +45,9 @@ const state = {
   log: loadFile('log.json', []),           // mirror of website audit entries
   shoes: loadFile('shoes.json', null),     // null = server has no inventory yet (don't overwrite devices)
   deleted: loadFile('deleted.json', []),   // deleted shoe ids
-  employees: loadFile('employees.json', {}), // { name: "+1242..." }
+  employees: loadFile('employees.json', {}), // { name: "+1242..." } WhatsApp numbers
+  accounts: loadFile('accounts.json', {}),  // { name: "passwordOrEmpty" } login accounts
+  roles: loadFile('roles.json', {}),        // { name: "supervisor"|"line_staff" }
   rev: loadFile('rev.json', { n: 1 }),
 };
 
@@ -120,6 +122,8 @@ function mount(app) {
       shoes: state.shoes,
       deleted: state.deleted,
       employees: state.employees,
+      accounts: state.accounts,
+      roles: state.roles,
     });
   });
 
@@ -208,10 +212,31 @@ function mount(app) {
     if (!auth(req, res)) return;
     const b = req.body || {};
     if (b.numbers && typeof b.numbers === 'object') {
-      state.employees = b.numbers;
-      persist('employees.json');
+      // merge: union of names, a non-empty incoming number replaces a blank one
+      Object.keys(b.numbers).forEach(function (n) {
+        if (b.numbers[n] || !state.employees[n]) state.employees[n] = b.numbers[n];
+      });
+      persist('employees.json'); bump();
     }
     res.json({ employees: state.employees });
+  });
+
+  // ---- Login accounts + roles (so a staffer added on one phone appears on all) ----
+  // Merge, never clobber: union of names; a non-empty value wins over a blank.
+  app.post('/shop/accounts', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    function mergeInto(target, src) {
+      if (!src || typeof src !== 'object') return;
+      Object.keys(src).forEach(function (k) {
+        if (src[k] || !target[k]) target[k] = src[k];
+      });
+    }
+    mergeInto(state.accounts, b.accounts);
+    mergeInto(state.roles, b.roles);
+    mergeInto(state.employees, b.numbers);
+    persist('accounts.json'); persist('roles.json'); persist('employees.json'); bump();
+    res.json({ accounts: state.accounts, roles: state.roles, employees: state.employees });
   });
 
   // ---- Sales (append; deviceId+id dedupe) ----
