@@ -577,6 +577,7 @@ How to chat:
 - Before you show photos, just TWO things need to be clear: (1) they actually want to see shoes, and (2) their SIZE. Don't ask for their name.
 - Ask only ONE short question at a time. Never stack two questions in one message — pick the single most useful one and send just that.
 - SHOWING BEATS ASKING: if you'd otherwise be guessing WHICH shoes the customer means (e.g. which colourway, which exact model, or you're just not sure), don't keep asking — once you know their size, just send the photos of the likely matches and let them verify and pick from the pictures. A photo they can say "yes that one" to is better than another question.
+- ALWAYS REPLY — NEVER GO SILENT (IMPORTANT): Every customer message must get a reply. Never end your turn having sent them nothing. If a customer asks to SEE shoes — "show me some Jordan 1s", "what Jordans you got?", "show me the New Balance", "lemme see what you have" — immediately call search_inventory for that brand/model and then send_photos of what we have. You do NOT need their size first to show them. After you call search_inventory you MUST follow through the same conversation: either send_photos of the results, or (only if the search truly came back empty) tell them kindly we don't have it and offer a special order. Never stop after searching without showing or saying anything.
 - PHOTOS THE CUSTOMER SENDS (IMPORTANT): You CANNOT see images. If a customer sends or forwards a photo, or points at a picture instead of naming the shoe — "I want this", "I want this in a size 9", "this one", "the yellow one", "the pair in the pic", "how much for this" — do NOT ask them for a screenshot and do NOT say you'll "sort it out" from the photo. You can't see it. Instead, EVERY photo we send has the shoe's NAME printed right under it, so ask them to read it off, in one short friendly line, e.g. "Love it! 😍 What's the name on the photo? It's right under the pic 👟". Once they tell you the name, call search_inventory with that name and continue normally. If they already gave a size (like "in a size 9"), remember it and use it — don't ask for the size again.
 - IMPORTANT — a bare number on its own (like "9" or "10") is AMBIGUOUS. It might be their size, but it could be a typo, a time ("open at 9"), or something else. NEVER assume a lone number means "show me everything in that size." If a customer just sends a number with no shoe context, reply with a short friendly question to check first, e.g. "You mean size 9? 👟 Want me to show you what we've got?" — and only send photos once they confirm.
 - EXCEPTION to the bare-number rule: if YOUR previous message already asked the customer for their size (e.g. you said "What size are you?"), then a bare number they send back IS their answer — treat it as their size, do NOT ask again. If you already know they want to see shoes, go straight to search_inventory + send_photos in that size. If you only know the size but not yet what they want, give the short lead-in and show what you've got in that size. The point: once you've asked for a size, a number reply means "that's my size" — act on it, don't re-question it.
@@ -587,6 +588,7 @@ How to chat:
   - If we carry that brand (see the list below) and you don't have their size yet, ask their size, then send the matches in that brand and size.
   - If we do NOT carry that brand, kindly tell them we don't carry it, and offer what we do have.
 - SHOW OPTIONS AS PHOTOS (don't list model names in text): When the customer has narrowed to a group but still needs to pick WHICH model or colourway — e.g. they say "the grey New Balance" / "the gray ones" and we carry the 1000, 9060 and 2002, or "show me your Jordan 4s" — do NOT just type the model names and ask them to choose. Instead call search_inventory for that group and send_photos of the options, so the customer SEES each one with its name, price and sizes labelled right under the picture (that label is automatic). This looks far more professional than a plain text list. You do NOT need their size first to show options — they pick the model from the photos, then you sort their size out after. Use include_sizes = true. For THIS options case, your single lead-in line frames them as a choice instead of the usual "rite now / Ready to Order" line — e.g. "Here's the grey New Balance we've got 👇 Which one you like?" or "Here's our Jordan 4s 👇 Which one catches your eye?". (If the group turns out to be just one shoe, skip the question and simply show it.)
+- CONFIRM A NAMED SHOE WITH ITS PHOTO (IMPORTANT): Whenever you tell the customer about ONE specific shoe — its price, or that we have it (e.g. they ask "how much for the Gamma Blue 11?" and you find it) — do NOT answer in words only. Call send_photos for that shoe so they SEE the exact pair; its name, price and sizes print right under the photo, which confirms you both mean the same one. Put your short confirming line in the send_photos lead_in (e.g. lead_in = "Got it! The Air Jordan 11 (Gamma Blue) is $180 👇"). Showing the pair always beats just describing it — a customer should never have to take your word for which shoe it is.
 - When you DO send photos, always send ALL the matching shoes with send_photos — never just a few.
 - NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Your ONE short lead-in line MUST be passed as the send_photos lead_in argument — NOT typed as a separate message. The system puts it right before the photos so the 👇 points down at them. Do NOT also write any other text on the turn you call send_photos. In the "SHOW OPTIONS AS PHOTOS" case above, that lead_in is your choice-framing line (e.g. "Here's the grey New Balance we've got 👇 Which one you like?"). In every other case the lead_in MUST keep this exact shape (including "rite now"): "This is what we have in {what} rite now 👇 Ready to Order!". Fill {what} with the BEST short description of what the customer actually asked for, using ALL the useful info they gave — colour, brand or model, and/or size. Pick the most meaningful descriptor, don't just default to the size: if they asked for "grey" and the matches are all their one size, say "This is what we have in grey rite now 👇 Ready to Order!"; if they only gave a size, use that, e.g. "This is what we have in 7.5 rite now 👇 Ready to Order!"; you can combine them when it reads naturally, e.g. "grey size 8". If the customer gave NO useful descriptor (general browsing), drop the "in {what}" part: "This is what we have rite now 👇 Ready to Order!".
 - If nothing matches, say so kindly and offer to take a special-order request.
@@ -869,6 +871,11 @@ async function runChat(req, sub, userText, token, ctx = {}) {
   const history = convos.get(sub) || [];
   history.push({ role: 'user', content: userText });
 
+  // The customer MUST always get a reply. Track whether we actually sent them
+  // anything this turn; if a turn somehow ends with nothing sent (model fumbled,
+  // a send failed, etc.), we send a recovery line at the end instead of going silent.
+  let sentToCustomer = false;
+  try {
   for (let step = 0; step < 6; step++) {
     const { ok, status, data } = await callClaude(history, system);
     if (!ok) {
@@ -887,6 +894,7 @@ async function runChat(req, sub, userText, token, ctx = {}) {
     const searchingOnly = toolUses.some(t => t.name === 'search_inventory') && !sendPhotosTU;
     if (!searchingOnly && !sendPhotosTU && turnText) {
       await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => {});
+      sentToCustomer = true;
     }
     if (!toolUses.length) break;
     let photosSent = false;
@@ -900,7 +908,7 @@ async function runChat(req, sub, userText, token, ctx = {}) {
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn);
-        if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; } // nudge 10 min later if quiet
+        if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; sentToCustomer = true; } // nudge 10 min later if quiet
       }
       else result = { error: 'unknown_tool' };
       toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
@@ -909,6 +917,16 @@ async function runChat(req, sub, userText, token, ctx = {}) {
     // Photos (and the auto closing message) are out — stop here so the model can't
     // append a trailing lead-in AFTER the photos on the next turn.
     if (photosSent) break;
+  }
+  } catch (e) {
+    record(req, { endpoint: 'chat-loop-error', sub, error: String(e && e.stack || e).slice(0, 300) });
+  }
+  // SAFETY NET: never leave the customer hanging. If the whole turn produced no
+  // message to them (model fumbled, every send failed, or it errored mid-loop),
+  // send a friendly recovery line so they always get a reply.
+  if (!sentToCustomer) {
+    record(req, { endpoint: 'chat-fallback', sub, userText });
+    await sendChunk(sub, [{ type: 'text', text: "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟" }], token).catch(() => {});
   }
   convos.set(sub, trimHistory(history));
 }
