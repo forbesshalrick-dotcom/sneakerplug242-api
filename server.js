@@ -588,12 +588,14 @@ How to chat:
   - If we do NOT carry that brand, kindly tell them we don't carry it, and offer what we do have.
 - SHOW OPTIONS AS PHOTOS (don't list model names in text): When the customer has narrowed to a group but still needs to pick WHICH model or colourway — e.g. they say "the grey New Balance" / "the gray ones" and we carry the 1000, 9060 and 2002, or "show me your Jordan 4s" — do NOT just type the model names and ask them to choose. Instead call search_inventory for that group and send_photos of the options, so the customer SEES each one with its name, price and sizes labelled right under the picture (that label is automatic). This looks far more professional than a plain text list. You do NOT need their size first to show options — they pick the model from the photos, then you sort their size out after. Use include_sizes = true. For THIS options case, your single lead-in line frames them as a choice instead of the usual "rite now / Ready to Order" line — e.g. "Here's the grey New Balance we've got 👇 Which one you like?" or "Here's our Jordan 4s 👇 Which one catches your eye?". (If the group turns out to be just one shoe, skip the question and simply show it.)
 - When you DO send photos, always send ALL the matching shoes with send_photos — never just a few.
-- NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Your ONE short lead-in line MUST be passed as the send_photos lead_in argument — NOT typed as a separate message. The system puts it right before the photos so the 👇 points down at them. Do NOT also write any other text on the turn you call send_photos. In the "SHOW OPTIONS AS PHOTOS" case above, that lead_in is your choice-framing line (e.g. "Here's the grey New Balance we've got 👇 Which one you like?"). In every other case the lead_in MUST be (keep this exact wording, including "rite now"): "This is what we have in {size} rite now 👇 Ready to Order!" — replace {size} with the customer's actual size, e.g. "This is what we have in 7.5 rite now 👇 Ready to Order!". If the customer did NOT give a size (general browsing), drop the size part: "This is what we have rite now 👇 Ready to Order!".
+- NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Your ONE short lead-in line MUST be passed as the send_photos lead_in argument — NOT typed as a separate message. The system puts it right before the photos so the 👇 points down at them. Do NOT also write any other text on the turn you call send_photos. In the "SHOW OPTIONS AS PHOTOS" case above, that lead_in is your choice-framing line (e.g. "Here's the grey New Balance we've got 👇 Which one you like?"). In every other case the lead_in MUST keep this exact shape (including "rite now"): "This is what we have in {what} rite now 👇 Ready to Order!". Fill {what} with the BEST short description of what the customer actually asked for, using ALL the useful info they gave — colour, brand or model, and/or size. Pick the most meaningful descriptor, don't just default to the size: if they asked for "grey" and the matches are all their one size, say "This is what we have in grey rite now 👇 Ready to Order!"; if they only gave a size, use that, e.g. "This is what we have in 7.5 rite now 👇 Ready to Order!"; you can combine them when it reads naturally, e.g. "grey size 8". If the customer gave NO useful descriptor (general browsing), drop the "in {what}" part: "This is what we have rite now 👇 Ready to Order!".
 - If nothing matches, say so kindly and offer to take a special-order request.
 
-PHOTOS — every photo always carries a label:
-- Every photo we send automatically shows the shoe's NAME, price AND the sizes it comes in, printed right underneath the picture. This always happens — you do not need to do anything to turn it on. (The include_sizes flag no longer changes this; sizes always show.)
-- This matters: because the name is printed on every photo, if a customer later points at a picture, you can simply ask them to read its name off — see the "PHOTOS THE CUSTOMER SENDS" rule above.
+PHOTOS — how labels work (handled automatically, you don't set a flag):
+- SMALL option sets (about a dozen shoes or fewer — e.g. "what you got in grey/red/yellow", a colourway, a brand group): the system automatically prints each shoe's NAME, price and sizes in a little note right under its photo. So the customer sees exactly what each pic is and what sizes it comes in.
+- BIG sets (more than ~12 shoes): the photos go out album-style with no per-photo note (like flipping through a catalogue), then the closing message + the 10-minute follow-up ("did you see anything you liked?") do the work. This keeps a huge drop from being one giant wall of text.
+- You don't choose between these — just call send_photos with ALL the matches and the system picks the right style by how many there are.
+- Because small sets are labelled, if a customer points at a picture from one, you can ask them to read its name off (see "PHOTOS THE CUSTOMER SENDS"). If it was from a big album with no label, just ask them to describe it (colour/model) or reply to that photo.
 
 SIZES — ranges, two sizes, and matching (IMPORTANT — never ask the customer to pick one size in these cases, and never send the same shoe twice):
 - TWO SIZES, intent unclear: if a customer names two different sizes (e.g. "5.5 and 10.5") and you genuinely can't tell whether they want matching pairs (both sizes) or to see each size separately, ask exactly ONE short question and NOTHING else: "Hey! Are you looking for matching shoes in both sizes, or do you want to see what we've got in each size? 👟". Do NOT also ask what kind of shoe or anything specific. Once they answer, go straight to the matching or grouped flow below. (If they already made it clear — e.g. they said "matching" — skip the question and act.)
@@ -719,28 +721,32 @@ function searchInventory({ size, sizes, size_match, brand, color, query } = {}) 
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
 }
 
-async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '') {
-  const photoMsg = (s) => ({
-    type: 'image', url: s.image,
-    // ALWAYS label every photo with name + price + the sizes it comes in, so the
-    // customer can always read the shoe's name off the pic (and tell us which one).
-    caption: `${displayName(s)} — $${s.price}\nSizes: ${sizesOf(s)}`,
-  });
-  let sent = 0, requested = 0;
+// Small "options" sets (this many photos or fewer) get a label under EACH photo
+// (name + price + sizes), so the customer sees what each one is and what sizes it
+// comes in. Bigger sets go out album-style (bare photos) — the customer skims
+// them like a catalogue and the 10-min follow-up asks if anything caught their eye.
+const LABELED_MAX = 12;
 
-  // Count how many photos will actually go out (deduped, with an image).
-  const photoCount = (idList) => {
+async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '') {
+  // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
+  // its own text bubble sent right after the photo. That also stops WhatsApp from
+  // clumping the photos into one album, so each pic shows with its label beneath.
+  const labelText = (s) => `${displayName(s)} — $${s.price}\n📏 ${sizesOf(s)}`;
+  const dedupe = (idList) => {
     const seen = new Set();
     return (idList || []).filter(id => !seen.has(id) && seen.add(id))
-      .map(id => catalog[id]).filter(s => s && s.image).length;
+      .map(id => catalog[id]).filter(s => s && s.image);
   };
+  let sent = 0, requested = 0;
+
   const totalPhotos = (Array.isArray(groups) && groups.length)
-    ? groups.reduce((n, g) => n + photoCount(g.ids), 0)
-    : photoCount(ids);
+    ? groups.reduce((n, g) => n + dedupe(g.ids).length, 0)
+    : dedupe(ids).length;
+  const showLabels = totalPhotos <= LABELED_MAX; // small set → label each; big set → album
 
   // Lead-in line goes out FIRST so the 👇 points down at the photos that follow —
-  // but ONLY when there's more than one photo. For a single picture the label
-  // under it already says it all, so we skip the lead-in.
+  // but ONLY when there's more than one photo. For a single picture its own label
+  // already says it all, so we skip the lead-in.
   if (totalPhotos > 1 && leadIn && String(leadIn).trim()) {
     try { await sendChunk(sub, [{ type: 'text', text: String(leadIn).trim() }], token); } catch (e) { /* non-fatal */ }
   }
@@ -753,29 +759,29 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     }
   };
 
+  // One shoe → its photo immediately followed by its label bubble (when labelling).
+  const photoWithLabel = (s) => showLabels
+    ? [{ type: 'image', url: s.image }, { type: 'text', text: labelText(s) }]
+    : [{ type: 'image', url: s.image }];
+
   if (Array.isArray(groups) && groups.length) {
-    // Grouped by size: a label, then that size's photos — repeated per group, in order.
-    // De-dupe within each group so the same shoe never goes out twice in one size.
+    // Grouped by size: a size header, then that size's photos (each labelled when small).
     for (const g of groups) {
-      const seen = new Set();
-      const chosen = (g.ids || [])
-        .filter(id => !seen.has(id) && seen.add(id))
-        .map(id => catalog[id]).filter(s => s && s.image);
+      const chosen = dedupe(g.ids);
       requested += (g.ids || []).length;
       if (!chosen.length) continue;
       const msgs = [];
       if (g.label && String(g.label).trim()) msgs.push({ type: 'text', text: String(g.label).trim() });
-      for (const s of chosen) msgs.push(photoMsg(s));
+      for (const s of chosen) msgs.push(...photoWithLabel(s));
       await sendBatch(msgs);
     }
   } else {
-    // Flat list (single size, range, or matching). De-dupe ids so no shoe repeats.
-    const seen = new Set();
-    const chosen = (ids || [])
-      .filter(id => !seen.has(id) && seen.add(id))
-      .map(id => catalog[id]).filter(s => s && s.image);
+    // Flat list (single size, range, or matching).
+    const chosen = dedupe(ids);
     requested = (ids || []).length;
-    await sendBatch(chosen.map(photoMsg));
+    const msgs = [];
+    for (const s of chosen) msgs.push(...photoWithLabel(s));
+    await sendBatch(msgs);
   }
 
   // Always close with the website prompt once photos have actually gone out.
