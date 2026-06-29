@@ -575,7 +575,9 @@ const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked
 function buildSystemPrompt({ store, name } = {}) {
   const storeName = store || STORE_DEFAULT;
   const who = name && name.trim() ? name.trim() : '';
-  return `You are the friendly WhatsApp shopping assistant for ${storeName}, a sneaker store in The Bahamas.
+  return `You are Jess, the friendly WhatsApp shopping assistant for ${storeName}, a sneaker store in The Bahamas.
+
+YOUR NAME IS JESS. You're part of the ${storeName} team. If a customer asks your name, you're Jess 😊. Never call yourself "Claude", an "AI", a "bot", or "automated", and don't bring it up. If someone asks straight up if you're a bot or a real person, keep it light and friendly and steer back to helping them find shoes (e.g. "Haha I'm Jess from ${storeName} 😊 what size you looking for?").
 
 How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
@@ -843,6 +845,23 @@ const convos = new Map();    // subscriberId -> message history
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
 
+// ── Manual control panel (/console) support ───────────────────────────────────
+// So Rodney can tell the bot "send size 8 to this customer" from a private page.
+// We remember who recently messaged (to list them) and each account's token IN
+// MEMORY ONLY (never logged, never written to disk) so the panel can send through
+// the right account automatically.
+const recentCustomers = new Map(); // sub -> {sub, name, store, lastText, at}
+const storeTokens = new Map();     // store name -> latest ManyChat token seen for it
+let lastToken = null;              // most-recent token of any account (fallback)
+function rememberCustomer(sub, name, store, text, token) {
+  if (sub && token) {
+    recentCustomers.set(sub, { sub, name: name || '', store: store || '', lastText: (text || '').slice(0, 80), at: new Date().toISOString() });
+    if (recentCustomers.size > 80) { const first = recentCustomers.keys().next().value; recentCustomers.delete(first); }
+    if (store) storeTokens.set(store, token);
+    lastToken = token;
+  }
+}
+
 // Schedule the "did you see anything you liked?" nudge for 10 min after we send
 // shoes. Resets if called again. Cancelled (clearFollowUp) when the customer
 // messages again — so we only nudge customers who went quiet.
@@ -947,6 +966,7 @@ function handleChat(req, res) {
   const store = getStore(req);
   const name = getName(req);
   record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
+  rememberCustomer(sub, name, store, userText, token); // for the /console control panel
 
   res.json({ ok: true }); // answer ManyChat instantly; do the AI work in the background
 
@@ -985,6 +1005,173 @@ require('./delivery').mount(app);
 // Shared shop "brain": notes/tasks, sales, log, inventory synced across devices
 // + WhatsApp alerts to employees on new notes.
 require('./shop').mount(app);
+
+// ── Manual control panel (/console) ───────────────────────────────────────────
+// A private, key-gated page where Rodney picks a customer (or types their number)
+// and tells the bot what to send — for when a customer asks and the bot didn't
+// catch it. Reuses searchInventory + sendShoePhotos + each account's own token
+// (captured from live chat traffic, so the right account is used automatically).
+const CONSOLE_KEY = process.env.CONSOLE_KEY || 'jess242';
+
+async function findSubscriberByPhone(phone, token) {
+  const digits = String(phone || '').replace(/[^0-9]/g, '');
+  if (!digits || !token) return null;
+  try {
+    const f = await fetch('https://api.manychat.com/fb/subscriber/findBySystemField?phone=' +
+      encodeURIComponent('+' + digits), { headers: { Authorization: `Bearer ${token}` } });
+    const fj = await f.json();
+    const d = fj && fj.data;
+    return (d && (d.id || (Array.isArray(d) && d[0] && d[0].id))) || null;
+  } catch (_) { return null; }
+}
+
+function consoleAuth(req, res) {
+  const key = req.query.key || req.get('x-console-key') || (req.body && req.body.key);
+  if (key !== CONSOLE_KEY) { res.status(401).json({ error: 'bad key' }); return false; }
+  return true;
+}
+
+// List of recent customers + which accounts we have a token for (no tokens leaked).
+app.get('/console/recent', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const customers = [...recentCustomers.values()].sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 40);
+  res.json({ customers, stores: [...storeTokens.keys()], hasEnvToken: !!process.env.MANYCHAT_TOKEN });
+});
+
+// Send shoes to a customer: { sub | phone, store?, size?, brand?, color?, query? }.
+app.post('/console/send', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  let sub = b.sub ? String(b.sub).replace(/[^0-9]/g, '') : '';
+  const store = b.store || (sub && recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
+
+  // Pick the right account token: the customer's own account first, then the
+  // chosen store, then the most recent token, then the env var.
+  const token = (sub && recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
+    || (store && storeTokens.get(store)) || lastToken || process.env.MANYCHAT_TOKEN || null;
+  if (!token) return res.json({ ok: false, error: 'No ManyChat token yet. Have a customer message the bot once (so the server learns the account key), then try again.' });
+
+  if (!sub && b.phone) {
+    sub = await findSubscriberByPhone(b.phone, token);
+    if (!sub) return res.json({ ok: false, error: 'No customer found for that number on this account. Have they messaged this WhatsApp before? Try picking them from the list instead.' });
+  }
+  if (!sub) return res.json({ ok: false, error: 'Pick a customer or enter their WhatsApp number.' });
+
+  const results = searchInventory({ size: b.size, brand: b.brand, color: b.color, query: b.query });
+  if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing was sent. Try different words.', found: 0 });
+  const ids = results.map(r => r.id);
+
+  const pieces = [];
+  if (b.color) pieces.push(String(b.color).trim());
+  if (b.brand) pieces.push(String(b.brand).trim());
+  if (b.query) pieces.push(String(b.query).trim());
+  if (b.size) pieces.push(`size ${String(b.size).trim()}`);
+  const what = pieces.join(' ').trim();
+  const leadIn = what
+    ? `This is what we have in ${what} rite now 👇 Ready to Order!`
+    : `This is what we have rite now 👇 Ready to Order!`;
+
+  try {
+    const r = await sendShoePhotos(sub, ids, token, true, null, leadIn);
+    if (r.sent > 0) scheduleFollowUp(sub, token);
+    record(req, { endpoint: 'console-send', sub, store, what, found: results.length, sent: r.sent });
+    res.json({ ok: true, found: results.length, sent: r.sent, sub, store });
+  } catch (e) {
+    res.json({ ok: false, error: String(e).slice(0, 200) });
+  }
+});
+
+app.get('/console', (req, res) => {
+  res.type('html').send(`<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jess — Send Shoes</title>
+<style>
+  *{box-sizing:border-box} body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0f1115;color:#e7e9ee}
+  .wrap{max-width:520px;margin:0 auto;padding:16px}
+  h1{font-size:20px;margin:8px 0 2px} .sub{color:#9aa3b2;font-size:13px;margin-bottom:14px}
+  .card{background:#1a1e27;border:1px solid #2a3140;border-radius:14px;padding:14px;margin-bottom:14px}
+  label{display:block;font-size:12px;color:#9aa3b2;margin:10px 0 4px}
+  input,select{width:100%;padding:11px;border-radius:10px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:15px}
+  .row{display:flex;gap:8px} .row>div{flex:1}
+  button{width:100%;padding:14px;border:0;border-radius:12px;background:#2f6df6;color:#fff;font-size:16px;font-weight:600;margin-top:14px}
+  button:active{opacity:.8}
+  .cust{padding:10px;border:1px solid #2a3140;border-radius:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .cust b{font-size:14px} .cust small{color:#9aa3b2;display:block}
+  .pick{background:#23314d;border:0;color:#cfe0ff;padding:8px 12px;border-radius:8px;width:auto;margin:0;font-size:13px}
+  .banner{background:#3a2a12;border:1px solid #6b4f1f;color:#ffd79a;font-size:13px;border-radius:10px;padding:10px;margin-bottom:14px}
+  .sel{outline:2px solid #2f6df6} #status{font-size:14px;margin-top:10px;min-height:20px}
+  .ok{color:#7ee0a2} .err{color:#ff9a9a}
+</style></head><body><div class="wrap">
+<h1>🟢 Jess — Send Shoes</h1>
+<div class="sub">Pick a customer (or type their number), choose what to send, hit Send.</div>
+<div class="banner">⚠️ This sends real WhatsApp photos to the customer. Test with YOUR own number first.</div>
+
+<div class="card">
+  <label>Recent customers <span id="refresh" style="float:right;color:#2f6df6">↻ refresh</span></label>
+  <div id="list">Loading…</div>
+</div>
+
+<div class="card">
+  <label>…or type a WhatsApp number (with country code, e.g. 1242…)</label>
+  <input id="phone" placeholder="12426547898" inputmode="numeric">
+  <label>Account (only needed when typing a number)</label>
+  <select id="store"><option value="">Auto</option></select>
+
+  <div class="row">
+    <div><label>Size</label><input id="size" placeholder="8"></div>
+    <div><label>Colour</label><input id="color" placeholder="grey"></div>
+  </div>
+  <div class="row">
+    <div><label>Brand</label><input id="brand" placeholder="New Balance"></div>
+    <div><label>Search words</label><input id="query" placeholder="red thunder"></div>
+  </div>
+  <button id="send">Send to customer</button>
+  <div id="status"></div>
+</div>
+
+<script>
+  var KEY = new URLSearchParams(location.search).get('key') || '';
+  var selectedSub = '', selectedStore = '';
+  function q(id){return document.getElementById(id)}
+  function load(){
+    fetch('/console/recent?key='+encodeURIComponent(KEY)).then(r=>r.json()).then(function(d){
+      if(d.error){q('list').innerHTML='<span class="err">'+d.error+'</span>';return}
+      var s=q('store'); s.innerHTML='<option value="">Auto</option>'+(d.stores||[]).map(function(x){return '<option>'+x+'</option>'}).join('');
+      if(!d.customers||!d.customers.length){q('list').innerHTML='<small>No customers yet. Once someone messages the bot they\\'ll show here.</small>';return}
+      q('list').innerHTML=d.customers.map(function(c){
+        return '<div class="cust" data-sub="'+c.sub+'" data-store="'+(c.store||'')+'"><div><b>'+(c.name||'(no name)')+'</b><small>'+(c.store||'')+' · '+(c.lastText||'')+'</small></div><button class="pick">Pick</button></div>';
+      }).join('');
+      Array.prototype.forEach.call(document.querySelectorAll('.cust'),function(el){
+        el.querySelector('.pick').onclick=function(){
+          selectedSub=el.getAttribute('data-sub');selectedStore=el.getAttribute('data-store');
+          Array.prototype.forEach.call(document.querySelectorAll('.cust'),function(x){x.classList.remove('sel')});
+          el.classList.add('sel');q('phone').value='';
+          q('status').textContent='Selected: '+el.querySelector('b').textContent;
+          q('status').className='';
+        };
+      });
+    });
+  }
+  q('refresh').onclick=load;
+  q('phone').oninput=function(){selectedSub='';selectedStore='';Array.prototype.forEach.call(document.querySelectorAll('.cust'),function(x){x.classList.remove('sel')});};
+  q('send').onclick=function(){
+    var body={key:KEY,size:q('size').value,color:q('color').value,brand:q('brand').value,query:q('query').value};
+    if(selectedSub){body.sub=selectedSub;body.store=selectedStore;}
+    else if(q('phone').value.trim()){body.phone=q('phone').value.trim();body.store=q('store').value;}
+    else {q('status').textContent='Pick a customer or type a number first.';q('status').className='err';return;}
+    if(!body.size&&!body.color&&!body.brand&&!body.query){q('status').textContent='Tell me what to send (size, colour, brand or search words).';q('status').className='err';return;}
+    if(!confirm('Send these shoes to the customer now?'))return;
+    q('status').textContent='Sending…';q('status').className='';
+    fetch('/console/send?key='+encodeURIComponent(KEY),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(r=>r.json()).then(function(d){
+        if(d.ok){q('status').textContent='✅ Sent '+d.sent+' photo(s) (found '+d.found+').';q('status').className='ok';}
+        else {q('status').textContent='⚠️ '+(d.error||'Failed');q('status').className='err';}
+      }).catch(function(e){q('status').textContent='⚠️ '+e;q('status').className='err';});
+  };
+  load();
+</script>
+</div></body></html>`);
+});
 
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
