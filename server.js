@@ -573,6 +573,9 @@ const WEBSITE = '242plug.netlify.app';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes
 const END_OF_PHOTOS_MSG = `There's the photos! 👟 If you want to check out even more, visit our website and search what you need in the search bar. 👉 ${WEBSITE}`;
 const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked, or did you get sorted?';
+// After the welcome, if the customer goes quiet, nudge them once ~5 min later.
+const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
+const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pictures? 👟';
 
 function buildSystemPrompt({ store, name } = {}) {
   const storeName = store || STORE_DEFAULT;
@@ -880,20 +883,26 @@ function rememberCustomer(sub, name, store, text, token) {
 // Schedule the "did you see anything you liked?" nudge for 10 min after we send
 // shoes. Resets if called again. Cancelled (clearFollowUp) when the customer
 // messages again — so we only nudge customers who went quiet.
-function scheduleFollowUp(sub, token) {
+// Generic "nudge the customer if they go quiet" timer. One pending nudge per
+// customer (a new one replaces the old); cleared the moment they message again.
+function scheduleNudge(sub, token, text, ms) {
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
     followUps.delete(sub);
     try {
-      await sendChunk(sub, [{ type: 'text', text: FOLLOWUP_MSG }], token);
+      await sendChunk(sub, [{ type: 'text', text }], token);
       const h = convos.get(sub) || [];
-      h.push({ role: 'assistant', content: FOLLOWUP_MSG }); // so Claude knows it asked
+      h.push({ role: 'assistant', content: text }); // so Claude knows it asked
       convos.set(sub, trimHistory(h));
     } catch (e) { /* non-fatal */ }
-  }, FOLLOWUP_MS);
+  }, ms);
   if (handle.unref) handle.unref();
   followUps.set(sub, handle);
 }
+// 10-min "did you see anything you liked?" after photos.
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, FOLLOWUP_MSG, FOLLOWUP_MS); }
+// 5-min "how can we help? want pictures?" after the welcome if they go quiet.
+function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, WELCOME_NUDGE_MSG, WELCOME_NUDGE_MS); }
 function clearFollowUp(sub) {
   const h = followUps.get(sub);
   if (h) { clearTimeout(h); followUps.delete(sub); }
@@ -911,12 +920,14 @@ function trimHistory(h, maxLen = 24) {
 async function runChat(req, sub, userText, token, ctx = {}) {
   const system = buildSystemPrompt({ store: ctx.store, name: ctx.name });
   const history = convos.get(sub) || [];
+  const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   history.push({ role: 'user', content: userText });
 
   // The customer MUST always get a reply. Track whether we actually sent them
   // anything this turn; if a turn somehow ends with nothing sent (model fumbled,
   // a send failed, etc.), we send a recovery line at the end instead of going silent.
   let sentToCustomer = false;
+  let photosSentRun = false; // did any photos go out this turn?
   try {
   for (let step = 0; step < 6; step++) {
     const { ok, status, data } = await callClaude(history, system);
@@ -950,7 +961,7 @@ async function runChat(req, sub, userText, token, ctx = {}) {
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn);
-        if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; sentToCustomer = true; } // nudge 10 min later if quiet
+        if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
       }
       else result = { error: 'unknown_tool' };
       toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
@@ -969,6 +980,11 @@ async function runChat(req, sub, userText, token, ctx = {}) {
   if (!sentToCustomer) {
     record(req, { endpoint: 'chat-fallback', sub, userText });
     await sendChunk(sub, [{ type: 'text', text: "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟" }], token).catch(() => {});
+  }
+  // If this was their first message (we just sent the welcome) and we didn't send
+  // photos, nudge once ~5 min later in case they go quiet. Cancelled if they reply.
+  if (wasNewConvo && sentToCustomer && !photosSentRun) {
+    scheduleWelcomeNudge(sub, token);
   }
   convos.set(sub, trimHistory(history));
 }
