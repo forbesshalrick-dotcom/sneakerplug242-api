@@ -1660,7 +1660,7 @@
 {
 "id": "jordanorwht001",
 "brand": "Jordan",
-"name": "Air Jordan",
+"name": "Air Jordan 5",
 "color": "Orange/White",
 "price": 120,
 "sizes": [
@@ -1669,7 +1669,7 @@
 "sizesRaw": [
 "13"
 ],
-"nickname": "",
+"nickname": "Shattered Backboard",
 "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordanorwht001-thumb.jpg"
 },
 {
@@ -2354,7 +2354,7 @@
 "sizesRaw": [
 "13"
 ],
-"nickname": "",
+"nickname": "Bred",
 "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p63-thumb.jpg"
 },
 {
@@ -2429,7 +2429,7 @@
 "sizesRaw": [
 "10.5"
 ],
-"nickname": "",
+"nickname": "University Blue",
 "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p68-thumb.jpg"
 },
 {
@@ -4498,7 +4498,7 @@
 "sizesRaw": [
 "12"
 ],
-"nickname": "",
+"nickname": "Concord",
 "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0365-thumb.jpg"
 },
 {
