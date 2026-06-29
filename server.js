@@ -552,6 +552,11 @@ PHOTOS — whether to show sizes under each photo:
 - If the customer has NOT told you a size (general browsing like "what Jordans do you have?"), call send_photos with include_sizes = true. Each photo then shows the shoe's name, price AND the available sizes, so the customer can see what fits and pick.
 - If the customer HAS given a size, call send_photos with include_sizes = false. We already filtered to their size, so the photos go out with just the name and price — no sizes line needed.
 
+SIZES — ranges, two sizes, and matching (IMPORTANT — never ask the customer to pick one size in these cases, and never send the same shoe twice):
+- SIZE RANGE — "9.5 to 10", "9.5-10", "anywhere from 9 to 10", "between 9 and 10": the customer will take anything in that range. Call search_inventory ONCE with sizes = every size in the range (e.g. ["9.5","10"]) and size_match = "any". Then send_photos with all those ids as one flat list and include_sizes = true (so they see which size each pair is). One photo per shoe — if a shoe comes in both sizes it still only goes out once. Lead-in line: "This is what we have in your sizes rite now 👇 Ready to Order!".
+- TWO DIFFERENT SIZES to compare — "show me a 7 and a 9", "size 5 and size 10" (and NOT the word "match"): keep them grouped by size. Call search_inventory once per size, then call send_photos ONCE using the groups parameter — one group per size, each with a label and that size's ids, e.g. groups = [ {label:"Here's what we have in size 5 👇", ids:[...]}, {label:"Now here's size 10 👇", ids:[...]} ]. The labels and photos go out grouped and in order. When you use groups, do NOT also type a separate lead-in line — the labels are the lead-ins. Use include_sizes = false.
+- MATCHING shoes for two people — "I need matching shoes in size 9 and size 7", "matching pairs in a 9 and a 7", or clearly two people who want the same shoe in different sizes: they only want shoes that come in BOTH sizes. Call search_inventory with sizes = ["9","7"] and size_match = "all" (returns only shoes available in every one of those sizes). Lead-in line: "Here are the shoes we have in both size 7 and size 9 so you can match 👇" (use their actual two sizes), then send_photos with those ids as a flat list and include_sizes = false. If nothing comes in both sizes, tell them kindly we don't have a match in both right now and offer a special order.
+
 You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
 
 PAYMENT: If they ask about payment, tell them: we accept cash only, no cards right now, but bank transfer is available if they need it. Then ask which bank they prefer — Scotiabank or CIBC — and send the matching details:
@@ -584,7 +589,9 @@ const AI_TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        size: { type: 'string', description: 'Size to filter by, e.g. "9" or "10.5". Only returns shoes available in this size.' },
+        size: { type: 'string', description: 'A single size to filter by, e.g. "9" or "10.5". Only returns shoes available in this size.' },
+        sizes: { type: 'array', items: { type: 'string' }, description: 'Use INSTEAD of "size" when the customer mentions more than one size. A size RANGE ("9.5 to 10") → list every size in it, e.g. ["9.5","10"]. MATCHING shoes for two people ("size 9 and size 7") → ["9","7"]. Pair with size_match.' },
+        size_match: { type: 'string', enum: ['any', 'all'], description: 'How to apply "sizes". "any" (default) = shoe available in AT LEAST ONE of the sizes (use for a size RANGE — returns each shoe once, no duplicates). "all" = shoe available in EVERY listed size (use for MATCHING shoes that must come in both sizes).' },
         brand: { type: 'string', description: 'Brand, e.g. "Jordan", "Nike", "Asics", "New Balance".' },
         color: { type: 'string', description: 'A colour/style word, e.g. "white", "black", "red".' },
         query: { type: 'string', description: 'Free text such as a model or nickname, e.g. "Jordan 4" or "Air Max 95".' },
@@ -593,23 +600,51 @@ const AI_TOOLS = [
   },
   {
     name: 'send_photos',
-    description: "Send the customer a photo of each shoe over WhatsApp. Pass the ids from search_inventory. Send ALL the matching shoes. A short closing message with the website link is added automatically after the photos.",
+    description: "Send the customer a photo of each shoe over WhatsApp. Pass the ids from search_inventory. Send ALL the matching shoes. A short closing message with the website link is added automatically after the photos. Never send the same shoe twice.",
     input_schema: {
       type: 'object',
       properties: {
-        ids: { type: 'array', items: { type: 'integer' }, description: 'Shoe ids to send photos for.' },
-        include_sizes: { type: 'boolean', description: 'true = show name, price AND available sizes under each photo (use when the customer has NOT given a size / is just browsing). false = show only name and price (use when the customer already gave a size, since we filtered to it). Defaults to true.' },
+        ids: { type: 'array', items: { type: 'integer' }, description: 'Shoe ids to send photos for, as one flat list. Use this for a single size, a size RANGE, or MATCHING shoes.' },
+        groups: {
+          type: 'array',
+          description: 'Use INSTEAD of "ids" ONLY when the customer asked for two different sizes to compare and you want them kept separate by size. One entry per size, sent in order: a label shown to the customer, then that size\'s photos.',
+          items: {
+            type: 'object',
+            properties: {
+              label: { type: 'string', description: 'Short header shown before this size\'s photos, e.g. "Here\'s what we have in size 5 👇".' },
+              ids: { type: 'array', items: { type: 'integer' }, description: 'Shoe ids available in this size.' },
+            },
+            required: ['ids'],
+          },
+        },
+        include_sizes: { type: 'boolean', description: 'true = show name, price AND available sizes under each photo (use when the customer has NOT given a size / is just browsing, or for a size RANGE so they see which size each pair has). false = show only name and price (use when the customer gave one exact size, or for matching/grouped sends). Defaults to true.' },
       },
-      required: ['ids'],
     },
   },
 ];
 
-function searchInventory({ size, brand, color, query } = {}) {
+function searchInventory({ size, sizes, size_match, brand, color, query } = {}) {
   let rows = catalog.map((s, id) => ({ s, id }));
-  if (size != null && String(size).trim()) {
-    const want = String(parseFloat(size));
-    rows = rows.filter(({ s }) => s.sizesRaw.some(x => String(parseFloat(x)) === want));
+  // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
+  // range "9.5 to 10" or matching "9 and 7"). Normalise each to a clean number
+  // string and drop junk/duplicates.
+  const sizeList = [...new Set(
+    []
+      .concat(Array.isArray(sizes) ? sizes : (sizes != null ? [sizes] : []))
+      .concat(size != null ? [size] : [])
+      .map(x => String(parseFloat(x)))
+      .filter(x => x && x !== 'NaN')
+  )];
+  if (sizeList.length) {
+    const has = (s, want) => s.sizesRaw.some(x => String(parseFloat(x)) === want);
+    if (String(size_match).toLowerCase() === 'all') {
+      // MATCHING: keep only shoes available in EVERY listed size.
+      rows = rows.filter(({ s }) => sizeList.every(w => has(s, w)));
+    } else {
+      // RANGE / "any": keep shoes available in AT LEAST ONE listed size.
+      // catalog has one row per shoe, so the result is already deduped.
+      rows = rows.filter(({ s }) => sizeList.some(w => has(s, w)));
+    }
   }
   if (brand && brand.trim()) {
     const b = brand.toLowerCase();
@@ -629,25 +664,53 @@ function searchInventory({ size, brand, color, query } = {}) {
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
 }
 
-async function sendShoePhotos(sub, ids, token, includeSizes = true) {
-  const chosen = (ids || []).map(id => catalog[id]).filter(s => s && s.image);
-  const messages = [];
-  for (const s of chosen) {
-    const caption = includeSizes
-      ? `${displayName(s)} — $${s.price}\nSizes: ${sizesOf(s)}`   // browsing: show sizes
-      : `${displayName(s)} — $${s.price}`;                         // already filtered by size
-    messages.push({ type: 'image', url: s.image, caption });
+async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null) {
+  const photoMsg = (s) => ({
+    type: 'image', url: s.image,
+    caption: includeSizes
+      ? `${displayName(s)} — $${s.price}\nSizes: ${sizesOf(s)}`   // browsing/range: show sizes
+      : `${displayName(s)} — $${s.price}`,                        // already filtered to their size
+  });
+  let sent = 0, requested = 0;
+
+  const sendBatch = async (messages) => {
+    for (let i = 0; i < messages.length; i += CHUNK) {
+      const slice = messages.slice(i, i + CHUNK);
+      try { await sendChunk(sub, slice, token); sent += slice.filter(m => m.type === 'image').length; }
+      catch (e) { /* keep going */ }
+    }
+  };
+
+  if (Array.isArray(groups) && groups.length) {
+    // Grouped by size: a label, then that size's photos — repeated per group, in order.
+    // De-dupe within each group so the same shoe never goes out twice in one size.
+    for (const g of groups) {
+      const seen = new Set();
+      const chosen = (g.ids || [])
+        .filter(id => !seen.has(id) && seen.add(id))
+        .map(id => catalog[id]).filter(s => s && s.image);
+      requested += (g.ids || []).length;
+      if (!chosen.length) continue;
+      const msgs = [];
+      if (g.label && String(g.label).trim()) msgs.push({ type: 'text', text: String(g.label).trim() });
+      for (const s of chosen) msgs.push(photoMsg(s));
+      await sendBatch(msgs);
+    }
+  } else {
+    // Flat list (single size, range, or matching). De-dupe ids so no shoe repeats.
+    const seen = new Set();
+    const chosen = (ids || [])
+      .filter(id => !seen.has(id) && seen.add(id))
+      .map(id => catalog[id]).filter(s => s && s.image);
+    requested = (ids || []).length;
+    await sendBatch(chosen.map(photoMsg));
   }
-  let sent = 0;
-  for (let i = 0; i < messages.length; i += CHUNK) {
-    const slice = messages.slice(i, i + CHUNK);
-    try { await sendChunk(sub, slice, token); sent += slice.length; } catch (e) { /* keep going */ }
-  }
+
   // Always close with the website prompt once photos have actually gone out.
   if (sent > 0) {
     try { await sendChunk(sub, [{ type: 'text', text: END_OF_PHOTOS_MSG }], token); } catch (e) { /* non-fatal */ }
   }
-  return { sent, requested: (ids || []).length };
+  return { sent, requested };
 }
 
 // ── Voice notes → text (OpenAI Whisper) ───────────────────────────────────────
@@ -756,7 +819,7 @@ async function runChat(req, sub, userText, token, ctx = {}) {
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         const includeSizes = inp.include_sizes !== false; // default true
-        result = await sendShoePhotos(sub, inp.ids, token, includeSizes);
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups);
         if (result.sent > 0) scheduleFollowUp(sub, token); // nudge 10 min later if they go quiet
       }
       else result = { error: 'unknown_tool' };
