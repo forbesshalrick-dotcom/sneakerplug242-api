@@ -616,6 +616,8 @@ const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
 const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pictures? 👟';
+// Owner's WhatsApp (digits only) for delivery-ready alerts. Set MANAGER_WA on Railway.
+const MANAGER_WA = (process.env.MANAGER_WA || '').replace(/[^0-9]/g, '');
 
 function buildSystemPrompt({ store, name } = {}) {
   const storeName = store || STORE_DEFAULT;
@@ -676,6 +678,11 @@ SHIPPING (Family Islands — ONLY when they say they're off-island): Only if the
 
 LOCATION: If they ask where you're located, tell them: we're on Carmichael Road West, but we're mobile and delivery-only — we'll come to your nearest spot. 📍
 
+LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): When a customer in Nassau has picked a pair and sorted payment (cash or bank transfer) and wants it brought to them:
+- Ask them to drop their WhatsApp LOCATION PIN so we can meet them exactly — tap the 📎 (or ＋) in the chat → Location → Send your current location. A dropped pin is best. If they can't drop a pin, ask them to describe the spot clearly with a landmark (e.g. "Blue Hill Rd next to SuperValue").
+- The MOMENT they've given a pin or a clear location AND they're ready to receive now, call notify_manager with their name, the shoe + size, the agreed price, how they're paying, and their exact location. This alerts the owner and posts the job to the website so whoever's on duty runs it.
+- Then reassure the customer warmly — e.g. "Perfect! 🙌 Letting the team know now, someone will reach out to drop it off shortly 👟". Do NOT say "I'm on my way" or make up a driver or an ETA yourself — you're alerting the team, not driving.
+
 BAHAMIAN "COMING" PHRASING (IMPORTANT — locals often ask questions with no question mark):
 - "you coming", "you coming bro", "you reaching", "wen you coming", "how long" → this means "ARE YOU COMING for the delivery / how soon?" They want to know you're on the way. Reply that yes you're coming / sorting their delivery, and ask for the details you still need (what shoe + size if you don't have them yet, and where to meet). Do NOT just recite the location line at them.
 - "I coming", "im coming", "coming", "i reach", "im here", "outside", "by the car" → this means the customer has ARRIVED at the meet-up spot and is walking over to collect their delivery. Treat it as "I'm here to receive my order." Reply with a short friendly acknowledgement like "Alright, I see you! 👀 Come through 👟" — do NOT treat this as a new shoe request or ask for their size again.
@@ -729,6 +736,22 @@ const AI_TOOLS = [
         },
         include_sizes: { type: 'boolean', description: 'true = show name, price AND available sizes under each photo (use when the customer has NOT given a size / is just browsing, or for a size RANGE so they see which size each pair has). false = show only name and price (use when the customer gave one exact size, or for matching/grouped sends). Defaults to true.' },
       },
+    },
+  },
+  {
+    name: 'notify_manager',
+    description: "Alert the shop owner that a sale is READY to deliver/hand off. Call this ONCE the customer has (1) confirmed they want to buy, (2) sorted payment (cash or bank transfer), AND (3) given their location — a dropped WhatsApp pin or a clearly described spot/address — and is ready to receive now. It pings the owner on WhatsApp and posts the job to the shop website so whoever is on duty can run it. Do NOT call it for a plain question, or before the customer is actually ready to receive.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        customer_name: { type: 'string', description: "The customer's name, if known." },
+        shoe: { type: 'string', description: 'The shoe(s) they are buying — colour/model.' },
+        size: { type: 'string', description: 'Their size.' },
+        price: { type: 'string', description: 'Agreed total, e.g. "$240".' },
+        payment: { type: 'string', description: 'How they are paying: "cash", or which bank transfer.' },
+        location: { type: 'string', description: "The customer's meet-up spot / address exactly as they gave it. Mention if they dropped a pin." },
+      },
+      required: ['location'],
     },
   },
 ];
@@ -950,6 +973,19 @@ function scheduleNudge(sub, token, text, ms) {
 function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, FOLLOWUP_MSG, FOLLOWUP_MS); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, WELCOME_NUDGE_MSG, WELCOME_NUDGE_MS); }
+
+// Ping the owner's WhatsApp with a delivery-ready alert. Uses the live chat's
+// own ManyChat token (the customer's account) — the owner just needs to have
+// messaged that account once so they're a subscriber. Best-effort.
+async function waSendManager(text, token) {
+  if (!MANAGER_WA || !token) return false;
+  try {
+    const sub = await findSubscriberByPhone(MANAGER_WA, token);
+    if (!sub) return false;
+    await sendChunk(sub, [{ type: 'text', text }], token);
+    return true;
+  } catch (_) { return false; }
+}
 function clearFollowUp(sub) {
   const h = followUps.get(sub);
   if (h) { clearTimeout(h); followUps.delete(sub); }
@@ -1009,6 +1045,22 @@ async function runChat(req, sub, userText, token, ctx = {}) {
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn);
         if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
+      }
+      else if (tu.name === 'notify_manager') {
+        const inp = tu.input || {};
+        const lines = [
+          '🛵 *DELIVERY READY* — please facilitate',
+          inp.customer_name ? `👤 ${inp.customer_name}` : null,
+          inp.shoe ? `👟 ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : (inp.size ? `👟 size ${inp.size}` : null),
+          inp.price ? `💰 ${inp.price}${inp.payment ? ` (${inp.payment})` : ''}` : (inp.payment ? `💰 ${inp.payment}` : null),
+          `📍 ${inp.location || '(no location given)'}`,
+          ctx.store ? `🏬 ${ctx.store}` : null,
+        ].filter(Boolean).join('\n');
+        let waOk = false;
+        try { waOk = await waSendManager(lines, token); } catch (_) {}
+        try { require('./shop').addAlert(lines, 'Jess 🤖'); } catch (_) {} // shows on the website Tasks board
+        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, waOk });
+        result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
       }
       else result = { error: 'unknown_tool' };
       toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });

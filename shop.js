@@ -69,6 +69,23 @@ function schedule() {
 }
 function bump() { state.rev.n++; persist('rev.json'); }
 
+// Add a note to the shared board programmatically (e.g. a delivery-ready alert
+// from the bot), so it shows on the website's Tasks for whoever's on duty.
+// Does NOT fire the employee WhatsApp blast — the caller handles any messaging.
+function addAlert(text, by) {
+  const uid = Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  const note = {
+    id: uid, text: String(text || '').trim(), kind: 'task',
+    shoeId: null, shoeLabel: null, by: by || 'Jess 🤖',
+    done: false, doneBy: null, doneAt: null, createdAt: new Date().toISOString(),
+  };
+  if (!note.text) return null;
+  state.notes.unshift(note);
+  if (state.notes.length > 500) state.notes.length = 500;
+  persist('notes.json'); bump();
+  return note;
+}
+
 // ── WhatsApp send via ManyChat (find subscriber by phone, then send text) ────
 async function waSend(phoneDigits, text) {
   const token = process.env.MANYCHAT_TOKEN;
@@ -323,4 +340,4 @@ function mount(app) {
   console.log('[shop] mounted: /shop/state /shop/note(s) /shop/sale /shop/log /shop/shoe(s) — key set:', SHOP_KEY !== 'plug242' ? 'custom' : 'default');
 }
 
-module.exports = { mount, blastEmployees };
+module.exports = { mount, blastEmployees, addAlert };
