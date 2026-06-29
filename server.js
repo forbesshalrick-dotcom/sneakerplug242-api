@@ -692,8 +692,9 @@ function aliasTokens(s) {
   const brand = (s.brand || '').toLowerCase();
   const name = (s.name || '').toLowerCase();
   if (brand.includes('new balance')) out.push('nb');
-  if (brand.includes('jordan') || name.includes('jordan')) out.push('aj', 'jordans');
+  if (brand.includes('jordan') || name.includes('jordan')) out.push('aj', 'jordans', 'js', 'jays', 'retro', 'retros');
   if (name.includes('air max plus')) out.push('tn');
+  if (name.includes('air force')) out.push('forces', 'force', 'af1', 'af');
   return out;
 }
 
@@ -736,8 +737,9 @@ function searchInventory({ size, sizes, size_match, brand, color, query } = {}) 
     const STOP = new Set(['and', 'the', 'a', 'an', 'in', 'of', 'with', 'for', 'me', 'i', 'im',
       'need', 'want', 'looking', 'you', 'your', 'got', 'have', 'has', 'some', 'pair', 'pairs',
       'shoe', 'shoes', 'sneaker', 'sneakers', 'size', 'sizes', 'please', 'plz', 'do', 'any',
-      'show', 'see', 'them', 'one', 'ones', 'pls', 'get', 'wan', 'wanna']);
-    const words = query.toLowerCase().replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/)
+      'show', 'see', 'them', 'one', 'ones', 'pls', 'get', 'wan', 'wanna', 'all']);
+    // Normalise possessive shorthand so "J's"/"Js" → "js" (Jordans) survives tokenizing.
+    const words = query.toLowerCase().replace(/\bj'?s\b/g, ' js ').replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/)
       .filter(w => w && !STOP.has(w))
       .filter(w => w.length >= 2 || /\d/.test(w))
       // "4s" / "11s" are model numbers said with an s ("Jordan 4s") → treat as "4" / "11".
