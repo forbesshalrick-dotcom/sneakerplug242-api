@@ -587,7 +587,7 @@ How to chat:
   - If we carry that brand (see the list below) and you don't have their size yet, ask their size, then send the matches in that brand and size.
   - If we do NOT carry that brand, kindly tell them we don't carry it, and offer what we do have.
 - When you DO send photos, always send ALL the matching shoes with send_photos — never just a few.
-- NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Then, on the turn where you call send_photos, say exactly ONE short lead-in line and nothing else — the photos follow automatically right after. That lead-in line MUST be (keep this exact wording, including "rite now"): "This is what we have in {size} rite now 👇 Ready to Order!" — replace {size} with the customer's actual size, e.g. "This is what we have in 7.5 rite now 👇 Ready to Order!". If the customer did NOT give a size (general browsing), drop the size part: "This is what we have rite now 👇 Ready to Order!".
+- NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Your ONE short lead-in line MUST be passed as the send_photos lead_in argument — NOT typed as a separate message. The system puts it right before the photos so the 👇 points down at them. Do NOT also write any other text on the turn you call send_photos. That lead-in MUST be (keep this exact wording, including "rite now"): "This is what we have in {size} rite now 👇 Ready to Order!" — replace {size} with the customer's actual size, e.g. "This is what we have in 7.5 rite now 👇 Ready to Order!". If the customer did NOT give a size (general browsing), drop the size part: "This is what we have rite now 👇 Ready to Order!".
 - If nothing matches, say so kindly and offer to take a special-order request.
 
 PHOTOS — every photo always carries a label:
@@ -596,9 +596,9 @@ PHOTOS — every photo always carries a label:
 
 SIZES — ranges, two sizes, and matching (IMPORTANT — never ask the customer to pick one size in these cases, and never send the same shoe twice):
 - TWO SIZES, intent unclear: if a customer names two different sizes (e.g. "5.5 and 10.5") and you genuinely can't tell whether they want matching pairs (both sizes) or to see each size separately, ask exactly ONE short question and NOTHING else: "Hey! Are you looking for matching shoes in both sizes, or do you want to see what we've got in each size? 👟". Do NOT also ask what kind of shoe or anything specific. Once they answer, go straight to the matching or grouped flow below. (If they already made it clear — e.g. they said "matching" — skip the question and act.)
-- SIZE RANGE — "9.5 to 10", "9.5-10", "anywhere from 9 to 10", "between 9 and 10": the customer will take anything in that range. Call search_inventory ONCE with sizes = every size in the range (e.g. ["9.5","10"]) and size_match = "any". Then send_photos with all those ids as one flat list and include_sizes = true (so they see which size each pair is). One photo per shoe — if a shoe comes in both sizes it still only goes out once. Lead-in line: "This is what we have in your sizes rite now 👇 Ready to Order!".
+- SIZE RANGE — "9.5 to 10", "9.5-10", "anywhere from 9 to 10", "between 9 and 10": the customer will take anything in that range. Call search_inventory ONCE with sizes = every size in the range (e.g. ["9.5","10"]) and size_match = "any". Then send_photos with all those ids as one flat list and include_sizes = true (so they see which size each pair is). One photo per shoe — if a shoe comes in both sizes it still only goes out once. Pass lead_in = "This is what we have in your sizes rite now 👇 Ready to Order!".
 - TWO DIFFERENT SIZES to compare — "show me a 7 and a 9", "size 5 and size 10" (and NOT the word "match"): keep them grouped by size. Call search_inventory once per size, then call send_photos ONCE using the groups parameter — one group per size, each with a label and that size's ids, e.g. groups = [ {label:"Here's what we have in size 5 👇", ids:[...]}, {label:"Now here's size 10 👇", ids:[...]} ]. The labels and photos go out grouped and in order. When you use groups, do NOT also type a separate lead-in line — the labels are the lead-ins. Use include_sizes = false.
-- MATCHING shoes for two people — "I need matching shoes in size 9 and size 7", "matching pairs in a 9 and a 7", or clearly two people who want the same shoe in different sizes: they only want shoes that come in BOTH sizes. Call search_inventory with sizes = ["9","7"] and size_match = "all" (returns only shoes available in every one of those sizes). Lead-in line: "Here are the shoes we have in both size 7 and size 9 so you can match 👇" (use their actual two sizes), then send_photos with those ids as a flat list and include_sizes = false. If nothing comes in both sizes, tell them kindly we don't have a match in both right now and offer a special order.
+- MATCHING shoes for two people — "I need matching shoes in size 9 and size 7", "matching pairs in a 9 and a 7", or clearly two people who want the same shoe in different sizes: they only want shoes that come in BOTH sizes. Call search_inventory with sizes = ["9","7"] and size_match = "all" (returns only shoes available in every one of those sizes). Then send_photos with those ids as a flat list, include_sizes = false, and lead_in = "Here are the shoes we have in both size 7 and size 9 so you can match 👇" (use their actual two sizes). If nothing comes in both sizes, tell them kindly we don't have a match in both right now and offer a special order.
 
 You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
 
@@ -648,6 +648,7 @@ const AI_TOOLS = [
       type: 'object',
       properties: {
         ids: { type: 'array', items: { type: 'integer' }, description: 'Shoe ids to send photos for, as one flat list. Use this for a single size, a size RANGE, or MATCHING shoes.' },
+        lead_in: { type: 'string', description: 'Your ONE short lead-in line, e.g. "This is what we have in 8 rite now 👇 Ready to Order!". The system sends it RIGHT BEFORE the photos so the 👇 points at them. ALWAYS pass it here — do NOT type it as a separate message. Leave empty only when using groups (the group labels are the lead-ins).' },
         groups: {
           type: 'array',
           description: 'Use INSTEAD of "ids" ONLY when the customer asked for two different sizes to compare and you want them kept separate by size. One entry per size, sent in order: a label shown to the customer, then that size\'s photos.',
@@ -717,7 +718,7 @@ function searchInventory({ size, sizes, size_match, brand, color, query } = {}) 
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
 }
 
-async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null) {
+async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '') {
   const photoMsg = (s) => ({
     type: 'image', url: s.image,
     // ALWAYS label every photo with name + price + the sizes it comes in, so the
@@ -725,6 +726,15 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     caption: `${displayName(s)} — $${s.price}\nSizes: ${sizesOf(s)}`,
   });
   let sent = 0, requested = 0;
+
+  // Lead-in line goes out FIRST so the 👇 points down at the photos that follow —
+  // but only if there's actually at least one photo to send (no orphan lead-in).
+  const hasPhoto = (Array.isArray(groups) && groups.length)
+    ? groups.some(g => (g.ids || []).some(id => catalog[id] && catalog[id].image))
+    : (ids || []).some(id => catalog[id] && catalog[id].image);
+  if (hasPhoto && leadIn && String(leadIn).trim()) {
+    try { await sendChunk(sub, [{ type: 'text', text: String(leadIn).trim() }], token); } catch (e) { /* non-fatal */ }
+  }
 
   const sendBatch = async (messages) => {
     for (let i = 0; i < messages.length; i += CHUNK) {
@@ -853,18 +863,18 @@ async function runChat(req, sub, userText, token, ctx = {}) {
     }
     history.push({ role: 'assistant', content: data.content });
     const toolUses = data.content.filter(b => b.type === 'tool_use');
-    // Stay quiet while searching: only speak on the photo turn (one short lead-in)
-    // or on a final text-only turn — kills filler like "let me pull those up".
-    const searchingOnly = toolUses.some(t => t.name === 'search_inventory')
-      && !toolUses.some(t => t.name === 'send_photos');
-    if (!searchingOnly) {
-      for (const block of data.content) {
-        if (block.type === 'text' && block.text.trim()) {
-          await sendChunk(sub, [{ type: 'text', text: block.text.trim() }], token).catch(() => {});
-        }
-      }
+    const sendPhotosTU = toolUses.find(t => t.name === 'send_photos');
+    const turnText = data.content.filter(b => b.type === 'text' && b.text.trim())
+      .map(b => b.text.trim()).join('\n');
+    // Stay quiet while searching. On a send_photos turn, DON'T send the text here —
+    // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
+    // photos (👇 points at them), no matter how the model sequences its turns.
+    const searchingOnly = toolUses.some(t => t.name === 'search_inventory') && !sendPhotosTU;
+    if (!searchingOnly && !sendPhotosTU && turnText) {
+      await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => {});
     }
     if (!toolUses.length) break;
+    let photosSent = false;
     const toolResults = [];
     for (const tu of toolUses) {
       let result;
@@ -872,13 +882,18 @@ async function runChat(req, sub, userText, token, ctx = {}) {
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         const includeSizes = inp.include_sizes !== false; // default true
-        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups);
-        if (result.sent > 0) scheduleFollowUp(sub, token); // nudge 10 min later if they go quiet
+        // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
+        const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn);
+        if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; } // nudge 10 min later if quiet
       }
       else result = { error: 'unknown_tool' };
       toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
     }
     history.push({ role: 'user', content: toolResults });
+    // Photos (and the auto closing message) are out — stop here so the model can't
+    // append a trailing lead-in AFTER the photos on the next turn.
+    if (photosSent) break;
   }
   convos.set(sub, trimHistory(history));
 }
