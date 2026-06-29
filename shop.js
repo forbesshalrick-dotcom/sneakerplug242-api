@@ -297,6 +297,9 @@ function mount(app) {
     if (!auth(req, res)) return;
     const sh = (req.body && req.body.shoe) || null;
     if (!sh || sh.id == null) return res.status(400).json({ error: 'bad shoe' });
+    // NEVER resurrect a deleted shoe: if it's tombstoned, reject the push. This is
+    // the key guard — a device with stale data can otherwise re-add a deleted shoe.
+    if (state.deleted.includes(sh.id)) return res.json({ ok: true, skipped: 'deleted' });
     if (!Array.isArray(state.shoes)) state.shoes = [];
     const i = state.shoes.findIndex(x => x.id === sh.id);
     if (i > -1) state.shoes[i] = sh; else state.shoes.push(sh);
@@ -309,9 +312,10 @@ function mount(app) {
     if (!auth(req, res)) return;
     const arr = (req.body && req.body.shoes) || null;
     if (!Array.isArray(arr)) return res.status(400).json({ error: 'bad shoes' });
-    state.shoes = arr;
+    // Drop any tombstoned shoes so a bulk push can't bring deletions back.
+    state.shoes = arr.filter(s => s && !state.deleted.includes(s.id));
     persist('shoes.json'); bump();
-    res.json({ ok: true, count: arr.length });
+    res.json({ ok: true, count: state.shoes.length });
   });
 
   app.post('/shop/shoe/delete', (req, res) => {
