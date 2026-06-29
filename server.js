@@ -221,6 +221,8 @@ function levenshtein(a, b, max = 2) {
 // typos so colorway/nickname searches ("yellow thunder", "bred", "cement") land
 // even when misspelled. `hay` is the joined lowercase text, `hayWords` its tokens.
 function wordMatches(hay, hayWords, w) {
+  // Model numbers match as WHOLE words: "1" must find "Air Jordan 1" but NOT "11"/"12"/"1906".
+  if (/^\d+$/.test(w)) return hayWords.includes(w);
   if (hay.includes(w)) return true;                                          // direct substring (covers partials: "bred" in "bred reimagined")
   if (w.endsWith('s') && w.length > 3 && hay.includes(w.slice(0, -1))) return true;  // plural → singular ("thunders" → "thunder")
   if (hay.includes(w + 's')) return true;                                    // singular → plural
@@ -682,6 +684,19 @@ const AI_TOOLS = [
   },
 ];
 
+// Shorthand customers actually use that isn't in a shoe's stored text. We fold
+// these into the searchable haystack so "NB 9060", "TN", "AJ 4" all land:
+//   NB = New Balance · TN = Air Max Plus · AJ/Jordans = (Air) Jordan.
+function aliasTokens(s) {
+  const out = [];
+  const brand = (s.brand || '').toLowerCase();
+  const name = (s.name || '').toLowerCase();
+  if (brand.includes('new balance')) out.push('nb');
+  if (brand.includes('jordan') || name.includes('jordan')) out.push('aj', 'jordans');
+  if (name.includes('air max plus')) out.push('tn');
+  return out;
+}
+
 function searchInventory({ size, sizes, size_match, brand, color, query } = {}) {
   let rows = catalog.map((s, id) => ({ s, id }));
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
@@ -707,7 +722,10 @@ function searchInventory({ size, sizes, size_match, brand, color, query } = {}) 
   }
   if (brand && brand.trim()) {
     const b = brand.toLowerCase();
-    rows = rows.filter(({ s }) => s.brand.toLowerCase().includes(b) || b.includes(s.brand.toLowerCase()));
+    rows = rows.filter(({ s }) => {
+      const sb = s.brand.toLowerCase();
+      return sb.includes(b) || b.includes(sb) || aliasTokens(s).includes(b);  // "NB"/"TN"/"AJ" as a brand param still match
+    });
   }
   if (color && color.trim()) {
     const c = color.toLowerCase();
@@ -725,7 +743,7 @@ function searchInventory({ size, sizes, size_match, brand, color, query } = {}) 
       // "4s" / "11s" are model numbers said with an s ("Jordan 4s") → treat as "4" / "11".
       .map(w => /^\d+s$/.test(w) ? w.slice(0, -1) : w);
     rows = rows.filter(({ s }) => {
-      const hay = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''}`.toLowerCase();
+      const hay = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''} ${aliasTokens(s).join(' ')}`.toLowerCase();
       const hayWords = hay.split(/[^a-z0-9.]+/).filter(Boolean);
       return words.every(w => wordMatches(hay, hayWords, w));
     });
