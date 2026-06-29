@@ -757,8 +757,6 @@ function searchInventory({ size, sizes, size_match, brand, color, query } = {}) 
 // (name + price + sizes), so the customer sees what each one is and what sizes it
 // comes in. Bigger sets go out album-style (bare photos) — the customer skims
 // them like a catalogue and the 10-min follow-up asks if anything caught their eye.
-const LABELED_MAX = 12;
-
 async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '') {
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
@@ -774,7 +772,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   const totalPhotos = (Array.isArray(groups) && groups.length)
     ? groups.reduce((n, g) => n + dedupe(g.ids).length, 0)
     : dedupe(ids).length;
-  const showLabels = totalPhotos <= LABELED_MAX; // small set → label each; big set → album
+  const showLabels = true; // ALWAYS label every photo — the customer needs the name under each pic (so "what's the name on the photo?" works no matter how many we send)
 
   // Lead-in line goes out FIRST so the 👇 points down at the photos that follow —
   // but ONLY when there's more than one photo. For a single picture its own label
