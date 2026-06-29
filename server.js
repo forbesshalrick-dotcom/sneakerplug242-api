@@ -120,7 +120,12 @@ function record(req, extra) {
 // ── Pull the customer's text out of the request, however it arrived ───────────
 const FIELDS = ['message', 'query', 'text', 'q', 'input', 'msg', 'last_text_input',
   'last_input_text', 'lastTextInput', 'body', 'question', 'content', 'value',
-  'payload', 'keyword', 'user_input', 'userInput'];
+  'payload', 'keyword', 'user_input', 'userInput',
+  // A photo sent with a caption arrives as an image message — the caption text can
+  // land in a caption-named field instead of the usual text field. Read those too
+  // so "I want this in a 9" typed under a photo is treated like a normal message.
+  'caption', 'image_caption', 'media_caption', 'photo_caption', 'last_caption',
+  'last_input_caption', 'attachment_caption'];
 
 // A value is junk if it's empty or an unresolved ManyChat merge tag like
 // "{{last_input_text}}" (means the bot was misconfigured and never filled it in).
@@ -138,7 +143,11 @@ const NON_MESSAGE_KEYS = new Set(['name', 'full_name', 'fullname', 'first_name',
   'firstname', 'last_name', 'lastname', 'store', 'contact_name', 'token',
   'contact_id', 'subscriber_id', 'subscriberid', 'contactid', 'user_id',
   'audio_url', 'voice_url', 'voice', 'audio', 'attachment_url', 'media_url',
-  'file_url', 'last_audio_url', 'attachment', 'url']);
+  'file_url', 'last_audio_url', 'attachment', 'url',
+  // Image/photo attachment fields — their value is a URL, NOT the customer's text.
+  // (A photo's caption comes in a caption-named field, handled by FIELDS above.)
+  'image_url', 'photo_url', 'picture_url', 'last_image_url', 'image', 'photo',
+  'picture', 'img_url', 'last_attachment_url']);
 
 function extractQuery(req) {
   // 1. Query string (?q= / ?message= ...)
@@ -164,9 +173,11 @@ function extractQuery(req) {
       for (const k of FIELDS) if (!isJunk(o[k])) return String(o[k]).trim();
     }
     // Any non-empty string value anywhere (1 level deep), skipping metadata keys
+    // and bare attachment URLs (a typed message is never just an http link).
     for (const o of objs) {
       for (const [k, v] of Object.entries(o)) {
-        if (typeof v === 'string' && !isJunk(v) && !NON_MESSAGE_KEYS.has(k.toLowerCase())) return v.trim();
+        if (typeof v === 'string' && !isJunk(v) && !NON_MESSAGE_KEYS.has(k.toLowerCase())
+            && !/^https?:\/\/\S+$/i.test(v.trim())) return v.trim();
       }
     }
     // Keyless form post: "jordan 4" arrived with a form Content-Type and parsed
@@ -477,17 +488,46 @@ function getName(req) {
   return null;
 }
 
-// A voice-note / audio file URL, if the message was a voice note. ManyChat hands
-// us the attachment URL; we transcribe it (Whisper) and treat it like typed text.
-function getAudioUrl(req) {
-  const keys = ['audio_url', 'voice_url', 'voice', 'audio', 'attachment_url',
-    'media_url', 'file_url', 'last_audio_url', 'attachment', 'url'];
+// Every http(s) URL ManyChat sent, with its (lowercased) field name. Used to tell
+// a voice note from a photo from any other attachment.
+function collectUrls(req) {
   const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
-  for (const src of srcs) for (const k of keys) {
-    const v = src[k];
+  const out = [];
+  for (const src of srcs) for (const [k, v] of Object.entries(src)) {
     if (v == null || isJunk(v)) continue;
     const s = String(v).trim();
-    if (/^https?:\/\//i.test(s)) return s;
+    if (/^https?:\/\//i.test(s)) out.push({ key: k.toLowerCase(), url: s });
+  }
+  return out;
+}
+const AUDIO_FIELDS = new Set(['audio_url', 'voice_url', 'voice', 'audio', 'last_audio_url']);
+const IMAGE_FIELDS = new Set(['image_url', 'photo_url', 'picture_url', 'last_image_url',
+  'image', 'photo', 'picture', 'img_url']);
+const GENERIC_ATTACH_FIELDS = new Set(['attachment_url', 'media_url', 'file_url', 'attachment',
+  'url', 'last_attachment_url']);
+const AUDIO_EXT = /\.(ogg|opus|mp3|m4a|wav|amr|aac)(\?|#|$)/i;
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|heic|heif|bmp)(\?|#|$)/i;
+
+// A voice-note / audio file URL, if the message was a voice note. ManyChat hands
+// us the attachment URL; we transcribe it (Whisper) and treat it like typed text.
+// We deliberately do NOT treat an obvious image URL as audio (that used to send
+// photos to Whisper and fail). A generic attachment counts as audio only when it
+// looks like audio by extension or isn't clearly an image.
+function getAudioUrl(req) {
+  for (const { key, url } of collectUrls(req)) {
+    if (IMAGE_FIELDS.has(key) || IMAGE_EXT.test(url)) continue; // never an image
+    if (AUDIO_FIELDS.has(key) || AUDIO_EXT.test(url)) return url;
+    if (GENERIC_ATTACH_FIELDS.has(key)) return url; // unlabelled attachment, not an image → assume voice note
+  }
+  return null;
+}
+
+// A photo URL, if the customer sent an image. We can't SEE it, but knowing one
+// arrived lets us reply ("what's the shoe + your size?") instead of going silent.
+function getImageUrl(req) {
+  for (const { key, url } of collectUrls(req)) {
+    if (AUDIO_FIELDS.has(key) || AUDIO_EXT.test(url)) continue; // not a voice note
+    if (IMAGE_FIELDS.has(key) || IMAGE_EXT.test(url)) return url;
   }
   return null;
 }
@@ -599,6 +639,7 @@ How to chat:
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
 - Specific shoe: if they name a shoe ("Jordan 4", "Air Max 95"), help with that; ask their size only if you need it to narrow things down.
 - COLORWAYS & NICKNAMES (IMPORTANT): Shoes are often asked for by their colourway nickname, sometimes with a colour word in front — "yellow thunder", "white thunder", "red thunder", "bred", "cement", "royal", "panda", "pizza", "lightning". ALWAYS look these up with search_inventory before you ever say we don't have something — pass the customer's words straight through as the query (e.g. query = "yellow thunder", or "white thunder"). The search already looks across each shoe's name, nickname AND colour and is forgiving of typos/odd spellings ("thundr", "jordon", "cment"), so trust it. NEVER tell a customer we don't carry a colourway based on your own guess — only say it's out of stock if search_inventory genuinely returns nothing. If they pair a colour with a nickname, just include both words in the query; you don't need to split them into the colour field.
+- ALL-BLACK FOR SCHOOL / WORK (IMPORTANT): If a customer wants black shoes for school or work — "black tennis for school", "all black for work", "plain black", "triple black", "black shoes for my job", "the school needs all black" — they need shoes that are FULLY black, no other colours. Search as normal, then from the results ONLY send the pairs whose colour is solid black — the colour reads like "Black", "Triple Black", "All Black" or "Black/Black". Do NOT include mixed colourways that merely contain black (e.g. "Black/Red", "Black/White", "Black/Volt", "Black/Grey") — those are not allowed for school/work. Look at the colour field of each search result and drop anything with a second colour. If none are fully black, tell them kindly we don't have an all-black pair in stock right now and offer a special order. ("tennis" is just how locals say sneakers.)
 - Brands: only bring up a brand if the CUSTOMER does.
   - If we carry that brand (see the list below) and you don't have their size yet, ask their size, then send the matches in that brand and size.
   - If we do NOT carry that brand, kindly tell them we don't carry it, and offer what we do have.
@@ -613,11 +654,15 @@ PHOTOS — every photo always carries a label (handled automatically, you don't 
 - Just call send_photos with ALL the matches; the labels are added for you.
 - Because every photo is labelled, if a customer later points at a picture you can always ask them to read its name off (see "PHOTOS THE CUSTOMER SENDS").
 
-SIZES — ranges, two sizes, and matching (IMPORTANT — never ask the customer to pick one size in these cases, and never send the same shoe twice):
-- TWO SIZES, intent unclear: if a customer names two different sizes (e.g. "5.5 and 10.5") and you genuinely can't tell whether they want matching pairs (both sizes) or to see each size separately, ask exactly ONE short question and NOTHING else: "Hey! Are you looking for matching shoes in both sizes, or do you want to see what we've got in each size? 👟". Do NOT also ask what kind of shoe or anything specific. Once they answer, go straight to the matching or grouped flow below. (If they already made it clear — e.g. they said "matching" — skip the question and act.)
-- SIZE RANGE — "9.5 to 10", "9.5-10", "anywhere from 9 to 10", "between 9 and 10": the customer will take anything in that range. Call search_inventory ONCE with sizes = every size in the range (e.g. ["9.5","10"]) and size_match = "any". Then send_photos with all those ids as one flat list and include_sizes = true (so they see which size each pair is). One photo per shoe — if a shoe comes in both sizes it still only goes out once. Pass lead_in = "This is what we have in your sizes rite now 👇 Ready to Order!".
-- TWO DIFFERENT SIZES to compare — "show me a 7 and a 9", "size 5 and size 10" (and NOT the word "match"): keep them grouped by size. Call search_inventory once per size, then call send_photos ONCE using the groups parameter — one group per size, each with a label and that size's ids, e.g. groups = [ {label:"Here's what we have in size 5 👇", ids:[...]}, {label:"Now here's size 10 👇", ids:[...]} ]. The labels and photos go out grouped and in order. When you use groups, do NOT also type a separate lead-in line — the labels are the lead-ins. Use include_sizes = false.
-- MATCHING shoes for two people — "I need matching shoes in size 9 and size 7", "matching pairs in a 9 and a 7", or clearly two people who want the same shoe in different sizes: they only want shoes that come in BOTH sizes. Call search_inventory with sizes = ["9","7"] and size_match = "all" (returns only shoes available in every one of those sizes). Then send_photos with those ids as a flat list, include_sizes = false, and lead_in = "Here are the shoes we have in both size 7 and size 9 so you can match 👇" (use their actual two sizes). If nothing comes in both sizes, tell them kindly we don't have a match in both right now and offer a special order.
+SIZES — ranges, two sizes, and matching (IMPORTANT — never send the same shoe twice). HOW the customer joins two sizes tells you exactly what to do — read the connector word carefully:
+- "or" / a slash "/" / a dash "-" — "9 or 10", "9/10", "9-10": they just want to SEE each size. Do NOT ask any question — go STRAIGHT to the GROUPED-BY-SIZE flow below and show what we've got in each size.
+- a RANGE phrase — "9.5 to 10", "anywhere from 9 to 10", "between 9 and 10": they'll take anything in that range. Use the RANGE flow below. No question.
+- a plain "and" — "9 and 10", "a 9 and a 7" (and NOT a "between…/from…to…" range phrase): intent is unclear (a matching pair, or each size separately?), so ask exactly ONE short question and NOTHING else: "Hey! Are you looking for matching shoes in both sizes, or do you want to see what we've got in each size? 👟". Don't also ask what kind of shoe. Once they answer, use the MATCHING flow or the GROUPED-BY-SIZE flow accordingly.
+- the word "match" / "matching" — "matching pairs in a 9 and a 7": skip the question, use the MATCHING flow.
+The three flows:
+- GROUPED-BY-SIZE (for "or" / "/" / "-", or after they say "each size"): call search_inventory once per size, then call send_photos ONCE using the groups parameter — one group per size, each with a label and that size's ids, e.g. groups = [ {label:"Here's what we have in size 9 👇", ids:[...]}, {label:"And here's size 10 👇", ids:[...]} ]. The labels ARE the lead-ins, so do NOT also type a separate lead-in line. Use include_sizes = false.
+- RANGE (for "X to Y" / "between X and Y" / "from X to Y"): call search_inventory ONCE with sizes = every size in the range (e.g. ["9.5","10"]) and size_match = "any". Then send_photos with all those ids as one flat list and include_sizes = true (so they see which size each pair is). One photo per shoe — if a shoe comes in both sizes it still only goes out once. lead_in = "This is what we have in your sizes rite now 👇 Ready to Order!".
+- MATCHING (for "match"/"matching", or after they pick "matching"): they only want shoes that come in BOTH sizes. Call search_inventory with sizes = the two sizes (e.g. ["9","7"]) and size_match = "all" (returns only shoes available in every one of those sizes). Then send_photos with those ids as a flat list, include_sizes = false, and lead_in = "Here are the shoes we have in both size 7 and size 9 so you can match 👇" (use their actual two sizes). If nothing comes in both sizes, tell them kindly we don't have a match in both right now and offer a special order.
 
 You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
 
@@ -625,7 +670,9 @@ PAYMENT: If they ask about payment, tell them: we accept cash only, no cards rig
 - Scotiabank → "Scotiabank 🏦\nAccount #: 201727284\nTransit #: 09766\nName: Rodney Munnings"
 - CIBC → "CIBC 🏦\nAccount #: 004005357\nTransit #: 70045\nName: Rodney Munnings"
 
-SHIPPING: If they ask about shipping, tell them: yes we ship to ALL the Family Islands! Boat is $10 flat rate (only on certain sailing days, not every day). Plane is $35 (goes every day, charged by weight). Then ask whether they prefer Boat or Plane. Once they choose, ask them to confirm the island name, plus the full name and phone number of the person receiving it.
+DELIVERY (Nassau is the DEFAULT — IMPORTANT): If a customer asks about delivery — "do you deliver?", "delivery available?", "you does deliver?", "can you bring it", "you bringing it?" — ASSUME they're right here in Nassau and want it brought to their door. We're mobile and delivery-only, so yes — we come to you. Reply that yes, we deliver to you, and ask their area / where to meet (and the shoe + size if you don't have them yet). Do NOT bring up boat, plane, shipping fees, or the Family Islands unless THEY first say they're on another island. Plain "delivery" = Nassau doorstep, never island shipping.
+
+SHIPPING (Family Islands — ONLY when they say they're off-island): Only if the customer says they're on another island (Abaco, Grand Bahama/Freeport, Eleuthera, Exuma, Andros, Bimini, Long Island, Cat Island, Inagua, etc.) OR explicitly asks to ship to an island: tell them yes we ship to ALL the Family Islands! Boat is $10 flat rate (only on certain sailing days, not every day). Plane is $35 (goes every day, charged by weight). Then ask whether they prefer Boat or Plane. Once they choose, ask them to confirm the island name, plus the full name and phone number of the person receiving it.
 
 LOCATION: If they ask where you're located, tell them: we're on Carmichael Road West, but we're mobile and delivery-only — we'll come to your nearest spot. 📍
 
@@ -992,18 +1039,22 @@ async function runChat(req, sub, userText, token, ctx = {}) {
 function handleChat(req, res) {
   const userText = extractQuery(req);
   const audioUrl = getAudioUrl(req);
+  const imageUrl = getImageUrl(req);
   const sub = getContactId(req);
   const token = getToken(req);
   const store = getStore(req);
   const name = getName(req);
-  record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
+  record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, imageUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
   rememberCustomer(sub, name, store, userText, token); // for the /console control panel
 
   res.json({ ok: true }); // answer ManyChat instantly; do the AI work in the background
 
   if (!process.env.ANTHROPIC_API_KEY) { record(req, { endpoint: 'chat-skip', reason: 'no ANTHROPIC_API_KEY' }); return; }
   if (!token || !sub) return;
-  if (!userText.trim() && !audioUrl) return; // nothing to act on
+  // A photo (with OR without a caption), a voice note, or text ALL count as a
+  // message we must answer. Only truly empty pings (no text, no photo, no audio)
+  // are ignored, so the bot never goes silent on a real customer message.
+  if (!userText.trim() && !audioUrl && !imageUrl) return;
 
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
 
@@ -1019,6 +1070,16 @@ function handleChat(req, res) {
         return;
       }
       text = t;
+    }
+    // Photo with NO caption: we can't see images, so ask which shoe + their size.
+    // (A photo WITH a caption already gave us userText above and flows normally.)
+    if (!text.trim() && imageUrl) {
+      record(req, { endpoint: 'photo-no-caption', sub, imageUrl });
+      text = "(SYSTEM NOTE — the customer just sent a PHOTO of a shoe with no caption. " +
+        "You cannot see images. Reply in ONE short friendly line asking which shoe it is / " +
+        "the name on it AND what size they're in — for example: " +
+        "\"Are you looking for this shoe? 👟 What's the name on it, and what size you in?\". " +
+        "If they already told you their size earlier in the chat, don't ask for it again.)";
     }
     return runChat(req, sub, text, token, { store, name });
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
