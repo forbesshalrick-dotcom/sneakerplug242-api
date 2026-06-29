@@ -649,7 +649,7 @@ const AI_TOOLS = [
       type: 'object',
       properties: {
         ids: { type: 'array', items: { type: 'integer' }, description: 'Shoe ids to send photos for, as one flat list. Use this for a single size, a size RANGE, or MATCHING shoes.' },
-        lead_in: { type: 'string', description: 'Your ONE short lead-in line, e.g. "This is what we have in 8 rite now 👇 Ready to Order!". The system sends it RIGHT BEFORE the photos so the 👇 points at them. ALWAYS pass it here — do NOT type it as a separate message. Leave empty only when using groups (the group labels are the lead-ins).' },
+        lead_in: { type: 'string', description: 'Your ONE short lead-in line, e.g. "This is what we have in 8 rite now 👇 Ready to Order!". The system sends it RIGHT BEFORE the photos so the 👇 points at them. ALWAYS pass it here — do NOT type it as a separate message. (When only ONE shoe is being sent, the system automatically skips this line and just sends the labelled photo — so still pass it; it is dropped when not needed.) Leave empty only when using groups (the group labels are the lead-ins).' },
         groups: {
           type: 'array',
           description: 'Use INSTEAD of "ids" ONLY when the customer asked for two different sizes to compare and you want them kept separate by size. One entry per size, sent in order: a label shown to the customer, then that size\'s photos.',
@@ -728,12 +728,20 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   });
   let sent = 0, requested = 0;
 
+  // Count how many photos will actually go out (deduped, with an image).
+  const photoCount = (idList) => {
+    const seen = new Set();
+    return (idList || []).filter(id => !seen.has(id) && seen.add(id))
+      .map(id => catalog[id]).filter(s => s && s.image).length;
+  };
+  const totalPhotos = (Array.isArray(groups) && groups.length)
+    ? groups.reduce((n, g) => n + photoCount(g.ids), 0)
+    : photoCount(ids);
+
   // Lead-in line goes out FIRST so the 👇 points down at the photos that follow —
-  // but only if there's actually at least one photo to send (no orphan lead-in).
-  const hasPhoto = (Array.isArray(groups) && groups.length)
-    ? groups.some(g => (g.ids || []).some(id => catalog[id] && catalog[id].image))
-    : (ids || []).some(id => catalog[id] && catalog[id].image);
-  if (hasPhoto && leadIn && String(leadIn).trim()) {
+  // but ONLY when there's more than one photo. For a single picture the label
+  // under it already says it all, so we skip the lead-in.
+  if (totalPhotos > 1 && leadIn && String(leadIn).trim()) {
     try { await sendChunk(sub, [{ type: 'text', text: String(leadIn).trim() }], token); } catch (e) { /* non-fatal */ }
   }
 
