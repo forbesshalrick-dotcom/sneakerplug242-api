@@ -196,6 +196,43 @@ function tokenize(str) {
     .filter(Boolean);
 }
 
+// Bounded Levenshtein edit distance — bails out early (returns max+1) the moment
+// it's clear the distance exceeds `max`. Used for typo-tolerant search ("thundr"
+// → "thunder", "jordon" → "jordan", "cment" → "cement").
+function levenshtein(a, b, max = 2) {
+  const al = a.length, bl = b.length;
+  if (Math.abs(al - bl) > max) return max + 1;
+  let prev = Array.from({ length: bl + 1 }, (_, i) => i);
+  for (let i = 1; i <= al; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= bl; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+      if (cur[j] < best) best = cur[j];
+    }
+    if (best > max) return max + 1;
+    prev = cur;
+  }
+  return prev[bl];
+}
+
+// Does query word `w` match anywhere in the haystack? Forgiving of plurals and
+// typos so colorway/nickname searches ("yellow thunder", "bred", "cement") land
+// even when misspelled. `hay` is the joined lowercase text, `hayWords` its tokens.
+function wordMatches(hay, hayWords, w) {
+  if (hay.includes(w)) return true;                                          // direct substring (covers partials: "bred" in "bred reimagined")
+  if (w.endsWith('s') && w.length > 3 && hay.includes(w.slice(0, -1))) return true;  // plural → singular ("thunders" → "thunder")
+  if (hay.includes(w + 's')) return true;                                    // singular → plural
+  if (w.length >= 5) {                                                       // typo tolerance (5+ chars only — a 4-letter word like "bred" is 1 edit from "red", causing false hits)
+    const tol = w.length >= 7 ? 2 : 1;
+    for (const hw of hayWords) {
+      if (Math.abs(hw.length - w.length) <= tol && levenshtein(w, hw, tol) <= tol) return true;
+    }
+  }
+  return false;
+}
+
 function extractSize(tokens) {
   // A shoe size only counts when stated unambiguously:
   //   1. Right after a size word:  "size 9", "sz 9.5", "in 10"
@@ -545,6 +582,7 @@ How to chat:
 - EXCEPTION to the bare-number rule: if YOUR previous message already asked the customer for their size (e.g. you said "What size are you?"), then a bare number they send back IS their answer — treat it as their size, do NOT ask again. If you already know they want to see shoes, go straight to search_inventory + send_photos in that size. If you only know the size but not yet what they want, give the short lead-in and show what you've got in that size. The point: once you've asked for a size, a number reply means "that's my size" — act on it, don't re-question it.
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
 - Specific shoe: if they name a shoe ("Jordan 4", "Air Max 95"), help with that; ask their size only if you need it to narrow things down.
+- COLORWAYS & NICKNAMES (IMPORTANT): Shoes are often asked for by their colourway nickname, sometimes with a colour word in front — "yellow thunder", "white thunder", "red thunder", "bred", "cement", "royal", "panda", "pizza", "lightning". ALWAYS look these up with search_inventory before you ever say we don't have something — pass the customer's words straight through as the query (e.g. query = "yellow thunder", or "white thunder"). The search already looks across each shoe's name, nickname AND colour and is forgiving of typos/odd spellings ("thundr", "jordon", "cment"), so trust it. NEVER tell a customer we don't carry a colourway based on your own guess — only say it's out of stock if search_inventory genuinely returns nothing. If they pair a colour with a nickname, just include both words in the query; you don't need to split them into the colour field.
 - Brands: only bring up a brand if the CUSTOMER does.
   - If we carry that brand (see the list below) and you don't have their size yet, ask their size, then send the matches in that brand and size.
   - If we do NOT carry that brand, kindly tell them we don't carry it, and offer what we do have.
@@ -599,7 +637,7 @@ const AI_TOOLS = [
         size_match: { type: 'string', enum: ['any', 'all'], description: 'How to apply "sizes". "any" (default) = shoe available in AT LEAST ONE of the sizes (use for a size RANGE — returns each shoe once, no duplicates). "all" = shoe available in EVERY listed size (use for MATCHING shoes that must come in both sizes).' },
         brand: { type: 'string', description: 'Brand, e.g. "Jordan", "Nike", "Asics", "New Balance".' },
         color: { type: 'string', description: 'A colour/style word, e.g. "white", "black", "red".' },
-        query: { type: 'string', description: 'Free text such as a model or nickname, e.g. "Jordan 4" or "Air Max 95".' },
+        query: { type: 'string', description: 'Free text — a model, nickname or colourway, e.g. "Jordan 4", "Air Max 95", "yellow thunder", "white thunder", "bred", "cement". Searches across each shoe\'s name, nickname AND colour, and tolerates typos/odd spellings ("thundr", "jordon", "cment"). Prefer putting a colour+nickname phrase here as one query rather than splitting it.' },
       },
     },
   },
@@ -667,14 +705,13 @@ function searchInventory({ size, sizes, size_match, brand, color, query } = {}) 
       'show', 'see', 'them', 'one', 'ones', 'pls', 'get', 'wan', 'wanna']);
     const words = query.toLowerCase().replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/)
       .filter(w => w && !STOP.has(w))
-      .filter(w => w.length >= 2 || /\d/.test(w));
-    const matches = (hay, w) =>
-      hay.includes(w) ||
-      (w.endsWith('s') && w.length > 3 && hay.includes(w.slice(0, -1))) ||   // plural → singular ("thunders"→"thunder")
-      hay.includes(w + 's');                                                  // singular → plural
+      .filter(w => w.length >= 2 || /\d/.test(w))
+      // "4s" / "11s" are model numbers said with an s ("Jordan 4s") → treat as "4" / "11".
+      .map(w => /^\d+s$/.test(w) ? w.slice(0, -1) : w);
     rows = rows.filter(({ s }) => {
       const hay = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''}`.toLowerCase();
-      return words.every(w => matches(hay, w));
+      const hayWords = hay.split(/[^a-z0-9.]+/).filter(Boolean);
+      return words.every(w => wordMatches(hay, hayWords, w));
     });
   }
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
