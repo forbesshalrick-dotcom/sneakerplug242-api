@@ -321,7 +321,15 @@ function sizesOf(shoe) {
     .map(n => n % 1 === 0 ? String(n) : n.toFixed(1)).join(', ');
 }
 function displayName(shoe) {
-  return shoe.nickname ? `${shoe.name} (${shoe.nickname})` : shoe.name;
+  const name = (shoe.name || '').trim();
+  // Prefer a colourway nickname when we have one ("Air Jordan 4 Retro (Thunder)").
+  if (shoe.nickname && shoe.nickname.trim()) return `${name} (${shoe.nickname.trim()})`;
+  // Otherwise fall back to the COLOUR so the shoe is still uniquely identified — most
+  // shoes have no nickname and many share a model name (16 "Air Max 95", 23 "9060"…),
+  // so without this every photo label and search result would look identical.
+  const color = (shoe.color || '').trim();
+  if (color && !name.toLowerCase().includes(color.toLowerCase())) return `${name} — ${color}`;
+  return name;
 }
 function formatShoeMessage(shoe) {
   return `👟 *${displayName(shoe)}*\n🎨 ${shoe.color}\n💰 $${shoe.price}\n📏 Sizes: ${sizesOf(shoe)}`;
