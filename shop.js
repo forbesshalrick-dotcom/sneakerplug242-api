@@ -51,6 +51,15 @@ const state = {
   rev: loadFile('rev.json', { n: 1 }),
 };
 
+// Baseline seed so the core staff numbers/accounts come back automatically after a
+// redeploy even before a persistent disk is attached (the /data folder is wiped on
+// every Railway deploy). Only fills keys that are MISSING — never clobbers a value
+// already loaded from /data or pushed up by a device. Update if core staff change.
+const SEED_EMPLOYEES = { Manager: '12428033126', Deashinique: '12424684477' };
+const SEED_ACCOUNTS = { Manager: '', Deashinique: '' };
+for (const k of Object.keys(SEED_EMPLOYEES)) if (!(k in state.employees)) state.employees[k] = SEED_EMPLOYEES[k];
+for (const k of Object.keys(SEED_ACCOUNTS)) if (!(k in state.accounts)) state.accounts[k] = SEED_ACCOUNTS[k];
+
 const dirty = new Set();
 function persist(name) { dirty.add(name); schedule(); }
 let timer = null;

@@ -616,8 +616,9 @@ const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
 const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pictures? 👟';
-// Owner's WhatsApp (digits only) for delivery-ready alerts. Set MANAGER_WA on Railway.
-const MANAGER_WA = (process.env.MANAGER_WA || '').replace(/[^0-9]/g, '');
+// Owner's WhatsApp (digits only) for delivery-ready alerts. Defaults to Rodney's
+// number so it survives redeploys; MANAGER_WA env can override.
+const MANAGER_WA = (process.env.MANAGER_WA || '12428033126').replace(/[^0-9]/g, '');
 
 function buildSystemPrompt({ store, name } = {}) {
   const storeName = store || STORE_DEFAULT;
