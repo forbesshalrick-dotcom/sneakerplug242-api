@@ -319,8 +319,11 @@ function scoreShoe(shoe, tokens, sizeFilter) {
 function findMatches(raw) {
   const tokens = tokenize(raw);
   const sizeFilter = extractSize(tokens);
-  const scored = catalog
-    .map(shoe => ({ shoe, score: scoreShoe(shoe, tokens, sizeFilter) }))
+  // Only score shoes that are actually available right now (live sizes/sold from
+  // the website), so a sold-out shoe can never come back as a match here either.
+  const live = liveShoeMap();
+  const scored = Object.keys(live)
+    .map(i => ({ shoe: live[i], score: scoreShoe(live[i], tokens, sizeFilter) }))
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score);
 
@@ -771,8 +774,43 @@ function aliasTokens(s) {
   return out;
 }
 
+// The static catalog.json never changes, but the website marks shoes/sizes sold
+// (and deletes shoes) in the shared /shop backend. Overlay that live data so the
+// bot never offers something that's already gone. A shoe is hidden entirely when
+// it's deleted, flagged sold, or has no sizes left; otherwise we swap in the
+// live size list/price. Shoes the website hasn't touched fall through unchanged.
+// Keyed by ORIGINAL catalog index → the live-adjusted shoe (sizes/price swapped
+// in from the website). Only AVAILABLE shoes are in the map; deleted / sold /
+// no-sizes-left shoes are left out entirely. sendShoePhotos and searchInventory
+// both look shoes up by catalog index, so the index must stay the key.
+function liveShoeMap() {
+  let overrides = {}, deleted = {};
+  try {
+    require('./shop').getShoes().forEach(s => { if (s && s.id != null) overrides[s.id] = s; });
+    require('./shop').getDeleted().forEach(id => { deleted[id] = true; });
+  } catch (_) { /* shop not ready — fall back to the static catalog */ }
+  const map = {};
+  catalog.forEach((s, id) => {
+    if (deleted[s.id]) return;                          // deleted on the website
+    const ov = overrides[s.id];
+    let sizesRaw = s.sizesRaw, price = s.price, sold = false;
+    if (ov) {
+      if (Array.isArray(ov.sizes)) sizesRaw = ov.sizes;
+      if (ov.price != null) price = ov.price;
+      if (ov.sold) sold = true;
+    }
+    if (sold || !sizesRaw || sizesRaw.length === 0) return; // out of stock — never offer it
+    map[id] = Object.assign({}, s, { sizesRaw, price });
+  });
+  return map;
+}
+function liveCatalog() {
+  const m = liveShoeMap();
+  return Object.keys(m).map(id => ({ s: m[id], id: +id }));
+}
+
 function searchInventory({ size, sizes, size_match, brand, color, query } = {}) {
-  let rows = catalog.map((s, id) => ({ s, id }));
+  let rows = liveCatalog();
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
   // range "9.5 to 10" or matching "9 and 7"). Normalise each to a clean number
   // string and drop junk/duplicates.
@@ -831,10 +869,13 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // its own text bubble sent right after the photo. That also stops WhatsApp from
   // clumping the photos into one album, so each pic shows with its label beneath.
   const labelText = (s) => `${displayName(s)} — $${s.price}\n📏 ${sizesOf(s)}`;
+  // Look shoes up through the LIVE map so labels show current sizes and anything
+  // marked sold/deleted on the website is dropped even if it slipped into `ids`.
+  const live = liveShoeMap();
   const dedupe = (idList) => {
     const seen = new Set();
     return (idList || []).filter(id => !seen.has(id) && seen.add(id))
-      .map(id => catalog[id]).filter(s => s && s.image);
+      .map(id => live[id]).filter(s => s && s.image);
   };
   let sent = 0, requested = 0;
 

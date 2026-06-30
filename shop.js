@@ -353,4 +353,10 @@ function mount(app) {
   console.log('[shop] mounted: /shop/state /shop/note(s) /shop/sale /shop/log /shop/shoe(s) — key set:', SHOP_KEY !== 'plug242' ? 'custom' : 'default');
 }
 
-module.exports = { mount, blastEmployees, addAlert };
+// Live inventory accessors so the bot's shoe search can respect what the website
+// has marked sold / deleted (the website pushes catalog shoe updates to /shop/shoe
+// as {id, sizes, sold, price}). Returns whatever the in-memory state currently has.
+function getShoes() { return Array.isArray(state.shoes) ? state.shoes : []; }
+function getDeleted() { return Array.isArray(state.deleted) ? state.deleted : []; }
+
+module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted };
