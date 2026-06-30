@@ -6,6 +6,20 @@
 const fs = require('fs');
 const path = require('path');
 
+// ── web push ─────────────────────────────────────────────────────────────────
+// Lets us notify the installed staff PWA about a new delivery/task even when the
+// app is fully closed. The PUBLIC key is also baked into the website (index.html);
+// they MUST match. Override via env on Railway if you ever rotate the keys.
+let webpush = null;
+try { webpush = require('web-push'); } catch (_) { console.log('[shop] web-push not installed — push disabled'); }
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || 'BPq6mcx1D_CUpEjdWBW-1PWXPtQ20UiLfE5V22xUr1LHqe-ZwnOpbGe5x3EuPcoH7J9a1m3VE6vaN7IjqPnbAzU';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'MQPaHYxJWm0bryPNJipgF4nXvzyZe5gjgQQ5TnhRGqk';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:rodneymunnings@gmail.com';
+if (webpush) {
+  try { webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE); }
+  catch (e) { console.log('[shop] VAPID setup failed — push disabled:', e.message); webpush = null; }
+}
+
 // Shared key the website sends with every request. It lives in the (public)
 // client JS so it's a gate against random scanners, not a strong secret — the
 // note endpoint is also rate-limited below to blunt abuse.
@@ -48,6 +62,7 @@ const state = {
   employees: loadFile('employees.json', {}), // { name: "+1242..." } WhatsApp numbers
   accounts: loadFile('accounts.json', {}),  // { name: "passwordOrEmpty" } login accounts
   roles: loadFile('roles.json', {}),        // { name: "supervisor"|"line_staff" }
+  subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
   rev: loadFile('rev.json', { n: 1 }),
 };
 
@@ -92,6 +107,8 @@ function addAlert(text, by) {
   state.notes.unshift(note);
   if (state.notes.length > 500) state.notes.length = 500;
   persist('notes.json'); bump();
+  // Push to installed staff phones even if the app is closed (best effort).
+  sendPush('New delivery / task', note.text, '/').catch(() => {});
   return note;
 }
 
@@ -126,6 +143,23 @@ async function blastEmployees(text, exceptName) {
     results.push({ name, ok });
   }
   return results;
+}
+
+// Send a web-push notification to every subscribed staff device. Best-effort:
+// dead/expired subscriptions (HTTP 404/410) are pruned so the list stays clean.
+async function sendPush(title, body, url) {
+  if (!webpush || !Array.isArray(state.subs) || !state.subs.length) return 0;
+  const payload = JSON.stringify({ title: title || 'THE PLUG 242', body: body || 'New delivery / task', url: url || '/', tag: 'plug242-task' });
+  let sent = 0; const dead = [];
+  await Promise.all(state.subs.map(async (s) => {
+    try { await webpush.sendNotification(s, payload); sent++; }
+    catch (e) { if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint); }
+  }));
+  if (dead.length) {
+    state.subs = state.subs.filter((s) => dead.indexOf(s.endpoint) === -1);
+    persist('subs.json');
+  }
+  return sent;
 }
 
 // ── routes ───────────────────────────────────────────────────────────────────
@@ -195,7 +229,26 @@ function mount(app) {
     const msg = `📋 New task from ${note.by}:\n${note.text}${label}\n\nOpen the app to see it. ✅`;
     let delivery = [];
     try { delivery = await blastEmployees(msg, note.by); } catch (_) {}
+    // Web push to installed staff phones (works when the app is closed).
+    const pushBody = note.kind === 'shoe' && note.shoeLabel ? `${note.text} — ${note.shoeLabel}` : note.text;
+    sendPush(`New task from ${note.by}`, pushBody, '/').catch(() => {});
     res.json({ note, delivery });
+  });
+
+  // Register a device for web push (called by the website after a staff member
+  // allows notifications). Dedupes by endpoint so re-subscribing is harmless.
+  app.post('/shop/push/subscribe', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const sub = b.sub || b.subscription;
+    if (!sub || !sub.endpoint) return res.status(400).json({ error: 'no subscription' });
+    sub.by = b.by || 'staff';
+    sub.at = new Date().toISOString();
+    state.subs = (state.subs || []).filter((s) => s.endpoint !== sub.endpoint);
+    state.subs.push(sub);
+    if (state.subs.length > 200) state.subs = state.subs.slice(-200);
+    persist('subs.json');
+    res.json({ ok: true, count: state.subs.length, pushEnabled: !!webpush });
   });
 
   // Re-seed a note that already exists on a device but is missing on the server
