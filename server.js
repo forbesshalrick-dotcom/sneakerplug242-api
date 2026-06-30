@@ -1101,7 +1101,12 @@ async function runChat(req, sub, userText, token, ctx = {}) {
         let waOk = false;
         try { waOk = await waSendManager(lines, token); } catch (_) {}
         try { require('./shop').addAlert(lines, 'Jess 🤖'); } catch (_) {} // shows on the website Tasks board
-        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, waOk });
+        // Also best-effort WhatsApp every on-duty staff number so whoever's around gets it
+        // (each still subject to WhatsApp's 24h window). MANYCHAT_TOKEN drives the send.
+        let staffWa = [];
+        try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
+        const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
+        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, waOk, staffWa, staffOk });
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
       }
       else result = { error: 'unknown_tool' };
