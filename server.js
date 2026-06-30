@@ -660,14 +660,11 @@ PHOTOS — every photo always carries a label (handled automatically, you don't 
 - Just call send_photos with ALL the matches; the labels are added for you.
 - Because every photo is labelled, if a customer later points at a picture you can always ask them to read its name off (see "PHOTOS THE CUSTOMER SENDS").
 
-SIZES — ranges, two sizes, and matching (IMPORTANT — never send the same shoe twice). HOW the customer joins two sizes tells you exactly what to do — read the connector word carefully:
-- "or" / a slash "/" / a dash "-" — "9 or 10", "9/10", "9-10": they just want to SEE each size. Do NOT ask any question — go STRAIGHT to the GROUPED-BY-SIZE flow below and show what we've got in each size.
-- a RANGE phrase — "9.5 to 10", "anywhere from 9 to 10", "between 9 and 10": they'll take anything in that range. Use the RANGE flow below. No question.
-- a plain "and" — "9 and 10", "a 9 and a 7" (and NOT a "between…/from…to…" range phrase): intent is unclear (a matching pair, or each size separately?), so ask exactly ONE short question and NOTHING else: "Hey! Are you looking for matching shoes in both sizes, or do you want to see what we've got in each size? 👟". Don't also ask what kind of shoe. Once they answer, use the MATCHING flow or the GROUPED-BY-SIZE flow accordingly.
-- the word "match" / "matching" — "matching pairs in a 9 and a 7": skip the question, use the MATCHING flow.
-The three flows:
-- GROUPED-BY-SIZE (for "or" / "/" / "-", or after they say "each size"): call search_inventory once per size, then call send_photos ONCE using the groups parameter — one group per size, each with a label and that size's ids, e.g. groups = [ {label:"Here's what we have in size 9 👇", ids:[...]}, {label:"And here's size 10 👇", ids:[...]} ]. The labels ARE the lead-ins, so do NOT also type a separate lead-in line. Use include_sizes = false.
-- RANGE (for "X to Y" / "between X and Y" / "from X to Y"): call search_inventory ONCE with sizes = every size in the range (e.g. ["9.5","10"]) and size_match = "any". Then send_photos with all those ids as one flat list and include_sizes = true (so they see which size each pair is). One photo per shoe — if a shoe comes in both sizes it still only goes out once. lead_in = "This is what we have in your sizes rite now 👇 Ready to Order!".
+SIZES — when a customer gives TWO OR MORE sizes (IMPORTANT — never send the same shoe twice, and never make them pick just one):
+- However they write the sizes — "7, 8", "7 8", "7.8", "7 and 8", "9 or 10", "9/10", "9-10", "9.5 to 10", "between 9 and 10" — read it as TWO sizes (NOT one uncertain size). They want to SEE what we've got in those sizes. Do NOT ask "are you a 7 or an 8?" and do NOT make them choose just one. Use the SHOW-BOTH-SIZES flow below.
+- ONLY when the customer actually says "match"/"matching" do they want shoes that come in BOTH sizes at once (one to match the other) — use the MATCHING flow below.
+The two flows:
+- SHOW-BOTH-SIZES (for ANY two-or-more sizes that are NOT a "match" request): call search_inventory ONCE with sizes = every size they gave and size_match = "any". Then call send_photos with ALL those ids as ONE flat list and include_sizes = true (so each photo's label shows which of their sizes it's in). ONE photo per shoe — if a shoe comes in more than one of their sizes it still goes out only ONCE, never twice. lead_in = "This is what we have in your sizes rite now 👇 Ready to Order!".
 - MATCHING (for "match"/"matching", or after they pick "matching"): they only want shoes that come in BOTH sizes. Call search_inventory with sizes = the two sizes (e.g. ["9","7"]) and size_match = "all" (returns only shoes available in every one of those sizes). Then send_photos with those ids as a flat list, include_sizes = false, and lead_in = "Here are the shoes we have in both size 7 and size 9 so you can match 👇" (use their actual two sizes). If nothing comes in both sizes, tell them kindly we don't have a match in both right now and offer a special order.
 
 You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
@@ -872,15 +869,18 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // Look shoes up through the LIVE map so labels show current sizes and anything
   // marked sold/deleted on the website is dropped even if it slipped into `ids`.
   const live = liveShoeMap();
-  const dedupe = (idList) => {
-    const seen = new Set();
-    return (idList || []).filter(id => !seen.has(id) && seen.add(id))
-      .map(id => live[id]).filter(s => s && s.image);
+  // dedupe against a shared `seen` set so the SAME shoe never goes out twice —
+  // not within one list, and not across size groups (a shoe in both size 7 and
+  // size 8 is sent once, with its label still showing every size it comes in).
+  const dedupe = (idList, seen) => {
+    const s = seen || new Set();
+    return (idList || []).filter(id => !s.has(id) && s.add(id))
+      .map(id => live[id]).filter(x => x && x.image);
   };
   let sent = 0, requested = 0;
 
   const totalPhotos = (Array.isArray(groups) && groups.length)
-    ? groups.reduce((n, g) => n + dedupe(g.ids).length, 0)
+    ? (() => { const seen = new Set(); return groups.reduce((n, g) => n + dedupe(g.ids, seen).length, 0); })()
     : dedupe(ids).length;
   // ALWAYS label every photo (name + price + sizes) — no matter how many — so the
   // customer can always read the shoe's name off the pic and tell us which one.
@@ -908,8 +908,9 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 
   if (Array.isArray(groups) && groups.length) {
     // Grouped by size: a size header, then that size's photos (each labelled when small).
+    const seenAcrossGroups = new Set(); // a shoe shown in an earlier size group is skipped later
     for (const g of groups) {
-      const chosen = dedupe(g.ids);
+      const chosen = dedupe(g.ids, seenAcrossGroups);
       requested += (g.ids || []).length;
       if (!chosen.length) continue;
       const msgs = [];
