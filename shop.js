@@ -116,6 +116,7 @@ function mount(app) {
     if (!auth(req, res)) return;
     res.json({
       rev: state.rev.n,
+      persistent: PERSISTENT, // false = data lost on redeploy (attach a Railway volume at /data)
       notes: state.notes,
       sales: state.sales,
       log: state.log,
@@ -295,6 +296,28 @@ function mount(app) {
     if (!state.deleted.includes(id)) state.deleted.push(id);
     persist('shoes.json'); persist('deleted.json'); bump();
     res.json({ ok: true });
+  });
+
+  // Bulk-assert a device's deletion graveyard. The website re-pushes its local
+  // deleted ids here on every load, so a deletion made anywhere is re-learned by
+  // the server even after a restart that lost runtime data — deletes can never
+  // come back. MERGES (never shrinks) and also drops those shoes from inventory.
+  app.post('/shop/deleted', (req, res) => {
+    if (!auth(req, res)) return;
+    const ids = (req.body && req.body.ids) || [];
+    if (!Array.isArray(ids)) return res.status(400).json({ error: 'bad ids' });
+    let changed = false;
+    for (const id of ids) {
+      if (id == null) continue;
+      if (!state.deleted.includes(id)) { state.deleted.push(id); changed = true; }
+    }
+    if (Array.isArray(state.shoes)) {
+      const before = state.shoes.length;
+      state.shoes = state.shoes.filter(x => !state.deleted.includes(x.id));
+      if (state.shoes.length !== before) changed = true;
+    }
+    if (changed) { persist('shoes.json'); persist('deleted.json'); bump(); }
+    res.json({ ok: true, deleted: state.deleted.length });
   });
 
   console.log('[shop] mounted: /shop/state /shop/note(s) /shop/sale /shop/log /shop/shoe(s) — key set:', SHOP_KEY !== 'plug242' ? 'custom' : 'default');
