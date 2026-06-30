@@ -292,6 +292,18 @@ function mount(app) {
     res.json({ ok: true });
   });
 
+  // Remove one or more log entries by id (cleanup of bad/duplicate activity rows).
+  app.post('/shop/log/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    let ids = (req.body && req.body.ids) || (req.body && req.body.id != null ? [req.body.id] : []);
+    if (!Array.isArray(ids)) ids = [ids];
+    const set = {}; ids.forEach(i => { set[String(i)] = true; });
+    const before = state.log.length;
+    state.log = state.log.filter(x => !set[String(x.id)]);
+    if (state.log.length !== before) { persist('log.json'); bump(); }
+    res.json({ ok: true, removed: before - state.log.length });
+  });
+
   // ---- Inventory (upsert by id; delete) ----
   app.post('/shop/shoe', (req, res) => {
     if (!auth(req, res)) return;
