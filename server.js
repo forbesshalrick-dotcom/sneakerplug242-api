@@ -332,13 +332,14 @@ function findMatches(raw) {
   return { tokens, sizeFilter, shoes: best.map(x => x.shoe), scored: best };
 }
 
-// Inventory is stored in MEN'S sizes. Women's = Men's + 1.5 (standard Nike conversion,
-// confirmed on the box: Men 7 = Women 8.5). When womens=true we show the sizes converted
-// to women's so a lady sees HER size on the label instead of the men's number.
-const W_OFFSET = 1.5;
+// Inventory is stored in MEN'S sizes. Rodney's women's rule: each MEN'S size covers TWO
+// women's sizes — men's 7 = women's 8 & 8.5, men's 8 = women's 9 & 9.5, etc. (women's runs
+// about +1 to +1.5 over men's). So when womens=true we show each men's size as its two
+// women's sizes, and a lady asking women's 8 OR 8.5 both land on the men's 7s.
 function sizesOf(shoe, womens = false) {
-  return [...new Set(shoe.sizesRaw.map(s => parseFloat(s)))].sort((a, b) => a - b)
-    .map(n => womens ? n + W_OFFSET : n)
+  const mens = [...new Set(shoe.sizesRaw.map(s => parseFloat(s)))].filter(n => !isNaN(n));
+  const nums = womens ? [...new Set(mens.flatMap(m => [m + 1, m + 1.5]))] : mens;
+  return nums.sort((a, b) => a - b)
     .map(n => n % 1 === 0 ? String(n) : n.toFixed(1)).join(', ');
 }
 function displayName(shoe) {
@@ -678,7 +679,7 @@ SIZES — when a customer gives TWO OR MORE sizes (IMPORTANT — never send the 
 The two flows:
 - SHOW-BOTH-SIZES (for ANY two-or-more sizes that are NOT a "match" request): call search_inventory ONCE with sizes = every size they gave and size_match = "any". Then call send_photos with ALL those ids as ONE flat list and include_sizes = true (so each photo's label shows which of their sizes it's in). ONE photo per shoe — if a shoe comes in more than one of their sizes it still goes out only ONCE, never twice. lead_in = "This is what we have in your sizes rite now 👇 Ready to Order!".
 - HALF-SIZE FLEXIBILITY (IMPORTANT — don't lose a sale over a half size): when a customer asks for a WHOLE size, ALSO include the next HALF-size UP in the same search so they see close options — size 9 → also 9.5; size 10 → also 10.5; size 10.5 → also 11. Do it by calling search_inventory with sizes = ["9","9.5"] (etc.) and size_match = "any", include_sizes = true so the label shows the size. If their exact size is out but the half-up is in stock, show it and mention it lightly ("closest we've got is a 9.5 — runs true to size 👟") instead of jumping straight to a special order.
-- WOMEN'S SIZING (IMPORTANT — our stock is in MEN'S sizes, women's = men's + 1.5): lots of customers shop in WOMEN'S sizes. If a customer gives a WOMEN'S size — "women's 9", "womens 9", "ladies 9", "a 9 in womens", "9W", "female 9", or clearly shopping "for her / my girl / my wife" — then call search_inventory AND send_photos with womens = true, passing the WOMEN'S numbers she gave (the system converts to the correct men's pairs and shows every label back in HER women's size, so she never has to do the math). Still include the half-size up (women's 9 → sizes ["9","9.5"], womens = true, size_match "any", include_sizes = true). Lead-in names HER size: "This is what we have in women's 9 rite now 👇". Ladies often don't know their sneaker size, so this shows them their size on every photo with no confusion. IMPORTANT: only use womens = true when she signals women's/ladies — a plain number with no hint stays MEN'S (the default).
+- WOMEN'S SIZING (IMPORTANT — our stock is in MEN'S sizes): lots of customers shop in WOMEN'S sizes. Each men's size covers two women's sizes — men's 7 = women's 8 & 8.5, men's 8 = women's 9 & 9.5, and so on. If a customer gives a WOMEN'S size — "women's 9", "womens 9", "ladies 9", "a 9 in womens", "9W", "female 9", or clearly shopping "for her / my girl / my wife" — then call search_inventory AND send_photos with womens = true, passing the WOMEN'S number she gave (the system maps it to the right men's stock and shows every label back in women's sizes, so she never has to do the math). Lead-in names HER size: "This is what we have in women's 9 rite now 👇". Ladies often don't know their sneaker size, so this shows them their size on every photo with no confusion. IMPORTANT: only use womens = true when she signals women's/ladies — a plain number with no hint stays MEN'S (the default).
 - SIZE 7.5 (special upsell): if a customer asks for size 7.5, FIRST send the 7.5 photos, THEN add exactly one follow-up line: "Heads up — we're low on 7.5, but we've got more in size 8, and these run a touch small so an 8 wears like a 7.5 👟 Want me to show you the 8s?" If they say yes, show the size 8s.
 - MATCHING (for "match"/"matching", or after they pick "matching"): they only want shoes that come in BOTH sizes. Call search_inventory with sizes = the two sizes (e.g. ["9","7"]) and size_match = "all" (returns only shoes available in every one of those sizes). Then send_photos with those ids as a flat list, include_sizes = false, and lead_in = "Here are the shoes we have in both size 7 and size 9 so you can match 👇" (use their actual two sizes). If nothing comes in both sizes, tell them kindly we don't have a match in both right now and offer a special order.
 
@@ -727,7 +728,7 @@ const AI_TOOLS = [
         brand: { type: 'string', description: 'Brand, e.g. "Jordan", "Nike", "Asics", "New Balance".' },
         color: { type: 'string', description: 'A colour/style word, e.g. "white", "black", "red".' },
         query: { type: 'string', description: 'Free text — a model, nickname or colourway, e.g. "Jordan 4", "Air Max 95", "yellow thunder", "white thunder", "bred", "cement". Searches across each shoe\'s name, nickname AND colour, and tolerates typos/odd spellings ("thundr", "jordon", "cment"). Prefer putting a colour+nickname phrase here as one query rather than splitting it.' },
-        womens: { type: 'boolean', description: 'Set true when the customer is giving a WOMEN\'S size ("women\'s 9", "ladies 9", "a 9 in womens", "for her"). Pass the WOMEN\'S size numbers in size/sizes as-is; the search converts them to the right men\'s pairs automatically (women\'s = men\'s + 1.5). Default false = men\'s sizing.' },
+        womens: { type: 'boolean', description: 'Set true when the customer is giving a WOMEN\'S size ("women\'s 9", "ladies 9", "a 9 in womens", "for her"). Pass the WOMEN\'S size numbers in size/sizes as-is; the search maps them to the right men\'s stock automatically (men\'s 7 = women\'s 8 & 8.5, men\'s 8 = women\'s 9 & 9.5, etc.). Default false = men\'s sizing.' },
       },
     },
   },
@@ -752,7 +753,7 @@ const AI_TOOLS = [
           },
         },
         include_sizes: { type: 'boolean', description: 'true = show name, price AND available sizes under each photo (use when the customer has NOT given a size / is just browsing, or for a size RANGE so they see which size each pair has). false = show only name and price (use when the customer gave one exact size, or for matching/grouped sends). Defaults to true.' },
-        womens: { type: 'boolean', description: 'Set true when showing photos to a customer who is shopping in WOMEN\'S sizes. The size labels under each photo are then shown in WOMEN\'S sizing (men\'s + 1.5) so she sees HER size, not the men\'s number. Use include_sizes = true with this so the converted sizes actually show. Default false.' },
+        womens: { type: 'boolean', description: 'Set true when showing photos to a customer shopping in WOMEN\'S sizes. The size labels under each photo are then shown in WOMEN\'S sizing (each men\'s size appears as its two women\'s sizes — men\'s 7 shows as "8, 8.5") so she sees HER size, not the men\'s number. Use include_sizes = true with this so the converted sizes actually show. Default false.' },
       },
     },
   },
@@ -836,12 +837,13 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens 
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
   // range "9.5 to 10" or matching "9 and 7"). Normalise each to a clean number
   // string and drop junk/duplicates. When womens=true the customer gives WOMEN'S
-  // sizes but stock is in men's, so subtract 1.5 to match the right men's pairs.
+  // sizes but stock is in men's: a women's size maps to men's = floor(women's) - 1
+  // (women's 8 & 8.5 → men's 7, women's 9 & 9.5 → men's 8).
   const sizeList = [...new Set(
     []
       .concat(Array.isArray(sizes) ? sizes : (sizes != null ? [sizes] : []))
       .concat(size != null ? [size] : [])
-      .map(x => { const n = parseFloat(x); return isNaN(n) ? '' : String(womens ? n - W_OFFSET : n); })
+      .map(x => { const n = parseFloat(x); return isNaN(n) ? '' : String(womens ? Math.floor(n) - 1 : n); })
       .filter(x => x && x !== 'NaN')
   )];
   if (sizeList.length) {
