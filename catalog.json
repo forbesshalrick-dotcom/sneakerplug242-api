@@ -7003,5 +7003,22 @@
     ],
     "nickname": "",
     "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co574-thumb.jpg"
+  },
+  {
+    "id": "co548",
+    "brand": "Jordan",
+    "name": "Air Jordan 1 Low",
+    "color": "Black",
+    "price": 180,
+    "sizes": [
+      "7",
+      "9"
+    ],
+    "sizesRaw": [
+      "7",
+      "9"
+    ],
+    "nickname": "",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co548-thumb.jpg"
   }
 ]
