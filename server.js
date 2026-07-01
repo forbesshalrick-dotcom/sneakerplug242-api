@@ -799,13 +799,21 @@ function liveShoeMap() {
     if (deleted[s.id]) return;                          // deleted on the website
     const ov = overrides[s.id];
     let sizesRaw = s.sizesRaw, price = s.price, sold = false;
+    const nameOv = {};  // AUTO-SYNC: the website's live name/color/nickname/brand edits
     if (ov) {
       if (Array.isArray(ov.sizes)) sizesRaw = ov.sizes;
       if (ov.price != null) price = ov.price;
       if (ov.sold) sold = true;
+      // The app pushes catalog-shoe edits (rename/recolor/nickname) as `_ov`; apply them
+      // so Jess reflects them instantly — no need to hand-edit catalog.json anymore.
+      if (ov._ov && typeof ov._ov === 'object') {
+        ['brand', 'name', 'color', 'nickname'].forEach(f => {
+          if (ov._ov[f] != null && String(ov._ov[f]).trim() !== '') nameOv[f] = ov._ov[f];
+        });
+      }
     }
     if (sold || !sizesRaw || sizesRaw.length === 0) return; // out of stock — never offer it
-    map[id] = Object.assign({}, s, { sizesRaw, price });
+    map[id] = Object.assign({}, s, { sizesRaw, price }, nameOv);
   });
   return map;
 }
