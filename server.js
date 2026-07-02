@@ -645,7 +645,12 @@ How to chat:
 - Ask only ONE short question at a time. Never stack two questions in one message — pick the single most useful one and send just that.
 - SHOWING BEATS ASKING: if you'd otherwise be guessing WHICH shoes the customer means (e.g. which colourway, which exact model, or you're just not sure), don't keep asking — once you know their size, just send the photos of the likely matches and let them verify and pick from the pictures. A photo they can say "yes that one" to is better than another question.
 - ALWAYS REPLY — NEVER GO SILENT (IMPORTANT): Every customer message must get a reply. Never end your turn having sent them nothing. If a customer asks to SEE shoes — "show me some Jordan 1s", "what Jordans you got?", "show me the New Balance", "lemme see what you have" — immediately call search_inventory for that brand/model and then send_photos of what we have. You do NOT need their size first to show them. After you call search_inventory you MUST follow through the same conversation: either send_photos of the results, or (only if the search truly came back empty) tell them kindly we don't have it and offer a special order. Never stop after searching without showing or saying anything.
-- PHOTOS THE CUSTOMER SENDS (IMPORTANT): You CANNOT see images. If a customer sends or forwards a photo, or points at a picture instead of naming the shoe — "I want this", "I want this in a size 9", "this one", "the yellow one", "the pair in the pic", "how much for this" — do NOT ask them for a screenshot and do NOT say you'll "sort it out" from the photo. You can't see it. Instead, EVERY photo we send has the shoe's NAME printed right under it, so ask them to read it off, in one short friendly line, e.g. "Love it! 😍 What's the name on the photo? It's right under the pic 👟". Once they tell you the name, call search_inventory with that name and continue normally. BUT don't get stuck on the name — pivot to showing them: if you ALREADY know their size, say "I can't see the image 🙈 but wanna see what I've got in [their size]? 👟" and run the photo sequence in that size. If you DON'T know their size yet, ask it once ("I can't see the image 🙈 what size are you? I'll show you what I've got") and then run the sequence. Never just say "I can't see it, tell me what you're after" and stall — always steer toward sending pictures. If they already gave a size (like "in a size 9"), remember it and use it — don't ask for the size again.
+- PHOTOS THE CUSTOMER SENDS — YOU CAN SEE THEM (IMPORTANT): when a customer sends or forwards a photo, you are shown the ACTUAL image. LOOK at it — the silhouette/shape, the colours, and any visible branding or text (Nike swoosh, Jordan Jumpman, the "N" on a New Balance, "DUNK", etc.) — and identify the shoe against our inventory. Use search_inventory to confirm what we carry (search by what you see — model, colourway, brand). Then:
+  • IF YOU CAN IDENTIFY IT: reply with that shoe's NAME, PRICE and available SIZES, and ask what size they need. (If they already gave a size, go straight to showing/confirming it in that size.)
+  • IF YOU'RE NOT 100% SURE: describe what you see and ask to confirm — "Is this the [your best guess, e.g. Jordan 4 'Bred']? Let me know and I'll pull up the info for you 👟". Don't guess wildly, and NEVER say "I can't see the image" — you CAN see it.
+  • IF THE PHOTO HAS A CAPTION/TEXT (e.g. "how much is this?", "you got this in a 9?"): treat the CAPTION as their question and the PHOTO as the reference — answer it directly (price, sizes, availability) for the shoe in the picture.
+  • NEVER reply "would you like to see some pictures?" to someone who already sent a photo — they've shown you exactly what they want; just help them get it.
+  If the shoe in the photo isn't one we carry, say so kindly and offer the closest thing we do have (or a special order). Remember any size they mentioned.
 - CUSTOMER ASKS *YOU* FOR A PHOTO (the opposite case — IMPORTANT): if the customer ASKS to SEE a picture — "you have a pic of it?", "got a pic?", "any pics?", "can you send a pic", "send a picture", "lemme see it", "show me a photo" — that means SEND them the photo. Call search_inventory for the shoe you're discussing and send_photos of it. NEVER answer this with "I can't see pictures" / "I can't open photos" — that line is ONLY for when THEY send YOU an image, NEVER when they ask you to send one. If we actually have the shoe, SEND it. Only if it's genuinely out of stock (a real special order) do you explain you'll send the exact pair once it arrives.
 - IMPORTANT — a bare number on its own (like "9" or "10") is AMBIGUOUS. It might be their size, but it could be a typo, a time ("open at 9"), or something else. NEVER assume a lone number means "show me everything in that size." If a customer just sends a number with no shoe context, reply with a short friendly question to check first, e.g. "You mean size 9? 👟 Want me to show you what we've got?" — and only send photos once they confirm.
 - EXCEPTION to the bare-number rule: if YOUR previous message already asked the customer for their size (e.g. you said "What size are you?"), then a bare number they send back IS their answer — treat it as their size, do NOT ask again. If you already know they want to see shoes, go straight to search_inventory + send_photos in that size. If you only know the size but not yet what they want, give the short lead-in and show what you've got in that size. The point: once you've asked for a size, a number reply means "that's my size" — act on it, don't re-question it.
@@ -671,7 +676,7 @@ How to chat:
 PHOTOS — every photo always carries a label (handled automatically, you don't set a flag):
 - EVERY photo we send — no matter how many — automatically gets a little note right under it with the shoe's NAME, price and the sizes it comes in. This always happens, for one shoe or fifty. So the customer can always see exactly what each pic is.
 - Just call send_photos with ALL the matches; the labels are added for you.
-- Because every photo is labelled, if a customer later points at a picture you can always ask them to read its name off (see "PHOTOS THE CUSTOMER SENDS").
+- Every photo we send is labelled with the shoe's name, and you can also SEE any photo the customer sends — so if they point at a picture, identify it yourself (see "PHOTOS THE CUSTOMER SENDS"); only ask them to read the name off if the image is genuinely unclear.
 
 SIZES — when a customer gives TWO OR MORE sizes (IMPORTANT — never send the same shoe twice, and never make them pick just one):
 - However they write the sizes — "7, 8", "7 8", "7.8", "7 and 8", "9 or 10", "9/10", "9-10", "9.5 to 10", "between 9 and 10" — read it as TWO sizes (NOT one uncertain size). They want to SEE what we've got in those sizes. Do NOT ask "are you a 7 or an 8?" and do NOT make them choose just one. Use the SHOW-BOTH-SIZES flow below.
@@ -1001,6 +1006,29 @@ async function callClaude(messages, system) {
   return { ok: r.ok, status: r.status, data };
 }
 
+// Fetch a customer's photo and return it as a base64 image block so Claude (Haiku 4.5,
+// which has vision) can actually SEE it and identify the shoe. Returns null on any
+// problem (bad URL, not an image, too big, timeout) so the caller can fall back to
+// asking for the name instead of crashing the turn.
+async function fetchImageBase64(url) {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(9000), redirect: 'follow' });
+    if (!r.ok) return null;
+    let ct = (r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 4.5 * 1024 * 1024) return null;          // Anthropic ~5MB cap
+    if (!/^image\/(jpeg|png|gif|webp)$/.test(ct)) {
+      // sniff common magic bytes when the header is missing/wrong
+      if (buf[0] === 0xFF && buf[1] === 0xD8) ct = 'image/jpeg';
+      else if (buf[0] === 0x89 && buf[1] === 0x50) ct = 'image/png';
+      else if (buf[0] === 0x47 && buf[1] === 0x49) ct = 'image/gif';
+      else if (buf[8] === 0x57 && buf[9] === 0x45) ct = 'image/webp';
+      else return null;
+    }
+    return { media_type: ct, data: buf.toString('base64') };
+  } catch (_) { return null; }
+}
+
 const convos = new Map();    // subscriberId -> message history
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
@@ -1072,11 +1100,19 @@ function trimHistory(h, maxLen = 24) {
   return start < h.length ? h.slice(start) : h.slice(-2);
 }
 
-async function runChat(req, sub, userText, token, ctx = {}) {
+async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const system = buildSystemPrompt({ store: ctx.store, name: ctx.name });
   const history = convos.get(sub) || [];
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
-  history.push({ role: 'user', content: userText });
+  // When the customer sent a photo, attach it as an image block so Claude can SEE it.
+  const userMsg = {
+    role: 'user',
+    content: image
+      ? [ { type: 'text', text: (userText && userText.trim()) ? userText : '(The customer sent this photo of a shoe — identify it and help them.)' },
+          { type: 'image', source: { type: 'base64', media_type: image.media_type, data: image.data } } ]
+      : userText,
+  };
+  history.push(userMsg);
 
   // The customer MUST always get a reply. Track whether we actually sent them
   // anything this turn; if a turn somehow ends with nothing sent (model fumbled,
@@ -1092,6 +1128,11 @@ async function runChat(req, sub, userText, token, ctx = {}) {
       return;
     }
     history.push({ role: 'assistant', content: data.content });
+    // Once Claude has seen the photo, drop the heavy base64 from history so the rest
+    // of the tool-loop (and future turns) stay light and we never re-send a photo.
+    if (image && step === 0 && Array.isArray(userMsg.content)) {
+      userMsg.content = (userText && userText.trim()) ? userText : '(customer sent a photo of a shoe)';
+    }
     const toolUses = data.content.filter(b => b.type === 'tool_use');
     const sendPhotosTU = toolUses.find(t => t.name === 'send_photos');
     const turnText = data.content.filter(b => b.type === 'text' && b.text.trim())
@@ -1200,17 +1241,21 @@ function handleChat(req, res) {
       }
       text = t;
     }
-    // Photo with NO caption: we can't see images, so ask which shoe + their size.
-    // (A photo WITH a caption already gave us userText above and flows normally.)
-    if (!text.trim() && imageUrl) {
-      record(req, { endpoint: 'photo-no-caption', sub, imageUrl });
-      text = "(SYSTEM NOTE — the customer just sent a PHOTO of a shoe with no caption. " +
-        "You cannot see images. Reply in ONE short friendly line asking which shoe it is / " +
-        "the name on it AND what size they're in — for example: " +
-        "\"Are you looking for this shoe? 👟 What's the name on it, and what size you in?\". " +
-        "If they already told you their size earlier in the chat, don't ask for it again.)";
+    // Photo: load it so Claude can SEE it and identify the shoe. Works for a photo
+    // with OR without a caption (the caption, if any, stays as `text` = their question).
+    let image = null;
+    if (imageUrl) {
+      image = await fetchImageBase64(imageUrl);
+      record(req, { endpoint: image ? 'photo-vision' : 'photo-load-failed', sub, imageUrl });
+      // Couldn't load the image AND no caption to go on → fall back to asking which shoe.
+      if (!image && !text.trim()) {
+        text = "(SYSTEM NOTE — the customer sent a PHOTO of a shoe but it wouldn't load. " +
+          "Reply in ONE short friendly line asking which shoe it is / the name on it AND what " +
+          "size — e.g. \"Are you looking for this shoe? 👟 What's the name on it, and what size " +
+          "you in?\". If they already told you their size earlier, don't ask again.)";
+      }
     }
-    return runChat(req, sub, text, token, { store, name });
+    return runChat(req, sub, text, token, { store, name }, image);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
