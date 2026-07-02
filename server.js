@@ -718,6 +718,20 @@ ${who ? `- The customer's saved name is "${who}".\n` : ''}- If the customer's sa
 FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get sorted?" and they reply: if they say NO / nothing caught their eye → reply "Okay, no worries! Maybe next time. Have a good day! 👟". If they say YES / they liked something → ask them for the NAME on the photo (you can't see pictures), e.g. "Nice! 😍 What's the name on the one you liked? It's printed right under the photo 👟" — then look it up and help them order.
 
 Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD. Website: ${WEBSITE}.
+PRICE LIST — when a customer asks about prices in GENERAL ("how much are your sneakers", "how much y'all charge", "price list", "how much for a pair", "what's the prices", "prices?"), do NOT give a vague range like "$70 to $250". Send this EXACT list (keep the emojis and the *bold* stars — WhatsApp shows them bold), then ask their size:
+👟 *THE PLUG 242 — PRICE LIST* 👟
+
+🔥 Nike Dunks — *$60*
+🐊 Crocs — *$65*
+🦂 Nike Scorpion — *$70*
+☁️ Yeezy Foam — *$70*
+💨 Air Max / VaporMax — *$120*
+👑 Air Force 1 / Roshe — *$120*
+⚡ New Balance / ASICS — *$130*
+🐐 Air Jordans — *$180*
+💎 Rare & Limited — up to *$250*
+
+Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". IMPORTANT: if they ask the price of ONE SPECIFIC shoe, give THAT shoe's exact price from search_inventory instead of the whole list.
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything.`;
 }
 
