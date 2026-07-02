@@ -691,7 +691,7 @@ The two flows:
 
 You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
 
-PAYMENT: If they ask about payment, tell them: we accept cash only, no cards right now, but bank transfer is available if they need it. Then ask which bank they prefer — Scotiabank or CIBC — and send the matching details:
+PAYMENT: If they ask about payment, tell them we've made it easy — a few options: 💳 pay right on our website with card or PayPal at checkout (${WEBSITE}), 💵 cash on delivery, 🏦 bank transfer (Scotiabank or CIBC), or 📲 SunCash voucher. Whatever's easiest for them. If they pick bank transfer, ask which bank they prefer — Scotiabank or CIBC — and send the matching details:
 - Scotiabank → "Scotiabank 🏦\nAccount #: 201727284\nTransit #: 09766\nName: Rodney Munnings"
 - CIBC → "CIBC 🏦\nAccount #: 004005357\nTransit #: 70045\nName: Rodney Munnings"
 
@@ -701,7 +701,7 @@ SHIPPING (Family Islands — ONLY when they say they're off-island): Only if the
 
 LOCATION: If they ask where you're located, tell them: we're on Carmichael Road West, but we're mobile and delivery-only — we'll come to your nearest spot. 📍
 
-LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): When a customer in Nassau has picked a pair and sorted payment (cash or bank transfer) and wants it brought to them:
+LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): When a customer in Nassau has picked a pair and sorted payment (website, cash, bank transfer, or SunCash) and wants it brought to them:
 - Ask them to drop their WhatsApp LOCATION PIN so we can meet them exactly — tap the 📎 (or ＋) in the chat → Location → Send your current location. A dropped pin is best. If they can't drop a pin, ask them to describe the spot clearly with a landmark (e.g. "Blue Hill Rd next to SuperValue").
 - The MOMENT they've given a pin or a clear location AND they're ready to receive now, call notify_manager with their name, the shoe + size, the agreed price, how they're paying, and their exact location. This alerts the owner and posts the job to the website so whoever's on duty runs it.
 - Then reassure the customer warmly — e.g. "Perfect! 🙌 Letting the team know now, someone will reach out to drop it off shortly 👟". Do NOT say "I'm on my way" or make up a driver or an ETA yourself — you're alerting the team, not driving.
@@ -779,7 +779,7 @@ const AI_TOOLS = [
   },
   {
     name: 'notify_manager',
-    description: "Alert the shop owner that a sale is READY to deliver/hand off. Call this ONCE the customer has (1) confirmed they want to buy, (2) sorted payment (cash or bank transfer), AND (3) given their location — a dropped WhatsApp pin or a clearly described spot/address — and is ready to receive now. It pings the owner on WhatsApp and posts the job to the shop website so whoever is on duty can run it. Do NOT call it for a plain question, or before the customer is actually ready to receive.",
+    description: "Alert the shop owner that a sale is READY to deliver/hand off. Call this ONCE the customer has (1) confirmed they want to buy, (2) sorted payment (website, cash, bank transfer, or SunCash), AND (3) given their location — a dropped WhatsApp pin or a clearly described spot/address — and is ready to receive now. It pings the owner on WhatsApp and posts the job to the shop website so whoever is on duty can run it. Do NOT call it for a plain question, or before the customer is actually ready to receive.",
     input_schema: {
       type: 'object',
       properties: {
@@ -787,7 +787,7 @@ const AI_TOOLS = [
         shoe: { type: 'string', description: 'The shoe(s) they are buying — colour/model.' },
         size: { type: 'string', description: 'Their size.' },
         price: { type: 'string', description: 'Agreed total, e.g. "$240".' },
-        payment: { type: 'string', description: 'How they are paying: "cash", or which bank transfer.' },
+        payment: { type: 'string', description: 'How they are paying: website/card, cash, which bank transfer, or SunCash.' },
         location: { type: 'string', description: "The customer's meet-up spot / address exactly as they gave it. Mention if they dropped a pin." },
       },
       required: ['location'],
