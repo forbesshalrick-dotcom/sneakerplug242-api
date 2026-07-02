@@ -644,7 +644,11 @@ const STORE_DEFAULT = 'THE PLUG 242';
 const WEBSITE = '242plug.netlify.app';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes
 const END_OF_PHOTOS_MSG = `There's the photos! 👟 If you want to check out even more, visit our website and search what you need in the search bar. 👉 ${WEBSITE}`;
-const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked, or did you get sorted?';
+const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked?';
+// If they're STILL quiet ~10 min after that nudge, send one final graceful closer
+// (with our hours) and then stop — no more messages until they reply.
+const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min after the nudge
+const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
 const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pictures? 👟';
@@ -1095,7 +1099,7 @@ function rememberCustomer(sub, name, store, text, token) {
 // messages again — so we only nudge customers who went quiet.
 // Generic "nudge the customer if they go quiet" timer. One pending nudge per
 // customer (a new one replaces the old); cleared the moment they message again.
-function scheduleNudge(sub, token, text, ms) {
+function scheduleNudge(sub, token, text, ms, next) {
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
     followUps.delete(sub);
@@ -1105,12 +1109,16 @@ function scheduleNudge(sub, token, text, ms) {
       h.push({ role: 'assistant', content: text }); // so Claude knows it asked
       convos.set(sub, trimHistory(h));
     } catch (e) { /* non-fatal */ }
+    // If a follow-on stage was given (e.g. the closing message), schedule it now.
+    // It only fires if the customer is STILL quiet — any reply cancels it via
+    // clearFollowUp(). After the last stage there's no `next`, so we stop.
+    if (next && next.text) scheduleNudge(sub, token, next.text, next.ms);
   }, ms);
   if (handle.unref) handle.unref();
   followUps.set(sub, handle);
 }
 // 10-min "did you see anything you liked?" after photos.
-function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, FOLLOWUP_MSG, FOLLOWUP_MS); }
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, FOLLOWUP_MSG, FOLLOWUP_MS, { text: CLOSER_MSG, ms: CLOSER_MS }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, WELCOME_NUDGE_MSG, WELCOME_NUDGE_MS); }
 
