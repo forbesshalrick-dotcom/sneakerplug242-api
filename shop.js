@@ -332,6 +332,17 @@ function mount(app) {
     res.json({ ok: true, count: state.sales.length });
   });
 
+  // Void/reverse a sale — remove it from the shared register by id.
+  app.post('/shop/sale/void', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = req.body && req.body.id;
+    if (id == null) return res.status(400).json({ error: 'no id' });
+    const before = state.sales.length;
+    state.sales = state.sales.filter(x => String(x.id) !== String(id));
+    if (state.sales.length !== before) { persist('sales.json'); bump(); }
+    res.json({ ok: true, removed: before - state.sales.length, count: state.sales.length });
+  });
+
   // ---- Activity log (append; id dedupe) ----
   app.post('/shop/log', (req, res) => {
     if (!auth(req, res)) return;
