@@ -366,6 +366,29 @@ const wa = messages => ({ version: 'v2', content: { type: 'whatsapp', messages: 
 
 app.get('/health', (req, res) => res.json({ status: 'ok', shoes: catalog.length }));
 
+// Meta / WhatsApp Business catalogue product feed (CSV). Connect this URL as a
+// SCHEDULED data feed in Meta Commerce Manager and Meta re-pulls it automatically,
+// so the WhatsApp catalogue stays in sync with live inventory. Only in-stock shoes,
+// each linking back to its page on the website.
+app.get(['/feed.csv', '/catalog-feed.csv'], (req, res) => {
+  const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const site = 'https://' + WEBSITE;
+  const lines = ['id,title,description,availability,condition,price,link,image_link,brand,google_product_category'];
+  liveCatalog().forEach(({ s }) => {
+    const title = [s.brand, s.name, s.color].filter(Boolean).join(' ').slice(0, 150);
+    const sizes = [...new Set((s.sizesRaw || []).map(x => String(parseFloat(x))))]
+      .sort((a, b) => parseFloat(a) - parseFloat(b)).join(', ');
+    const desc = ([s.brand, s.name, s.color].filter(Boolean).join(' ') + (sizes ? ` — sizes ${sizes}` : '')).slice(0, 480) || s.name || 'Sneaker';
+    const avail = (s.sizesRaw && s.sizesRaw.length) ? 'in stock' : 'out of stock';
+    const price = (parseFloat(s.price) || 0).toFixed(2) + ' USD';
+    const link = site + '/?shoe=' + encodeURIComponent(s.id);
+    lines.push([s.id, title, desc, avail, 'new', price, link, s.image || '', s.brand || 'Nike', 'Apparel & Accessories > Shoes'].map(esc).join(','));
+  });
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=600');
+  res.send(lines.join('\n'));
+});
+
 // Diagnostic: see the last requests ManyChat sent.
 app.get('/last', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'add ?key=plug242' });
