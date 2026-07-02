@@ -748,7 +748,7 @@ FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get 
 
 Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD. Website: ${WEBSITE}.
 PRICE LIST — when a customer asks about prices in GENERAL ("how much are your sneakers", "how much y'all charge", "price list", "how much for a pair", "what's the prices", "prices?"), do NOT give a vague range like "$70 to $250". Send this EXACT list (keep the emojis and the *bold* stars — WhatsApp shows them bold), then ask their size:
-👟 *THE PLUG 242 — PRICE LIST* 👟
+👟 *${storeName.toUpperCase()} — PRICE LIST* 👟
 
 🏃 Nike Roshe — *$50*
 🔥 Nike Dunk High — *SALE $60* 🔥
