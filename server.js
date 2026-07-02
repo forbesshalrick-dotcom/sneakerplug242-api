@@ -1103,16 +1103,19 @@ function scheduleNudge(sub, token, text, ms, next) {
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
     followUps.delete(sub);
+    // Register the follow-on stage (e.g. the closing message) BEFORE we send/await
+    // this one. Sending takes a moment, and the nudge invites a reply — if we waited
+    // until after the send to schedule the closer, a customer who replies during that
+    // window couldn't cancel it (clearFollowUp would find nothing) and would still get
+    // the closer. Scheduling first (synchronously) means their reply always cancels it.
+    // It only fires if the customer stays quiet; after the last stage there's no `next`.
+    if (next && next.text) scheduleNudge(sub, token, next.text, next.ms);
     try {
       await sendChunk(sub, [{ type: 'text', text }], token);
       const h = convos.get(sub) || [];
       h.push({ role: 'assistant', content: text }); // so Claude knows it asked
       convos.set(sub, trimHistory(h));
     } catch (e) { /* non-fatal */ }
-    // If a follow-on stage was given (e.g. the closing message), schedule it now.
-    // It only fires if the customer is STILL quiet — any reply cancels it via
-    // clearFollowUp(). After the last stage there's no `next`, so we stop.
-    if (next && next.text) scheduleNudge(sub, token, next.text, next.ms);
   }, ms);
   if (handle.unref) handle.unref();
   followUps.set(sub, handle);
