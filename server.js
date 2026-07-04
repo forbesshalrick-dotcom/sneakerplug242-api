@@ -665,6 +665,10 @@ const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pict
 // Owner's WhatsApp (digits only) for delivery-ready alerts. Defaults to Rodney's
 // number so it survives redeploys; MANAGER_WA env can override.
 const MANAGER_WA = (process.env.MANAGER_WA || '12428033126').replace(/[^0-9]/g, '');
+// Second owner phone (backup) so a dead battery on one phone never means a missed
+// delivery — every owner alert goes to BOTH. Fill MANAGER_WA_2 with the real number.
+const MANAGER_WA_2 = (process.env.MANAGER_WA_2 || '').replace(/[^0-9]/g, '');
+const MANAGER_NUMBERS = [MANAGER_WA, MANAGER_WA_2].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
 function buildSystemPrompt({ store, name } = {}) {
   const storeName = store || STORE_DEFAULT;
@@ -728,7 +732,13 @@ The two flows:
 
 You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
 
-PAYMENT: If they ask about payment, tell them we've made it easy — a few options: 💳 pay right on our website with card or PayPal at checkout (${WEBSITE}), 💵 cash on delivery, 🏦 bank transfer (Scotiabank or CIBC), or 📲 SunCash voucher. Whatever's easiest for them. If they pick bank transfer, ask which bank they prefer — Scotiabank or CIBC — and send the matching details:
+PAYMENT: If they ask about payment, tell them we've made it easy — a few options: 💳 pay right on our website with card or PayPal at checkout (${WEBSITE}), 💵 cash on delivery, 🏦 bank transfer (Scotiabank or CIBC), or 📲 SunCash voucher. Whatever's easiest for them. If they pick bank transfer, ask which bank they prefer — Scotiabank or CIBC — then send the matching details.
+⚠️ CRITICAL BANK-DETAILS RULES (money fails if you get this wrong):
+1. Send ONLY the block for the EXACT bank they named. Scotiabank request → send the Scotiabank block ONLY. CIBC request → send the CIBC block ONLY. NEVER send one bank's details under the other's name.
+2. Copy every account number and transit number EXACTLY, digit for digit, from the block below. NEVER change, guess, shorten, round, or "fix" a single digit.
+3. If you're not 100% sure which bank they meant, ASK "Scotiabank or CIBC?" before sending anything — don't guess.
+4. Send the full block for ONE bank only; never mix numbers from the two banks.
+5. Start the message with the bank's name so it's crystal clear which bank the numbers are for.
 - Scotiabank → "Scotiabank 🏦\nAccount #: 201727284\nTransit #: 09766\nName: Rodney Munnings"
 - CIBC → "CIBC 🏦\nAccount #: 004005357\nTransit #: 70045\nName: Rodney Munnings"
 
@@ -1143,13 +1153,17 @@ function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, WELCOME_NU
 // own ManyChat token (the customer's account) — the owner just needs to have
 // messaged that account once so they're a subscriber. Best-effort.
 async function waSendManager(text, token) {
-  if (!MANAGER_WA || !token) return false;
-  try {
-    const sub = await findSubscriberByPhone(MANAGER_WA, token);
-    if (!sub) return false;
-    await sendChunk(sub, [{ type: 'text', text }], token);
-    return true;
-  } catch (_) { return false; }
+  if (!MANAGER_NUMBERS.length || !token) return false;
+  let anyOk = false;
+  for (const num of MANAGER_NUMBERS) {           // send to EVERY owner phone, not just one
+    try {
+      const sub = await findSubscriberByPhone(num, token);
+      if (!sub) continue;
+      await sendChunk(sub, [{ type: 'text', text }], token);
+      anyOk = true;
+    } catch (_) { /* try the next number */ }
+  }
+  return anyOk;
 }
 function clearFollowUp(sub) {
   const h = followUps.get(sub);
