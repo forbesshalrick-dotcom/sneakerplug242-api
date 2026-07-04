@@ -659,6 +659,9 @@ const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked
 // (with our hours) and then stop — no more messages until they reply.
 const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min after the nudge
 const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
+// One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
+const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
+const THIRD_MSG = "Take your time! 😊 We'll be here from 8 AM to 10 PM. Just let us know if you want to see some pictures — we'll send some over so you can pick 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
 const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pictures? 👟';
@@ -1133,7 +1136,7 @@ function scheduleNudge(sub, token, text, ms, next) {
     // window couldn't cancel it (clearFollowUp would find nothing) and would still get
     // the closer. Scheduling first (synchronously) means their reply always cancels it.
     // It only fires if the customer stays quiet; after the last stage there's no `next`.
-    if (next && next.text) scheduleNudge(sub, token, next.text, next.ms);
+    if (next && next.text) scheduleNudge(sub, token, next.text, next.ms, next.next);
     try {
       await sendChunk(sub, [{ type: 'text', text }], token);
       const h = convos.get(sub) || [];
@@ -1145,7 +1148,7 @@ function scheduleNudge(sub, token, text, ms, next) {
   followUps.set(sub, handle);
 }
 // 10-min "did you see anything you liked?" after photos.
-function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, FOLLOWUP_MSG, FOLLOWUP_MS, { text: CLOSER_MSG, ms: CLOSER_MS }); }
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, FOLLOWUP_MSG, FOLLOWUP_MS, { text: CLOSER_MSG, ms: CLOSER_MS, next: { text: THIRD_MSG, ms: THIRD_MS } }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, WELCOME_NUDGE_MSG, WELCOME_NUDGE_MS); }
 
