@@ -520,6 +520,16 @@ function getName(req) {
   return null;
 }
 
+// The customer's phone / WhatsApp number, if ManyChat included it in the request.
+function getPhone(req) {
+  const keys = ['phone', 'whatsapp_phone', 'wa_id', 'phone_number', 'whatsapp', 'wa_phone', 'last_phone'];
+  const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
+  for (const src of srcs) for (const k of keys) {
+    if (src[k] != null && !isJunk(src[k]) && /\d{6,}/.test(String(src[k]))) return String(src[k]).trim();
+  }
+  return null;
+}
+
 // Every http(s) URL ManyChat sent, with its (lowercased) field name. Used to tell
 // a voice note from a photo from any other attachment.
 function collectUrls(req) {
@@ -816,6 +826,7 @@ const AI_TOOLS = [
       type: 'object',
       properties: {
         customer_name: { type: 'string', description: "The customer's name, if known." },
+        customer_phone: { type: 'string', description: "The customer's callback number IF they typed one in the chat (e.g. 'call me at 359-1234'). Leave blank otherwise — the system fills in their WhatsApp number automatically." },
         shoe: { type: 'string', description: 'The shoe(s) they are buying — colour/model.' },
         size: { type: 'string', description: 'Their size.' },
         price: { type: 'string', description: 'Agreed total, e.g. "$240".' },
@@ -1215,9 +1226,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       else if (tu.name === 'notify_manager') {
         const inp = tu.input || {};
+        // Pull the customer's WhatsApp number so staff can call/message them for the
+        // drop-off. Prefer what Jess passed or the request field; else ask ManyChat.
+        let custPhone = inp.customer_phone || getPhone(req);
+        if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
+        custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
         const lines = [
           '🛵 *DELIVERY READY* — please facilitate',
           inp.customer_name ? `👤 ${inp.customer_name}` : null,
+          custPhone ? `📞 ${custPhone}  (wa.me/${custPhone.replace(/[^0-9]/g,'')})` : null,
           inp.shoe ? `👟 ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : (inp.size ? `👟 size ${inp.size}` : null),
           inp.price ? `💰 ${inp.price}${inp.payment ? ` (${inp.payment})` : ''}` : (inp.payment ? `💰 ${inp.payment}` : null),
           `📍 ${inp.location || '(no location given)'}`,
@@ -1332,6 +1349,20 @@ require('./shop').mount(app);
 // catch it. Reuses searchInventory + sendShoePhotos + each account's own token
 // (captured from live chat traffic, so the right account is used automatically).
 const CONSOLE_KEY = process.env.CONSOLE_KEY || 'jess242';
+
+// Ask ManyChat for a subscriber's saved WhatsApp/phone number by their id.
+async function getSubscriberPhone(sub, token) {
+  const id = String(sub || '').replace(/[^0-9]/g, '');
+  if (!id || !token) return null;
+  try {
+    const f = await fetch('https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=' + encodeURIComponent(id),
+      { headers: { Authorization: `Bearer ${token}` } });
+    const fj = await f.json();
+    const d = fj && fj.data;
+    if (!d) return null;
+    return d.whatsapp_phone || d.phone || (d.whatsapp_id ? String(d.whatsapp_id) : null) || null;
+  } catch (_) { return null; }
+}
 
 async function findSubscriberByPhone(phone, token) {
   const digits = String(phone || '').replace(/[^0-9]/g, '');
