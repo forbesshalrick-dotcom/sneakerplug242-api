@@ -661,7 +661,7 @@ const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min aft
 const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
-const THIRD_MSG = "Take your time! 😊 We'll be here from 8 AM to 10 PM. Just let us know if you want to see some pictures — we'll send some over so you can pick 👟";
+const THIRD_MSG = "Take your time! 😊 We'll be here from 7 AM to 11 PM. Just let us know if you want to see some pictures — we'll send some over so you can pick 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
 const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pictures? 👟';
