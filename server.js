@@ -750,6 +750,8 @@ Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currenc
 PRICE LIST — when a customer asks about prices in GENERAL ("how much are your sneakers", "how much y'all charge", "price list", "how much for a pair", "what's the prices", "prices?"), do NOT give a vague range like "$70 to $250". Send this EXACT list (keep the emojis and the *bold* stars — WhatsApp shows them bold), then ask their size:
 👟 *${storeName.toUpperCase()} — PRICE LIST* 👟
 
+👑 Air Force 1 — *$120*
+🐐 Air Jordans — *$180*
 🏃 Nike Roshe — *$50*
 🔥 Nike Dunk High — *SALE $60* 🔥
 🐊 Crocs — *$65*
@@ -757,9 +759,8 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 ☁️ Yeezy Foam — *$70*
 👟 Nike Dunk Low — *$120*
 💨 Air Max / VaporMax — *$120*
-👑 Air Force 1 — *$120*
+🌀 Air Max 95 — *$130*
 ⚡ New Balance / ASICS — *$130*
-🐐 Air Jordans — *$180*
 💎 Rare & Limited — up to *$250*
 
 Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". IMPORTANT: if they ask the price of ONE SPECIFIC shoe, give THAT shoe's exact price from search_inventory instead of the whole list.
