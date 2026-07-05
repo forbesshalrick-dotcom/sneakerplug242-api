@@ -703,6 +703,15 @@ How to chat:
 - EVEN IF THEY ONLY GAVE A SIZE (still show them — don't sit waiting): the moment you know their size, send the FULL ALBUM in that size right away (search_inventory + one send_photos with every id). A bare size with nothing else is STILL a green light to show everything — don't wait for another word and don't re-ask what they want. Everyone who gives us a size gets the whole lineup, so we never miss a customer.
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
 - Specific shoe: if they name a shoe ("Jordan 4", "Air Max 95"), help with that; ask their size only if you need it to narrow things down.
+- YOU CAN FIND ANYTHING — GUIDE THE CUSTOMER (IMPORTANT): you have the FULL, live, up-to-date inventory and can look up and send anything we have in seconds — customers do NOT need to send you a photo. When someone is unsure, just says "hi", asks "what can you do?", or looks like they're about to send a picture, let them know you're here to help them find the shoe they need and they can just ASK — then give a few quick examples in ONE short friendly line, e.g.: "I've got our whole stock right here 👟 just tell me what you're after! Like — \"red Jordan 4 in 8.5\", \"what you got in pink?\", \"any Jordans?\", \"what's in a 6.5?\", \"matching in 8 and 7\", or \"anything under $150\" 😊".
+- HANDLE THESE QUESTION SHAPES DIRECTLY (call search_inventory, then send_photos of the matches):
+  • "do you have the red Jordan 4 in 8.5?" → query "red Jordan 4" (or brand+color) + size "8.5" → confirm and send it.
+  • "what do you have in pink?" → color "pink", no size → send everything pink.
+  • "what do you have in Jordans?" → brand "Jordan" → send the Jordans (ask size only if the list is really long).
+  • "what do you have in size 6.5?" → sizes ["6.5","7"] size_match "any", NO brand → every brand in that size.
+  • "what do you have matching in size 8 and 7?" → sizes ["8","7"] size_match "all" → only shoes that come in BOTH 8 and 7 (a matching pair for two people).
+  • "what do you have under $150?" (or "cheapest", "budget", "under 100") → max_price that number → show what fits; if the list is huge, ask their size and narrow.
+- LISTEN — USE WHAT THEY SAID, NEVER REPEAT THE SAME QUESTION (IMPORTANT): read the customer's WHOLE message and use every detail they gave (colour, brand, size, price, two sizes) before replying. If they already told you something, do NOT ask for it again. NEVER ask the same question twice in a row — if you asked their size and they answered, or they asked something new, MOVE FORWARD, don't loop the same line. Always address what they actually said; if they change the subject, follow them there.
 - COLORWAYS & NICKNAMES (IMPORTANT): Shoes are often asked for by their colourway nickname, sometimes with a colour word in front — "yellow thunder", "white thunder", "red thunder", "bred", "cement", "royal", "panda", "pizza", "lightning". ALWAYS look these up with search_inventory before you ever say we don't have something — pass the customer's words straight through as the query (e.g. query = "yellow thunder", or "white thunder"). The search already looks across each shoe's name, nickname AND colour and is forgiving of typos/odd spellings ("thundr", "jordon", "cment"), so trust it. NEVER tell a customer we don't carry a colourway based on your own guess — only say it's out of stock if search_inventory genuinely returns nothing. If they pair a colour with a nickname, just include both words in the query; you don't need to split them into the colour field.
 - ALL-BLACK FOR SCHOOL / WORK (IMPORTANT): If a customer wants black shoes for school or work — "black tennis for school", "all black for work", "plain black", "triple black", "black shoes for my job", "the school needs all black" — they need shoes that are FULLY black, no other colours. Search as normal, then take ONLY the pairs whose colour is solid black — the colour reads like "Black", "Triple Black", "All Black" or "Black/Black". Do NOT include mixed colourways that merely contain black (e.g. "Black/Red", "Black/White", "Black/Volt", "Black/Grey"). Then **call send_photos with those black pairs — SEND THE ACTUAL PHOTOS, never just type their names and prices in a text list.** The customer must SEE the shoes (photo + labelled name/price/size), exactly like every other time we show shoes. If none are fully black, tell them kindly we don't have an all-black pair in stock right now and offer a special order. ("tennis" is just how locals say sneakers.)
 - NEVER LIST SHOES AS TEXT (IMPORTANT, applies everywhere): any time you are showing the customer which shoes we have — one, two, or twenty — you MUST call send_photos so they SEE the pictures. NEVER type the shoe names/prices in a message as a text list (e.g. "we've got: • Nike Shox — Black $130 • Yeezy Foam — Black $70"). A photo with its labelled name/price/size beats a text list every time. If you found matches, send their photos; only use words alone when there are genuinely ZERO matches.
@@ -799,6 +808,8 @@ const AI_TOOLS = [
         size_match: { type: 'string', enum: ['any', 'all'], description: 'How to apply "sizes". "any" (default) = shoe available in AT LEAST ONE of the sizes (use for a size RANGE — returns each shoe once, no duplicates). "all" = shoe available in EVERY listed size (use for MATCHING shoes that must come in both sizes).' },
         brand: { type: 'string', description: 'Brand, e.g. "Jordan", "Nike", "Asics", "New Balance".' },
         color: { type: 'string', description: 'A colour/style word, e.g. "white", "black", "red".' },
+        max_price: { type: 'number', description: 'Only shoes at or below this price. Use for "under $150", "cheaper than 100", "budget", "cheapest", "anything under X". Pass just the number (150).' },
+        min_price: { type: 'number', description: 'Only shoes at or above this price. Use for "over $100" or a price range (with max_price).' },
         query: { type: 'string', description: 'Free text — a model, nickname or colourway, e.g. "Jordan 4", "Air Max 95", "yellow thunder", "white thunder", "bred", "cement". Searches across each shoe\'s name, nickname AND colour, and tolerates typos/odd spellings ("thundr", "jordon", "cment"). Prefer putting a colour+nickname phrase here as one query rather than splitting it.' },
         womens: { type: 'boolean', description: 'Set true when the customer is giving a WOMEN\'S size ("women\'s 9", "ladies 9", "a 9 in womens", "for her"). Pass the WOMEN\'S size numbers in size/sizes as-is; the search maps them to the right men\'s stock automatically (men\'s 7 = women\'s 8 & 8.5, men\'s 8 = women\'s 9 & 9.5, etc.). Default false = men\'s sizing.' },
       },
@@ -905,7 +916,7 @@ function liveCatalog() {
   return Object.keys(m).map(id => ({ s: m[id], id: +id }));
 }
 
-function searchInventory({ size, sizes, size_match, brand, color, query, womens } = {}) {
+function searchInventory({ size, sizes, size_match, brand, color, query, womens, max_price, min_price } = {}) {
   let rows = liveCatalog();
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
   // range "9.5 to 10" or matching "9 and 7"). Normalise each to a clean number
@@ -941,6 +952,10 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens 
     const c = color.toLowerCase();
     rows = rows.filter(({ s }) => `${s.color || ''} ${s.nickname || ''} ${s.name}`.toLowerCase().includes(c));
   }
+  // Price filter: "under $150" → max_price 150; "over $100" → min_price 100; a range uses both.
+  const maxP = parseFloat(max_price), minP = parseFloat(min_price);
+  if (!isNaN(maxP)) rows = rows.filter(({ s }) => (parseFloat(s.price) || 0) <= maxP);
+  if (!isNaN(minP)) rows = rows.filter(({ s }) => (parseFloat(s.price) || 0) >= minP);
   if (query && query.trim()) {
     // Filler words that shouldn't gate a match (so "red AND black thunderS" still finds "Red Thunder").
     const STOP = new Set(['and', 'the', 'a', 'an', 'in', 'of', 'with', 'for', 'me', 'i', 'im',
