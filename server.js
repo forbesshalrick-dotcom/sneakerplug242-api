@@ -662,6 +662,9 @@ const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe 
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
 const THIRD_MSG = "Take your time! 😊 We'll be here from 7 AM to 11 PM. Just let us know if you want to see some pictures — we'll send some over so you can pick 👟";
+// After a delivery is confirmed, if the customer goes quiet, reassure them at ~20 min.
+const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60 * 1000; // 20 minutes
+const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
 const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pictures? 👟';
@@ -758,9 +761,10 @@ SHIPPING (Family Islands — ONLY when they say they're off-island): Only if the
 LOCATION: If they ask where you're located, tell them: we're on Carmichael Road West, but we're mobile and delivery-only — we'll come to your nearest spot. 📍
 
 LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): When a customer in Nassau has picked a pair and sorted payment (website, cash, bank transfer, or SunCash) and wants it brought to them:
-- Ask them to drop their WhatsApp LOCATION PIN so we can meet them exactly — tap the 📎 (or ＋) in the chat → Location → Send your current location. A dropped pin is best. If they can't drop a pin, ask them to describe the spot clearly with a landmark (e.g. "Blue Hill Rd next to SuperValue").
-- The MOMENT they've given a pin or a clear location AND they're ready to receive now, call notify_manager with their name, the shoe + size, the agreed price, how they're paying, and their exact location. This alerts the owner and posts the job to the website so whoever's on duty runs it.
-- Then reassure the customer warmly — e.g. "Perfect! 🙌 Letting the team know now, someone will reach out to drop it off shortly 👟". Do NOT say "I'm on my way" or make up a driver or an ETA yourself — you're alerting the team, not driving.
+- ⚠️ YOU CANNOT SEE A DROPPED LOCATION PIN — a shared WhatsApp pin does NOT reach you as readable text. So ask for the location ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin (tap 📎 or ＋ → Location → Send your current location), or just tell me the spot with a landmark — then text me \"sent\" so I know it came through 👟".
+- ⚠️ NEVER KEEP ASKING FOR THE PIN. The moment the customer says they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here" — OR they describe a spot/landmark, TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
+- Once the location is sent/described AND they're ready to receive now: call notify_manager (name, shoe + size, agreed price, how they're paying, and location = the landmark they gave OR "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). Then reply warmly, EXACTLY in this spirit: "Perfect! 🙌 The driver's heading out shortly and he'll give you a call when he's close 👟". Do NOT invent an exact ETA or say "I'm on my way" yourself — you're alerting the team, not driving.
+- AFTER the delivery is confirmed (you've already called notify_manager) — if the customer messages again asking "how long / you coming / where's the driver / you reaching?" — do NOT re-ask for their location or the order details. Say: "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". (The system also auto-sends a "we're still on the way!" reassurance if they go quiet for a while.)
 - FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Only call notify_manager once they actually drop the location and say they're ready to receive — never before.
 
 BAHAMIAN "COMING" PHRASING (IMPORTANT — locals often ask questions with no question mark):
@@ -842,7 +846,7 @@ const AI_TOOLS = [
   },
   {
     name: 'notify_manager',
-    description: "Alert the shop owner that a sale is READY to deliver/hand off. Call this ONCE the customer has (1) confirmed they want to buy, (2) sorted payment (website, cash, bank transfer, or SunCash), AND (3) given their location — a dropped WhatsApp pin or a clearly described spot/address — and is ready to receive now. It pings the owner on WhatsApp and posts the job to the shop website so whoever is on duty can run it. Do NOT call it for a plain question, or before the customer is actually ready to receive.",
+    description: "Alert the shop owner that a sale is READY to deliver/hand off. Call this ONCE the customer has (1) confirmed they want to buy, (2) sorted payment (website, cash, bank transfer, or SunCash), AND (3) given their location OR said they sent it — a dropped WhatsApp pin, a clearly described spot/landmark, OR a message like \"sent\" / \"sent the location\" / \"dropped it\" (you CAN'T see the pin, so trust them when they say they sent it) — and is ready to receive now. It pings the owner on WhatsApp and posts the job to the shop website so whoever is on duty can run it. Do NOT call it for a plain question, or before the customer is actually ready to receive.",
     input_schema: {
       type: 'object',
       properties: {
@@ -1278,6 +1282,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
         record(req, { endpoint: 'notify-manager', sub, store: ctx.store, waOk, staffWa, staffOk });
+        // Delivery is now in motion — if the customer goes quiet, auto-reassure them
+        // at ~20 min ("still on the way!"). Any reply from them cancels it (and Jess
+        // then offers to call the driver). Reuses the one-pending-nudge timer.
+        try { scheduleNudge(sub, token, DELIVERY_FOLLOWUP_MSG, DELIVERY_FOLLOWUP_MS); } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
       }
       else result = { error: 'unknown_tool' };
