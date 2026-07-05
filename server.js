@@ -673,7 +673,7 @@ const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pict
 const MANAGER_WA = (process.env.MANAGER_WA || '12428033126').replace(/[^0-9]/g, '');
 // Second owner phone (backup) so a dead battery on one phone never means a missed
 // delivery — every owner alert goes to BOTH. Fill MANAGER_WA_2 with the real number.
-const MANAGER_WA_2 = (process.env.MANAGER_WA_2 || '').replace(/[^0-9]/g, '');
+const MANAGER_WA_2 = (process.env.MANAGER_WA_2 || '12428256405').replace(/[^0-9]/g, '');
 const MANAGER_NUMBERS = [MANAGER_WA, MANAGER_WA_2].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
 function buildSystemPrompt({ store, name } = {}) {
