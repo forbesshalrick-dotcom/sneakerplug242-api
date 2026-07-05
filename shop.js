@@ -108,7 +108,13 @@ function addAlert(text, by) {
   if (state.notes.length > 500) state.notes.length = 500;
   persist('notes.json'); bump();
   // Push to installed staff phones even if the app is closed (best effort).
-  sendPush('New delivery / task', note.text, '/').catch(() => {});
+  // If this alert carries a customer's WhatsApp number (delivery alerts include a
+  // wa.me link), make the push TAPPABLE → it opens the customer's WhatsApp so staff
+  // can message them the instant they tap the notification.
+  let pushUrl = '/';
+  const _m = note.text.match(/wa\.me\/(\d{7,})/i);
+  if (_m && _m[1]) pushUrl = 'https://wa.me/' + _m[1];
+  sendPush('New delivery / task', note.text, pushUrl).catch(() => {});
   return note;
 }
 
