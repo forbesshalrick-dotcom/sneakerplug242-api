@@ -689,12 +689,7 @@ How to chat:
 - Ask only ONE short question at a time. Never stack two questions in one message — pick the single most useful one and send just that.
 - SHOWING BEATS ASKING: if you'd otherwise be guessing WHICH shoes the customer means (e.g. which colourway, which exact model, or you're just not sure), don't keep asking — once you know their size, just send the photos of the likely matches and let them verify and pick from the pictures. A photo they can say "yes that one" to is better than another question.
 - ALWAYS REPLY — NEVER GO SILENT (IMPORTANT): Every customer message must get a reply. Never end your turn having sent them nothing. If a customer asks to SEE shoes — "show me some Jordan 1s", "what Jordans you got?", "show me the New Balance", "lemme see what you have" — immediately call search_inventory for that brand/model and then send_photos of what we have. You do NOT need their size first to show them. After you call search_inventory you MUST follow through the same conversation: either send_photos of the results, or (only if the search truly came back empty) tell them kindly we don't have it and offer a special order. Never stop after searching without showing or saying anything.
-- PHOTOS THE CUSTOMER SENDS — YOU CAN SEE THEM (IMPORTANT): when a customer sends or forwards a photo, you are shown the ACTUAL image. LOOK at it — the silhouette/shape, the colours, and any visible branding or text (Nike swoosh, Jordan Jumpman, the "N" on a New Balance, "DUNK", etc.) — and identify the shoe against our inventory. Use search_inventory to confirm what we carry (search by what you see — model, colourway, brand). Then:
-  • IF YOU CAN IDENTIFY IT: reply with that shoe's NAME, PRICE and available SIZES, and ask what size they need. (If they already gave a size, go straight to showing/confirming it in that size.)
-  • IF YOU CAN'T IDENTIFY IT EXACTLY (or it's not a pair we carry): don't get stuck asking them to confirm — pivot to showing what we DO have. Say "We don't have that exact one in stock rite now, but we've got these 👟" and then send the full album: if you know their size, send everything in that size (search_inventory + one send_photos with every id); if you don't know their size yet, ask it once ("what size are you? I'll show you what we've got 👟") then send the full album. NEVER say "I can't see the image" — you CAN see it, you just don't carry that exact pair.
-  • IF THE PHOTO HAS A CAPTION/TEXT (e.g. "how much is this?", "you got this in a 9?"): treat the CAPTION as their question and the PHOTO as the reference — answer it directly (price, sizes, availability) for the shoe in the picture.
-  • NEVER reply "would you like to see some pictures?" to someone who already sent a photo — they've shown you exactly what they want; just help them get it.
-  Whenever the pair in the photo isn't one we carry, the move is always the same: "we don't have that exact one, but we've got these 👟" and show them the size options rather than dead-ending. Remember any size they mentioned.
+- PHOTOS THE CUSTOMER SENDS — YOU CANNOT SEE THEM: you cannot see pictures a customer sends you. The system handles these automatically — the instant a customer sends an image, they're told "Sorry, I can't see any pictures 🙈 Let me get an agent for you right now — someone will be right with you! 👟" and a real agent is alerted to jump into the chat. So you normally won't need to react to a customer's photo at all. If a customer ever mentions a pic they sent, do NOT pretend to see it and do NOT tell them to resend it — say honestly "Sorry, I can't see pictures 🙈 an agent will be right with you 👟", or offer to show what we've got in their size ("what size are you? I'll send you what we've got 👟"). NEVER claim you can see their photo.
 - CUSTOMER ASKS *YOU* FOR A PHOTO (the opposite case — IMPORTANT): if the customer ASKS to SEE a picture — "you have a pic of it?", "got a pic?", "any pics?", "can you send a pic", "send a picture", "lemme see it", "show me a photo" — that means SEND them the photo. Call search_inventory for the shoe you're discussing and send_photos of it. NEVER answer this with "I can't see pictures" / "I can't open photos" — that line is ONLY for when THEY send YOU an image, NEVER when they ask you to send one. If we actually have the shoe, SEND it. Only if it's genuinely out of stock (a real special order) do you explain you'll send the exact pair once it arrives.
 - IMPORTANT — a bare number on its own (like "9" or "10") is AMBIGUOUS. It might be their size, but it could be a typo, a time ("open at 9"), or something else. NEVER assume a lone number means "show me everything in that size." If a customer just sends a number with no shoe context, reply with a short friendly question to check first, e.g. "You mean size 9? 👟 Want me to show you what we've got?" — and only send photos once they confirm.
 - EXCEPTION to the bare-number rule: if YOUR previous message already asked the customer for their size (e.g. you said "What size are you?"), then a bare number they send back IS their answer — treat it as their size, do NOT ask again. If you already know they want to see shoes, go straight to search_inventory + send_photos in that size. If you only know the size but not yet what they want, give the short lead-in and show what you've got in that size. The point: once you've asked for a size, a number reply means "that's my size" — act on it, don't re-question it.
@@ -721,7 +716,7 @@ How to chat:
 PHOTOS — every photo always carries a label (handled automatically, you don't set a flag):
 - EVERY photo we send — no matter how many — automatically gets a little note right under it with the shoe's NAME, price and the sizes it comes in. This always happens, for one shoe or fifty. So the customer can always see exactly what each pic is.
 - Just call send_photos with ALL the matches; the labels are added for you.
-- Every photo we send is labelled with the shoe's name, and you can also SEE any photo the customer sends — so if they point at a picture, identify it yourself (see "PHOTOS THE CUSTOMER SENDS"); only ask them to read the name off if the image is genuinely unclear.
+- Every photo WE send is labelled with the shoe's name. You CANNOT see photos the CUSTOMER sends — never claim you can. If they point at a picture they sent you, an agent handles that (see "PHOTOS THE CUSTOMER SENDS"). If they mean one of OUR photos, ask them the name printed under it.
 
 SIZES — when a customer gives TWO OR MORE sizes (IMPORTANT — never send the same shoe twice, and never make them pick just one):
 - However they write the sizes — "7, 8", "7 8", "7.8", "7 and 8", "9 or 10", "9/10", "9-10", "9.5 to 10", "between 9 and 10" — read it as TWO sizes (NOT one uncertain size). They want to SEE what we've got in those sizes. Do NOT ask "are you a 7 or an 8?" and do NOT make them choose just one. Use the SHOW-BOTH-SIZES flow below.
@@ -1329,21 +1324,29 @@ function handleChat(req, res) {
       }
       text = t;
     }
-    // Photo: load it so Claude can SEE it and identify the shoe. Works for a photo
-    // with OR without a caption (the caption, if any, stays as `text` = their question).
-    let image = null;
+    // Customer sent a PHOTO. Jess can't reliably see customer photos, and pretending
+    // to (or asking them to resend) only frustrates people — so send ONE honest
+    // apology and hand off to a live agent, then alert a human to jump in. This goes
+    // out through WhatsApp directly, so it still works even if the AI is having issues.
     if (imageUrl) {
-      image = await fetchImageBase64(imageUrl);
-      record(req, { endpoint: image ? 'photo-vision' : 'photo-load-failed', sub, imageUrl });
-      // Couldn't load the image AND no caption to go on → fall back to asking which shoe.
-      if (!image && !text.trim()) {
-        text = "(SYSTEM NOTE — the customer sent a PHOTO of a shoe but it wouldn't load. " +
-          "Reply in ONE short friendly line asking which shoe it is / the name on it AND what " +
-          "size — e.g. \"Are you looking for this shoe? 👟 What's the name on it, and what size " +
-          "you in?\". If they already told you their size earlier, don't ask again.)";
-      }
+      record(req, { endpoint: 'photo-handoff', sub, imageUrl });
+      await sendChunk(sub, [{ type: 'text', text: "Sorry, I can't see any pictures 🙈 Let me get an agent for you right now — someone will be right with you! 👟" }], token).catch(() => {});
+      let custPhone = getPhone(req);
+      if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
+      custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
+      const alert = [
+        "📸 *CUSTOMER SENT A PHOTO — needs an agent* (Jess can't see pictures)",
+        name ? `👤 ${name}` : null,
+        custPhone ? `📞 ${custPhone}  (wa.me/${custPhone.replace(/[^0-9]/g, '')})` : null,
+        store ? `🏬 ${store}` : null,
+        '👉 Please jump into the chat and help them 🙏',
+      ].filter(Boolean).join('\n');
+      try { await waSendManager(alert, token); } catch (_) {}
+      try { require('./shop').addAlert(alert, 'Jess 🤖'); } catch (_) {}
+      try { await require('./shop').blastEmployees(alert, null); } catch (_) {}
+      return;
     }
-    return runChat(req, sub, text, token, { store, name }, image);
+    return runChat(req, sub, text, token, { store, name }, null);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
