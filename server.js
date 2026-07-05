@@ -661,7 +661,7 @@ const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min aft
 const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
-const THIRD_MSG = "Take your time! 😊 We'll be here from 7 AM to 11 PM. Just let us know if you want to see some pictures — we'll send some over so you can pick 👟";
+const THIRD_MSG = "Hi! Ask me anything, like:\n- *You have red Jordan 4 in 8.5?*\n- *What do you have in pink?*\n- *What do you have in Jordans?*\n- *What do you have in size 6.5?*\n- *What do you have matching in size 8 and 7?*\n- *What do you have under $150?*\n- *Any all black?*";
 // After a delivery is confirmed, if the customer goes quiet, reassure them at ~20 min.
 const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60 * 1000; // 20 minutes
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
