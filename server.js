@@ -653,8 +653,9 @@ const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.l
 const STORE_DEFAULT = 'THE PLUG 242';
 const WEBSITE = '242plug.netlify.app';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes
-const END_OF_PHOTOS_MSG = `There's the photos! 👟 If you want to check out even more, visit our website and search what you need in the search bar. 👉 ${WEBSITE}`;
-const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did you see anything you liked?';
+const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just text me the *name* written under it (like "New Balance 1000 — Black/Silver") — I can't open pictures 🙈 so texting the name is the fastest way for me to get you sorted. Want more options? Search our site 👉 ${WEBSITE}`;
+const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
+const FOLLOWUP_MSG = 'Hey! Just following up 😊 See anything you liked? Just text me the *name* written under the shoe (no need to send a pic — I can\'t open them 🙈) and I\'ll get you sorted fast 👟';
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
 const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min after the nudge
@@ -1052,9 +1053,15 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     await sendBatch(msgs);
   }
 
-  // Always close with the website prompt once photos have actually gone out.
+  // Close with the "text me the name" prompt once photos have gone out — but only
+  // ONCE per burst: a two-colour request fires 3 send_photos calls back-to-back, and
+  // we don't want the closing line repeated 3×. Send it at most once per 45s per sub.
   if (sent > 0) {
-    try { await sendChunk(sub, [{ type: 'text', text: END_OF_PHOTOS_MSG }], token); } catch (e) { /* non-fatal */ }
+    const now = Date.now();
+    if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
+      endMsgSentAt[sub] = now;
+      try { await sendChunk(sub, [{ type: 'text', text: END_OF_PHOTOS_MSG }], token); } catch (e) { /* non-fatal */ }
+    }
   }
   return { sent, requested };
 }
