@@ -667,7 +667,7 @@ const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
-const WELCOME_NUDGE_MSG = 'How can we help? 😊 Would you like to see some pictures? 👟';
+const WELCOME_NUDGE_MSG = "Hi! Ask me anything, like:\n- *You have red Jordan 4 in 8.5?*\n- *What do you have in pink?*\n- *What do you have in Jordans?*\n- *What do you have in size 6.5?*\n- *What do you have matching in size 8 and 7?*\n- *What do you have under $150?*\n- *Any all black?*";
 // Owner's WhatsApp (digits only) for delivery-ready alerts. Defaults to Rodney's
 // number so it survives redeploys; MANAGER_WA env can override.
 const MANAGER_WA = (process.env.MANAGER_WA || '12428033126').replace(/[^0-9]/g, '');
