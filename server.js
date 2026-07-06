@@ -798,7 +798,8 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 💎 Rare & Limited — up to *$250*
 
 Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". IMPORTANT: if they ask the price of ONE SPECIFIC shoe, give THAT shoe's exact price from search_inventory instead of the whole list.
-Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything.`;
+⚠️ ALL AIR JORDANS ARE $180 — every model and every colourway (Jordan 1, 3, 4, 5, 11, Low, Tatum, etc.), no matter the colour or style. If a customer asks the price of ANY Jordan — INCLUDING one you can't find in stock, or a colour/style you're not sure we carry (e.g. "how much for the blue and white Jordan?") — the answer is simply "$180". Never tell a customer a Jordan "isn't showing up" or that you can't price it; any Jordan is $180.
+Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything (the Jordan = $180 rule above is the one known exception, so you can always quote $180 for a Jordan).`;
 }
 
 const AI_TOOLS = [
