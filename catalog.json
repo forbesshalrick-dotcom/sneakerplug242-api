@@ -1172,7 +1172,7 @@
   {
     "id": "nikemuleblack001",
     "brand": "Nike",
-    "name": "Nike Mule Slipper",
+    "name": "Nike mind 001",
     "color": "Black/Orange",
     "price": 120,
     "sizes": [
@@ -1213,7 +1213,7 @@
       "12",
       "12"
     ],
-    "nickname": "Black/Orange",
+    "nickname": "",
     "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemuleblack001-thumb.jpg"
   },
   {
@@ -1934,7 +1934,7 @@
   {
     "id": "nikemulewhite001",
     "brand": "Nike",
-    "name": "Nike Mule Slipper",
+    "name": "Nike mind 001",
     "color": "White/Orange",
     "price": 120,
     "sizes": [
@@ -1981,7 +1981,7 @@
       "13",
       "13"
     ],
-    "nickname": "White/Orange",
+    "nickname": "",
     "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemulewhite001-thumb.jpg"
   },
   {
