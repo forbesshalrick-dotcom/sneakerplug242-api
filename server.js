@@ -718,6 +718,7 @@ How to chat:
 - LISTEN — USE WHAT THEY SAID, NEVER REPEAT THE SAME QUESTION (IMPORTANT): read the customer's WHOLE message and use every detail they gave (colour, brand, size, price, two sizes) before replying. If they already told you something, do NOT ask for it again. NEVER ask the same question twice in a row — if you asked their size and they answered, or they asked something new, MOVE FORWARD, don't loop the same line. Always address what they actually said; if they change the subject, follow them there.
 - COLORWAYS & NICKNAMES (IMPORTANT): Shoes are often asked for by their colourway nickname, sometimes with a colour word in front — "yellow thunder", "white thunder", "red thunder", "bred", "cement", "royal", "panda", "pizza", "lightning". ALWAYS look these up with search_inventory before you ever say we don't have something — pass the customer's words straight through as the query (e.g. query = "yellow thunder", or "white thunder"). The search already looks across each shoe's name, nickname AND colour and is forgiving of typos/odd spellings ("thundr", "jordon", "cment"), so trust it. NEVER tell a customer we don't carry a colourway based on your own guess — only say it's out of stock if search_inventory genuinely returns nothing. If they pair a colour with a nickname, just include both words in the query; you don't need to split them into the colour field.
 - CUSTOMER TYPES A SHOE NAME → SEARCH IT, THEN SHOW IT (CRITICAL): When a customer replies with the NAME of a shoe — even an odd, unfamiliar or oddly-spelled one like "Nike mind 001", "Nike mines", "the burrow", "air mag" — you MUST call search_inventory with their EXACT words as the query, THEN send_photos of whatever it returns. The search is fuzzy and forgiving and very often finds the pair even when the name looks "wrong" (e.g. "Nike mind 001" actually returns our *Nike Mule Slipper*, and "slipper"/"mule" find it too). NEVER reply "I'm not finding that exact model" and NEVER fall back to "the closest ones I showed you earlier" WITHOUT first running search_inventory on their exact term this turn. Only say we don't have it if that fresh search genuinely comes back empty — and even then, offer a special order. Do not second-guess a match just because the shoe's real name looks different from what they typed; if the search returns it, SHOW it.
+- DON'T LOOP — GET A TEAM MEMBER WHEN YOU'RE STUCK (IMPORTANT): Never repeat the same line twice. If your next message would just say AGAIN what you already said — "I can't see pictures", "I'm not finding that in our system", "check the name printed under the photo" — STOP. Saying the same thing over and over is confusing and unprofessional. Instead, call get_agent ONCE and warmly tell the customer a real person will take it from here, e.g. "Let me get a team member to jump in and help you with this right now 🙌 They'll be right with you 👟". Then stop looping and let the human take over. (Always search_inventory their exact words FIRST — only escalate if you genuinely still can't help after that. Don't escalate on the first message.)
 - ALL-BLACK FOR SCHOOL / WORK (IMPORTANT): If a customer wants black shoes for school or work — "black tennis for school", "all black for work", "plain black", "triple black", "black shoes for my job", "the school needs all black" — they need shoes that are FULLY black, no other colours. Search as normal, then take ONLY the pairs whose colour is solid black — the colour reads like "Black", "Triple Black", "All Black" or "Black/Black". Do NOT include mixed colourways that merely contain black (e.g. "Black/Red", "Black/White", "Black/Volt", "Black/Grey"). Then **call send_photos with those black pairs — SEND THE ACTUAL PHOTOS, never just type their names and prices in a text list.** The customer must SEE the shoes (photo + labelled name/price/size), exactly like every other time we show shoes. If none are fully black, tell them kindly we don't have an all-black pair in stock right now and offer a special order. ("tennis" is just how locals say sneakers.)
 - TWO COLOURS ASKED — SHOW THE COMBO **AND** EACH COLOUR ON ITS OWN (IMPORTANT): When a customer names TWO colours together — "yellow and black", "red and white", "blue and green" (e.g. "5.5/6 yellow and black") — they want to see everything in those colours, so send THREE sets of photos, ALL in the size(s) they gave: (1) pairs that have BOTH colours together (search the two colours as one query, e.g. "yellow and black" — this catches combos like the Thunder); THEN (2) pairs that are FULLY the FIRST colour on its own (solid — colour reads like "Yellow"/"All Yellow", NOT "Yellow/Black"); THEN (3) pairs that are FULLY the SECOND colour on its own (solid "Black"/"All Black"/"Triple Black", not a mixed "Black/…"). Use a SEPARATE send_photos call for each set, each with its own short lead-in — e.g. "This is what we have in yellow and black rite now 👇 Ready to Order!", then "And here's what we got in all yellow 👇", then "And in all black 👇". Skip a set only if that search truly returns nothing. Keep every set in the size(s) they asked for.
 - NEVER LIST SHOES AS TEXT (IMPORTANT, applies everywhere): any time you are showing the customer which shoes we have — one, two, or twenty — you MUST call send_photos so they SEE the pictures. NEVER type the shoe names/prices in a message as a text list (e.g. "we've got: • Nike Shox — Black $130 • Yeezy Foam — Black $70"). A photo with its labelled name/price/size beats a text list every time. If you found matches, send their photos; only use words alone when there are genuinely ZERO matches.
@@ -865,6 +866,16 @@ const AI_TOOLS = [
         location: { type: 'string', description: "The customer's meet-up spot / address exactly as they gave it. Mention if they dropped a pin." },
       },
       required: ['location'],
+    },
+  },
+  {
+    name: 'get_agent',
+    description: "Hand the chat off to a REAL human team member. Call this ONCE when you're stuck or going in circles — e.g. you've already tried and still can't find the shoe or answer them, or your next message would just REPEAT something you already said (\"I can't see pictures\", \"I'm not finding that in the system\", \"check the name under the photo\"). Repeating yourself frustrates customers — instead, call this and a team member is alerted to jump into the chat (it pings the owner + on-duty staff on WhatsApp and posts to the website Tasks board). After calling it, warmly tell the customer a team member will help them shortly, and STOP looping. Do NOT call it on the very first message, and do NOT call it for anything you can still handle yourself — ALWAYS search_inventory their exact words first; only escalate if you still genuinely can't help. Never call it twice in a row.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: "One short line on what the customer needs and where you got stuck, e.g. \"wants 'Nike mind 001 black' in size 11 but I can't confirm which pair\"." },
+      },
     },
   },
 ];
@@ -1299,6 +1310,27 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // then offers to call the driver). Reuses the one-pending-nudge timer.
         try { scheduleNudge(sub, token, DELIVERY_FOLLOWUP_MSG, DELIVERY_FOLLOWUP_MS); } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
+      }
+      else if (tu.name === 'get_agent') {
+        const inp = tu.input || {};
+        // Grab the customer's WhatsApp number so the team member can reach them fast.
+        let custPhone = getPhone(req);
+        if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
+        custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
+        const lines = [
+          '🙋 *CUSTOMER NEEDS A TEAM MEMBER* — please jump into the chat',
+          inp.reason ? `📝 ${inp.reason}` : null,
+          custPhone ? `📞 ${custPhone}  (wa.me/${custPhone.replace(/[^0-9]/g,'')})` : null,
+          ctx.store ? `🏬 ${ctx.store}` : null,
+        ].filter(Boolean).join('\n');
+        let waOk = false;
+        try { waOk = await waSendManager(lines, token); } catch (_) {}
+        try { require('./shop').addAlert(lines, 'Jess 🤖'); } catch (_) {} // website Tasks board
+        let staffWa = [];
+        try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
+        const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
+        record(req, { endpoint: 'get-agent', sub, store: ctx.store, waOk, staffOk });
+        result = { ok: true, agent_alerted: true };
       }
       else result = { error: 'unknown_tool' };
       toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
