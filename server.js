@@ -669,6 +669,54 @@ const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
 const WELCOME_NUDGE_MSG = "Hi! Ask me anything, like:\n- *You have red Jordan 4 in 8.5?*\n- *What do you have in pink?*\n- *What do you have in Jordans?*\n- *What do you have in size 6.5?*\n- *What do you have matching in size 8 and 7?*\n- *What do you have under $150?*\n- *Any all black?*";
+
+// ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
+// Detection is CONSERVATIVE (needs strong signals); default stays English, so an
+// English customer never gets Spanish/Creole auto-messages by mistake.
+const subLang = new Map(); // sub -> 'en' | 'es' | 'ht'
+function detectLang(text, prev) {
+  const t = (text || '').toLowerCase();
+  if (!t.trim()) return prev || 'en';
+  const es = (t.match(/[ñ¿¡áéíóú]/g) || []).length
+    + (t.match(/\b(hola|tienen|tienes|talla|cuanto|cuánto|gracias|qué|por favor|zapatos|tenis|quiero|precio|tamaño|tamano|entrega|envio|envío|donde|dónde|cuales|cuáles|disponible|negro|blanco|rojo|azul|verde|para mujer|para hombre|nino|niño|buenas|buenos dias|buenos días|necesito|mandame|mándame)\b/g) || []).length;
+  const ht = (t.match(/\b(bonjou|mwen|koman|konbyen|soulye|mesi|mèsi|tanpri|gade|kisa|ki sa|eske|èske|ou gen|nou gen|pri|gwose|gwosè|livrezon|kibo|kibò|blan|nwa|wouj|ble|vet|vèt|pou fanm|pou gason|timoun|kijan|bay mwen|m bezwen)\b/g) || []).length;
+  if (es >= 2 || (es >= 1 && /[ñ¿¡]/.test(t))) return 'es';
+  if (ht >= 2) return 'ht';
+  if (/\b(the|you|have|size|do|what|hello|need|want|got|show|please|black|white|red|blue|delivery|price|jordan|nike|thanks|morning|yes|hi)\b/.test(t)) return 'en';
+  return prev || 'en';
+}
+function L(map, sub) { return map[subLang.get(sub) || 'en'] || map.en; }
+
+const ASKME_T = {
+  en: WELCOME_NUDGE_MSG,
+  es: "¡Hola! Pregúntame lo que quieras, por ejemplo:\n- *¿Tienen Jordan 4 rojo en 8.5?*\n- *¿Qué tienen en rosado?*\n- *¿Qué tienen en Jordans?*\n- *¿Qué tienen en talla 6.5?*\n- *¿Qué combinan en talla 8 y 7?*\n- *¿Qué tienen por menos de $150?*\n- *¿Algo todo negro?*",
+  ht: "Bonjou! Mande m nenpòt bagay, tankou:\n- *Ou gen Jordan 4 wouj nan 8.5?*\n- *Ki sa ou genyen an woz?*\n- *Ki sa ou genyen an Jordan?*\n- *Ki sa ou genyen nan gwosè 6.5?*\n- *Ki sa ou genyen ki matche nan 8 ak 7?*\n- *Ki sa ou genyen anba $150?*\n- *Eske ou gen tout nwa?*",
+};
+const FOLLOWUP_T = {
+  en: FOLLOWUP_MSG,
+  es: "¡Hola! Solo dando seguimiento 😊 ¿Viste algo que te gustó? Escríbeme el *nombre* que está debajo del zapato (no hace falta foto — no puedo abrirlas 🙈) y te ayudo rápido 👟",
+  ht: "Alo! M ap tcheke avè w 😊 Èske w wè yon bagay ou renmen? Ekri m *non* ki anba soulye a (ou pa bezwen voye foto — m pa ka louvri yo 🙈) epi m ap ede w vit 👟",
+};
+const CLOSER_T = {
+  en: CLOSER_MSG,
+  es: "Bueno, parece que no encontraste nada esta vez 🙂 ¡Quizás la próxima! Abrimos todos los días de 7 AM a 11 PM. Escríbeme tu talla cuando estés listo 👟",
+  ht: "Oke, sanble ou pa jwenn anyen fwa sa a 🙂 Petèt pwochèn fwa! Nou louvri chak jou depi 7 AM rive 11 PM. Ekri m gwosè w lè ou pare 👟",
+};
+const END_OF_PHOTOS_T = {
+  en: END_OF_PHOTOS_MSG,
+  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Escríbeme el *nombre* que está debajo (como "New Balance 1000 — Black/Silver") — no puedo abrir fotos 🙈 así que escribir el nombre es lo más rápido para ayudarte. ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}`,
+  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Ekri m *non* ki anba a (tankou "New Balance 1000 — Black/Silver") — m pa ka louvri foto 🙈 kidonk ekri non an se fason ki pi rapid pou m ede w. Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}`,
+};
+const DELIVERY_FOLLOWUP_T = {
+  en: DELIVERY_FOLLOWUP_MSG,
+  es: "Solo para avisarte — ¡seguimos en camino! 🚗 El chofer te llamará cuando esté cerca 👟",
+  ht: "Jis pou fè w konnen — nou toujou an wout! 🚗 Chofè a ap rele w lè li pre 👟",
+};
+const HANDOFF_T = {
+  en: "Sorry, I can't see any pictures 🙈 Let me get an agent for you right now — someone will be right with you! 👟",
+  es: "¡Perdón! No puedo ver las fotos 🙈 Déjame conseguirte un agente ahora mismo — ¡alguien te atenderá enseguida! 👟",
+  ht: "Padon, m pa ka wè foto 🙈 Kite m jwenn yon ajan pou ou kounye a — yon moun ap la avè w touswit! 👟",
+};
 // Owner's WhatsApp (digits only) for delivery-ready alerts. Defaults to Rodney's
 // number so it survives redeploys; MANAGER_WA env can override.
 const MANAGER_WA = (process.env.MANAGER_WA || '12428033126').replace(/[^0-9]/g, '');
@@ -686,7 +734,7 @@ YOUR NAME IS JESS. You're part of the ${storeName} team. If a customer asks your
 
 How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
-- LANGUAGE — MATCH THE CUSTOMER (IMPORTANT): Reply in the SAME language the customer writes to you in. If they write in **Haitian Creole (Kreyòl)**, reply in Haitian Creole. If they write in **Spanish**, reply in Spanish. Otherwise reply in English (the default). Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
+- LANGUAGE — MATCH THE CUSTOMER (IMPORTANT): DEFAULT to ENGLISH. ONLY use **Haitian Creole (Kreyòl)** if the customer is clearly WRITING to you in Creole, and ONLY use **Spanish** if they're clearly writing in Spanish — then reply in that same language. Do NOT switch languages over a single borrowed word or a name; only switch when the message is genuinely in that language. When in doubt, stay in English. Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
 - WELCOME: On your very FIRST reply in a brand-new conversation, greet the customer with exactly this line: "Hi! Welcome! 👟 This is ${storeName}! You can browse everything on our website 👉 ${WEBSITE} — or tell me right here: are you looking for a specific shoe you already have in mind, or do you want me to show you what we've got?" (If their first message already names a shoe or a size, still open with that greeting, then go straight to helping them.)
 - Talk like a real, friendly shop assistant having a normal conversation. Do NOT fire off photos the moment you see a number — but do NOT interrogate them either.
 - NEVER ask the customer whether they're "looking for something specific" or have "anything specific in mind", and never ask "what kind of shoe are you after". Don't make them name a model. Your DEFAULT move is simply to offer to show what we have, e.g. "Want me to show you what we've got in {size}? 👟" (or without the size if they haven't given one). Only dig into a specific shoe/brand/colour if THEY bring it up first.
@@ -1083,7 +1131,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
-      try { await sendChunk(sub, [{ type: 'text', text: END_OF_PHOTOS_MSG }], token); } catch (e) { /* non-fatal */ }
+      try { await sendChunk(sub, [{ type: 'text', text: L(END_OF_PHOTOS_T, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
   return { sent, requested };
@@ -1198,9 +1246,9 @@ function scheduleNudge(sub, token, text, ms, next) {
   followUps.set(sub, handle);
 }
 // 10-min "did you see anything you liked?" after photos.
-function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, FOLLOWUP_MSG, FOLLOWUP_MS, { text: CLOSER_MSG, ms: CLOSER_MS, next: { text: THIRD_MSG, ms: THIRD_MS } }); }
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS, next: { text: L(ASKME_T, sub), ms: THIRD_MS } }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
-function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, WELCOME_NUDGE_MSG, WELCOME_NUDGE_MS); }
+function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, L(ASKME_T, sub), WELCOME_NUDGE_MS); }
 
 // Ping the owner's WhatsApp with a delivery-ready alert. Uses the live chat's
 // own ManyChat token (the customer's account) — the owner just needs to have
@@ -1319,7 +1367,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Delivery is now in motion — if the customer goes quiet, auto-reassure them
         // at ~20 min ("still on the way!"). Any reply from them cancels it (and Jess
         // then offers to call the driver). Reuses the one-pending-nudge timer.
-        try { scheduleNudge(sub, token, DELIVERY_FOLLOWUP_MSG, DELIVERY_FOLLOWUP_MS); } catch (_) {}
+        try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
       }
       else if (tu.name === 'get_agent') {
@@ -1379,6 +1427,9 @@ function handleChat(req, res) {
   const name = getName(req);
   record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, imageUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
   rememberCustomer(sub, name, store, userText, token); // for the /console control panel
+  // Track the customer's language (conservative; English by default) so the automatic
+  // nudges/handoff go out in Creole/Spanish only when they clearly speak it.
+  if (sub && userText) { try { subLang.set(sub, detectLang(userText, subLang.get(sub))); } catch (_) {} }
 
   res.json({ ok: true }); // answer ManyChat instantly; do the AI work in the background
 
@@ -1410,7 +1461,7 @@ function handleChat(req, res) {
     // out through WhatsApp directly, so it still works even if the AI is having issues.
     if (imageUrl) {
       record(req, { endpoint: 'photo-handoff', sub, imageUrl });
-      await sendChunk(sub, [{ type: 'text', text: "Sorry, I can't see any pictures 🙈 Let me get an agent for you right now — someone will be right with you! 👟" }], token).catch(() => {});
+      await sendChunk(sub, [{ type: 'text', text: L(HANDOFF_T, sub) }], token).catch(() => {});
       let custPhone = getPhone(req);
       if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
       custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
