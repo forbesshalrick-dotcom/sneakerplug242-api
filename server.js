@@ -1217,6 +1217,7 @@ async function fetchImageBase64(url) {
 const convos = new Map();    // subscriberId -> message history
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
 const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same photo arriving twice
+const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
 
 // ── Manual control panel (/console) support ───────────────────────────────────
@@ -1302,10 +1303,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const history = convos.get(sub) || [];
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   // When the customer sent a photo, attach it as an image block so Claude can SEE it.
+  // If we JUST showed this customer some shoes, tell Claude — because customers often
+  // forward one of OUR pics back to say "I want this one", and Jess should recognise it
+  // as that exact shoe rather than trying to identify it from scratch.
+  let photoNote = (userText && userText.trim()) ? userText : '(The customer sent this photo of a shoe — identify it and help them.)';
+  if (image) {
+    const rs = recentlySent.get(sub);
+    if (rs && rs.names && rs.names.length && (Date.now() - rs.ts) < 45 * 60 * 1000) {
+      photoNote += `\n\n[Context for you: in the last little while you SENT this customer photos of these shoes from our catalog — ${rs.names.join('; ')}. Customers often send one of those pics straight BACK to mean "I want this one." So if the photo they just sent looks like one of those, it IS that exact shoe from our stock: confirm it by name and move to their size. Only if it clearly ISN'T one of those, identify it fresh.]`;
+    }
+  }
   const userMsg = {
     role: 'user',
     content: image
-      ? [ { type: 'text', text: (userText && userText.trim()) ? userText : '(The customer sent this photo of a shoe — identify it and help them.)' },
+      ? [ { type: 'text', text: photoNote },
           { type: 'image', source: { type: 'base64', media_type: image.media_type, data: image.data } } ]
       : userText,
   };
@@ -1357,6 +1368,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true);
         if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
+        // Remember which shoes we just showed this customer, so if they send one of
+        // THESE pics back to us ("I want this one"), we recognise it as that exact shoe.
+        try {
+          const liveM = liveShoeMap();
+          const shownIds = (Array.isArray(inp.groups) && inp.groups.length)
+            ? inp.groups.flatMap(g => g.ids || [])
+            : (inp.ids || []);
+          const names = shownIds.map(id => liveM[id]).filter(Boolean).map(displayName);
+          if (names.length) recentlySent.set(sub, { ts: Date.now(), names: [...new Set(names)].slice(0, 25) });
+        } catch (_) {}
       }
       else if (tu.name === 'notify_manager') {
         const inp = tu.input || {};
