@@ -1317,10 +1317,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let sentToCustomer = false;
   let photosSentRun = false; // did any photos go out this turn?
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
-  let searchedTurn = false;  // has Claude called search_inventory this turn?
-  let photoForced = false;   // have we already nudged it to SHOW the photo's shoe?
   try {
-  for (let step = 0; step < 8; step++) {   // a couple extra steps for the photo-enforcement pass
+  for (let step = 0; step < 6; step++) {
     const { ok, status, data } = await callClaude(history, system);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
@@ -1342,14 +1340,6 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
     // photos (👇 points at them), no matter how the model sequences its turns.
     const searchingOnly = toolUses.some(t => t.name === 'search_inventory') && !sendPhotosTU;
-    // PHOTO ENFORCEMENT: on a photo turn, if Claude tries to reply with TEXT ONLY (no
-    // tool) before it has even searched, HOLD that reply and make it search + send the
-    // shoe's photos first — so it SHOWS the pair instead of just talking or saying "out".
-    if (image && !photosSentRun && !searchedTurn && !photoForced && turnText && !toolUses.length) {
-      photoForced = true;
-      history.push({ role: 'user', content: "(system reminder) You just looked at the customer's photo. Do NOT answer with text only and do NOT say we're out yet — FIRST call search_inventory for that shoe (brand + model, match the shade loosely, we very likely have something close), then send_photos of the closest matches. Only if that search comes back empty may you say we don't have it." });
-      continue; // re-run this turn — do not send the held text
-    }
     if (!searchingOnly && !sendPhotosTU && turnText) {
       await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => {});
       sentToCustomer = true;
@@ -1359,7 +1349,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const toolResults = [];
     for (const tu of toolUses) {
       let result;
-      if (tu.name === 'search_inventory') { searchedTurn = true; result = { shoes: searchInventory(tu.input || {}) }; }
+      if (tu.name === 'search_inventory') result = { shoes: searchInventory(tu.input || {}) };
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         const includeSizes = inp.include_sizes !== false; // default true
