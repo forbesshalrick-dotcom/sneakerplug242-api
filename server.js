@@ -1246,6 +1246,7 @@ async function fetchImageBase64(url) {
 const convos = new Map();    // subscriberId -> message history
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
 const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same photo arriving twice
+const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text message arriving twice (stops double replies)
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
 
@@ -1561,6 +1562,20 @@ function handleChat(req, res) {
     }
     recentImageSeen.set(k, Date.now());
     if (recentImageSeen.size > 200) { const f = recentImageSeen.keys().next().value; recentImageSeen.delete(f); }
+  }
+  // Dedupe rapid duplicate TEXT messages: the same message can reach us twice (ManyChat
+  // re-delivery, or a keyword automation AND the Default Reply both firing), which makes
+  // Jess reply 2-3 times to ONE message. If the exact same text from the same customer
+  // arrives within a few seconds, treat it as a duplicate and skip it.
+  if (userText.trim() && !imageUrl && !audioUrl) {
+    const mk = sub + '|' + userText.trim().toLowerCase().replace(/\s+/g, ' ');
+    const prevM = recentMsgSeen.get(mk);
+    if (prevM && (Date.now() - prevM) < 8000) {
+      record(req, { endpoint: 'dupe-msg-skip', sub, q: userText.slice(0, 30) });
+      return;
+    }
+    recentMsgSeen.set(mk, Date.now());
+    if (recentMsgSeen.size > 300) { const f = recentMsgSeen.keys().next().value; recentMsgSeen.delete(f); }
   }
 
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
