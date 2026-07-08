@@ -658,7 +658,7 @@ const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.l
 const STORE_DEFAULT = 'THE PLUG 242';
 const WEBSITE = '242plug.netlify.app';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes
-const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just text me the *name* written under it (like "New Balance 1000 — Black/Silver") — I can't open pictures 🙈 so texting the name is the fastest way for me to get you sorted. Want more options? Search our site 👉 ${WEBSITE}`;
+const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just text me the *name* written under it (like "New Balance 1000 — Black/Silver") and I'll get you sorted fast 👟 Want more options? Search our site 👉 ${WEBSITE}`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const FOLLOWUP_MSG = 'Hey! Just following up 😊 See anything you liked? Just text me the *name* written under the shoe (no need to send a pic — I can\'t open them 🙈) and I\'ll get you sorted fast 👟';
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
@@ -712,8 +712,8 @@ const CLOSER_T = {
 };
 const END_OF_PHOTOS_T = {
   en: END_OF_PHOTOS_MSG,
-  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Escríbeme el *nombre* que está debajo (como "New Balance 1000 — Black/Silver") — no puedo abrir fotos 🙈 así que escribir el nombre es lo más rápido para ayudarte. ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}`,
-  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Ekri m *non* ki anba a (tankou "New Balance 1000 — Black/Silver") — m pa ka louvri foto 🙈 kidonk ekri non an se fason ki pi rapid pou m ede w. Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}`,
+  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Escríbeme el *nombre* que está debajo (como "New Balance 1000 — Black/Silver") y te ayudo rápido 👟 ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}`,
+  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Ekri m *non* ki anba a (tankou "New Balance 1000 — Black/Silver") epi m ap ede w vit 👟 Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}`,
 };
 const DELIVERY_FOLLOWUP_T = {
   en: DELIVERY_FOLLOWUP_MSG,
@@ -1349,18 +1349,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const toolResults = [];
     for (const tu of toolUses) {
       let result;
-      if (tu.name === 'search_inventory') {
-        const found = searchInventory(tu.input || {});
-        result = { shoes: found };
-        record(req, { endpoint: 'dbg-search', sub, input: tu.input, count: found.length, ids: found.slice(0, 8).map(x => x.id) });
-      }
+      if (tu.name === 'search_inventory') result = { shoes: searchInventory(tu.input || {}) };
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         const includeSizes = inp.include_sizes !== false; // default true
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true);
-        record(req, { endpoint: 'dbg-sendphotos', sub, ids: inp.ids, hasGroups: !!inp.groups, sent: result.sent, requested: result.requested });
         if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
       }
       else if (tu.name === 'notify_manager') {
