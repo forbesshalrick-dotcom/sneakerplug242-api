@@ -1539,6 +1539,15 @@ function handleChat(req, res) {
   // message we must answer. Only truly empty pings (no text, no photo, no audio)
   // are ignored, so the bot never goes silent on a real customer message.
   if (!userText.trim() && !audioUrl && !imageUrl) return;
+  // Ignore JUNK "messages": ManyChat's Default Reply fires on non-message events
+  // (delivery/read receipts, reactions, status pings) with a placeholder like "." — if
+  // we reply to those we SPAM the customer with repeat "Got it"/"No worries" messages
+  // and even hand off to an agent. So when there's no photo/voice and the text is only
+  // dots/punctuation/whitespace (no real letters or numbers), do nothing.
+  if (!audioUrl && !imageUrl && !/[a-z0-9]/i.test(userText)) {
+    record(req, { endpoint: 'junk-skip', sub, q: userText.slice(0, 20) });
+    return;
+  }
 
   // Dedupe photos: the SAME image can hit us twice in quick succession (a
   // Default-Reply / ManyChat quirk). If we just handled this exact photo for this
