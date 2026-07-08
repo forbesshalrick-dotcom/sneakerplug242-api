@@ -1342,11 +1342,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       photoNote += `\n\n[Context for you: in the last little while you SENT this customer photos of these shoes from our catalog — ${rs.names.join('; ')}. Customers often send one of those pics straight BACK to mean "I want this one." So if the photo they just sent looks like one of those, it IS that exact shoe from our stock: confirm it by name and move to their size. Only if it clearly ISN'T one of those, identify it fresh.]`;
     }
   }
+  // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
+  // fetches + resizes it server-side (no local 4.5MB download cap that was killing
+  // full-res customer photos with an "I can't open that file" reply).
   const userMsg = {
     role: 'user',
     content: image
       ? [ { type: 'text', text: photoNote },
-          { type: 'image', source: { type: 'base64', media_type: image.media_type, data: image.data } } ]
+          { type: 'image', source: { type: 'url', url: image } } ]
       : userText,
   };
   history.push(userMsg);
@@ -1566,33 +1569,15 @@ function handleChat(req, res) {
       }
       text = t;
     }
-    // Customer sent a PHOTO (its link arrives via Last Text Input). Download it and let
-    // Jess actually LOOK at it — she identifies the shoe and searches inventory. Only if
-    // the photo won't download do we fall back to the honest apology + agent hand-off.
+    // Customer sent a PHOTO (its link arrives via Last Text Input). Pass the URL straight
+    // to Jess — Anthropic fetches + resizes the image itself, so even full-res photos work
+    // (the old local download had a 4.5MB cap that killed big photos with "can't open").
     let photo = null;
     if (imageUrl) {
       record(req, { endpoint: 'photo-in', sub, imageUrl });
       // The link usually IS the whole "text" — don't feed a raw URL to Claude as words.
       if (text.trim() === imageUrl.trim()) text = '';
-      photo = await fetchImageBase64(imageUrl).catch(() => null);
-      if (!photo) {
-        record(req, { endpoint: 'photo-handoff', sub, imageUrl });
-        await sendChunk(sub, [{ type: 'text', text: L(HANDOFF_T, sub) }], token).catch(() => {});
-        let custPhone = getPhone(req);
-        if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
-        custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
-        const alert = [
-          "📸 *CUSTOMER SENT A PHOTO — needs an agent* (Jess couldn't open the image)",
-          name ? `👤 ${name}` : null,
-          custPhone ? `📞 ${custPhone}  (wa.me/${custPhone.replace(/[^0-9]/g, '')})` : null,
-          store ? `🏬 ${store}` : null,
-          '👉 Please jump into the chat and help them 🙏',
-        ].filter(Boolean).join('\n');
-        try { await waSendManager(alert, token); } catch (_) {}
-        try { require('./shop').addAlert(alert, 'Jess 🤖'); } catch (_) {}
-        try { await require('./shop').blastEmployees(alert, null); } catch (_) {}
-        return;
-      }
+      photo = imageUrl;
     }
     return runChat(req, sub, text, token, { store, name }, photo);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
