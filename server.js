@@ -1177,7 +1177,9 @@ async function transcribeAudio(url) {
   return data && data.text ? String(data.text).trim() : null;
 }
 
-async function callClaude(messages, system) {
+async function callClaude(messages, system, toolChoice) {
+  const body = { model: AI_MODEL, max_tokens: 1024, system: system || buildSystemPrompt(), tools: AI_TOOLS, messages };
+  if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
   const r = await fetch(ANTHROPIC_API, {
     method: 'POST',
     headers: {
@@ -1185,7 +1187,7 @@ async function callClaude(messages, system) {
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ model: AI_MODEL, max_tokens: 1024, system: system || buildSystemPrompt(), tools: AI_TOOLS, messages }),
+    body: JSON.stringify(body),
   });
   const data = await r.json();
   return { ok: r.ok, status: r.status, data };
@@ -1330,7 +1332,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   try {
   for (let step = 0; step < 6; step++) {
-    const { ok, status, data } = await callClaude(history, system);
+    // On the FIRST move of a photo turn, FORCE Jess to search inventory — so she can't
+    // answer "what size?" or "we're out" without actually looking first. This is the
+    // reliable, low-risk way to make photo replies show the pair (no re-loop/hang).
+    const forceTool = (image && step === 0) ? { type: 'tool', name: 'search_inventory' } : undefined;
+    const { ok, status, data } = await callClaude(history, system, forceTool);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
       await sendChunk(sub, [{ type: 'text', text: "Sorry, I'm having a little hiccup 🤕 try again in a sec." }], token).catch(() => {});
