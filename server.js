@@ -1349,13 +1349,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const toolResults = [];
     for (const tu of toolUses) {
       let result;
-      if (tu.name === 'search_inventory') result = { shoes: searchInventory(tu.input || {}) };
+      if (tu.name === 'search_inventory') {
+        const found = searchInventory(tu.input || {});
+        result = { shoes: found };
+        record(req, { endpoint: 'dbg-search', sub, input: tu.input, count: found.length, ids: found.slice(0, 8).map(x => x.id) });
+      }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         const includeSizes = inp.include_sizes !== false; // default true
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true);
+        record(req, { endpoint: 'dbg-sendphotos', sub, ids: inp.ids, hasGroups: !!inp.groups, sent: result.sent, requested: result.requested });
         if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
       }
       else if (tu.name === 'notify_manager') {
