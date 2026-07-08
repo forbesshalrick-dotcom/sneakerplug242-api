@@ -549,6 +549,10 @@ const GENERIC_ATTACH_FIELDS = new Set(['attachment_url', 'media_url', 'file_url'
   'url', 'last_attachment_url']);
 const AUDIO_EXT = /\.(ogg|opus|mp3|m4a|wav|amr|aac)(\?|#|$)/i;
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|heic|heif|bmp)(\?|#|$)/i;
+// WhatsApp / ManyChat / Meta media-CDN hosts. When a customer sends a photo, ManyChat
+// puts the photo's link into "Last Text Input" — often a CDN URL with no clean file
+// extension — so a bare link from one of these is almost always that photo.
+const MEDIA_HOST = /(lookaside|fbsbx\.com|fbcdn\.net|whatsapp\.net|whatsapp\.com|cdn\.manychat|manychat\.com|scontent|akamai)/i;
 
 // A voice-note / audio file URL, if the message was a voice note. ManyChat hands
 // us the attachment URL; we transcribe it (Whisper) and treat it like typed text.
@@ -570,6 +574,7 @@ function getImageUrl(req) {
   for (const { key, url } of collectUrls(req)) {
     if (AUDIO_FIELDS.has(key) || AUDIO_EXT.test(url)) continue; // not a voice note
     if (IMAGE_FIELDS.has(key) || IMAGE_EXT.test(url)) return url;
+    if (MEDIA_HOST.test(url)) return url; // WhatsApp/ManyChat media link (arrives via Last Text Input) → the customer's photo
   }
   return null;
 }
@@ -1428,7 +1433,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 function handleChat(req, res) {
   const userText = extractQuery(req);
   const audioUrl = getAudioUrl(req);
-  const imageUrl = getImageUrl(req);
+  let imageUrl = getImageUrl(req);
+  // A message that is JUST a bare link (no other words) and isn't audio is almost
+  // always the customer's photo arriving via Last Text Input. Catch it even if the
+  // link's host/extension wasn't recognised above, so Jess looks at the picture
+  // instead of reading a raw URL out loud.
+  if (!imageUrl && !audioUrl) {
+    const t = (userText || '').trim();
+    if (/^https?:\/\/\S+$/i.test(t) && !AUDIO_EXT.test(t)) imageUrl = t;
+  }
   const sub = getContactId(req);
   const token = getToken(req);
   const store = getStore(req);
@@ -1463,16 +1476,14 @@ function handleChat(req, res) {
       }
       text = t;
     }
-    // Customer sent a PHOTO. Jess can't reliably see customer photos, and pretending
-    // to (or asking them to resend) only frustrates people — so send ONE honest
-    // apology and hand off to a live agent, then alert a human to jump in. This goes
-    // out through WhatsApp directly, so it still works even if the AI is having issues.
-    // Customer sent a PHOTO. Download it and let Jess actually LOOK at it — she
-    // identifies the shoe and searches our inventory. Only if the photo won't
-    // download do we fall back to the honest apology + agent hand-off.
+    // Customer sent a PHOTO (its link arrives via Last Text Input). Download it and let
+    // Jess actually LOOK at it — she identifies the shoe and searches inventory. Only if
+    // the photo won't download do we fall back to the honest apology + agent hand-off.
     let photo = null;
     if (imageUrl) {
       record(req, { endpoint: 'photo-in', sub, imageUrl });
+      // The link usually IS the whole "text" — don't feed a raw URL to Claude as words.
+      if (text.trim() === imageUrl.trim()) text = '';
       photo = await fetchImageBase64(imageUrl).catch(() => null);
       if (!photo) {
         record(req, { endpoint: 'photo-handoff', sub, imageUrl });
