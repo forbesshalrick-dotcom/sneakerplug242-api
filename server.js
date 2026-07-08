@@ -1316,6 +1316,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // a send failed, etc.), we send a recovery line at the end instead of going silent.
   let sentToCustomer = false;
   let photosSentRun = false; // did any photos go out this turn?
+  let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   try {
   for (let step = 0; step < 6; step++) {
     const { ok, status, data } = await callClaude(history, system);
@@ -1334,6 +1335,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const sendPhotosTU = toolUses.find(t => t.name === 'send_photos');
     const turnText = data.content.filter(b => b.type === 'text' && b.text.trim())
       .map(b => b.text.trim()).join('\n');
+    if (turnText) lastText = turnText; // remember it in case nothing else lands
     // Stay quiet while searching. On a send_photos turn, DON'T send the text here —
     // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
     // photos (👇 points at them), no matter how the model sequences its turns.
@@ -1423,8 +1425,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // message to them (model fumbled, every send failed, or it errored mid-loop),
   // send a friendly recovery line so they always get a reply.
   if (!sentToCustomer) {
-    record(req, { endpoint: 'chat-fallback', sub, userText });
-    await sendChunk(sub, [{ type: 'text', text: "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟" }], token).catch(() => {});
+    // If Claude actually WROTE a reply this turn but it got swallowed (it searched, or
+    // tried to send photos but nothing landed), send THAT — so a photo ID like "That's
+    // the ASICS!" still reaches the customer instead of a blank "didn't come through".
+    record(req, { endpoint: 'chat-fallback', sub, userText, hadText: !!lastText, hadImage: !!image });
+    const fb = lastText || (image
+      ? "That's a clean pair 👀 — what size you looking for and I'll pull up what we've got 👟"
+      : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
+    await sendChunk(sub, [{ type: 'text', text: fb }], token).catch(() => {});
+    sentToCustomer = true;
   }
   // If this was their first message (we just sent the welcome) and we didn't send
   // photos, nudge once ~5 min later in case they go quiet. Cancelled if they reply.
