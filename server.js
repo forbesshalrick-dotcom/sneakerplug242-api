@@ -1330,12 +1330,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let sentToCustomer = false;
   let photosSentRun = false; // did any photos go out this turn?
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
+  let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   try {
   for (let step = 0; step < 6; step++) {
     // On the FIRST move of a photo turn, FORCE Jess to search inventory — so she can't
     // answer "what size?" or "we're out" without actually looking first. This is the
     // reliable, low-risk way to make photo replies show the pair (no re-loop/hang).
-    const forceTool = (image && step === 0) ? { type: 'tool', name: 'search_inventory' } : undefined;
+    const forceTool = (image && step === 0) ? { type: 'tool', name: 'search_inventory' }
+      : (image && step === 1 && !photosSentRun && lastSearchCount > 0) ? { type: 'tool', name: 'send_photos' }
+      : undefined;
     const { ok, status, data } = await callClaude(history, system, forceTool);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
@@ -1366,13 +1369,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const toolResults = [];
     for (const tu of toolUses) {
       let result;
-      if (tu.name === 'search_inventory') result = { shoes: searchInventory(tu.input || {}) };
+      if (tu.name === 'search_inventory') { const found = searchInventory(tu.input || {}); lastSearchCount = found.length; result = { shoes: found }; record(req, { endpoint: 'dbg-search', sub, input: tu.input, count: found.length, ids: found.slice(0, 6).map(x => x.id) }); }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         const includeSizes = inp.include_sizes !== false; // default true
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true);
+        record(req, { endpoint: 'dbg-sendphotos', sub, ids: inp.ids, sent: result.sent, requested: result.requested });
         if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
         // Remember which shoes we just showed this customer, so if they send one of
         // THESE pics back to us ("I want this one"), we recognise it as that exact shoe.
