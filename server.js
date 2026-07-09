@@ -1511,9 +1511,6 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
         record(req, { endpoint: 'get-agent', sub, store: ctx.store, waOk, staffOk });
-        // HAND-OFF DONE → Jess goes quiet for this customer so the human can take over
-        // without her replying over them. Auto-resumes after AGENT_PAUSE_MS.
-        agentPaused.set(sub, Date.now() + AGENT_PAUSE_MS);
         result = { ok: true, agent_alerted: true };
       }
       else result = { error: 'unknown_tool' };
@@ -1589,15 +1586,10 @@ function handleChat(req, res) {
   // message we must answer. Only truly empty pings (no text, no photo, no audio)
   // are ignored, so the bot never goes silent on a real customer message.
   if (!userText.trim() && !audioUrl && !imageUrl) return;
-  // HUMAN TAKEOVER: once Jess handed this chat to a real team member (get_agent), she
-  // goes QUIET for that customer for a while so staff can handle it WITHOUT her replying
-  // over them (Rodney's #1 complaint). Auto-resumes after the window in case nobody
-  // picked it up. Cleared on restart (in-memory).
-  {
-    const until = agentPaused.get(sub);
-    if (until && Date.now() < until) { record(req, { endpoint: 'agent-paused-skip', sub }); return; }
-    if (until) agentPaused.delete(sub);
-  }
+  // (Removed the post-hand-off "go quiet for 6h" pause: with no human actually taking
+  // over, it silenced live customers into a void — they messaged, got nothing but timed
+  // follow-ups, and blocked us. Jess must ALWAYS keep answering. Handing off just alerts
+  // the team; it never mutes her.)
   // Ignore JUNK "messages": ManyChat's Default Reply fires on non-message events
   // (delivery/read receipts, reactions, status pings) with a placeholder like "." — if
   // we reply to those we SPAM the customer with repeat "Got it"/"No worries" messages
