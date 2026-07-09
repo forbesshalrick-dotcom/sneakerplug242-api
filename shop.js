@@ -429,7 +429,15 @@ function mount(app) {
     if (state.deleted.includes(sh.id)) return res.json({ ok: true, skipped: 'deleted' });
     if (!Array.isArray(state.shoes)) state.shoes = [];
     const i = state.shoes.findIndex(x => x.id === sh.id);
-    if (i > -1) state.shoes[i] = sh; else state.shoes.push(sh);
+    if (i > -1) {
+      // NEWEST-WINS: refuse a push that is OLDER than what we already store. This is the
+      // hard lock that stops a stale device from reverting prices/stock on the server —
+      // the exact thing that reverted the whole inventory. Missing timestamps = 0 = tie → accept.
+      const exT = (state.shoes[i].updatedAt || state.shoes[i].createdAt || 0);
+      const inT = (sh.updatedAt || sh.createdAt || 0);
+      if (inT < exT) return res.json({ ok: true, skipped: 'stale' });
+      state.shoes[i] = sh;
+    } else state.shoes.push(sh);
     persist('shoes.json'); bump();
     res.json({ ok: true });
   });
@@ -449,10 +457,25 @@ function mount(app) {
         for (const f of olds.slice(0, -40)) { try { fs.unlinkSync(path.join(bdir, f)); } catch (_) {} }
       }
     } catch (e) { console.error('[shop] pre-bulk backup failed:', e.message); }
-    const next = arr.filter(s => s && !state.deleted.includes(s.id));
+    const incoming = arr.filter(s => s && !state.deleted.includes(s.id));
     const before = Array.isArray(state.shoes) ? state.shoes.length : 0;
-    console.log('[shop] /shop/shoes BULK REPLACE:', before, '→', next.length, 'shoes (backup saved)');
-    // Drop any tombstoned shoes so a bulk push can't bring deletions back.
+    // NEWEST-WINS MERGE (was a blind full replace — a stale device's bulk push could wipe or
+    // revert everything). Start from what's already stored, then apply each incoming shoe ONLY
+    // if it isn't older than the stored copy. Never drop a stored shoe here: real deletions go
+    // through /shop/shoe/delete + the deleted graveyard, so a stale bulk can't erase live stock.
+    const byId = {};
+    (Array.isArray(state.shoes) ? state.shoes : []).forEach(s => {
+      if (s && s.id != null && !state.deleted.includes(s.id)) byId[s.id] = s;
+    });
+    let applied = 0, keptNewer = 0;
+    incoming.forEach(s => {
+      const ex = byId[s.id];
+      const exT = ex ? (ex.updatedAt || ex.createdAt || 0) : -1;
+      const inT = (s.updatedAt || s.createdAt || 0);
+      if (!ex || inT >= exT) { byId[s.id] = s; applied++; } else { keptNewer++; }
+    });
+    const next = Object.keys(byId).map(k => byId[k]);
+    console.log('[shop] /shop/shoes MERGE:', before, '→', next.length, 'shoes (applied ' + applied + ', kept-newer ' + keptNewer + ')');
     state.shoes = next;
     persist('shoes.json'); bump();
     res.json({ ok: true, count: state.shoes.length });
