@@ -1524,7 +1524,17 @@ function handleChat(req, res) {
   // instead of reading a raw URL out loud.
   if (!imageUrl && !audioUrl) {
     const t = (userText || '').trim();
-    if (/^https?:\/\/\S+$/i.test(t) && !AUDIO_EXT.test(t)) imageUrl = t;
+    if (/^https?:\/\/\S+$/i.test(t) && !AUDIO_EXT.test(t)) {
+      if (IMAGE_EXT.test(t) || MEDIA_HOST.test(t)) {
+        imageUrl = t; // a real photo link (WhatsApp/ManyChat media) → look at it
+      } else {
+        // A NON-image link — a share.google / instagram / webpage link the customer
+        // pasted. It is NOT a photo, so we must NOT feed it to vision (that fetches
+        // HTML, fails, and loops "Sorry, I'm having a little hiccup"). Replace it with
+        // a note so Jess just asks for the shoe details instead of erroring.
+        userText = "(The customer sent an outside web link I can't open — it is NOT a photo. Don't error or say 'hiccup'. Just warmly ask them for the shoe's NAME and COLOUR, or to send an actual photo, so I can find it.)";
+      }
+    }
   }
   const sub = getContactId(req);
   const token = getToken(req);
