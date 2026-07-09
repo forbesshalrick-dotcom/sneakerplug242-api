@@ -93,6 +93,51 @@ function schedule() {
 }
 function bump() { state.rev.n++; persist('rev.json'); }
 
+// ── One-time SOLD-STATUS RECOVERY (Jul 8 2026) ───────────────────────────────
+// A stale-device bulk sync overwrote the inventory with old FULL-stock data, wiping
+// every "sold" reduction (sold shoes reappeared in stock). The SALE RECORDS survived
+// (stored separately) and pinpoint each sale, so we re-subtract each sold size from
+// its shoe — removing ONE instance per sale (so multi-pair stock stays right). Guarded
+// by a marker file on the persistent disk so restarts never double-subtract. To restock
+// a size later, VOID its sale (that's the correct way to put a size back).
+function applySoldFromSales() {
+  if (!Array.isArray(state.shoes) || !Array.isArray(state.sales) || !state.sales.length) return 0;
+  const soldBy = {}; // shoeId -> { sizeString: count }
+  for (const sale of state.sales) {
+    if (!sale || sale.shoeId == null || sale.size == null) continue;
+    const sz = String(parseFloat(sale.size)); if (sz === 'NaN') continue;
+    const m = (soldBy[String(sale.shoeId)] = soldBy[String(sale.shoeId)] || {});
+    m[sz] = (m[sz] || 0) + 1;
+  }
+  let changed = 0;
+  for (const shoe of state.shoes) {
+    if (!shoe || shoe.id == null) continue;
+    const sold = soldBy[String(shoe.id)]; if (!sold) continue;
+    const key = Array.isArray(shoe.sizes) ? 'sizes' : (Array.isArray(shoe.sizesRaw) ? 'sizesRaw' : null);
+    if (!key) continue;
+    const toRemove = Object.assign({}, sold); const remaining = [];
+    for (const x of shoe[key]) {
+      const sz = String(parseFloat(x));
+      if (toRemove[sz] > 0) { toRemove[sz]--; continue; } // drop one pair per sale
+      remaining.push(x);
+    }
+    if (remaining.length !== shoe[key].length) {
+      shoe[key] = remaining; changed++;
+      if (!remaining.length) shoe.sold = true;
+    }
+  }
+  return changed;
+}
+try {
+  const marker = path.join(DATA_DIR, 'sold_recovered_v1.flag');
+  if (!fs.existsSync(marker)) {
+    const n = applySoldFromSales();
+    console.log('[shop] one-time sold recovery: adjusted', n, 'shoes from', state.sales.length, 'sale records');
+    if (n) persist('shoes.json');
+    try { fs.writeFileSync(marker, new Date().toISOString()); } catch (_) {}
+  }
+} catch (e) { console.error('[shop] sold recovery failed:', e.message); }
+
 // Add a note to the shared board programmatically (e.g. a delivery-ready alert
 // from the bot), so it shows on the website's Tasks for whoever's on duty.
 // Does NOT fire the employee WhatsApp blast — the caller handles any messaging.
@@ -394,8 +439,21 @@ function mount(app) {
     if (!auth(req, res)) return;
     const arr = (req.body && req.body.shoes) || null;
     if (!Array.isArray(arr)) return res.status(400).json({ error: 'bad shoes' });
+    // SAFETY BACKUP before overwriting the whole inventory. A stale-device bulk push has
+    // wiped everything before, so keep timestamped snapshots we can always restore from.
+    try {
+      if (Array.isArray(state.shoes) && state.shoes.length) {
+        const bdir = path.join(DATA_DIR, 'backups'); fs.mkdirSync(bdir, { recursive: true });
+        fs.writeFileSync(path.join(bdir, 'shoes-' + Date.now() + '.json'), JSON.stringify(state.shoes));
+        const olds = fs.readdirSync(bdir).filter(f => f.startsWith('shoes-')).sort();
+        for (const f of olds.slice(0, -40)) { try { fs.unlinkSync(path.join(bdir, f)); } catch (_) {} }
+      }
+    } catch (e) { console.error('[shop] pre-bulk backup failed:', e.message); }
+    const next = arr.filter(s => s && !state.deleted.includes(s.id));
+    const before = Array.isArray(state.shoes) ? state.shoes.length : 0;
+    console.log('[shop] /shop/shoes BULK REPLACE:', before, '→', next.length, 'shoes (backup saved)');
     // Drop any tombstoned shoes so a bulk push can't bring deletions back.
-    state.shoes = arr.filter(s => s && !state.deleted.includes(s.id));
+    state.shoes = next;
     persist('shoes.json'); bump();
     res.json({ ok: true, count: state.shoes.length });
   });
