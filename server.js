@@ -667,13 +667,13 @@ const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min aft
 const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
-const THIRD_MSG = "Hi! Ask me anything, like:\n- *You have red Jordan 4 in 8.5?*\n- *What do you have in pink?*\n- *What do you have in Jordans?*\n- *What do you have in size 6.5?*\n- *What do you have matching in size 8 and 7?*\n- *What do you have under $150?*\n- *Any all black?*";
+const THIRD_MSG = "You can ask me anything, like:\n- *Do you have the red Jordan 4 in 8.5?*\n- *Any all-black in a size 9?*\n- *What Jordans you got in a 10?*\n- *Air Max in a 7.5?*\n- *A matching pair for 8 and 7?*\n- *Something under $150 in my size?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
 // After a delivery is confirmed, if the customer goes quiet, reassure them at ~20 min.
 const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60 * 1000; // 20 minutes
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
-const WELCOME_NUDGE_MSG = "Hi! Ask me anything, like:\n- *You have red Jordan 4 in 8.5?*\n- *What do you have in pink?*\n- *What do you have in Jordans?*\n- *What do you have in size 6.5?*\n- *What do you have matching in size 8 and 7?*\n- *What do you have under $150?*\n- *Any all black?*";
+const WELCOME_NUDGE_MSG = "You can ask me anything, like:\n- *Do you have the red Jordan 4 in 8.5?*\n- *Any all-black in a size 9?*\n- *What Jordans you got in a 10?*\n- *Air Max in a 7.5?*\n- *A matching pair for 8 and 7?*\n- *Something under $150 in my size?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
