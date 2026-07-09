@@ -1251,6 +1251,8 @@ const convos = new Map();    // subscriberId -> message history
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
 const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same photo arriving twice
 const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text message arriving twice (stops double replies)
+const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Jess stays QUIET for that chat so staff can take over without her talking over them
+const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
 
@@ -1479,6 +1481,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
         record(req, { endpoint: 'get-agent', sub, store: ctx.store, waOk, staffOk });
+        // HAND-OFF DONE → Jess goes quiet for this customer so the human can take over
+        // without her replying over them. Auto-resumes after AGENT_PAUSE_MS.
+        agentPaused.set(sub, Date.now() + AGENT_PAUSE_MS);
         result = { ok: true, agent_alerted: true };
       }
       else result = { error: 'unknown_tool' };
@@ -1554,6 +1559,15 @@ function handleChat(req, res) {
   // message we must answer. Only truly empty pings (no text, no photo, no audio)
   // are ignored, so the bot never goes silent on a real customer message.
   if (!userText.trim() && !audioUrl && !imageUrl) return;
+  // HUMAN TAKEOVER: once Jess handed this chat to a real team member (get_agent), she
+  // goes QUIET for that customer for a while so staff can handle it WITHOUT her replying
+  // over them (Rodney's #1 complaint). Auto-resumes after the window in case nobody
+  // picked it up. Cleared on restart (in-memory).
+  {
+    const until = agentPaused.get(sub);
+    if (until && Date.now() < until) { record(req, { endpoint: 'agent-paused-skip', sub }); return; }
+    if (until) agentPaused.delete(sub);
+  }
   // Ignore JUNK "messages": ManyChat's Default Reply fires on non-message events
   // (delivery/read receipts, reactions, status pings) with a placeholder like "." — if
   // we reply to those we SPAM the customer with repeat "Got it"/"No worries" messages
