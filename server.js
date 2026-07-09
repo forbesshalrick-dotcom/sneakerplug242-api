@@ -658,7 +658,7 @@ const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.l
 const STORE_DEFAULT = 'THE PLUG 242';
 const WEBSITE = '242plug.netlify.app';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes
-const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just text me the *name* written under it (like "New Balance 1000 — Black/Silver") and I'll get you sorted fast 👟 Want more options? Search our site 👉 ${WEBSITE}`;
+const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟 Want more options? Search our site 👉 ${WEBSITE}`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const FOLLOWUP_MSG = 'Hey! Just following up 😊 See anything you liked? Just text me the *name* written under the shoe (no need to send a pic — I can\'t open them 🙈) and I\'ll get you sorted fast 👟';
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
@@ -712,8 +712,8 @@ const CLOSER_T = {
 };
 const END_OF_PHOTOS_T = {
   en: END_OF_PHOTOS_MSG,
-  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Escríbeme el *nombre* que está debajo (como "New Balance 1000 — Black/Silver") y te ayudo rápido 👟 ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}`,
-  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Ekri m *non* ki anba a (tankou "New Balance 1000 — Black/Silver") epi m ap ede w vit 👟 Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}`,
+  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Solo respóndeme con el *código* que está debajo (como *A1*) y te ayudo rápido 👟 ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}`,
+  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Senpleman voye *kòd* ki anba a (tankou *A1*) epi m ap ede w vit 👟 Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}`,
 };
 const DELIVERY_FOLLOWUP_T = {
   en: DELIVERY_FOLLOWUP_MSG,
@@ -829,8 +829,9 @@ ${modelList}
 - ⚠️ NAMED COLORWAYS — DON'T FALSELY SAY "NOT IN STOCK" (this loses sales): Customers name shoes by their colorway NICKNAME — "Toro Bravo", "Bred", "Chicago", "Royal", "Thunder", "Cool Grey", "Cactus Jack", "Cherry", "Pizza", "Panda", "Oreo", etc. Our catalog often lists that SAME shoe under a plain name (e.g. just "Air Jordan 4 Retro"), so a search for the nickname can come back EMPTY even when we HAVE the shoe. So NEVER flatly tell a customer "we don't have that" based on a name search. If a named-colorway search returns nothing, DO NOT declare it out of stock — instead SILENTLY search the MODEL alone (e.g. "Jordan 4", "Jordan 1", "Air Max") in their size and send_photos of those, so the customer can SPOT the exact pair in the pics (the colours are right there). A nickname like "Toro Bravo" = a red/black Air Jordan 4 — so show the Jordan 4s. Only say we're genuinely out if the whole MODEL is empty in their size. And NEVER repeat "we don't have the [shoe]" more than once — if you'd say it again, show the model's photos or get a team member instead.
 
 PHOTOS — every photo always carries a label (handled automatically, you don't set a flag):
-- EVERY photo we send — no matter how many — automatically gets a little note right under it with the shoe's NAME, price and the sizes it comes in. This always happens, for one shoe or fifty. So the customer can always see exactly what each pic is.
-- Just call send_photos with ALL the matches; the labels are added for you.
+- EVERY photo we send — no matter how many — automatically gets a little note right under it that STARTS WITH A SHORT ORDER CODE (*A1*, *A2*, *A3*… then *B1*…), followed by the shoe's NAME, price and sizes. This always happens, for one shoe or fifty. So every pic the customer sees has its own code in plain sight.
+- Just call send_photos with ALL the matches; the codes + labels are added for you.
+- 🔢 CUSTOMERS ORDER BY THE CODE — push this, it's the easy way: after you show photos, the customer just REPLIES WITH THE CODE (like *A1*) to pick a pair — no typing the shoe name, no sending a picture back. When their message IS or CONTAINS a code (A1, a2, "the b3", "how much for A5"), the [PHOTO CODES] note in their message tells you EXACTLY which shoe → confirm it and go straight to their size / order. Do NOT ask them to type the shoe's name — always steer them to the code (the name is still on the label as a backup).
 - Every photo WE send is labelled with the shoe's name. ⚠️ IMPORTANT — YOU CAN SEE PHOTOS THE CUSTOMER SENDS NOW: when a customer sends a picture, LOOK at the shoe in it, identify it, and search our inventory. NEVER tell a customer "I can't see pictures" or "just tell me the name printed under the photo" — that is outdated and FALSE, and it makes us look broken. If a picture genuinely didn't load for you this turn, just warmly ask them to resend it — do NOT claim you can't see pictures at all.
 
 SIZES — when a customer gives TWO OR MORE sizes (IMPORTANT — never send the same shoe twice, and never make them pick just one):
@@ -882,7 +883,7 @@ SPECIAL CONTACTS:
 - If the customer's message is just the name "Rodney" (spelled R-O-D-N-E-Y), it's probably Rodney's mom. First reply ONLY with: "Hey! Is this Mommy? 😊" If she replies yes, then reply warmly: "Hi Mo! How are you doing? Love you. Hope everything is okay! 💛"
 ${who ? `- The customer's saved name is "${who}".\n` : ''}- If the customer's saved name is exactly "Deashinique", greet her with: "Hey Deashinique! What's up? 👟" (always spell it exactly "Deashinique").
 
-FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get sorted?" and they reply: if they say NO / nothing caught their eye → reply "Okay, no worries! Maybe next time. Have a good day! 👟". If they say YES / they liked something → ask them for the NAME on the photo (you can't see pictures), e.g. "Nice! 😍 What's the name on the one you liked? It's printed right under the photo 👟" — then look it up and help them order.
+FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get sorted?" and they reply: if they say NO / nothing caught their eye → reply "Okay, no worries! Maybe next time. Have a good day! 👟". If they say YES / they liked something → ask them for the CODE on the photo, e.g. "Nice! 😍 What's the code on the one you liked? It's the *A1* right under the photo 👟" — then look it up and help them order.
 
 Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD. Website: ${WEBSITE}.
 PRICE LIST — when a customer asks about prices in GENERAL ("how much are your sneakers", "how much y'all charge", "price list", "how much for a pair", "what's the prices", "prices?"), do NOT give a vague range like "$70 to $250". Send this EXACT list (keep the emojis and the *bold* stars — WhatsApp shows them bold), then ask their size:
@@ -1146,9 +1147,13 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   };
 
   // One shoe → its photo immediately followed by its label bubble (when labelling).
-  const photoWithLabel = (s) => showLabels
-    ? [{ type: 'image', url: s.image }, { type: 'text', text: labelText(s) }]
-    : [{ type: 'image', url: s.image }];
+  // Each photo gets a short ORDER CODE in its label (A1, A2, …) so the customer can
+  // just reply with the code to pick it. Codes are assigned in send order.
+  const photoWithLabel = (s) => {
+    if (!showLabels) return [{ type: 'image', url: s.image }];
+    const code = nextPhotoCode(sub, s);
+    return [{ type: 'image', url: s.image }, { type: 'text', text: `*${code}*  ·  ${labelText(s)}` }];
+  };
 
   if (Array.isArray(groups) && groups.length) {
     // Grouped by size: a size header, then that size's photos (each labelled when small).
@@ -1254,6 +1259,23 @@ const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text me
 const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Jess stays QUIET for that chat so staff can take over without her talking over them
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
+// PHOTO ORDER CODES (A1, A2, … B1 …): every pic Jess sends gets a short code in its
+// label so the customer can just reply with the code to pick it — no re-describing, no
+// re-sending the photo. Per sub we keep a running counter + a code→shoe map so a reply
+// like "A3" resolves to that exact shoe. In-memory (clears on restart).
+const photoCodes = new Map();      // sub -> { n, ts, map: { CODE -> {id,name,price} } }
+function nextPhotoCode(sub, shoe) {
+  const e = photoCodes.get(sub) || { n: 0, ts: 0, map: {} };
+  if (e.n >= 26 * 9) { e.n = 0; e.map = {}; }         // safety wrap on very long chats
+  e.n += 1;
+  const code = String.fromCharCode(65 + Math.floor((e.n - 1) / 9)) + (((e.n - 1) % 9) + 1); // A1..A9,B1..
+  e.ts = Date.now();
+  e.map[code] = { id: shoe.id, name: displayName(shoe), price: shoe.price };
+  const keys = Object.keys(e.map);
+  if (keys.length > 60) delete e.map[keys[0]];        // don't grow forever
+  photoCodes.set(sub, e);
+  return code;
+}
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
 
 // ── Manual control panel (/console) support ───────────────────────────────────
@@ -1349,15 +1371,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       photoNote += `\n\n[Context for you: in the last little while you SENT this customer photos of these shoes from our catalog — ${rs.names.join('; ')}. Customers often send one of those pics straight BACK to mean "I want this one." So if the photo they just sent looks like one of those, it IS that exact shoe from our stock: confirm it by name and move to their size. Only if it clearly ISN'T one of those, identify it fresh.]`;
     }
   }
+  // If we recently sent this customer CODED photos, hand Claude the code→shoe map so a
+  // reply like "A3" resolves to that exact shoe (works for a typed code, no photo needed).
+  let codeCtx = '';
+  const cc = photoCodes.get(sub);
+  if (cc && cc.map && Object.keys(cc.map).length && (Date.now() - (cc.ts || 0)) < 45 * 60 * 1000) {
+    const lines = Object.entries(cc.map).map(([code, v]) => `${code} = ${v.name}${v.price != null ? ` ($${v.price})` : ''}`);
+    codeCtx = `\n\n[PHOTO CODES you gave this customer — every pic you sent was labelled with its code. If their message IS or CONTAINS one of these codes, they mean THAT exact shoe: confirm it and go straight to their size / order — do NOT re-ask what shoe. Codes → shoes: ${lines.join('; ')}]`;
+  }
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
   // full-res customer photos with an "I can't open that file" reply).
   const userMsg = {
     role: 'user',
     content: image
-      ? [ { type: 'text', text: photoNote },
+      ? [ { type: 'text', text: photoNote + codeCtx },
           { type: 'image', source: { type: 'url', url: image } } ]
-      : userText,
+      : (userText + codeCtx),
   };
   history.push(userMsg);
 
