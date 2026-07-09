@@ -364,7 +364,10 @@ const wa = messages => ({ version: 'v2', content: { type: 'whatsapp', messages: 
 
 // ── Endpoints ─────────────────────────────────────────────────────────────────
 
-app.get('/health', (req, res) => res.json({ status: 'ok', shoes: catalog.length }));
+// Unique per running process. If /health returns >1 distinct `boot` value across rapid
+// calls, more than one copy of the bot is running (which breaks in-memory dedupe/memory).
+const BOOT_ID = Math.random().toString(36).slice(2, 8);
+app.get('/health', (req, res) => res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null }));
 
 // Meta / WhatsApp Business catalogue product feed (CSV). Connect this URL as a
 // SCHEDULED data feed in Meta Commerce Manager and Meta re-pulls it automatically,
@@ -1216,17 +1219,34 @@ async function transcribeAudio(url) {
 async function callClaude(messages, system, toolChoice) {
   const body = { model: AI_MODEL, max_tokens: 1024, system: system || buildSystemPrompt(), tools: AI_TOOLS, messages };
   if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
-  const r = await fetch(ANTHROPIC_API, {
-    method: 'POST',
-    headers: {
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await r.json();
-  return { ok: r.ok, status: r.status, data };
+  // AUTO-RETRY transient failures (overloaded 529 / rate-limit 429 / 5xx / network blips).
+  // These are common with vision and used to drop STRAIGHT to the "hiccup" message on the
+  // first blip — losing hot buyers. Retry up to 3x with a short backoff so the customer
+  // never sees it. A non-transient error (e.g. 400) returns immediately (no point retrying).
+  const RETRIABLE = new Set([429, 500, 502, 503, 504, 529]);
+  let last = { ok: false, status: 0, data: null };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await fetch(ANTHROPIC_API, {
+        method: 'POST',
+        headers: {
+          'x-api-key': process.env.ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(30000),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok) return { ok: true, status: r.status, data };
+      last = { ok: false, status: r.status, data };
+      if (!RETRIABLE.has(r.status)) return last;   // permanent error — don't waste retries
+    } catch (e) {
+      last = { ok: false, status: 0, data: { error: String((e && e.message) || e) } };  // network/timeout — retriable
+    }
+    if (attempt < 2) await new Promise(res => setTimeout(res, 700 * (attempt + 1)));  // 0.7s, then 1.4s
+  }
+  return last;
 }
 
 // Fetch a customer's photo and return it as a base64 image block so Claude (Haiku 4.5,
@@ -1415,7 +1435,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const { ok, status, data } = await callClaude(history, system, forceTool);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
-      await sendChunk(sub, [{ type: 'text', text: "Sorry, I'm having a little hiccup 🤕 try again in a sec." }], token).catch(() => {});
+      // Only reached after the auto-retries above ALL failed. Keep the sale warm instead of
+      // sounding broken: on a photo, acknowledge it and ask the size; otherwise ask for a resend.
+      const fallback = image
+        ? "Got your pic 📸 I'm running a lil slow this sec — what size you need? I'll check it for you right now 👟"
+        : "Hmm, that didn't come through on my end 👟 send it once more?";
+      await sendChunk(sub, [{ type: 'text', text: fallback }], token).catch(() => {});
       return;
     }
     history.push({ role: 'assistant', content: data.content });
@@ -1620,7 +1645,7 @@ function handleChat(req, res) {
   if (userText.trim() && !imageUrl && !audioUrl) {
     const mk = sub + '|' + userText.trim().toLowerCase().replace(/\s+/g, ' ');
     const prevM = recentMsgSeen.get(mk);
-    if (prevM && (Date.now() - prevM) < 8000) {
+    if (prevM && (Date.now() - prevM) < 60000) {   // 60s: catches an impatient customer re-asking
       record(req, { endpoint: 'dupe-msg-skip', sub, q: userText.slice(0, 30) });
       return;
     }
@@ -1652,6 +1677,18 @@ function handleChat(req, res) {
       // The link usually IS the whole "text" — don't feed a raw URL to Claude as words.
       if (text.trim() === imageUrl.trim()) text = '';
       photo = imageUrl;
+    }
+    // 🔴 SELLER OVERRIDE — a message that starts with "." or "-" is Rodney/staff jumping in to
+    // CORRECT Jess (stock, size, price, details), not the customer. We can't tell his messages
+    // apart from the customer's any other way, so this tiny mark is his signal. Treat what he
+    // says as the FINAL TRUTH: silently fix whatever Jess told the customer and keep helping —
+    // never treat it as the customer speaking. (A lone "." / "-" is ignored as junk earlier.)
+    if (!photo && /^\s*[.\-]\s*\S/.test(text)) {
+      const correction = text.replace(/^\s*[.\-]+\s*/, '').trim();
+      if (correction) {
+        record(req, { endpoint: 'seller-override', sub, correction: correction.slice(0, 60) });
+        text = `[SELLER OVERRIDE — this message is from the shop OWNER/staff, NOT the customer. It is the FINAL TRUTH about stock, sizes, price, or details. Silently correct anything you already told the customer that conflicts with it, then tell the customer the updated info naturally and warmly in your OWN words. Do NOT mention "the seller", "override", or these brackets, and do NOT treat this as the customer talking. Then keep helping.] ${correction}`;
+      }
     }
     return runChat(req, sub, text, token, { store, name }, photo);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
