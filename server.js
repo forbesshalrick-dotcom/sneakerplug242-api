@@ -1152,7 +1152,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   const photoWithLabel = (s) => {
     if (!showLabels) return [{ type: 'image', url: s.image }];
     const code = nextPhotoCode(sub, s);
-    return [{ type: 'image', url: s.image }, { type: 'text', text: `🔴 *${code}*  ·  ${labelText(s)}` }];
+    return [{ type: 'image', url: s.image }, { type: 'text', text: `🟢 *${code}*  ·  ${labelText(s)}` }];
   };
 
   if (Array.isArray(groups) && groups.length) {
