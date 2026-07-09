@@ -1350,15 +1350,26 @@ function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, L(ASKME_T,
 // own ManyChat token (the customer's account) — the owner just needs to have
 // messaged that account once so they're a subscriber. Best-effort.
 async function waSendManager(text, token) {
-  if (!MANAGER_NUMBERS.length || !token) return false;
+  if (!MANAGER_NUMBERS.length) return false;
+  // A manager number only shows up as a "subscriber" on the ONE account it has messaged.
+  // The delivery's chat could be on either account, so an owner who messaged only the OTHER
+  // account used to be skipped and got NO alert. Fix: for each owner number, try the chat's
+  // own token first, then EVERY other account token we've seen — send once via whichever
+  // account that number is actually reachable on.
+  const tokens = [token, ...storeTokens.values(), lastToken, process.env.MANYCHAT_TOKEN]
+    .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+  if (!tokens.length) return false;
   let anyOk = false;
-  for (const num of MANAGER_NUMBERS) {           // send to EVERY owner phone, not just one
-    try {
-      const sub = await findSubscriberByPhone(num, token);
-      if (!sub) continue;
-      await sendChunk(sub, [{ type: 'text', text }], token);
-      anyOk = true;
-    } catch (_) { /* try the next number */ }
+  for (const num of MANAGER_NUMBERS) {           // alert EVERY owner phone, not just one
+    for (const tk of tokens) {
+      try {
+        const sub = await findSubscriberByPhone(num, tk);
+        if (!sub) continue;
+        await sendChunk(sub, [{ type: 'text', text }], tk);
+        anyOk = true;
+        break;                                   // this number is alerted — stop trying tokens
+      } catch (_) { /* try the next account token */ }
+    }
   }
   return anyOk;
 }
