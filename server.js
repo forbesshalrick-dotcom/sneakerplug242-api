@@ -1298,6 +1298,12 @@ function nextPhotoCode(sub, shoe) {
   return code;
 }
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
+// 🔇 STAFF MUTE: sub -> timestamp until which Jess stays SILENT in that one chat, so Rodney/
+// staff can handle it by hand or voice without her talking over them. ONLY set when staff
+// TYPE a mute codeword; auto-expires so a chat can never be stranded in silence.
+const chatMuted = new Map();
+const MUTE_MS = 30 * 1000; // 30s ROLLING window — refreshes on each message while staff are
+                           // active, so Jess resumes ~30s after the last message. Short + safe.
 
 // ── Manual control panel (/console) support ───────────────────────────────────
 // So Rodney can tell the bot "send size 8 to this customer" from a private page.
@@ -1637,6 +1643,30 @@ function handleChat(req, res) {
     return;
   }
 
+  // 🔇 STAFF MUTE — Rodney/staff types ".mute" (or ".hush") to hush Jess in THIS chat while
+  // they handle it by hand or voice; ".back" wakes her. Auto-resumes after MUTE_MS so a chat
+  // can NEVER get stranded in silence. Only a typed command mutes — never Jess on her own.
+  {
+    const cmd = userText.trim().toLowerCase();
+    if (/^[.\-]\s*(mute|hush|quiet|stop|me)$/.test(cmd)) {
+      chatMuted.set(sub, Date.now() + MUTE_MS);
+      record(req, { endpoint: 'staff-mute', sub, minutes: MUTE_MS / 60000 });
+      return; // silent — no message goes to the customer
+    }
+    if (/^[.\-]\s*(back|unmute|resume|wake|on)$/.test(cmd)) {
+      chatMuted.delete(sub);
+      record(req, { endpoint: 'staff-unmute', sub });
+      return;
+    }
+    const mUntil = chatMuted.get(sub);
+    if (mUntil && Date.now() < mUntil) {
+      chatMuted.set(sub, Date.now() + MUTE_MS); // roll the window forward while there's activity
+      record(req, { endpoint: 'muted-skip', sub });
+      return;
+    }
+    if (mUntil) chatMuted.delete(sub); // window passed → clean up + resume
+  }
+
   // Dedupe photos: the SAME image can hit us twice in quick succession (a
   // Default-Reply / ManyChat quirk). If we just handled this exact photo for this
   // customer, skip the duplicate so Jess doesn't answer the same picture twice.
@@ -1699,7 +1729,7 @@ function handleChat(req, res) {
       const correction = text.replace(/^\s*[.\-]+\s*/, '').trim();
       if (correction) {
         record(req, { endpoint: 'seller-override', sub, correction: correction.slice(0, 60) });
-        text = `[SELLER OVERRIDE — the shop OWNER just jumped in to correct YOU. This is NOT a customer message. What follows is the FINAL TRUTH and OVERRIDES anything the inventory/search said. It applies to the shoe you are CURRENTLY discussing with this customer (the last pair you showed or named). Immediately tell the customer this updated info, in your own warm words, as an update/correction — then keep helping them buy. Example: you just showed the Red Jordan 1 and the owner says "size 9.5 and 11" → you reply "Quick update on that Red/White Jordan 1 — it's actually in a 9.5 and 11! 👟 Want me to lock one in for you?". Do NOT ignore this, do NOT just ask them to pick a code, do NOT treat it as the customer talking, and NEVER mention "the seller"/"override"/these brackets.] The owner says: ${correction}`;
+        text = `[SELLER OVERRIDE — the shop OWNER just jumped in to correct YOU. This is NOT a customer message. What follows is the FINAL TRUTH and OVERRIDES anything the inventory/search said. It applies to the shoe you are CURRENTLY discussing with this customer (the last pair you showed or named). Immediately tell the customer this updated info, in your own warm words, as an update/correction — then keep helping them buy. Example: you just showed the Red Jordan 1 and the owner says "size 9.5 and 11" → you reply "Quick update on that Red/White Jordan 1 — it's actually in a 9.5 and 11! 👟 Want me to lock one in for you?". Do NOT ignore this, do NOT just ask them to pick a code, do NOT treat it as the customer talking, do NOT call get_agent or hand off to a team member because of this (it's the owner, not a stuck customer — if it's just a greeting or unclear, reply briefly and normally), and NEVER mention "the seller"/"override"/these brackets.] The owner says: ${correction}`;
       }
     }
     return runChat(req, sub, text, token, { store, name }, photo);
