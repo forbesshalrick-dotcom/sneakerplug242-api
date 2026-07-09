@@ -1687,7 +1687,7 @@ function handleChat(req, res) {
       const correction = text.replace(/^\s*[.\-]+\s*/, '').trim();
       if (correction) {
         record(req, { endpoint: 'seller-override', sub, correction: correction.slice(0, 60) });
-        text = `[SELLER OVERRIDE — this message is from the shop OWNER/staff, NOT the customer. It is the FINAL TRUTH about stock, sizes, price, or details. Silently correct anything you already told the customer that conflicts with it, then tell the customer the updated info naturally and warmly in your OWN words. Do NOT mention "the seller", "override", or these brackets, and do NOT treat this as the customer talking. Then keep helping.] ${correction}`;
+        text = `[SELLER OVERRIDE — the shop OWNER just jumped in to correct YOU. This is NOT a customer message. What follows is the FINAL TRUTH and OVERRIDES anything the inventory/search said. It applies to the shoe you are CURRENTLY discussing with this customer (the last pair you showed or named). Immediately tell the customer this updated info, in your own warm words, as an update/correction — then keep helping them buy. Example: you just showed the Red Jordan 1 and the owner says "size 9.5 and 11" → you reply "Quick update on that Red/White Jordan 1 — it's actually in a 9.5 and 11! 👟 Want me to lock one in for you?". Do NOT ignore this, do NOT just ask them to pick a code, do NOT treat it as the customer talking, and NEVER mention "the seller"/"override"/these brackets.] The owner says: ${correction}`;
       }
     }
     return runChat(req, sub, text, token, { store, name }, photo);
