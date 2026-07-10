@@ -1296,7 +1296,7 @@ function nextPhotoCode(sub, shoe) {
   e.n += 1;
   const code = String.fromCharCode(65 + Math.floor((e.n - 1) / 9)) + (((e.n - 1) % 9) + 1); // A1..A9,B1..
   e.ts = Date.now();
-  e.map[code] = { id: shoe.id, name: displayName(shoe), price: shoe.price };
+  e.map[code] = { id: shoe.id, name: displayName(shoe), price: shoe.price, sizes: sizesOf(shoe) };
   const keys = Object.keys(e.map);
   if (keys.length > 60) delete e.map[keys[0]];        // don't grow forever
   photoCodes.set(sub, e);
@@ -1419,8 +1419,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let codeCtx = '';
   const cc = photoCodes.get(sub);
   if (cc && cc.map && Object.keys(cc.map).length && (Date.now() - (cc.ts || 0)) < 45 * 60 * 1000) {
-    const lines = Object.entries(cc.map).map(([code, v]) => `${code} = ${v.name}${v.price != null ? ` ($${v.price})` : ''}`);
-    codeCtx = `\n\n[PHOTO CODES you gave this customer — every pic you sent was labelled with its code. If their message IS or CONTAINS one of these codes, they mean THAT exact shoe: confirm it and go straight to their size / order — do NOT re-ask what shoe. Codes → shoes: ${lines.join('; ')}]`;
+    const lines = Object.entries(cc.map).map(([code, v]) => `${code} = ${v.name}${v.price != null ? ` ($${v.price})` : ''}${v.sizes ? ` [sizes: ${v.sizes}]` : ''}`);
+    codeCtx = `\n\n[PHOTO CODES you gave this customer — every pic you sent was labelled with its code, and the sizes shown are the ONLY sizes that shoe comes in. If their message IS or CONTAINS one of these codes, they mean THAT exact shoe: confirm it and go straight to their order — do NOT re-ask what shoe. ⚠️ If the customer states a SIZE for a code (e.g. "D9 in 7"), CHECK it against that code's listed sizes: only agree if that size is actually in the list. If it is NOT, do NOT agree — tell them that shoe only comes in [its real sizes] and offer the nearest. NEVER confirm a size that isn't in the code's sizes. Codes → shoes: ${lines.join('; ')}]`;
   }
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
