@@ -1653,20 +1653,22 @@ function handleChat(req, res) {
     return;
   }
 
-  // 🔇 STAFF MUTE — Rodney/staff types ".mute" (or ".hush") to hush Jess in THIS chat while
-  // they handle it by hand or voice; ".back" wakes her. Auto-resumes after MUTE_MS so a chat
-  // can NEVER get stranded in silence. Only a typed command mutes — never Jess on her own.
+  // 🔇 STAFF QUIET — the moment Rodney/staff types a message that STARTS with "." or "-",
+  // that's HIM talking in the chat himself, so Jess stays SILENT and hushes for 30s (rolling)
+  // — she never speaks over him. ".back" (or "wake"/"on") turns her back on right away.
+  // Auto-resumes after MUTE_MS so a chat can NEVER get stranded. A lone "."/"-" is already
+  // dropped as junk above. Only a typed dot mutes — never Jess on her own.
   {
-    const cmd = userText.trim().toLowerCase();
-    if (/^[.\-]\s*(mute|hush|quiet|stop|me)$/.test(cmd)) {
-      chatMuted.set(sub, Date.now() + MUTE_MS);
-      record(req, { endpoint: 'staff-mute', sub, minutes: MUTE_MS / 60000 });
-      return; // silent — no message goes to the customer
-    }
-    if (/^[.\-]\s*(back|unmute|resume|wake|on)$/.test(cmd)) {
+    const t = userText.trim();
+    if (!imageUrl && !audioUrl && /^[.\-]\s*(back|unmute|resume|wake|on|go)\b/i.test(t)) {
       chatMuted.delete(sub);
       record(req, { endpoint: 'staff-unmute', sub });
       return;
+    }
+    if (!imageUrl && !audioUrl && /^[.\-]\s*\S/.test(t)) {
+      chatMuted.set(sub, Date.now() + MUTE_MS);
+      record(req, { endpoint: 'staff-quiet', sub, q: t.slice(0, 30) });
+      return; // silent — Jess never replies to the boss's own message
     }
     const mUntil = chatMuted.get(sub);
     if (mUntil && Date.now() < mUntil) {
