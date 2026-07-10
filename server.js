@@ -1407,7 +1407,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // If we JUST showed this customer some shoes, tell Claude — because customers often
   // forward one of OUR pics back to say "I want this one", and Jess should recognise it
   // as that exact shoe rather than trying to identify it from scratch.
-  let photoNote = (userText && userText.trim()) ? userText : '(The customer sent this photo of a shoe — identify it and help them.)';
+  let photoNote = `(The customer sent a PHOTO. FIRST look at WHAT it actually shows before doing anything:
+• If it's a SHOE / sneaker → identify it and you MUST call search_inventory then send_photos (never just ask "what size?").
+• If it's a RECEIPT, a payment / bank-transfer / SunCash screenshot, a cash photo, a shipping ticket, an ID, or ANY document or thing that is NOT a shoe → do NOT search inventory and do NOT send shoe photos. It is almost certainly PROOF OF PAYMENT for their order — warmly confirm you got it, e.g. "Got your receipt 🙏 payment confirmed — we'll get it sent right out!", and carry on with their delivery/shipment.)${(userText && userText.trim()) ? ('\n\nThey also wrote: ' + userText) : ''}`;
   if (image) {
     const rs = recentlySent.get(sub);
     if (rs && rs.names && rs.names.length && (Date.now() - rs.ts) < 45 * 60 * 1000) {
@@ -1441,6 +1443,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let photosSentRun = false; // did any photos go out this turn?
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
+  let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   try {
   for (let step = 0; step < 6; step++) {
     // On the FIRST move of a photo turn, FORCE Jess to search inventory — so she can't
@@ -1450,10 +1453,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // matches, step 1 = send them. If it came back empty (often a too-narrow / wrong
     // model-name search), step 1 = search AGAIN (the prompt tells her to broaden), then
     // step 2 = send if that found anything. Guarded so she never sends with 0 results.
-    const forceTool = (image && !photosSentRun && step === 0) ? { type: 'tool', name: 'search_inventory' }
-      : (image && !photosSentRun && step === 1 && lastSearchCount > 0) ? { type: 'tool', name: 'send_photos' }
-      : (image && !photosSentRun && step === 1 && lastSearchCount === 0) ? { type: 'tool', name: 'search_inventory' }
-      : (image && !photosSentRun && step === 2 && lastSearchCount > 0) ? { type: 'tool', name: 'send_photos' }
+    // Step 0 is NOT forced anymore: let her first tell a SHOE from a RECEIPT/document (the
+    // photoNote guides her). If she chose to SEARCH (a shoe), we then force the SHOW so she
+    // can't stall on "what size?". If she DIDN'T search (a receipt), we never force photos.
+    const forceTool = (image && !photosSentRun && didSearch && step >= 1 && lastSearchCount > 0) ? { type: 'tool', name: 'send_photos' }
+      : (image && !photosSentRun && didSearch && step === 1 && lastSearchCount === 0) ? { type: 'tool', name: 'search_inventory' }
       : undefined;
     const { ok, status, data } = await callClaude(history, system, forceTool);
     if (!ok) {
@@ -1470,9 +1474,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // Once Claude has seen the photo, drop the heavy base64 from history so the rest
     // of the tool-loop (and future turns) stay light and we never re-send a photo.
     if (image && step === 0 && Array.isArray(userMsg.content)) {
-      userMsg.content = (userText && userText.trim()) ? userText : '(customer sent a photo of a shoe)';
+      userMsg.content = (userText && userText.trim()) ? userText : '(customer sent a photo)';
     }
     const toolUses = data.content.filter(b => b.type === 'tool_use');
+    if (toolUses.some(t => t.name === 'search_inventory')) didSearch = true;
     const sendPhotosTU = toolUses.find(t => t.name === 'send_photos');
     const turnText = data.content.filter(b => b.type === 'text' && b.text.trim())
       .map(b => b.text.trim()).join('\n');
