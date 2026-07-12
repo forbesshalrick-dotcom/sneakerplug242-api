@@ -670,13 +670,13 @@ const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min aft
 const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
-const THIRD_MSG = "You can ask me anything, like:\n- *What do you have in Jordans?*\n- *What do you have in New Balance?*\n- *What do you have in red?*\n- *What do you have in white?*\n- *What do you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
+const THIRD_MSG = "You can ask me anything, like:\n- *What you have in Jordans?*\n- *What you have in New Balance?*\n- *What you have in red?*\n- *What you have in white?*\n- *What you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
 // After a delivery is confirmed, if the customer goes quiet, reassure them at ~20 min.
 const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60 * 1000; // 20 minutes
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
-const WELCOME_NUDGE_MSG = "You can ask me anything, like:\n- *What do you have in Jordans?*\n- *What do you have in New Balance?*\n- *What do you have in red?*\n- *What do you have in white?*\n- *What do you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
+const WELCOME_NUDGE_MSG = "You can ask me anything, like:\n- *What you have in Jordans?*\n- *What you have in New Balance?*\n- *What you have in red?*\n- *What you have in white?*\n- *What you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
@@ -748,9 +748,9 @@ Hello! 👋
 
 Are you looking for something specific?
 
-Or *do you want some pictures?* 👟
+*Do you want some pictures?* 👟
 
-(That is the WHOLE greeting — nothing before or after it. If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, and keep the *asterisks* bold.`
+(That is the WHOLE greeting — nothing before or after it. Keep the 👟 on the SAME line as "pictures?", right at the end — never on its own line. If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, keep the 👟 at the end of the last line, and keep the *asterisks* bold.`
     : `- ⚠️ DO NOT GREET — YOU ALREADY WELCOMED THIS CUSTOMER. You are ALREADY mid-conversation with them. NEVER send the "Hi! Welcome to ${storeName}" greeting again, and NEVER repeat the website line — not even if they now say "hi", "hello", "hey", "yo", "sup", "you open?", or anything that looks like a fresh start. Just answer their newest message directly, briefly and naturally (e.g. "hey! 👟 what you looking for?" or, if they asked if we're open, "yep we're open! what can I get you? 👟"). If you would be repeating something you already told them this chat (that we're open, the website, a shoe's info), do NOT say it again — just move them forward.`;
   // Live list of the models we ACTUALLY carry (built from current stock), grouped by
   // brand — so Jess can name a photo/request correctly by matching it to a real model
