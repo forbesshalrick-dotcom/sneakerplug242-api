@@ -663,7 +663,7 @@ const WEBSITE = '242plug.netlify.app';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes
 const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟 Want more options? Search our site 👉 ${WEBSITE}`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
-const FOLLOWUP_MSG = 'Hey! Just following up 😊 See anything you liked? Just reply with the *code* under it (like *A1*) and I\'ll get you sorted fast 👟';
+const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did anything catch your eye? If not, no worries — maybe next time! 👟';
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
 const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min after the nudge
@@ -747,10 +747,10 @@ function buildSystemPrompt({ store, name, greet = true } = {}) {
 Hello! 👋
 
 Are you looking for something specific?
+*OR*
+Do you want some pictures? 👟
 
-*Do you want some pictures?* 👟
-
-(That is the WHOLE greeting — nothing before or after it. Keep the 👟 on the SAME line as "pictures?", right at the end — never on its own line. If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, keep the 👟 at the end of the last line, and keep the *asterisks* bold.`
+(That is the WHOLE greeting — nothing before or after it. The word *OR* sits on its OWN line between the two questions and stays BOLD. Keep the 👟 on the SAME line as "pictures?", right at the end — never on its own line. If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, keep the 👟 at the end of the last line, and keep the *asterisks* bold.`
     : `- ⚠️ DO NOT GREET — YOU ALREADY WELCOMED THIS CUSTOMER. You are ALREADY mid-conversation with them. NEVER send the "Hi! Welcome to ${storeName}" greeting again, and NEVER repeat the website line — not even if they now say "hi", "hello", "hey", "yo", "sup", "you open?", or anything that looks like a fresh start. Just answer their newest message directly, briefly and naturally (e.g. "hey! 👟 what you looking for?" or, if they asked if we're open, "yep we're open! what can I get you? 👟"). If you would be repeating something you already told them this chat (that we're open, the website, a shoe's info), do NOT say it again — just move them forward.`;
   // Live list of the models we ACTUALLY carry (built from current stock), grouped by
   // brand — so Jess can name a photo/request correctly by matching it to a real model
