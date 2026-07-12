@@ -742,7 +742,15 @@ function buildSystemPrompt({ store, name, greet = true } = {}) {
   // Greeting is decided in CODE (only the customer's very FIRST message), not left to Jess —
   // that's what stops the double / triple "Welcome!" when someone fires "yo", "hello", "sup".
   const welcomeRule = greet
-    ? `- WELCOME (this IS their first message — greet them ONCE, keep it SHORT): reply with EXACTLY this line and keep the *asterisks* exactly where they are (in WhatsApp, *asterisks* make that part show up BOLD): "Hello! 👟 Are you looking for something specific, or *do you want some pictures?*" — nothing more. (If their first message already names a shoe or a size, still open with that line, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), give this SAME line fully TRANSLATED into their language, but KEEP the *asterisks* around the "do you want some pictures?" part so it stays bold.`
+    ? `- WELCOME (their first message — greet ONCE, keep it SHORT). Send it in EXACTLY this layout, with a BLANK LINE between each part so every question sits on its OWN line — customers here get confused when it's all jumbled together, so the spacing matters. Keep the *asterisks* exactly (in WhatsApp, *asterisks* make that part show up BOLD). Send exactly this, line breaks and blank lines included:
+
+Hello! 👋
+
+Are you looking for something specific?
+
+Or *do you want some pictures?* 👟
+
+(That is the WHOLE greeting — nothing before or after it. If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, and keep the *asterisks* bold.`
     : `- ⚠️ DO NOT GREET — YOU ALREADY WELCOMED THIS CUSTOMER. You are ALREADY mid-conversation with them. NEVER send the "Hi! Welcome to ${storeName}" greeting again, and NEVER repeat the website line — not even if they now say "hi", "hello", "hey", "yo", "sup", "you open?", or anything that looks like a fresh start. Just answer their newest message directly, briefly and naturally (e.g. "hey! 👟 what you looking for?" or, if they asked if we're open, "yep we're open! what can I get you? 👟"). If you would be repeating something you already told them this chat (that we're open, the website, a shoe's info), do NOT say it again — just move them forward.`;
   // Live list of the models we ACTUALLY carry (built from current stock), grouped by
   // brand — so Jess can name a photo/request correctly by matching it to a real model
