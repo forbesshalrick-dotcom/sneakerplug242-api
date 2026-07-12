@@ -1638,7 +1638,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 
 function handleChat(req, res) {
   let userText = extractQuery(req);
-  const audioUrl = getAudioUrl(req);
+  let audioUrl = getAudioUrl(req);
   let imageUrl = getImageUrl(req);
   // A message that is JUST a bare link (no other words) and isn't audio is almost
   // always the customer's photo arriving via Last Text Input. Catch it even if the
@@ -1659,14 +1659,19 @@ function handleChat(req, res) {
     }
   }
   // PICTURE READING TURNED OFF (Rodney's call 2026-07-12): photo recognition wasn't
-  // accurate enough, so we do NOT feed customer photos to Claude vision. When a photo
-  // arrives, ignore the image and — if there's no caption to answer — ask them to type
-  // the shoe name + size (the reliable path). Re-enable later with env PHOTO_VISION=1.
+  // accurate enough, so we do NOT feed customer photos to Claude vision. A BARE photo
+  // (no typed caption) now gets NOTHING from Jess — the ManyChat greeting ("want something
+  // specific, or do you want pics?") answers it, so Jess doesn't pile a second "type the
+  // name" message on top (Rodney's call 2026-07-12). A photo WITH a caption still gets
+  // helped via that caption text. Re-enable full photo replies with env PHOTO_VISION=1.
   if (process.env.PHOTO_VISION !== '1' && imageUrl) {
     imageUrl = '';
-    if (!userText || !userText.trim()) {
-      userText = "(The customer sent a photo, but we can't view photos right now. Do NOT error or say 'hiccup'. Warmly ask them to type the shoe's NAME and COLOUR, and their size, so I can find it for them.)";
-    }
+  }
+  // VOICE NOTES — recognition OFF for now (Rodney's call 2026-07-12): until VOICE_RECOGNITION=1
+  // is set, a voice note with no typed text gets NOTHING from Jess either; the same ManyChat
+  // greeting answers it. Flip VOICE_RECOGNITION=1 to transcribe + reply again.
+  if (process.env.VOICE_RECOGNITION !== '1' && audioUrl && (!userText || !userText.trim())) {
+    audioUrl = '';
   }
   const sub = getContactId(req);
   const token = getToken(req);
