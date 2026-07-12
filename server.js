@@ -1298,6 +1298,7 @@ const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text me
 const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Jess stays QUIET for that chat so staff can take over without her talking over them
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
+const ownerNotes = new Map();      // sub -> [{text, ts}] — private ". "/"- " messages the OWNER typed to Jess. She FOLLOWS ALONG (uses them as context) but sends NOTHING back to the customer.
 // PHOTO ORDER CODES (A1, A2, … B1 …): every pic Jess sends gets a short code in its
 // label so the customer can just reply with the code to pick it — no re-describing, no
 // re-sending the photo. Per sub we keep a running counter + a code→shoe map so a reply
@@ -1439,15 +1440,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const lines = Object.entries(cc.map).map(([code, v]) => `${code} = ${v.name}${v.price != null ? ` ($${v.price})` : ''}${v.sizes ? ` [sizes: ${v.sizes}]` : ''}`);
     codeCtx = `\n\n[PHOTO CODES you gave this customer — every pic you sent was labelled with its code, and the sizes shown are the ONLY sizes that shoe comes in. If their message IS or CONTAINS one of these codes, they mean THAT exact shoe: confirm it and go straight to their order — do NOT re-ask what shoe. ⚠️ If the customer states a SIZE for a code (e.g. "D9 in 7"), CHECK it against that code's listed sizes: only agree if that size is actually in the list. If it is NOT, do NOT agree — tell them that shoe only comes in [its real sizes] and offer the nearest. NEVER confirm a size that isn't in the code's sizes. Codes → shoes: ${lines.join('; ')}]`;
   }
+  // PRIVATE OWNER CONTEXT: anything Rodney/staff typed with the ". " code since the customer
+  // last wrote. Jess uses it as the TRUTH to guide her help, but NEVER quotes or announces it.
+  let ownerCtx = '';
+  const on = ownerNotes.get(sub);
+  if (on && on.length && (Date.now() - on[on.length - 1].ts) < 6 * 60 * 60 * 1000) {
+    ownerCtx = `\n\n[PRIVATE OWNER CONTEXT — the shop owner/staff typed this straight to you (the customer did NOT see it and must NEVER be told about it, and you must NOT repeat or announce it). Treat it as the TRUTH about this order/customer and let it quietly guide how you help them. Owner said: ${on.map(n => n.text).join(' | ')}]`;
+    ownerNotes.delete(sub); // consume once
+  }
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
   // full-res customer photos with an "I can't open that file" reply).
   const userMsg = {
     role: 'user',
     content: image
-      ? [ { type: 'text', text: photoNote + codeCtx },
+      ? [ { type: 'text', text: photoNote + codeCtx + ownerCtx },
           { type: 'image', source: { type: 'url', url: image } } ]
-      : (userText + codeCtx),
+      : (userText + codeCtx + ownerCtx),
   };
   history.push(userMsg);
 
@@ -1757,16 +1766,19 @@ function handleChat(req, res) {
       if (text.trim() === imageUrl.trim()) text = '';
       photo = imageUrl;
     }
-    // 🔴 SELLER OVERRIDE — a message that starts with "." or "-" is Rodney/staff jumping in to
-    // CORRECT Jess (stock, size, price, details), not the customer. We can't tell his messages
-    // apart from the customer's any other way, so this tiny mark is his signal. Treat what he
-    // says as the FINAL TRUTH: silently fix whatever Jess told the customer and keep helping —
-    // never treat it as the customer speaking. (A lone "." / "-" is ignored as junk earlier.)
+    // 🔴 OWNER "." MESSAGE — a message that starts with "." or "-" is Rodney/staff jumping in.
+    // We can't tell his messages from the customer's any other way, so this tiny mark is his
+    // signal. He wants Jess to FOLLOW ALONG SILENTLY,
+    // not talk. So we STASH what he said as private context and send NOTHING to the customer.
+    // Jess will use it (as the truth) the next time the CUSTOMER writes, but never announce it.
     if (!photo && /^\s*[.\-]\s*\S/.test(text)) {
-      const correction = text.replace(/^\s*[.\-]+\s*/, '').trim();
-      if (correction) {
-        record(req, { endpoint: 'seller-override', sub, correction: correction.slice(0, 60) });
-        text = `[SELLER OVERRIDE — the shop OWNER just jumped in to correct YOU. This is NOT a customer message. What follows is the FINAL TRUTH and OVERRIDES anything the inventory/search said. It applies to the shoe you are CURRENTLY discussing with this customer (the last pair you showed or named). Immediately tell the customer this updated info, in your own warm words, as an update/correction — then keep helping them buy. Example: you just showed the Red Jordan 1 and the owner says "size 9.5 and 11" → you reply "Quick update on that Red/White Jordan 1 — it's actually in a 9.5 and 11! 👟 Want me to lock one in for you?". Do NOT ignore this, do NOT just ask them to pick a code, do NOT treat it as the customer talking, do NOT call get_agent or hand off to a team member because of this (it's the owner, not a stuck customer — if it's just a greeting or unclear, reply briefly and normally), and NEVER mention "the seller"/"override"/these brackets.] The owner says: ${correction}`;
+      const note = text.replace(/^\s*[.\-]+\s*/, '').trim();
+      if (note) {
+        record(req, { endpoint: 'owner-note-silent', sub, note: note.slice(0, 60) });
+        const arr = ownerNotes.get(sub) || [];
+        arr.push({ text: note, ts: Date.now() });
+        ownerNotes.set(sub, arr.slice(-8));
+        return; // stay silent — the owner is handling this customer himself
       }
     }
     return runChat(req, sub, text, token, { store, name }, photo);
