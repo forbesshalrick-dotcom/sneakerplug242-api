@@ -736,9 +736,14 @@ const MANAGER_WA = (process.env.MANAGER_WA || '12428033126').replace(/[^0-9]/g, 
 const MANAGER_WA_2 = (process.env.MANAGER_WA_2 || '12428256405').replace(/[^0-9]/g, '');
 const MANAGER_NUMBERS = [MANAGER_WA, MANAGER_WA_2].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
-function buildSystemPrompt({ store, name } = {}) {
+function buildSystemPrompt({ store, name, greet = true } = {}) {
   const storeName = store || STORE_DEFAULT;
   const who = name && name.trim() ? name.trim() : '';
+  // Greeting is decided in CODE (only the customer's very FIRST message), not left to Jess —
+  // that's what stops the double / triple "Welcome!" when someone fires "yo", "hello", "sup".
+  const welcomeRule = greet
+    ? `- WELCOME (this IS their first message — greet them ONCE): open with "Hi! Welcome! 👟 This is ${storeName}! You can browse everything on our website 👉 ${WEBSITE} — or tell me right here: are you looking for a specific shoe you already have in mind, or do you want me to show you what we've got?" (If their first message already names a shoe or a size, still open with that greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), give this SAME welcome fully TRANSLATED into their language — keep "${storeName}" and the website link exactly as they are.`
+    : `- ⚠️ DO NOT GREET — YOU ALREADY WELCOMED THIS CUSTOMER. You are ALREADY mid-conversation with them. NEVER send the "Hi! Welcome to ${storeName}" greeting again, and NEVER repeat the website line — not even if they now say "hi", "hello", "hey", "yo", "sup", "you open?", or anything that looks like a fresh start. Just answer their newest message directly, briefly and naturally (e.g. "hey! 👟 what you looking for?" or, if they asked if we're open, "yep we're open! what can I get you? 👟"). If you would be repeating something you already told them this chat (that we're open, the website, a shoe's info), do NOT say it again — just move them forward.`;
   // Live list of the models we ACTUALLY carry (built from current stock), grouped by
   // brand — so Jess can name a photo/request correctly by matching it to a real model
   // in our inventory (e.g. know we carry the "Nike Scorpion"), and search the right word.
@@ -761,7 +766,7 @@ How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
 - LANGUAGE — MATCH THE CUSTOMER (IMPORTANT): DEFAULT to ENGLISH. ONLY use **Haitian Creole (Kreyòl)** if the customer is clearly WRITING to you in Creole, and ONLY use **Spanish** if they're clearly writing in Spanish — then reply in that same language. Do NOT switch languages over a single borrowed word or a name; only switch when the message is genuinely in that language. When in doubt, stay in English. Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
 - TRANSLATE THEIR MESSAGE FOR THE OWNER (Creole/Spanish only): When — and only when — the customer writes in Haitian Creole or Spanish, reply to them normally in their language, then at the very END of your message add a blank line and ONE short note that translates what THEY just said into English, so the shop owner reading the chat can understand it. Use exactly this format for that final line: 🔎 _Customer said: "<their latest message in plain, natural English>"_ — keep it to that single line. NEVER add this line when the customer wrote in English (an English message needs no translation).
-- WELCOME: Send the welcome greeting ONLY on a genuine FIRST contact — the customer's opening message is a greeting ("hi", "hello", "hey", "bonjou", "hola"), a shared ad / post / link, or a general "what do you have?". Greet with this line: "Hi! Welcome! 👟 This is ${storeName}! You can browse everything on our website 👉 ${WEBSITE} — or tell me right here: are you looking for a specific shoe you already have in mind, or do you want me to show you what we've got?" (If their first message already names a shoe or a size, still open with that greeting, then go straight to helping them.) ⚠️ NEVER re-send this welcome once a chat is already going. If the customer's message is a short continuation — "okay", "ok", "yes", "yeah", "no", "thanks", "cool", "sure", a bare size, a code (like "A3"), "this one", "how much", "still there?" — they are ALREADY talking to you: do NOT greet, just answer or continue naturally. Send the welcome AT MOST ONCE per customer, never twice, and never after they've already said something to you. ⚠️ LANGUAGE APPLIES TO THIS WELCOME TOO: if their first message is in Haitian Creole (e.g. "bonswa", "bonjou") or Spanish (e.g. "hola", "buenas"), give this SAME welcome but fully TRANSLATED into their language — keep "${storeName}" and the website link exactly as they are. Match their language from this very first reply, not just later ones.
+${welcomeRule}
 - Talk like a real, friendly shop assistant having a normal conversation. Do NOT fire off photos the moment you see a number — but do NOT interrogate them either.
 - NEVER ask the customer whether they're "looking for something specific" or have "anything specific in mind", and never ask "what kind of shoe are you after". Don't make them name a model. Your DEFAULT move is simply to offer to show what we have, e.g. "Want me to show you what we've got in {size}? 👟" (or without the size if they haven't given one). Only dig into a specific shoe/brand/colour if THEY bring it up first.
 - Before you show photos, just TWO things need to be clear: (1) they actually want to see shoes, and (2) their SIZE. Don't ask for their name.
@@ -1408,9 +1413,11 @@ function trimHistory(h, maxLen = 24) {
 }
 
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
-  const system = buildSystemPrompt({ store: ctx.store, name: ctx.name });
   const history = convos.get(sub) || [];
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
+  // Greet ONLY on the very first message of the chat — decided here in code, not by Jess —
+  // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
+  const system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo });
   // When the customer sent a photo, attach it as an image block so Claude can SEE it.
   // If we JUST showed this customer some shoes, tell Claude — because customers often
   // forward one of OUR pics back to say "I want this one", and Jess should recognise it
