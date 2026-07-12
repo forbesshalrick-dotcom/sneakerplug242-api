@@ -432,10 +432,14 @@ function mount(app) {
     if (i > -1) {
       // NEWEST-WINS: refuse a push that is OLDER than what we already store. This is the
       // hard lock that stops a stale device from reverting prices/stock on the server —
-      // the exact thing that reverted the whole inventory. Missing timestamps = 0 = tie → accept.
+      // the exact thing that reverted the whole inventory.
+      // ALSO refuse a TIMELESS push (no updatedAt at all) from overwriting a shoe we already
+      // hold. A timeless push comes from an OLD cached copy of the app; it used to tie
+      // (0 === 0) against a timeless stored shoe and clobber a real edit. Now it can only ADD
+      // brand-new shoes, never overwrite an existing one. This closes the last revert hole.
       const exT = (state.shoes[i].updatedAt || state.shoes[i].createdAt || 0);
       const inT = (sh.updatedAt || sh.createdAt || 0);
-      if (inT < exT) return res.json({ ok: true, skipped: 'stale' });
+      if (inT === 0 || inT < exT) return res.json({ ok: true, skipped: 'stale' });
       state.shoes[i] = sh;
     } else state.shoes.push(sh);
     persist('shoes.json'); bump();
@@ -472,7 +476,13 @@ function mount(app) {
       const ex = byId[s.id];
       const exT = ex ? (ex.updatedAt || ex.createdAt || 0) : -1;
       const inT = (s.updatedAt || s.createdAt || 0);
-      if (!ex || inT >= exT) { byId[s.id] = s; applied++; } else { keptNewer++; }
+      // Brand-new shoe (not stored yet) → add it. An EXISTING shoe is only overwritten by a
+      // push that carries a REAL timestamp and isn't older (inT > 0 && inT >= exT). A TIMELESS
+      // bulk push — an OLD cached copy of the app dumping the whole catalog — can no longer
+      // clobber a stored shoe. That timeless tie was the last hole that reverted live edits.
+      if (!ex) { byId[s.id] = s; applied++; }
+      else if (inT > 0 && inT >= exT) { byId[s.id] = s; applied++; }
+      else { keptNewer++; }
     });
     const next = Object.keys(byId).map(k => byId[k]);
     console.log('[shop] /shop/shoes MERGE:', before, '→', next.length, 'shoes (applied ' + applied + ', kept-newer ' + keptNewer + ')');

@@ -670,13 +670,13 @@ const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min aft
 const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
-const THIRD_MSG = "You can ask me anything, like:\n- *Do you have the red Jordan 4 in 8.5?*\n- *Any all-black in a size 9?*\n- *What Jordans you got in a 10?*\n- *Air Max in a 7.5?*\n- *A matching pair for 8 and 7?*\n- *Something under $150 in my size?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
+const THIRD_MSG = "You can ask me anything, like:\n- *What do you have in Jordans?*\n- *What do you have in New Balance?*\n- *What do you have in red?*\n- *What do you have in white?*\n- *What do you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
 // After a delivery is confirmed, if the customer goes quiet, reassure them at ~20 min.
 const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60 * 1000; // 20 minutes
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes
-const WELCOME_NUDGE_MSG = "You can ask me anything, like:\n- *Do you have the red Jordan 4 in 8.5?*\n- *Any all-black in a size 9?*\n- *What Jordans you got in a 10?*\n- *Air Max in a 7.5?*\n- *A matching pair for 8 and 7?*\n- *Something under $150 in my size?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
+const WELCOME_NUDGE_MSG = "You can ask me anything, like:\n- *What do you have in Jordans?*\n- *What do you have in New Balance?*\n- *What do you have in red?*\n- *What do you have in white?*\n- *What do you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
@@ -805,7 +805,7 @@ ${modelList}
 - EVEN IF THEY ONLY GAVE A SIZE (still show them — don't sit waiting): the moment you know their size, send the FULL ALBUM in that size right away (search_inventory + one send_photos with every id). A bare size with nothing else is STILL a green light to show everything — don't wait for another word and don't re-ask what they want. Everyone who gives us a size gets the whole lineup, so we never miss a customer.
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
 - Specific shoe: if they name a shoe ("Jordan 4", "Air Max 95"), help with that; ask their size only if you need it to narrow things down.
-- YOU CAN FIND ANYTHING — GUIDE THE CUSTOMER (IMPORTANT): you have the FULL, live, up-to-date inventory and can look up and send anything we have in seconds — customers do NOT need to send you a photo. When someone is unsure, just says "hi", asks "what can you do?", or looks like they're about to send a picture, let them know you're here to help them find the shoe they need and they can just ASK — then give a few quick examples in ONE short friendly line, e.g.: "I've got our whole stock right here 👟 just tell me what you're after! Like — \"red Jordan 4 in 8.5\", \"what you got in pink?\", \"any Jordans?\", \"what's in a 6.5?\", \"matching in 8 and 7\", or \"anything under $150\" 😊".
+- YOU CAN FIND ANYTHING — GUIDE THE CUSTOMER (IMPORTANT): you have the FULL, live, up-to-date inventory and can look up and send anything we have in seconds — customers do NOT need to send you a photo. When someone is unsure, just says "hi", asks "what can you do?", or looks like they're about to send a picture, let them know you're here to help them find the shoe they need and they can just ASK — then give a few quick examples in ONE short friendly line, e.g.: "I've got our whole stock right here 👟 just tell me what you're after! Like — \"what you got in Jordans?\", \"any New Balance?\", \"what you have in red?\", \"anything in white?\", or \"what's in a size 7?\" 😊".
 - HANDLE THESE QUESTION SHAPES DIRECTLY (call search_inventory, then send_photos of the matches):
   • "do you have the red Jordan 4 in 8.5?" → query "red Jordan 4" (or brand+color) + size "8.5" → confirm and send it.
   • "what do you have in pink?" → color "pink", no size → send everything pink.
@@ -1607,7 +1607,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 }
 
 function handleChat(req, res) {
-  const userText = extractQuery(req);
+  let userText = extractQuery(req);
   const audioUrl = getAudioUrl(req);
   let imageUrl = getImageUrl(req);
   // A message that is JUST a bare link (no other words) and isn't audio is almost
@@ -1626,6 +1626,16 @@ function handleChat(req, res) {
         // a note so Jess just asks for the shoe details instead of erroring.
         userText = "(The customer sent an outside web link I can't open — it is NOT a photo. Don't error or say 'hiccup'. Just warmly ask them for the shoe's NAME and COLOUR, or to send an actual photo, so I can find it.)";
       }
+    }
+  }
+  // PICTURE READING TURNED OFF (Rodney's call 2026-07-12): photo recognition wasn't
+  // accurate enough, so we do NOT feed customer photos to Claude vision. When a photo
+  // arrives, ignore the image and — if there's no caption to answer — ask them to type
+  // the shoe name + size (the reliable path). Re-enable later with env PHOTO_VISION=1.
+  if (process.env.PHOTO_VISION !== '1' && imageUrl) {
+    imageUrl = '';
+    if (!userText || !userText.trim()) {
+      userText = "(The customer sent a photo, but we can't view photos right now. Do NOT error or say 'hiccup'. Warmly ask them to type the shoe's NAME and COLOUR, and their size, so I can find it for them.)";
     }
   }
   const sub = getContactId(req);
