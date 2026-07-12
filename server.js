@@ -99,8 +99,8 @@ const PORT = process.env.PORT || 3000;
 
 // ── Request recorder ──────────────────────────────────────────────────────────
 // Keeps the last few raw requests in memory so we can SEE exactly what ManyChat
-// sends. View at GET /last?key=plug242 . Purely diagnostic.
-const DEBUG_KEY = 'plug242';
+// sends. View at GET /last?key=<DEBUG_KEY> . Purely diagnostic.
+const DEBUG_KEY = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
 const recent = [];
 function record(req, extra) {
   recent.unshift({
@@ -394,7 +394,7 @@ app.get(['/feed.csv', '/catalog-feed.csv'], (req, res) => {
 
 // Diagnostic: see the last requests ManyChat sent.
 app.get('/last', (req, res) => {
-  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'add ?key=plug242' });
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   res.json({ count: recent.length, requests: recent });
 });
 
@@ -1773,7 +1773,7 @@ require('./shop').mount(app);
 // and tells the bot what to send — for when a customer asks and the bot didn't
 // catch it. Reuses searchInventory + sendShoePhotos + each account's own token
 // (captured from live chat traffic, so the right account is used automatically).
-const CONSOLE_KEY = process.env.CONSOLE_KEY || 'jess242';
+const CONSOLE_KEY = process.env.CONSOLE_KEY || 'sp242-jess-b297063c5dd791125b5dc9e53ad8f706';
 
 // Ask ManyChat for a subscriber's saved WhatsApp/phone number by their id.
 async function getSubscriberPhone(sub, token) {

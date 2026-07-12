@@ -23,7 +23,7 @@ if (webpush) {
 // Shared key the website sends with every request. It lives in the (public)
 // client JS so it's a gate against random scanners, not a strong secret — the
 // note endpoint is also rate-limited below to blunt abuse.
-const SHOP_KEY = process.env.SHOP_KEY || 'sp242-shopkey-7Kq9wTm';
+const SHOP_KEY = process.env.SHOP_KEY || 'sp242-shop-c988c5711bf067dccccc85b55fc14fde';
 const MAX_SALES = 5000;
 const MAX_LOG = 2000;
 
