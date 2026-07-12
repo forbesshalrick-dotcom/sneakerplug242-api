@@ -1333,8 +1333,9 @@ const followUps = new Map(); // subscriberId -> pending 10-minute follow-up time
 // staff can handle it by hand or voice without her talking over them. ONLY set when staff
 // TYPE a mute codeword; auto-expires so a chat can never be stranded in silence.
 const chatMuted = new Map();
-const MUTE_MS = 30 * 1000; // 30s ROLLING window — refreshes on each message while staff are
-                           // active, so Jess resumes ~30s after the last message. Short + safe.
+const MUTE_MS = 20 * 1000; // 20s ROLLING window (Rodney's call 2026-07-12) — refreshes on each
+                           // message while staff are active, so Jess resumes ~20s after the last
+                           // message. Short + safe.
 
 // ── Manual control panel (/console) support ───────────────────────────────────
 // So Rodney can tell the bot "send size 8 to this customer" from a private page.
