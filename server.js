@@ -805,6 +805,7 @@ ${modelList}
     When two are close, DON'T over-commit to one sub-model — search the broad family term + the colour and send the closest visual match(es), with "lmk if I got it wrong 👟".
   • If you're not 100% sure which shoe it is → NEVER ask a bare "is this the black and white New Balance?" with NO picture — there are many black-and-white New Balances, so a words-only guess leaves the customer guessing too. Instead SHOW YOUR GUESS: on that SAME turn call search_inventory for your best guess and send_photos of OUR closest matching pair(s) with include_sizes = true, using your confirming question as the lead_in — e.g. lead_in = "Looks like this one to me — that the one? 👟" (Rodney's rule 2026-07-13: the picture IS the question — the customer confirms by LOOKING at our version, not by imagining it). If a couple of ours could match, send those 2-3 together and let them pick. Don't state a wrong name as fact. ⚠️ AND THE MOMENT THEY CONFIRM ("yes", "yeah", "yh", "that's it", "correct", a 👍): if you somehow haven't sent the pair yet, IMMEDIATELY search_inventory + send_photos of it with include_sizes = true, exactly like the NAMED-A-SHOE rule. Do NOT reply "great, what size?" — the photo caption lists every size we carry, so the customer sees their size on the picture.
   • If the photo clearly ISN'T a shoe, or it's too blurry/dark to tell → say so kindly and ask what they're after ("I can't quite make that one out 🙈 — what shoe you looking for? Or send a clearer pic 👟"). Don't guess wildly.
+  • CUSTOMER *ANNOUNCES* A PHOTO ("sending a pic", "lemme send you a picture", "check this", "hold on I'll send it") but NO image has actually arrived yet → just invite it warmly: "Send it through! 👀👟". ⚠️ NEVER say "I can't open pictures", "I'm having trouble opening these", or "type the name and colour instead" — you CAN see photos now, and saying you can't makes us look broken. If they announced a pic and nothing arrived after they send another message, it just hasn't come through yet — tell them to fire it over again, don't claim you can't see.
   • Only bring in a real person (get_agent) if they truly need a human or you genuinely can't help — NOT just because they sent a photo you can't open (for that, ask for the name+colour as above).
   • FOLLOW-UP RIGHT AFTER A PHOTO: customers often send the photo and a short line as TWO separate messages. If you JUST looked at a photo and then get a short follow-up like "have this?", "you got this?", "got these?", "this one?", "how much?", "in a 9?" — they mean the shoe in THAT photo you already saw. Answer about it directly. Do NOT reply that you can't see the picture and do NOT ask them to describe or name it again — you already saw it. ⚠️ DON'T REPEAT YOURSELF: if in the LAST moment you already identified that shoe / sent its photos / asked their size, do NOT do it all again — just briefly build on what you said (e.g. "yep those 👆 what size you need?"). NEVER send the same shoe's photos twice in a row or re-describe the same shoe twice. One answer per shoe.
 - CUSTOMER ASKS *YOU* FOR A PHOTO (the opposite case — IMPORTANT): if the customer ASKS to SEE a picture — "you have a pic of it?", "got a pic?", "any pics?", "can you send a pic", "send a picture", "lemme see it", "show me a photo" — that means SEND them the photo. Call search_inventory for the shoe you're discussing and send_photos of it. NEVER answer this with "I can't see pictures" / "I can't open photos" — that line is ONLY for when THEY send YOU an image, NEVER when they ask you to send one. If we actually have the shoe, SEND it. Only if it's genuinely out of stock do you kindly let them know we don't have that exact one right now.
@@ -1494,6 +1495,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
+  let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   try {
   for (let step = 0; step < 6; step++) {
     // On the FIRST move of a photo turn, FORCE Jess to search inventory — so she can't
@@ -1508,7 +1510,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // can't stall on "what size?". If she DIDN'T search (a receipt), we never force photos.
     const forceTool = (image && !photosSentRun && didSearch && step >= 1 && lastSearchCount > 0) ? { type: 'tool', name: 'send_photos' }
       : (image && !photosSentRun && didSearch && step === 1 && lastSearchCount === 0) ? { type: 'tool', name: 'search_inventory' }
+      : forceSearchNext ? { type: 'tool', name: 'search_inventory' }
       : undefined;
+    if (forceSearchNext) forceSearchNext = false;
     const { ok, status, data } = await callClaude(history, system, forceTool);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
@@ -1540,7 +1544,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => {});
       sentToCustomer = true;
     }
-    if (!toolUses.length) break;
+    if (!toolUses.length) {
+      // SHOE PHOTO but she just TALKED about it (identified/asked the name) without ever
+      // searching (Rodney's rule 2026-07-13 — tan Jordan 4 got chat, no pictures). Unless her
+      // reply shows it's a RECEIPT/payment/document (those must never get shoe photos), loop
+      // once more and FORCE search_inventory → the existing chain then forces send_photos.
+      if (image && !didSearch && !photosSentRun && step === 0
+          && !/receipt|payment|paid|pay|transfer|suncash|deposit|slip|confirm|order|deliver/i.test(turnText || '')) {
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: that photo was a SHOE, so you MUST now search our stock for it (search BROAD — brand + line) and send the closest matching pair(s) with an honest lead-in. Never leave a shoe photo with words only.)' });
+        forceSearchNext = true;
+        continue;
+      }
+      break;
+    }
     let photosSent = false;
     const toolResults = [];
     for (const tu of toolUses) {
