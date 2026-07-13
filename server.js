@@ -1189,10 +1189,14 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     try { await sendChunk(sub, [{ type: 'text', text: String(leadIn).trim() }], token); } catch (e) { /* non-fatal */ }
   }
 
+  // Send just ONE shoe (photo + its label) per call, so a customer's "stop" / new
+  // question halts the album within a single shoe instead of a 10-message batch
+  // (2026-07-13 — Rodney's "stop" test: the in-flight batch kept going).
+  const ALBUM_STEP = 2;
   const sendBatch = async (messages) => {
-    for (let i = 0; i < messages.length; i += CHUNK) {
+    for (let i = 0; i < messages.length; i += ALBUM_STEP) {
       if (customerSpoke()) { interrupted = true; return; } // they said something — stop the album
-      const slice = messages.slice(i, i + CHUNK);
+      const slice = messages.slice(i, i + ALBUM_STEP);
       try { await sendChunk(sub, slice, token); sent += slice.filter(m => m.type === 'image').length; }
       catch (e) { /* keep going */ }
     }
