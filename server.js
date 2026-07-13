@@ -785,6 +785,8 @@ ${welcomeRule}
 - NO SPECIAL ORDERS (IMPORTANT): We do NOT take special orders. NEVER offer one — never say "special order", "we can order it in", "DM for special orders", or "we'll send the exact pair once it arrives". When we genuinely don't have what they asked for, kindly say we don't have that one right now, then IMMEDIATELY pivot to showing what we DO have that's close — their size, that brand, or a similar colour — and keep steering toward a shoe we actually have in stock.
 - CAN'T FIND IT → OFFER TO SEND WHAT WE HAVE, NEVER ASK FOR "ANOTHER NAME" (IMPORTANT): If you genuinely can't find the shoe they named (after searching the model AND broader terms), do NOT ask them to "try another name", "spell it differently", "give me a different name", or "type it another way" — that dead-ends the sale. Instead, say you can't find that exact one and OFFER TO SHOW what we've got, exactly like: "Hmm, I can't find that exact one in our system 🙈 Would you like me to send what we DO have? Just tell me your size 👟". Then when they say yes or give a size, call search_inventory + send_photos of a good batch. Always turn a miss into a chance to show them options.
 - EXACT SIZE OUT → CHECK THE SHOE'S OTHER SIZES AND OFFER THE NEAREST (CRITICAL): When a customer wants a SPECIFIC shoe (e.g. "White Thunder", "the all-white Air Force 1") in a size we don't have, do NOT jump straight to a different colour or model, and do NOT just say "we don't have it in a 10" and stop. ⚠️ You MUST first search_inventory for that shoe by NAME ONLY, with NO size filter — searching the name + their size just tells you it's missing in THAT size; searching the name alone shows you EVERY size it comes in. THEN offer the CLOSEST sizes we DO have of that SAME shoe. Example: customer wants "White Thunder in a 10", we don't have a 10 but the White Thunder comes in 5.5, 6.5, 9.5, 10.5, 11 → reply "We don't have the White Thunder in a 10 right now, but we've got it in a 9.5 and a 10.5 👟 — want me to send it?". Never leave a near size unmentioned. (For the all-white Air Force 1 with no 11 but a 10, 10.5, 12: "…isn't in an 11 right now, but we've got it in a 10, a 10.5 and a 12 👟 — want me to send it?"). To help them say yes, add a light fit tip based on which way you're nudging: if the nearest size is a bit BIGGER (a size UP), mention they "run a little small, so a [that size] fits true"; if it's a bit SMALLER (a size DOWN), mention they "run a little big, so a [that size] still fits great". Only AFTER they pass on the near sizes should you suggest a different colour or model. Always try to keep them on the shoe they actually asked for.
+- "NO MORE X?" = "GOT ANY MORE X?" (Bahamian phrasing — IMPORTANT, Rodney 2026-07-13): when a customer says "no more New Balance?", "no more Jordans?", "no more in black?" — they are ASKING whether we have MORE of that thing, NOT refusing it. NEVER read it as "I don't want X". Search and show MORE of X (excluding what you already sent), or say honestly "that's all our X right now" and offer the closest thing.
+- THIN COLOUR RESULTS → OFFER THE COLOUR FAMILY (Rodney 2026-07-13): if a colour search returns only 1-2 pairs (e.g. just one "Navy Blue"), show them AND in the same breath offer the wider family — navy → other BLUES, burgundy/maroon → other REDS, cream/tan → other BROWNS/earth tones, charcoal → other GREYS/blacks. E.g. "That's our only navy right now 👟 want me to send the other blues we've got?" Never ask "want more navy options?" when that was the only navy — offering more of something we don't have looks silly.
 - COLOUR NAMED = SEARCH IT, NEVER ASSUME (CRITICAL): When a customer names a COLOUR of a model — "black and yellow", "the green one", "in white", "you got it in red?" — whether they're correcting a colour you just showed or asking fresh, you MUST call search_inventory for that MODEL + that COLOUR and SHOW what matches BEFORE you ever say we don't have it. Our colours are stored like "Black/Yellow", "White/Green", "Purple/Black/Yellow" — so "black and yellow Jordan 4" → search_inventory "jordan 4 black yellow". ⚠️ Saying "we don't have that colourway" WITHOUT searching it is a critical, sale-losing mistake — a customer naming a colour of a model we carry almost always means we DO have it (e.g. we stock BOTH the Red Thunder AND the Black/Yellow Thunder Jordan 4 — never assume the one you showed is the only one). Only say we don't have it after a search for that exact model + colour truly comes back empty.
 - THE MODELS WE CARRY (our LIVE stock — this is your vocabulary; it updates automatically as stock changes):
 ${modelList}
@@ -1381,6 +1383,34 @@ const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text me
 const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Jess stays QUIET for that chat so staff can take over without her talking over them
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
+// Persist recentlySent too (2026-07-13): a customer echoed back the exact NB photo Jess had
+// just sent and she didn't recognise it — a restart had wiped this map mid-conversation.
+const RECENT_SENT_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'recently-sent.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (RECENT_SENT_FILE && require('fs').existsSync(RECENT_SENT_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(RECENT_SENT_FILE, 'utf8'));
+    const cutoff = Date.now() - 45 * 60 * 1000;
+    for (const [k, v] of Object.entries(saved)) if (v && v.ts > cutoff) recentlySent.set(k, v);
+    console.log('[recent] restored recently-sent for', recentlySent.size, 'customers');
+  }
+} catch (_) {}
+let recentSaveT = null;
+function saveRecentlySent() {
+  if (!RECENT_SENT_FILE) return;
+  clearTimeout(recentSaveT);
+  recentSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(RECENT_SENT_FILE, JSON.stringify(Object.fromEntries(recentlySent))); } catch (_) {}
+  }, 2000);
+  if (recentSaveT.unref) recentSaveT.unref();
+}
 const ownerNotes = new Map();      // sub -> [{text, ts}] — private ". "/"- " messages the OWNER typed to Jess. She FOLLOWS ALONG (uses them as context) but sends NOTHING back to the customer.
 // PHOTO ORDER CODES (A1, A2, … B1 …): every pic Jess sends gets a short code in its
 // label so the customer can just reply with the code to pick it — no re-describing, no
@@ -1690,7 +1720,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             ? inp.groups.flatMap(g => g.ids || [])
             : (inp.ids || []);
           const names = shownIds.map(id => liveM[id]).filter(Boolean).map(displayName);
-          if (names.length) recentlySent.set(sub, { ts: Date.now(), names: [...new Set(names)].slice(0, 25) });
+          if (names.length) { recentlySent.set(sub, { ts: Date.now(), names: [...new Set(names)].slice(0, 25) }); saveRecentlySent(); }
         } catch (_) {}
       }
       else if (tu.name === 'notify_manager') {
