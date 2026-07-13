@@ -1256,7 +1256,12 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 // while questions let the album finish (they queue and get answered right after).
 const lastIncoming = new Map();
 const lastIncomingText = new Map(); // sub -> the text of that latest message
-const emptyAskAt = new Map(); // sub -> ts of the last "couldn't open that" reply to an empty/share message
+const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
+const EMPTY_ASK_T = {
+  en: "Hey! 👋 Would you like to see some pictures, or what we have in stock? 👟",
+  es: "¡Hola! 👋 ¿Quieres ver algunas fotos o lo que tenemos en stock? 👟",
+  ht: "Alo! 👋 Èske ou vle wè kèk foto, oswa sa nou genyen an stok? 👟",
+};
 
 // ── Voice notes → text (OpenAI Whisper) ───────────────────────────────────────
 // Claude can't hear audio, so when a customer sends a WhatsApp voice note we
@@ -1921,7 +1926,7 @@ function handleChat(req, res) {
       emptyAskAt.set(sub, Date.now());
       if (emptyAskAt.size > 300) { const f = emptyAskAt.keys().next().value; emptyAskAt.delete(f); }
       record(req, { endpoint: 'empty-msg-ask', sub });
-      sendChunk(sub, [{ type: 'text', text: "Hey! 👟 I couldn't open what you just sent — posts and links don't come through on my end 🙈 Just type the shoe's name (or send a photo) + your size and I'll pull it up right away!" }], token).catch(() => {});
+      sendChunk(sub, [{ type: 'text', text: L(EMPTY_ASK_T, sub) }], token).catch(() => {});
     }
     return;
   }
