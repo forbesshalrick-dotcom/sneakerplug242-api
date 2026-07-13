@@ -1341,8 +1341,35 @@ const ownerNotes = new Map();      // sub -> [{text, ts}] — private ". "/"- " 
 // PHOTO ORDER CODES (A1, A2, … B1 …): every pic Jess sends gets a short code in its
 // label so the customer can just reply with the code to pick it — no re-describing, no
 // re-sending the photo. Per sub we keep a running counter + a code→shoe map so a reply
-// like "A3" resolves to that exact shoe. In-memory (clears on restart).
+// like "A3" resolves to that exact shoe. PERSISTED to the /data volume so a redeploy/restart
+// no longer wipes them (Rodney 2026-07-13 — a customer's "C2" died after an update restart).
 const photoCodes = new Map();      // sub -> { n, ts, map: { CODE -> {id,name,price} } }
+const PHOTO_CODES_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'photo-codes.json');
+    }
+  } catch (_) {}
+  return null; // no volume → stays in-memory like before
+})();
+try {
+  if (PHOTO_CODES_FILE && require('fs').existsSync(PHOTO_CODES_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(PHOTO_CODES_FILE, 'utf8'));
+    const cutoff = Date.now() - 45 * 60 * 1000; // only restore codes still within their 45-min life
+    for (const [k, v] of Object.entries(saved)) if (v && v.ts > cutoff) photoCodes.set(k, v);
+    console.log('[codes] restored photo codes for', photoCodes.size, 'customers');
+  }
+} catch (e) { console.log('[codes] restore failed:', e.message); }
+let photoCodesSaveT = null;
+function savePhotoCodes() { // debounced best-effort write
+  if (!PHOTO_CODES_FILE) return;
+  clearTimeout(photoCodesSaveT);
+  photoCodesSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(PHOTO_CODES_FILE, JSON.stringify(Object.fromEntries(photoCodes))); } catch (_) {}
+  }, 1500);
+  if (photoCodesSaveT.unref) photoCodesSaveT.unref();
+}
 function nextPhotoCode(sub, shoe) {
   const e = photoCodes.get(sub) || { n: 0, ts: 0, map: {} };
   if (e.n >= 26 * 9) { e.n = 0; e.map = {}; }         // safety wrap on very long chats
@@ -1353,6 +1380,7 @@ function nextPhotoCode(sub, shoe) {
   const keys = Object.keys(e.map);
   if (keys.length > 60) delete e.map[keys[0]];        // don't grow forever
   photoCodes.set(sub, e);
+  savePhotoCodes(); // survive restarts
   return code;
 }
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
