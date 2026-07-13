@@ -1697,10 +1697,11 @@ function handleChat(req, res) {
     imageUrl = '';
     if (!userText || !userText.trim()) userText = MEDIA_GREET_NOTE;
   }
-  // VOICE NOTES — recognition OFF for now (Rodney's call 2026-07-12): until VOICE_RECOGNITION=1
-  // is set, a voice note with no typed text also makes Jess send the WELCOME GREETING (same
-  // as a bare photo, 2026-07-13). Flip VOICE_RECOGNITION=1 to transcribe + reply again.
-  if (process.env.VOICE_RECOGNITION !== '1' && audioUrl && (!userText || !userText.trim())) {
+  // VOICE NOTES — recognition ON by default (Rodney's call 2026-07-13, same as photos):
+  // a voice note gets downloaded + transcribed (Whisper, needs OPENAI_API_KEY) and treated
+  // as typed text. If transcription fails/no key, Jess kindly asks them to type it.
+  // Set env VOICE_RECOGNITION=0 to switch voice reading back off.
+  if (process.env.VOICE_RECOGNITION === '0' && audioUrl && (!userText || !userText.trim())) {
     audioUrl = '';
     userText = MEDIA_GREET_NOTE;
   }
