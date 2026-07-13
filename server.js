@@ -660,7 +660,7 @@ const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.l
 
 const STORE_DEFAULT = 'THE PLUG 242';
 const WEBSITE = '242plug.netlify.app';
-const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 1 * 60 * 1000; // 1 minute (Rodney's call 2026-07-13, was 10 min)
+const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟 Want more options? Search our site 👉 ${WEBSITE}`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did anything catch your eye? If not, no worries — maybe next time! 👟';
@@ -675,7 +675,7 @@ const THIRD_MSG = "You can ask me anything, like:\n- *What you have in Jordans?*
 const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60 * 1000; // 20 minutes
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
-const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 1 * 60 * 1000; // 1 minute (Rodney's call 2026-07-13, was 5 min)
+const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const WELCOME_NUDGE_MSG = "You can ask me anything, like:\n- *What you have in Jordans?*\n- *What you have in New Balance?*\n- *What you have in red?*\n- *What you have in white?*\n- *What you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
