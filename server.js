@@ -670,13 +670,13 @@ const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min aft
 const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
-const THIRD_MSG = "You can ask me anything, like:\n- *What you have in Jordans?*\n- *What you have in New Balance?*\n- *What you have in red?*\n- *What you have in white?*\n- *What you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
+const THIRD_MSG = "Let me know if you'd like to see the catalog or what we have in stock 👟";
 // After a delivery is confirmed, if the customer goes quiet, reassure them at ~20 min.
 const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60 * 1000; // 20 minutes
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
-const WELCOME_NUDGE_MSG = "You can ask me anything, like:\n- *What you have in Jordans?*\n- *What you have in New Balance?*\n- *What you have in red?*\n- *What you have in white?*\n- *What you have in size 7?*\n\nJust drop the shoe + your size and I'll show you exactly what fits 👟";
+const WELCOME_NUDGE_MSG = "Let me know if you'd like to see the catalog or what we have in stock 👟";
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
@@ -700,8 +700,8 @@ function L(map, sub) { return map[subLang.get(sub) || 'en'] || map.en; }
 
 const ASKME_T = {
   en: WELCOME_NUDGE_MSG,
-  es: "¡Hola! Pregúntame lo que quieras, por ejemplo:\n- *¿Tienen Jordan 4 rojo en 8.5?*\n- *¿Qué tienen en rosado?*\n- *¿Qué tienen en Jordans?*\n- *¿Qué tienen en talla 6.5?*\n- *¿Qué combinan en talla 8 y 7?*\n- *¿Qué tienen por menos de $150?*\n- *¿Algo todo negro?*",
-  ht: "Bonjou! Mande m nenpòt bagay, tankou:\n- *Ou gen Jordan 4 wouj nan 8.5?*\n- *Ki sa ou genyen an woz?*\n- *Ki sa ou genyen an Jordan?*\n- *Ki sa ou genyen nan gwosè 6.5?*\n- *Ki sa ou genyen ki matche nan 8 ak 7?*\n- *Ki sa ou genyen anba $150?*\n- *Eske ou gen tout nwa?*",
+  es: "Avísame si quieres ver el catálogo o lo que tenemos en stock 👟",
+  ht: "Fè m konnen si ou vle wè katalòg la oswa sa nou genyen an stok 👟",
 };
 const FOLLOWUP_T = {
   en: FOLLOWUP_MSG,
