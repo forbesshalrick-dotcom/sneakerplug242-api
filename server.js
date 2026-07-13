@@ -1706,19 +1706,19 @@ function handleChat(req, res) {
     return;
   }
 
-  // 🔇 STAFF QUIET — the moment Rodney/staff types a message that STARTS with "." or "-",
-  // that's HIM talking in the chat himself, so Jess stays SILENT and hushes for 30s (rolling)
-  // — she never speaks over him. ".back" (or "wake"/"on") turns her back on right away.
-  // Auto-resumes after MUTE_MS so a chat can NEVER get stranded. A lone "."/"-" is already
-  // dropped as junk above. Only a typed dot mutes — never Jess on her own.
+  // 🔇 STAFF QUIET — the moment Rodney/staff types a message that STARTS with the codeword
+  // "agent" (Rodney's pick 2026-07-12 — Bahamian customers never open a message with it) or
+  // with "." / "-", that's HIM talking in the chat himself, so Jess stays SILENT and hushes
+  // for MUTE_MS (rolling) — she never speaks over him. "agent back" / ".back" (or wake/on/go)
+  // turns her back on right away. Auto-resumes after MUTE_MS so a chat can NEVER get stranded.
   {
     const t = userText.trim();
-    if (!imageUrl && !audioUrl && /^[.\-]\s*(back|unmute|resume|wake|on|go)\b/i.test(t)) {
+    if (!imageUrl && !audioUrl && /^(?:agent|[.\-])\s*(back|unmute|resume|wake|on|go)\b/i.test(t)) {
       chatMuted.delete(sub);
       record(req, { endpoint: 'staff-unmute', sub });
       return;
     }
-    if (!imageUrl && !audioUrl && /^[.\-]\s*\S/.test(t)) {
+    if (!imageUrl && !audioUrl && (/^agent\b/i.test(t) || /^[.\-]\s*\S/.test(t))) {
       chatMuted.set(sub, Date.now() + MUTE_MS);
       record(req, { endpoint: 'staff-quiet', sub, q: t.slice(0, 30) });
       return; // silent — Jess never replies to the boss's own message
