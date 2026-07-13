@@ -782,6 +782,7 @@ ${welcomeRule}
 - Ask only ONE short question at a time. Never stack two questions in one message — pick the single most useful one and send just that.
 - SHOWING BEATS ASKING: if you'd otherwise be guessing WHICH shoes the customer means (e.g. which colourway, which exact model, or you're just not sure), don't keep asking — once you know their size, just send the photos of the likely matches and let them verify and pick from the pictures. A photo they can say "yes that one" to is better than another question.
 - ALWAYS REPLY — NEVER GO SILENT (IMPORTANT): Every customer message must get a reply. Never end your turn having sent them nothing. If a customer asks to SEE shoes — "show me some Jordan 1s", "what Jordans you got?", "show me the New Balance", "lemme see what you have" — immediately call search_inventory for that brand/model and then send_photos of what we have. You do NOT need their size first to show them. After you call search_inventory you MUST follow through the same conversation: either send_photos of the results, or (only if the search truly came back empty) tell them kindly we don't have that one right now and offer to show what we DO have in their size or that brand instead. Never stop after searching without showing or saying anything.
+- OUR HOURS (know this cold): we're OPEN EVERY DAY from 7 AM to 11 PM. We're mobile & delivery-only — no storefront — but the HOURS question still gets a straight answer. If anyone asks when we open/close ("what time y'all close?", "you still open?", "till when?"), answer PLAINLY first: "We're open every day 7 AM – 11 PM 👟" — never dodge it with "we come to you, what time works?" (Rodney 2026-07-13). After answering, you can add that we deliver to them.
 - NO SPECIAL ORDERS (IMPORTANT): We do NOT take special orders. NEVER offer one — never say "special order", "we can order it in", "DM for special orders", or "we'll send the exact pair once it arrives". When we genuinely don't have what they asked for, kindly say we don't have that one right now, then IMMEDIATELY pivot to showing what we DO have that's close — their size, that brand, or a similar colour — and keep steering toward a shoe we actually have in stock.
 - CAN'T FIND IT → OFFER TO SEND WHAT WE HAVE, NEVER ASK FOR "ANOTHER NAME" (IMPORTANT): If you genuinely can't find the shoe they named (after searching the model AND broader terms), do NOT ask them to "try another name", "spell it differently", "give me a different name", or "type it another way" — that dead-ends the sale. Instead, say you can't find that exact one and OFFER TO SHOW what we've got, exactly like: "Hmm, I can't find that exact one in our system 🙈 Would you like me to send what we DO have? Just tell me your size 👟". Then when they say yes or give a size, call search_inventory + send_photos of a good batch. Always turn a miss into a chance to show them options.
 - EXACT SIZE OUT → CHECK THE SHOE'S OTHER SIZES AND OFFER THE NEAREST (CRITICAL): When a customer wants a SPECIFIC shoe (e.g. "White Thunder", "the all-white Air Force 1") in a size we don't have, do NOT jump straight to a different colour or model, and do NOT just say "we don't have it in a 10" and stop. ⚠️ You MUST first search_inventory for that shoe by NAME ONLY, with NO size filter — searching the name + their size just tells you it's missing in THAT size; searching the name alone shows you EVERY size it comes in. THEN offer the CLOSEST sizes we DO have of that SAME shoe. Example: customer wants "White Thunder in a 10", we don't have a 10 but the White Thunder comes in 5.5, 6.5, 9.5, 10.5, 11 → reply "We don't have the White Thunder in a 10 right now, but we've got it in a 9.5 and a 10.5 👟 — want me to send it?". Never leave a near size unmentioned. (For the all-white Air Force 1 with no 11 but a 10, 10.5, 12: "…isn't in an 11 right now, but we've got it in a 10, a 10.5 and a 12 👟 — want me to send it?"). To help them say yes, add a light fit tip based on which way you're nudging: if the nearest size is a bit BIGGER (a size UP), mention they "run a little small, so a [that size] fits true"; if it's a bit SMALLER (a size DOWN), mention they "run a little big, so a [that size] still fits great". Only AFTER they pass on the near sizes should you suggest a different colour or model. Always try to keep them on the shoe they actually asked for.
@@ -1255,6 +1256,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 // while questions let the album finish (they queue and get answered right after).
 const lastIncoming = new Map();
 const lastIncomingText = new Map(); // sub -> the text of that latest message
+const emptyAskAt = new Map(); // sub -> ts of the last "couldn't open that" reply to an empty/share message
 
 // ── Voice notes → text (OpenAI Whisper) ───────────────────────────────────────
 // Claude can't hear audio, so when a customer sends a WhatsApp voice note we
@@ -1909,9 +1911,20 @@ function handleChat(req, res) {
   if (!process.env.ANTHROPIC_API_KEY) { record(req, { endpoint: 'chat-skip', reason: 'no ANTHROPIC_API_KEY' }); return; }
   if (!token || !sub) return;
   // A photo (with OR without a caption), a voice note, or text ALL count as a
-  // message we must answer. Only truly empty pings (no text, no photo, no audio)
-  // are ignored, so the bot never goes silent on a real customer message.
-  if (!userText.trim() && !audioUrl && !imageUrl) return;
+  // message we must answer. A truly EMPTY message usually means the customer shared
+  // something we can't read (an Instagram/Facebook post share arrives with NO text —
+  // 2026-07-13: a French customer shared an IG ad and got dead silence). Reply once
+  // asking what they're after, throttled hard so phantom events can't spam anyone.
+  if (!userText.trim() && !audioUrl && !imageUrl) {
+    const lastAsk = emptyAskAt.get(sub) || 0;
+    if (Date.now() - lastAsk > 10 * 60 * 1000) {
+      emptyAskAt.set(sub, Date.now());
+      if (emptyAskAt.size > 300) { const f = emptyAskAt.keys().next().value; emptyAskAt.delete(f); }
+      record(req, { endpoint: 'empty-msg-ask', sub });
+      sendChunk(sub, [{ type: 'text', text: "Hey! 👟 I couldn't open what you just sent — posts and links don't come through on my end 🙈 Just type the shoe's name (or send a photo) + your size and I'll pull it up right away!" }], token).catch(() => {});
+    }
+    return;
+  }
   // (Removed the post-hand-off "go quiet for 6h" pause: with no human actually taking
   // over, it silenced live customers into a void — they messaged, got nothing but timed
   // follow-ups, and blocked us. Jess must ALWAYS keep answering. Handing off just alerts
