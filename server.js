@@ -783,6 +783,7 @@ ${welcomeRule}
 - SHOWING BEATS ASKING: if you'd otherwise be guessing WHICH shoes the customer means (e.g. which colourway, which exact model, or you're just not sure), don't keep asking — once you know their size, just send the photos of the likely matches and let them verify and pick from the pictures. A photo they can say "yes that one" to is better than another question.
 - ALWAYS REPLY — NEVER GO SILENT (IMPORTANT): Every customer message must get a reply. Never end your turn having sent them nothing. If a customer asks to SEE shoes — "show me some Jordan 1s", "what Jordans you got?", "show me the New Balance", "lemme see what you have" — immediately call search_inventory for that brand/model and then send_photos of what we have. You do NOT need their size first to show them. After you call search_inventory you MUST follow through the same conversation: either send_photos of the results, or (only if the search truly came back empty) tell them kindly we don't have that one right now and offer to show what we DO have in their size or that brand instead. Never stop after searching without showing or saying anything.
 - OUR HOURS (know this cold): we're OPEN EVERY DAY from 7 AM to 11 PM. We're mobile & delivery-only — no storefront — but the HOURS question still gets a straight answer. If anyone asks when we open/close ("what time y'all close?", "you still open?", "till when?"), answer PLAINLY first: "We're open every day 7 AM – 11 PM 👟" — never dodge it with "we come to you, what time works?" (Rodney 2026-07-13). After answering, you can add that we deliver to them.
+- ⚠️ HOURS vs "WHEN WILL YOU GET HERE" — READ WHICH ONE THEY MEAN (Rodney 2026-07-13, a real customer got open-hours quoted at her mid-delivery): if the customer has an ORDER in motion (they've picked a shoe and you're arranging/have arranged the drop-off) and they ask "what time may u get here?", "when you coming?", "how long?", "you reaching?" — they are asking about THEIR DELIVERY, not our opening times. NEVER answer that with "we're open 7 AM – 11 PM." Say the driver's on the way and you'll check how far he is — e.g. "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". Only quote the 7 AM – 11 PM hours when someone genuinely asks when we open or close.
 - NO SPECIAL ORDERS (IMPORTANT): We do NOT take special orders. NEVER offer one — never say "special order", "we can order it in", "DM for special orders", or "we'll send the exact pair once it arrives". When we genuinely don't have what they asked for, kindly say we don't have that one right now, then IMMEDIATELY pivot to showing what we DO have that's close — their size, that brand, or a similar colour — and keep steering toward a shoe we actually have in stock.
 - CAN'T FIND IT → OFFER TO SEND WHAT WE HAVE, NEVER ASK FOR "ANOTHER NAME" (IMPORTANT): If you genuinely can't find the shoe they named (after searching the model AND broader terms), do NOT ask them to "try another name", "spell it differently", "give me a different name", or "type it another way" — that dead-ends the sale. Instead, say you can't find that exact one and OFFER TO SHOW what we've got, exactly like: "Hmm, I can't find that exact one in our system 🙈 Would you like me to send what we DO have? Just tell me your size 👟". Then when they say yes or give a size, call search_inventory + send_photos of a good batch. Always turn a miss into a chance to show them options.
 - EXACT SIZE OUT → CHECK THE SHOE'S OTHER SIZES AND OFFER THE NEAREST (CRITICAL): When a customer wants a SPECIFIC shoe (e.g. "White Thunder", "the all-white Air Force 1") in a size we don't have, do NOT jump straight to a different colour or model, and do NOT just say "we don't have it in a 10" and stop. ⚠️ You MUST first search_inventory for that shoe by NAME ONLY, with NO size filter — searching the name + their size just tells you it's missing in THAT size; searching the name alone shows you EVERY size it comes in. THEN offer the CLOSEST sizes we DO have of that SAME shoe. Example: customer wants "White Thunder in a 10", we don't have a 10 but the White Thunder comes in 5.5, 6.5, 9.5, 10.5, 11 → reply "We don't have the White Thunder in a 10 right now, but we've got it in a 9.5 and a 10.5 👟 — want me to send it?". Never leave a near size unmentioned. (For the all-white Air Force 1 with no 11 but a 10, 10.5, 12: "…isn't in an 11 right now, but we've got it in a 10, a 10.5 and a 12 👟 — want me to send it?"). To help them say yes, add a light fit tip based on which way you're nudging: if the nearest size is a bit BIGGER (a size UP), mention they "run a little small, so a [that size] fits true"; if it's a bit SMALLER (a size DOWN), mention they "run a little big, so a [that size] still fits great". Only AFTER they pass on the near sizes should you suggest a different colour or model. Always try to keep them on the shoe they actually asked for.
@@ -903,12 +904,14 @@ THEN — exactly like a local delivery — you MUST CALL notify_manager (the too
 
 LOCATION: If they ask where you're located, tell them: we're on Carmichael Road West, but we're mobile and delivery-only — we'll come to your nearest spot. 📍
 
-LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The flow is simple: (1) customer says WHAT they want (shoe + size), (2) you get their LOCATION and ask them to text "sent", (3) once the location is sent, you alert the team. You do NOT ask about or wait on payment — that's handled on arrival by default (only discuss payment if THEY ask). When a customer in Nassau has picked a pair and wants it brought to them:
+LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The flow is simple: (1) customer says WHAT they want (shoe + size), (2) the MOMENT they commit to buying, call notify_manager with stage "order_confirmed" so the owner knows a sale is happening RIGHT NOW, (3) you get their LOCATION and ask them to text "sent", (4) once the location is sent, call notify_manager AGAIN with stage "delivery_ready". You do NOT ask about or wait on payment — that's handled on arrival by default (only discuss payment if THEY ask). When a customer in Nassau has picked a pair and wants it brought to them:
+- 🚨 ALERT THE OWNER AT COMMITMENT, NOT JUST AT THE PIN (Rodney's rule 2026-07-13 — a real $260 order slipped by unnoticed because the pin never registered): as soon as the customer has picked their shoe + size and is clearly buying (arranging where to meet, "bring it", "I'll take it"), call notify_manager with stage="order_confirmed" and location="not sent yet" ON THAT SAME TURN — even though you don't have the pin. Then keep going and get the pin as normal. Call it with stage "order_confirmed" only ONCE per order — if the order then changes (extra pair, different size), do NOT re-send order_confirmed; the update goes in the later delivery_ready alert.
 - ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin — tap 📎 (or ＋) → Location → Send your current location — then text me \"sent\" so I know it came through 👟".
 - ⚠️ NEVER KEEP ASKING FOR THE PIN. The moment the customer says they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here" — OR they describe a spot/landmark, TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
-- Once the location is sent/described: call notify_manager (name, shoe + size, and location = the landmark they gave OR "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). Include price/payment ONLY if the customer actually brought it up — otherwise leave those blank (payment is handled on arrival). Then reply warmly, EXACTLY in this spirit: "Perfect! 🙌 The driver's heading out shortly and he'll give you a call when he's close 👟". Do NOT invent an exact ETA or say "I'm on my way" yourself — you're alerting the team, not driving.
+- 📍 HOW A DROPPED PIN ACTUALLY REACHES YOU (IMPORTANT): when the customer sends a pin (or any non-text thing), WhatsApp can't hand you the pin itself — instead the system RE-DELIVERS their PREVIOUS text word-for-word, marked with a SYSTEM NOTE saying a non-text message probably arrived. So if you were waiting on a location pin and their last message suddenly repeats (with that note), that IS the pin arriving — say "Got your pin! 📍" and treat the location as received. Do NOT answer the repeated words as if they typed them again, and do NOT re-confirm the order.
+- Once the location is sent/described: call notify_manager with stage "delivery_ready" (name, shoe + size, and location = the landmark they gave OR "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). Include price/payment ONLY if the customer actually brought it up — otherwise leave those blank (payment is handled on arrival). Then reply warmly, EXACTLY in this spirit: "Perfect! 🙌 The driver's heading out shortly and he'll give you a call when he's close 👟". Do NOT invent an exact ETA or say "I'm on my way" yourself — you're alerting the team, not driving.
 - AFTER the delivery is confirmed (you've already called notify_manager) — if the customer messages again asking "how long / you coming / where's the driver / you reaching?" — do NOT re-ask for their location or the order details. Say: "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". (The system also auto-sends a "we're still on the way!" reassurance if they go quiet for a while.)
-- FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Only call notify_manager once they actually drop the location and say they're ready to receive — never before.
+- FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Still send the ONE stage="order_confirmed" alert when they commit (location = e.g. "scheduled for Sunday — location to come"), but only call stage="delivery_ready" once they actually drop the location and say they're ready to receive — never before.
 
 BAHAMIAN "COMING" PHRASING (IMPORTANT — locals often ask questions with no question mark):
 - "you coming", "you coming bro", "you reaching", "wen you coming", "how long" → this means "ARE YOU COMING for the delivery / how soon?" They want to know you're on the way. Reply that yes you're coming / sorting their delivery, and ask for the details you still need (what shoe + size if you don't have them yet, and where to meet). Do NOT just recite the location line at them.
@@ -988,7 +991,7 @@ const AI_TOOLS = [
   },
   {
     name: 'notify_manager',
-    description: "Alert the shop owner + team that a sale is READY to deliver/hand off. You MUST actually CALL this tool (not just SAY the driver is coming) the moment the customer has (1) told you WHAT they want (shoe + size), AND (2) given their location OR said they sent it — a dropped WhatsApp pin, OR a message like \"sent\" / \"sent the location\" / \"dropped it\" (you CAN'T see the pin, so trust them when they say they sent it). Payment is NOT required to call this — it's handled on arrival. ⚠️ CRITICAL: NEVER type \"the driver is heading out\" / \"someone will be there shortly\" / \"letting the team know\" WITHOUT calling this tool on the SAME turn — if you skip the tool, the team gets NO alert and the customer waits for nobody. It pings the owner on WhatsApp (both phones) and posts the job to the shop website. Do NOT call it for a plain question, or before the customer is ready to receive.",
+    description: "Alert the shop owner + team about a sale. Call it TWICE per order: (1) stage=\"order_confirmed\" the MOMENT the customer commits to buying (shoe + size picked, arranging the meet-up) — location can be \"not sent yet\"; the owner must hear about EVERY order the second it exists, never only after the pin. (2) stage=\"delivery_ready\" once they've given their location OR said they sent it — a dropped WhatsApp pin, OR a message like \"sent\" / \"dropped it\" (you CAN'T see the pin, so trust them — and a SYSTEM NOTE flagging their previous text re-delivered = the pin arriving). Payment is NOT required for either call — it's handled on arrival. ⚠️ CRITICAL: NEVER type \"the driver is heading out\" / \"letting the team know\" WITHOUT calling this tool on the SAME turn — if you skip the tool, the team gets NO alert and the customer waits for nobody. It pings the owner on WhatsApp (both phones) and posts to the shop website. Do NOT call it for a plain question. Send order_confirmed only ONCE per order.",
     input_schema: {
       type: 'object',
       properties: {
@@ -998,7 +1001,8 @@ const AI_TOOLS = [
         size: { type: 'string', description: 'Their size.' },
         price: { type: 'string', description: 'Agreed total, e.g. "$240".' },
         payment: { type: 'string', description: 'How they are paying: website/card, cash, which bank transfer, or SunCash.' },
-        location: { type: 'string', description: "The customer's meet-up spot / address exactly as they gave it. Mention if they dropped a pin." },
+        location: { type: 'string', description: "The customer's meet-up spot / address exactly as they gave it. Mention if they dropped a pin. For stage=\"order_confirmed\" before they've sent it, use \"not sent yet\"." },
+        stage: { type: 'string', enum: ['order_confirmed', 'delivery_ready'], description: "\"order_confirmed\" = the customer just committed to buying but the location isn't in hand yet (owner gets a NEW ORDER heads-up). \"delivery_ready\" = location received, driver can roll. Default: delivery_ready." },
       },
       required: ['location'],
     },
@@ -1785,8 +1789,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         let custPhone = inp.customer_phone || getPhone(req);
         if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
         custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
+        // Two alert stages (2026-07-13): "order_confirmed" fires the moment a customer
+        // commits (location may still be missing) so the owner NEVER misses a sale;
+        // "delivery_ready" (default) fires once the location is in hand.
+        const earlyStage = inp.stage === 'order_confirmed';
         const lines = [
-          '🛵 *DELIVERY READY* — please facilitate',
+          earlyStage ? '🆕 *NEW ORDER* — customer is buying now (location still coming)'
+                     : '🛵 *DELIVERY READY* — please facilitate',
           inp.customer_name ? `👤 ${inp.customer_name}` : null,
           custPhone ? `📞 ${custPhone}  (wa.me/${custPhone.replace(/[^0-9]/g,'')})` : null,
           inp.shoe ? `👟 ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : (inp.size ? `👟 size ${inp.size}` : null),
@@ -1802,11 +1811,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         let staffWa = [];
         try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
-        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, waOk, staffWa, staffOk });
+        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', waOk, staffWa, staffOk });
         // Delivery is now in motion — if the customer goes quiet, auto-reassure them
         // at ~20 min ("still on the way!"). Any reply from them cancels it (and Jess
         // then offers to call the driver). Reuses the one-pending-nudge timer.
-        try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
+        // (Skip for the early "order_confirmed" heads-up — nobody's driving yet.)
+        if (!earlyStage) try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
       }
       else if (tu.name === 'get_agent') {
@@ -1992,7 +2002,12 @@ function handleChat(req, res) {
   if (userText.trim() && !imageUrl && !audioUrl) {
     const mk = sub + '|' + userText.trim().toLowerCase().replace(/\s+/g, ' ');
     const prevM = recentMsgSeen.get(mk);
-    if (prevM && (Date.now() - prevM) < 60000) {   // 60s: catches an impatient customer re-asking
+    // 10s window (was 60s): a true ManyChat double-fire lands within ~2-3s. A slower
+    // exact duplicate is usually WhatsApp RE-DELIVERING old text because a NON-TEXT
+    // message (location pin!) arrived — tonight a customer's re-dropped pin replayed
+    // her text 22s later and the 60s window silently ate it. Those now fall through
+    // to the non-text-replay detector below instead of being skipped.
+    if (prevM && (Date.now() - prevM) < 10000) {
       record(req, { endpoint: 'dupe-msg-skip', sub, q: userText.slice(0, 30) });
       return;
     }
@@ -2000,6 +2015,21 @@ function handleChat(req, res) {
     if (recentMsgSeen.size > 300) { const f = recentMsgSeen.keys().next().value; recentMsgSeen.delete(f); }
   }
 
+  // NON-TEXT MESSAGE DETECTOR (2026-07-13 — the "invisible location pin"): when a
+  // customer sends a location pin / sticker / contact card (no text, no media URL),
+  // ManyChat has nothing to put in Last Text Input — so it RE-DELIVERS the customer's
+  // PREVIOUS text word-for-word. Tonight that replay ("C7 -7 /71/2" twice, 20 min
+  // apart, right as a $260 customer dropped her pin) made Jess re-confirm the order
+  // instead of noticing the pin landed — and the owner was never notified. Rapid
+  // (<60s) duplicates were already skipped above, so an exact duplicate arriving
+  // LATER is almost always a non-text message. Flag it so Jess can treat it as
+  // "their pin/attachment probably just arrived" instead of answering stale words.
+  let nonTextReplay = false;
+  if (userText.trim() && !imageUrl && !audioUrl) {
+    const prevTxt = (lastIncomingText.get(sub) || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const nowTxt = userText.trim().toLowerCase().replace(/\s+/g, ' ');
+    if (prevTxt && prevTxt === nowTxt) nonTextReplay = true;
+  }
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
   lastIncoming.set(sub, Date.now()); // stamps "they just spoke" (albums check this + the text below)
   lastIncomingText.set(sub, userText || ''); // so the album knows if it was a STOP or just a question
@@ -2041,6 +2071,13 @@ function handleChat(req, res) {
       // The link usually IS the whole "text" — don't feed a raw URL to Claude as words.
       if (text.trim() === imageUrl.trim()) text = '';
       photo = imageUrl;
+    }
+    // Exact duplicate of their previous message (past the 60s dupe window) = WhatsApp
+    // re-delivering old words because a NON-TEXT message arrived (see detector above).
+    // Tell Jess so she treats it as "pin/attachment landed", not as fresh words.
+    if (nonTextReplay) {
+      record(req, { endpoint: 'non-text-replay', sub, q: text.slice(0, 40) });
+      text += '\n\n(SYSTEM NOTE: this text is a WhatsApp RE-DELIVERY of the customer\'s previous message — they almost certainly just sent something non-text that can\'t be shown to you: most likely a WhatsApp LOCATION PIN, or a sticker/document. If you were waiting on their location pin, it has just arrived — confirm it warmly ("Got your pin! 📍") and call notify_manager with stage "delivery_ready". If you weren\'t waiting on anything, they may simply be re-sending because they think you didn\'t answer — judge from the conversation. Either way do NOT answer the repeated words as if they typed them fresh, and do NOT re-confirm an already-confirmed order.)';
     }
     // 🔴 OWNER "." MESSAGE — a message that starts with "." or "-" is Rodney/staff jumping in.
     // We can't tell his messages from the customer's any other way, so this tiny mark is his
