@@ -1079,13 +1079,19 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
   // in men's stock too — a women's 6.5 then sees the men's 5s (her true size) PLUS every
   // men's 6.5, so she gets the full lineup instead of just the handful in that thin size.
   // (Only for the normal "any" search — a multi-size "all"/matching search stays exact.)
-  const wideWomens = womens && String(size_match).toLowerCase() !== 'all';
+  const isAll = String(size_match).toLowerCase() === 'all';
+  const wideWomens = womens && !isAll;
   const sizeList = [...new Set(
     []
       .concat(Array.isArray(sizes) ? sizes : (sizes != null ? [sizes] : []))
       .concat(size != null ? [size] : [])
       .map(x => parseFloat(x)).filter(n => !isNaN(n))
-      .flatMap(n => wideWomens ? [String(n - 1.5), String(n)] : [String(womens ? n - 1.5 : n)])
+      .flatMap(n => womens
+        ? (wideWomens ? [String(n - 1.5), String(n)] : [String(n - 1.5)])
+        // MEN'S: on a normal "any" search ALWAYS also include the half-size UP, so a size 6
+        // request also shows the shoes that only come in 6.5 (Rodney's rule 2026-07-13 — don't
+        // lose a sale over a half size). A matching ("all") search stays exact.
+        : (isAll ? [String(n)] : [String(n), String(n + 0.5)]))
       .filter(x => x && x !== 'NaN')
   )];
   if (sizeList.length) {
