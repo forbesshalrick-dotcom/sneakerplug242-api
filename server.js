@@ -810,6 +810,7 @@ ${modelList}
   • Only bring in a real person (get_agent) if they truly need a human or you genuinely can't help — NOT just because they sent a photo you can't open (for that, ask for the name+colour as above).
   • FOLLOW-UP RIGHT AFTER A PHOTO: customers often send the photo and a short line as TWO separate messages. If you JUST looked at a photo and then get a short follow-up like "have this?", "you got this?", "got these?", "this one?", "how much?", "in a 9?" — they mean the shoe in THAT photo you already saw. Answer about it directly. Do NOT reply that you can't see the picture and do NOT ask them to describe or name it again — you already saw it. ⚠️ DON'T REPEAT YOURSELF: if in the LAST moment you already identified that shoe / sent its photos / asked their size, do NOT do it all again — just briefly build on what you said (e.g. "yep those 👆 what size you need?"). NEVER send the same shoe's photos twice in a row or re-describe the same shoe twice. One answer per shoe.
 - CUSTOMER ASKS *YOU* FOR A PHOTO (the opposite case — IMPORTANT): if the customer ASKS to SEE a picture — "you have a pic of it?", "got a pic?", "any pics?", "can you send a pic", "send a picture", "lemme see it", "show me a photo" — that means SEND them the photo. Call search_inventory for the shoe you're discussing and send_photos of it. NEVER answer this with "I can't see pictures" / "I can't open photos" — that line is ONLY for when THEY send YOU an image, NEVER when they ask you to send one. If we actually have the shoe, SEND it. Only if it's genuinely out of stock do you kindly let them know we don't have that exact one right now.
+- A LONG NUMBER (7+ digits, like "8231078" or "242-823-1078") is a PHONE NUMBER — NEVER a size and NEVER a shoe (Rodney's rule 2026-07-13). If you asked for a phone number (or you're mid-order/delivery), that's them giving it — thank them and carry the order forward. Even out of nowhere, treat a 7+ digit number as contact info, not a product question.
 - A bare number on its own (like "9" or "10") — READ THE CONTEXT, don't loop: if the customer has ALREADY shown they want to see shoes (they said "yes" / "yh" to pictures, OR you just asked them "what size?"), then that number IS their size → go STRAIGHT to search_inventory + send_photos (the full album in that size) on THIS turn. Do NOT reply "you mean size 10?", do NOT re-confirm, and do NOT ask again what they want or whether they want pictures — they already told you, now SHOW them. Asking a size question you already have the answer to, or re-offering pictures they already said yes to, is the #1 thing that frustrates customers. ONLY when a lone number arrives completely COLD (out of nowhere, with zero prior talk of shoes — so it could be a time or a typo) do ONE quick check: "You mean size 9? 👟". Never make a customer confirm their size twice.
 - EXCEPTION to the bare-number rule: if YOUR previous message already asked the customer for their size (e.g. you said "What size are you?"), then a bare number they send back IS their answer — treat it as their size, do NOT ask again. If you already know they want to see shoes, go straight to search_inventory + send_photos in that size. If you only know the size but not yet what they want, give the short lead-in and show what you've got in that size. The point: once you've asked for a size, a number reply means "that's my size" — act on it, don't re-question it.
 - VOICE-NOTE SIZES — SPOKEN NUMBERS COME OUT GARBLED (IMPORTANT): some messages are TRANSCRIBED from voice notes, and spoken sizes often arrive mangled: "ten and a half" can show up as "10 1 0", "10 in a half", "10 and a hat", "ten in the half"; "nine and a half" as "9 1 0" or "9 in a half". READ THEM AS THE HALF SIZE: any size followed by "and a half"-looking fragments (including a stray "1 0", "in a half", "en a half") = that size **.5** — so "10 1 0" = 10.5, NOT 10. When a transcribed size genuinely looks ambiguous, do ONE quick friendly confirm ("just checking — a 10.5, right? 👟") and then send. Never treat the fragments as separate sizes.
@@ -1331,6 +1332,49 @@ async function fetchImageBase64(url) {
 }
 
 const convos = new Map();    // subscriberId -> message history
+// PERSIST conversations to the /data volume so a redeploy/restart mid-chat doesn't
+// wipe Jess's memory (Rodney 2026-07-13 — a customer sent their phone number right as
+// an update restarted the server, and Jess "acted like a new convo started").
+const convoTouched = new Map(); // sub -> ts of last activity (for pruning on restore)
+const CONVOS_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'convos.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (CONVOS_FILE && require('fs').existsSync(CONVOS_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(CONVOS_FILE, 'utf8'));
+    const cutoff = Date.now() - 6 * 60 * 60 * 1000; // only chats active in the last 6h
+    const entries = Object.entries(saved.chats || {})
+      .filter(([, v]) => v && v.ts > cutoff && Array.isArray(v.h))
+      .sort((a, b) => b[1].ts - a[1].ts)
+      .slice(0, 400); // safety cap
+    for (const [sub, v] of entries) { convos.set(sub, v.h); convoTouched.set(sub, v.ts); }
+    console.log('[convos] restored', convos.size, 'conversations');
+  }
+} catch (e) { console.log('[convos] restore failed:', e.message); }
+let convosSaveT = null;
+function saveConvos() { // debounced best-effort write
+  if (!CONVOS_FILE) return;
+  clearTimeout(convosSaveT);
+  convosSaveT = setTimeout(() => {
+    try {
+      const chats = {};
+      for (const [sub, h] of convos) chats[sub] = { ts: convoTouched.get(sub) || Date.now(), h };
+      require('fs').writeFileSync(CONVOS_FILE, JSON.stringify({ chats }));
+    } catch (_) {}
+  }, 2000);
+  if (convosSaveT.unref) convosSaveT.unref();
+}
+function rememberConvo(sub, history) {
+  convos.set(sub, history);
+  convoTouched.set(sub, Date.now());
+  saveConvos();
+}
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
 const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same photo arriving twice
 const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text message arriving twice (stops double replies)
@@ -1434,7 +1478,7 @@ function scheduleNudge(sub, token, text, ms, next) {
       await sendChunk(sub, [{ type: 'text', text }], token);
       const h = convos.get(sub) || [];
       h.push({ role: 'assistant', content: text }); // so Claude knows it asked
-      convos.set(sub, trimHistory(h));
+      rememberConvo(sub, trimHistory(h));
     } catch (e) { /* non-fatal */ }
   }, ms);
   if (handle.unref) handle.unref();
@@ -1711,7 +1755,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   if (wasNewConvo && sentToCustomer && !photosSentRun) {
     scheduleWelcomeNudge(sub, token);
   }
-  convos.set(sub, trimHistory(history));
+  rememberConvo(sub, trimHistory(history));
 }
 
 function handleChat(req, res) {
