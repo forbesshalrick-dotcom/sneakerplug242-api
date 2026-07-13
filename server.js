@@ -1796,6 +1796,10 @@ function handleChat(req, res) {
   const prev = chatLocks.get(sub) || Promise.resolve();
   const next = prev.then(async () => {
     let text = userText;
+    // The voice note's link usually IS the whole "text" (it rides in via Last Text Input,
+    // same as photos) — blank it so the transcription branch below actually runs instead
+    // of feeding a raw audio URL to Jess as words (2026-07-13 fix, mirrors the photo path).
+    if (audioUrl && text.trim() === audioUrl.trim()) text = '';
     // Voice note with no typed text: transcribe it first, then chat as normal.
     if (!text.trim() && audioUrl) {
       const t = await transcribeAudio(audioUrl).catch(() => null);
