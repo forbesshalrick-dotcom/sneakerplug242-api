@@ -1166,6 +1166,12 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       .map(id => live[id]).filter(x => x && x.image);
   };
   let sent = 0, requested = 0;
+  // INTERRUPT MID-ALBUM (Rodney's rule 2026-07-13): if the customer speaks WHILE the
+  // album is still going out ("stop", "that's enough", "Air Force"), STOP sending the
+  // rest — their new message is queued and Jess answers it next. Checked between chunks.
+  const startedAt = Date.now();
+  let interrupted = false;
+  const customerSpoke = () => { const t = lastIncoming.get(sub); return !!(t && t > startedAt); };
 
   const totalPhotos = (Array.isArray(groups) && groups.length)
     ? (() => { const seen = new Set(); return groups.reduce((n, g) => n + dedupe(g.ids, seen).length, 0); })()
@@ -1183,6 +1189,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 
   const sendBatch = async (messages) => {
     for (let i = 0; i < messages.length; i += CHUNK) {
+      if (customerSpoke()) { interrupted = true; return; } // they said something — stop the album
       const slice = messages.slice(i, i + CHUNK);
       try { await sendChunk(sub, slice, token); sent += slice.filter(m => m.type === 'image').length; }
       catch (e) { /* keep going */ }
@@ -1202,6 +1209,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     // Grouped by size: a size header, then that size's photos (each labelled when small).
     const seenAcrossGroups = new Set(); // a shoe shown in an earlier size group is skipped later
     for (const g of groups) {
+      if (interrupted || customerSpoke()) { interrupted = true; break; }
       const chosen = dedupe(g.ids, seenAcrossGroups);
       requested += (g.ids || []).length;
       if (!chosen.length) continue;
@@ -1222,15 +1230,19 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // Close with the "text me the name" prompt once photos have gone out — but only
   // ONCE per burst: a two-colour request fires 3 send_photos calls back-to-back, and
   // we don't want the closing line repeated 3×. Send it at most once per 45s per sub.
-  if (sent > 0) {
+  if (sent > 0 && !interrupted) {
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
       try { await sendChunk(sub, [{ type: 'text', text: L(END_OF_PHOTOS_T, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
-  return { sent, requested };
+  return { sent, requested, interrupted };
 }
+
+// When each customer's LATEST real message arrived — sendShoePhotos checks this
+// between chunks so a "stop" / "that's enough" / new request mid-album halts the rest.
+const lastIncoming = new Map();
 
 // ── Voice notes → text (OpenAI Whisper) ───────────────────────────────────────
 // Claude can't hear audio, so when a customer sends a WhatsApp voice note we
@@ -1569,6 +1581,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true);
         if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
+        // Customer spoke mid-album and the send was halted — end this turn NOW so their
+        // new message (already queued) gets answered next, with no extra closing chatter.
+        if (result.interrupted) { record(req, { endpoint: 'album-interrupted', sub, sent: result.sent }); return; }
         // Remember which shoes we just showed this customer, so if they send one of
         // THESE pics back to us ("I want this one"), we recognise it as that exact shoe.
         try {
@@ -1792,6 +1807,8 @@ function handleChat(req, res) {
   }
 
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
+  lastIncoming.set(sub, Date.now()); // stamps "they just spoke" → halts any album mid-send
+  if (lastIncoming.size > 500) { const f = lastIncoming.keys().next().value; lastIncoming.delete(f); }
 
   const prev = chatLocks.get(sub) || Promise.resolve();
   const next = prev.then(async () => {
