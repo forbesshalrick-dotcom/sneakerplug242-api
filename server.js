@@ -1334,6 +1334,11 @@ const followUps = new Map(); // subscriberId -> pending 10-minute follow-up time
 // staff can handle it by hand or voice without her talking over them. ONLY set when staff
 // TYPE a mute codeword; auto-expires so a chat can never be stranded in silence.
 const chatMuted = new Map();
+// When a customer sends a bare photo/voice-note we can't read, Jess replies with ONLY our
+// welcome greeting (this makes the greeting come FROM Jess so the "agent" owner-mute silences
+// it). Kept in one place so it always matches the welcome wording.
+const MEDIA_GREET_NOTE = "(The customer just sent a photo or voice note that you cannot open. Do NOT ask them to resend it or to type the shoe's name. Reply with ONLY this exact welcome and nothing else — keep the line breaks and the *asterisks*:\nAre you looking for something specific?\n*OR*\nDo you want some pictures? 👟)";
+
 const MUTE_MS = 20 * 1000; // 20s ROLLING window (Rodney's call 2026-07-12) — refreshes on each
                            // message while staff are active, so Jess resumes ~20s after the last
                            // message. Short + safe.
@@ -1661,18 +1666,20 @@ function handleChat(req, res) {
   }
   // PICTURE READING TURNED OFF (Rodney's call 2026-07-12): photo recognition wasn't
   // accurate enough, so we do NOT feed customer photos to Claude vision. A BARE photo
-  // (no typed caption) now gets NOTHING from Jess — the ManyChat greeting ("want something
-  // specific, or do you want pics?") answers it, so Jess doesn't pile a second "type the
-  // name" message on top (Rodney's call 2026-07-12). A photo WITH a caption still gets
-  // helped via that caption text. Re-enable full photo replies with env PHOTO_VISION=1.
+  // (no typed caption) now makes JESS send the WELCOME GREETING (Rodney's call 2026-07-13 —
+  // the greeting now comes FROM Jess so his "agent" code can silence it, instead of a static
+  // ManyChat message that ignores the code). A photo WITH a caption still gets helped via
+  // that caption text. Re-enable full photo replies with env PHOTO_VISION=1.
   if (process.env.PHOTO_VISION !== '1' && imageUrl) {
     imageUrl = '';
+    if (!userText || !userText.trim()) userText = MEDIA_GREET_NOTE;
   }
   // VOICE NOTES — recognition OFF for now (Rodney's call 2026-07-12): until VOICE_RECOGNITION=1
-  // is set, a voice note with no typed text gets NOTHING from Jess either; the same ManyChat
-  // greeting answers it. Flip VOICE_RECOGNITION=1 to transcribe + reply again.
+  // is set, a voice note with no typed text also makes Jess send the WELCOME GREETING (same
+  // as a bare photo, 2026-07-13). Flip VOICE_RECOGNITION=1 to transcribe + reply again.
   if (process.env.VOICE_RECOGNITION !== '1' && audioUrl && (!userText || !userText.trim())) {
     audioUrl = '';
+    userText = MEDIA_GREET_NOTE;
   }
   const sub = getContactId(req);
   const token = getToken(req);
