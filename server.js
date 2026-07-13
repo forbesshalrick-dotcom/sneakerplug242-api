@@ -1171,12 +1171,18 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       .map(id => live[id]).filter(x => x && x.image);
   };
   let sent = 0, requested = 0;
-  // INTERRUPT MID-ALBUM (Rodney's rule 2026-07-13): if the customer speaks WHILE the
-  // album is still going out ("stop", "that's enough", "Air Force"), STOP sending the
-  // rest — their new message is queued and Jess answers it next. Checked between chunks.
+  // INTERRUPT MID-ALBUM — STOP-WORDS ONLY (Rodney's rule 2026-07-13 v2): the album halts
+  // ONLY when the customer clearly asks it to ("stop", "that's enough", "never mind"...).
+  // A QUESTION mid-album ("same price all?", "got Jordan 5s?") does NOT stop the pictures —
+  // it queues up and Jess answers it right after the album finishes.
   const startedAt = Date.now();
   let interrupted = false;
-  const customerSpoke = () => { const t = lastIncoming.get(sub); return !!(t && t > startedAt); };
+  const STOPPISH = /\b(stop|enough|never ?mind|nvm|don'?t send|dont send|leave it|forget it|chill|hold (on|up)|unsubscribe)\b/i;
+  const customerSpoke = () => {
+    const t = lastIncoming.get(sub);
+    if (!(t && t > startedAt)) return false;
+    return STOPPISH.test(lastIncomingText.get(sub) || '');
+  };
 
   const totalPhotos = (Array.isArray(groups) && groups.length)
     ? (() => { const seen = new Set(); return groups.reduce((n, g) => n + dedupe(g.ids, seen).length, 0); })()
@@ -1192,17 +1198,9 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     try { await sendChunk(sub, [{ type: 'text', text: String(leadIn).trim() }], token); } catch (e) { /* non-fatal */ }
   }
 
-  // Send just ONE shoe (photo + its label) per call, so a customer's "stop" / new
-  // question halts the album within a single shoe instead of a 10-message batch
-  // (2026-07-13 — Rodney's "stop" test: the in-flight batch kept going).
-  const ALBUM_STEP = 2;
-  const sendBatch = async (messages) => {
-    for (let i = 0; i < messages.length; i += ALBUM_STEP) {
-      if (customerSpoke()) { interrupted = true; return; } // they said something — stop the album
-      const slice = messages.slice(i, i + ALBUM_STEP);
-      try { await sendChunk(sub, slice, token); sent += slice.filter(m => m.type === 'image').length; }
-      catch (e) { /* keep going */ }
-    }
+  // Send ONE shoe (photo + its label) per call, so a "stop" halts within a single shoe.
+  const sendShoe = async (s) => {
+    try { await sendChunk(sub, photoWithLabel(s), token); sent += 1; } catch (e) { /* keep going */ }
   };
 
   // One shoe → its photo immediately followed by its label bubble (when labelling).
@@ -1217,23 +1215,26 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   if (Array.isArray(groups) && groups.length) {
     // Grouped by size: a size header, then that size's photos (each labelled when small).
     const seenAcrossGroups = new Set(); // a shoe shown in an earlier size group is skipped later
-    for (const g of groups) {
-      if (interrupted || customerSpoke()) { interrupted = true; break; }
+    outer: for (const g of groups) {
       const chosen = dedupe(g.ids, seenAcrossGroups);
       requested += (g.ids || []).length;
       if (!chosen.length) continue;
-      const msgs = [];
-      if (g.label && String(g.label).trim()) msgs.push({ type: 'text', text: String(g.label).trim() });
-      for (const s of chosen) msgs.push(...photoWithLabel(s));
-      await sendBatch(msgs);
+      if (g.label && String(g.label).trim()) {
+        try { await sendChunk(sub, [{ type: 'text', text: String(g.label).trim() }], token); } catch (e) {}
+      }
+      for (const s of chosen) {
+        if (customerSpoke()) { interrupted = true; break outer; }
+        await sendShoe(s);
+      }
     }
   } else {
     // Flat list (single size, range, or matching).
     const chosen = dedupe(ids);
     requested = (ids || []).length;
-    const msgs = [];
-    for (const s of chosen) msgs.push(...photoWithLabel(s));
-    await sendBatch(msgs);
+    for (const s of chosen) {
+      if (customerSpoke()) { interrupted = true; break; }
+      await sendShoe(s);
+    }
   }
 
   // Close with the "text me the name" prompt once photos have gone out — but only
@@ -1250,8 +1251,10 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 }
 
 // When each customer's LATEST real message arrived — sendShoePhotos checks this
-// between chunks so a "stop" / "that's enough" / new request mid-album halts the rest.
+// between shoes; a STOP-worded message ("stop", "that's enough") halts the rest,
+// while questions let the album finish (they queue and get answered right after).
 const lastIncoming = new Map();
+const lastIncomingText = new Map(); // sub -> the text of that latest message
 
 // ── Voice notes → text (OpenAI Whisper) ───────────────────────────────────────
 // Claude can't hear audio, so when a customer sends a WhatsApp voice note we
@@ -1580,8 +1583,40 @@ function trimHistory(h, maxLen = 24) {
   return start < h.length ? h.slice(start) : h.slice(-2);
 }
 
+// Repair a history whose tool calls got orphaned (e.g. by the old interrupt bug or a
+// mid-turn crash): every assistant tool_use must be followed by matching tool_results,
+// else the API rejects the WHOLE conversation with a 400 forever. Strip anything broken.
+function sanitizeHistory(h) {
+  const out = [];
+  for (let i = 0; i < h.length; i++) {
+    const m = h[i];
+    if (m && m.role === 'assistant' && Array.isArray(m.content)) {
+      const toolIds = m.content.filter(b => b && b.type === 'tool_use').map(b => b.id);
+      if (toolIds.length) {
+        const next = h[i + 1];
+        const ok = next && next.role === 'user' && Array.isArray(next.content) &&
+          toolIds.every(id => next.content.some(b => b && b.type === 'tool_result' && b.tool_use_id === id));
+        if (!ok) { // dangling tool call — keep only its text, drop the tool_use blocks
+          const text = m.content.filter(b => b && b.type === 'text');
+          if (text.length) out.push({ role: 'assistant', content: text });
+          continue;
+        }
+      }
+    }
+    if (m && m.role === 'user' && Array.isArray(m.content) && m.content.some(b => b && b.type === 'tool_result')) {
+      const prev = out[out.length - 1];
+      const prevIds = (prev && prev.role === 'assistant' && Array.isArray(prev.content))
+        ? prev.content.filter(b => b && b.type === 'tool_use').map(b => b.id) : [];
+      const allMatch = prevIds.length && m.content.every(b => b.type !== 'tool_result' || prevIds.includes(b.tool_use_id));
+      if (!allMatch) continue; // orphan tool_result — drop it
+    }
+    out.push(m);
+  }
+  return out;
+}
+
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
-  const history = convos.get(sub) || [];
+  const history = sanitizeHistory(convos.get(sub) || []);
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   // Greet ONLY on the very first message of the chat — decided here in code, not by Jess —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
@@ -1709,9 +1744,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true);
         if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
-        // Customer spoke mid-album and the send was halted — end this turn NOW so their
-        // new message (already queued) gets answered next, with no extra closing chatter.
-        if (result.interrupted) { record(req, { endpoint: 'album-interrupted', sub, sent: result.sent }); return; }
+        // Customer asked to STOP mid-album — end this turn, but CLOSE the tool call
+        // properly first: leaving a dangling tool_use poisons the whole conversation
+        // (every later message 400s → endless "didn't come through") (fixed 2026-07-13).
+        if (result.interrupted) {
+          record(req, { endpoint: 'album-interrupted', sub, sent: result.sent });
+          toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({ sent: result.sent, interrupted: true, note: 'customer asked to stop — album halted; do not resend these' }) });
+          const idx = toolUses.indexOf(tu);
+          for (const rest of toolUses.slice(idx + 1)) {
+            toolResults.push({ type: 'tool_result', tool_use_id: rest.id, content: JSON.stringify({ skipped: 'album halted by customer' }) });
+          }
+          history.push({ role: 'user', content: toolResults });
+          rememberConvo(sub, trimHistory(history));
+          return;
+        }
         // Remember which shoes we just showed this customer, so if they send one of
         // THESE pics back to us ("I want this one"), we recognise it as that exact shoe.
         try {
@@ -1935,8 +1981,9 @@ function handleChat(req, res) {
   }
 
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
-  lastIncoming.set(sub, Date.now()); // stamps "they just spoke" → halts any album mid-send
-  if (lastIncoming.size > 500) { const f = lastIncoming.keys().next().value; lastIncoming.delete(f); }
+  lastIncoming.set(sub, Date.now()); // stamps "they just spoke" (albums check this + the text below)
+  lastIncomingText.set(sub, userText || ''); // so the album knows if it was a STOP or just a question
+  if (lastIncoming.size > 500) { const f = lastIncoming.keys().next().value; lastIncoming.delete(f); lastIncomingText.delete(f); }
 
   // CUSTOMER OPTED OUT ("stop"/"unsubscribe" — 2026-07-13): ManyChat swallows the literal
   // word "stop" itself (its built-in opt-out) so it never reaches us as a normal message.
