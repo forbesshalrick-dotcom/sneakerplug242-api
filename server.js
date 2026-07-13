@@ -1811,6 +1811,16 @@ function handleChat(req, res) {
   lastIncoming.set(sub, Date.now()); // stamps "they just spoke" → halts any album mid-send
   if (lastIncoming.size > 500) { const f = lastIncoming.keys().next().value; lastIncoming.delete(f); }
 
+  // CUSTOMER OPTED OUT ("stop"/"unsubscribe" — 2026-07-13): ManyChat swallows the literal
+  // word "stop" itself (its built-in opt-out) so it never reaches us as a normal message.
+  // The ManyChat Opt-out Automation is wired to POST us this marker instead. Halt everything
+  // for this customer and stay SILENT — no Jess reply, no follow-ups, nothing more.
+  if (/^\(SYSTEM:\s*STOP\)/i.test(userText.trim()) || /^(stop|unsubscribe)$/i.test(userText.trim())) {
+    clearFollowUp(sub); // kill any queued nudges too — they've asked us to stop
+    record(req, { endpoint: 'customer-stop', sub });
+    return; // silent — the lastIncoming stamp above already halts any album mid-send
+  }
+
   const prev = chatLocks.get(sub) || Promise.resolve();
   const next = prev.then(async () => {
     let text = userText;
