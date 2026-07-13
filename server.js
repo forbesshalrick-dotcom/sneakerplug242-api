@@ -927,18 +927,12 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 👟 *${storeName.toUpperCase()} — PRICE LIST* 👟
 
 👑 Air Force 1 — *$120*
-👟 Air Jordan 1 — *$120*
 🐐 Air Jordans (4, 5, 11, etc.) — *$180*
-🏃 Nike Roshe — *$50*
-🔥 Nike Dunk High — *SALE $60* 🔥
-🐊 Crocs — *$65*
-🦂 Nike Scorpion — *$70*
-☁️ Yeezy Foam — *$70*
-👟 Nike Dunk Low — *$120*
 💨 Air Max / VaporMax — *$120*
 🌀 Air Max 95 — *$130*
 ⚡ New Balance / ASICS — *$130*
-💎 Rare & Limited — up to *$250*
+👟 Nike Dunk / Air Jordan 1 — *$120*
+🐊 Crocs / Yeezy Foam — *$65*
 
 Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". IMPORTANT: if they ask the price of ONE SPECIFIC shoe, give THAT shoe's exact price from search_inventory instead of the whole list.
 ⚠️ JORDAN PRICING (know this cold): Air Jordan **1s are $120** — every Jordan 1 colourway and style (Jordan 1 High, Low, Retro — all of them). Every OTHER Air Jordan (Jordan 3, 4, 5, 11, 13, Tatum, etc.) is **$180**, any colour or style. So if a customer asks the price of a Jordan — INCLUDING one you can't find in stock or a colour you're not sure we carry (e.g. "how much for the blue and white Jordan?") — quote it from this rule: a Jordan 1 = $120, any other Jordan = $180. Never tell a customer a Jordan "isn't showing up" or that you can't price it.
