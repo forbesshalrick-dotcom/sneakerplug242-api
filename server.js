@@ -1492,7 +1492,27 @@ function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, L(ASKME_T,
 // Ping the owner's WhatsApp with a delivery-ready alert. Uses the live chat's
 // own ManyChat token (the customer's account) — the owner just needs to have
 // messaged that account once so they're a subscriber. Best-effort.
+// Rodney's ALERT PHONE as a ManyChat subscriber on each account (2026-07-13 fix).
+// The old phone-number lookup NEVER worked: (a) the MANAGER numbers are the bots' OWN
+// numbers — WhatsApp silently drops a bot messaging itself; (b) WhatsApp subscribers
+// carry phone:null so findBySystemField always returned empty. Sending straight to his
+// known subscriber id on each account actually lands on his phone.
+const MANAGER_SUB_BY_STORE = {
+  'Trendy Kicks': '2002253438',          // Driplomatics on TK
+  'Official Sneaker Crew': '318550271',  // Driplomatics on OSC
+};
+
 async function waSendManager(text, token) {
+  // NEW primary path: direct sends to Rodney's subscriber id on every account we
+  // have a live token for. His one phone gets the alert from whichever bot can reach it.
+  let anyDirect = false;
+  for (const [store, subId] of Object.entries(MANAGER_SUB_BY_STORE)) {
+    const tk = storeTokens.get(store) || token || lastToken || process.env.MANYCHAT_TOKEN;
+    if (!tk) continue;
+    try { await sendChunk(subId, [{ type: 'text', text }], tk); anyDirect = true; } catch (_) {}
+  }
+  if (anyDirect) return true;
+  // Legacy fallback: the old phone lookup (kept in case the sub ids ever change).
   if (!MANAGER_NUMBERS.length) return false;
   // A manager number only shows up as a "subscriber" on the ONE account it has messaged.
   // The delivery's chat could be on either account, so an owner who messaged only the OTHER
