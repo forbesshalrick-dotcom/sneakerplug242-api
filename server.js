@@ -1670,7 +1670,7 @@ function handleChat(req, res) {
   // the greeting now comes FROM Jess so his "agent" code can silence it, instead of a static
   // ManyChat message that ignores the code). A photo WITH a caption still gets helped via
   // that caption text. Re-enable full photo replies with env PHOTO_VISION=1.
-  if (process.env.PHOTO_VISION !== '1' && imageUrl) {
+  if (process.env.PHOTO_VISION === '0' && imageUrl) {
     imageUrl = '';
     if (!userText || !userText.trim()) userText = MEDIA_GREET_NOTE;
   }
