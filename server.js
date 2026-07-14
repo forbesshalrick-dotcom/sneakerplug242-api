@@ -813,6 +813,7 @@ ${welcomeRule}
 - EXACT SIZE OUT → CHECK THE SHOE'S OTHER SIZES AND OFFER THE NEAREST (CRITICAL): When a customer wants a SPECIFIC shoe (e.g. "White Thunder", "the all-white Air Force 1") in a size we don't have, do NOT jump straight to a different colour or model, and do NOT just say "we don't have it in a 10" and stop. ⚠️ You MUST first search_inventory for that shoe by NAME ONLY, with NO size filter — searching the name + their size just tells you it's missing in THAT size; searching the name alone shows you EVERY size it comes in. THEN offer the CLOSEST sizes we DO have of that SAME shoe. Example: customer wants "White Thunder in a 10", we don't have a 10 but the White Thunder comes in 5.5, 6.5, 9.5, 10.5, 11 → reply "We don't have the White Thunder in a 10 right now, but we've got it in a 9.5 and a 10.5 👟 — want me to send it?". Never leave a near size unmentioned. (For the all-white Air Force 1 with no 11 but a 10, 10.5, 12: "…isn't in an 11 right now, but we've got it in a 10, a 10.5 and a 12 👟 — want me to send it?"). To help them say yes, add a light fit tip based on which way you're nudging: if the nearest size is a bit BIGGER (a size UP), mention they "run a little small, so a [that size] fits true"; if it's a bit SMALLER (a size DOWN), mention they "run a little big, so a [that size] still fits great". Only AFTER they pass on the near sizes should you suggest a different colour or model. Always try to keep them on the shoe they actually asked for.
 - "NO MORE X?" = "GOT ANY MORE X?" (Bahamian phrasing — IMPORTANT, Rodney 2026-07-13): when a customer says "no more New Balance?", "no more Jordans?", "no more in black?" — they are ASKING whether we have MORE of that thing, NOT refusing it. NEVER read it as "I don't want X". Search and show MORE of X (excluding what you already sent), or say honestly "that's all our X right now" and offer the closest thing.
 - THIN COLOUR RESULTS → OFFER THE COLOUR FAMILY (Rodney 2026-07-13): if a colour search returns only 1-2 pairs (e.g. just one "Navy Blue"), show them AND in the same breath offer the wider family — navy → other BLUES, burgundy/maroon → other REDS, cream/tan → other BROWNS/earth tones, charcoal → other GREYS/blacks. E.g. "That's our only navy right now 👟 want me to send the other blues we've got?" Never ask "want more navy options?" when that was the only navy — offering more of something we don't have looks silly.
+- 🔄 EVERY STOCK QUESTION = A FRESH SEARCH, EVERY TIME (CRITICAL — 2026-07-14: a customer was told "no navy blue NB in a 10" from MEMORY while the shoe sat in stock): whenever anyone asks whether we have something — any "do you have / got any / any more / is it available" — you MUST call search_inventory on THAT turn before answering, even if you searched the same thing earlier in this chat and even if you are sure of the answer. Stock changes minute to minute (sales, corrections, restocks) — an earlier result in this conversation proves NOTHING about right now. Never say "we don't have it" from memory.
 - COLOUR NAMED = SEARCH IT, NEVER ASSUME (CRITICAL): When a customer names a COLOUR of a model — "black and yellow", "the green one", "in white", "you got it in red?" — whether they're correcting a colour you just showed or asking fresh, you MUST call search_inventory for that MODEL + that COLOUR and SHOW what matches BEFORE you ever say we don't have it. Our colours are stored like "Black/Yellow", "White/Green", "Purple/Black/Yellow" — so "black and yellow Jordan 4" → search_inventory "jordan 4 black yellow". ⚠️ Saying "we don't have that colourway" WITHOUT searching it is a critical, sale-losing mistake — a customer naming a colour of a model we carry almost always means we DO have it (e.g. we stock BOTH the Red Thunder AND the Black/Yellow Thunder Jordan 4 — never assume the one you showed is the only one). Only say we don't have it after a search for that exact model + colour truly comes back empty.
 - THE MODELS WE CARRY (our LIVE stock — this is your vocabulary; it updates automatically as stock changes):
 ${modelList}
@@ -1824,7 +1825,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
     // photos (👇 points at them), no matter how the model sequences its turns.
     const searchingOnly = toolUses.some(t => t.name === 'search_inventory') && !sendPhotosTU;
-    if (!searchingOnly && !sendPhotosTU && turnText) {
+    // A STOCK question answered with words only (no search this turn) is about to be
+    // forced into a fresh search below — hold the unverified "we don't have it" text so
+    // the customer never sees a from-memory answer that the live search then contradicts.
+    const willForceStockSearch = !toolUses.length && !didSearch && !photosSentRun && step === 0
+      && /\b(do (you|u|ya|y'?all) have|you got|got any|have any|any more|is there|in stock|available)\b/i.test(text || '');
+    if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
       const sc = await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => ({ ok: false }));
@@ -1838,6 +1844,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (image && !didSearch && !photosSentRun && step === 0
           && !/receipt|payment|paid|pay|transfer|suncash|deposit|slip|confirm|order|deliver/i.test(turnText || '')) {
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: that photo was a SHOE, so you MUST now search our stock for it (search BROAD — brand + line) and send the closest matching pair(s) with an honest lead-in. Never leave a shoe photo with words only.)' });
+        forceSearchNext = true;
+        continue;
+      }
+      // STOCK QUESTION answered FROM MEMORY (2026-07-14: "do you have navy blue NB in 10?"
+      // got "no, only 8/9.5/11/12" with ZERO searches — she recited an old result while the
+      // shoe sat in stock). An availability question MUST hit the live inventory THIS turn:
+      // if she answered one without searching, loop once and force a fresh search.
+      if (willForceStockSearch) {
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: that was a STOCK question and you answered WITHOUT searching. Old results in this conversation are STALE — stock changes all day. You MUST call search_inventory NOW for exactly what they asked (remember: "navy" also means "navy blue", and search the MODEL too), and answer from THOSE results only.)' });
         forceSearchNext = true;
         continue;
       }
