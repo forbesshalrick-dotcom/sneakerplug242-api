@@ -1115,13 +1115,17 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
   // in men's stock too — a women's 6.5 then sees the men's 5s (her true size) PLUS every
   // men's 6.5, so she gets the full lineup instead of just the handful in that thin size.
   // (Only for the normal "any" search — a multi-size "all"/matching search stays exact.)
-  const isAll = String(size_match).toLowerCase() === 'all';
+  const baseSizes = []
+    .concat(Array.isArray(sizes) ? sizes : (sizes != null ? [sizes] : []))
+    .concat(size != null ? [size] : [])
+    .map(x => parseFloat(x)).filter(n => !isNaN(n));
+  // "all" (matching) only means something with MULTIPLE sizes. With ONE size it silently
+  // became an exact-only search that killed the half-size-up rule (2026-07-14: "10.5
+  // asics" returned a single shoe — the three asics with an 11 never showed).
+  const isAll = String(size_match).toLowerCase() === 'all' && new Set(baseSizes.map(String)).size > 1;
   const wideWomens = womens && !isAll;
   const sizeList = [...new Set(
-    []
-      .concat(Array.isArray(sizes) ? sizes : (sizes != null ? [sizes] : []))
-      .concat(size != null ? [size] : [])
-      .map(x => parseFloat(x)).filter(n => !isNaN(n))
+    baseSizes
       .flatMap(n => womens
         ? (wideWomens ? [String(n - 1.5), String(n)] : [String(n - 1.5)])
         // MEN'S: on a normal "any" search ALWAYS also include the half-size UP, so a size 6
@@ -1132,7 +1136,7 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
   )];
   if (sizeList.length) {
     const has = (s, want) => s.sizesRaw.some(x => String(parseFloat(x)) === want);
-    if (String(size_match).toLowerCase() === 'all') {
+    if (isAll) {
       // MATCHING: keep only shoes available in EVERY listed size.
       rows = rows.filter(({ s }) => sizeList.every(w => has(s, w)));
     } else {
