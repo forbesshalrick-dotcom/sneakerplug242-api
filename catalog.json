@@ -3866,14 +3866,12 @@
   "color": "White/Pink",
   "price": 130,
   "sizes": [
-   "5.5",
-   "6.5",
-   "7"
+   "4",
+   "5.5"
   ],
   "sizesRaw": [
-   "5.5",
-   "6.5",
-   "7"
+   "4",
+   "5.5"
   ],
   "nickname": "",
   "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0384-thumb.jpg"
