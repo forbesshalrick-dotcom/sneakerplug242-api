@@ -618,7 +618,15 @@ async function sendChunk(subscriberId, messages, token) {
     }),
   });
   const body = await r.text();
-  return { ok: r.ok, status: r.status, body: body.slice(0, 300) };
+  // ManyChat can fail with an error HTTP status OR a 200 carrying {"status":"error"}.
+  // Either way, LOG it — silent send failures made Jess look like she ignored a
+  // customer (2026-07-14: two voice questions got no reply and nothing was recorded).
+  const ok = r.ok && !/"status"\s*:\s*"error"/i.test(body);
+  if (!ok) {
+    recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300) });
+    if (recent.length > 25) recent.length = 25;
+  }
+  return { ok, status: r.status, body: body.slice(0, 300) };
 }
 
 async function handleSendPhotos(req, res) {
@@ -1803,8 +1811,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // photos (👇 points at them), no matter how the model sequences its turns.
     const searchingOnly = toolUses.some(t => t.name === 'search_inventory') && !sendPhotosTU;
     if (!searchingOnly && !sendPhotosTU && turnText) {
-      await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => {});
-      sentToCustomer = true;
+      // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
+      // safety net below stays armed instead of the customer getting dead silence.
+      const sc = await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => ({ ok: false }));
+      if (sc && sc.ok) sentToCustomer = true;
     }
     if (!toolUses.length) {
       // SHOE PHOTO but she just TALKED about it (identified/asked the name) without ever
