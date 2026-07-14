@@ -1496,6 +1496,18 @@ function savePhotoCodes() { // debounced best-effort write
 }
 function nextPhotoCode(sub, shoe) {
   const e = photoCodes.get(sub) || { n: 0, ts: 0, map: {} };
+  // ONE SHOE = ONE LABEL per customer (Rodney 2026-07-14): the same navy 1906 went out
+  // three times in one chat under THREE different codes (F6/H6/…) because every send
+  // minted a fresh label — the customer called a code and nobody knew which was "right".
+  // If this shoe already has a live code in this conversation, REUSE it.
+  for (const [code, v] of Object.entries(e.map)) {
+    if (v && v.id === shoe.id) {
+      e.ts = Date.now();
+      v.name = displayName(shoe); v.price = shoe.price; v.sizes = sizesOf(shoe);
+      photoCodes.set(sub, e); savePhotoCodes();
+      return code;
+    }
+  }
   if (e.n >= 26 * 9) { e.n = 0; e.map = {}; }         // safety wrap on very long chats
   e.n += 1;
   const code = String.fromCharCode(65 + Math.floor((e.n - 1) / 9)) + (((e.n - 1) % 9) + 1); // A1..A9,B1..
@@ -1835,7 +1847,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const toolResults = [];
     for (const tu of toolUses) {
       let result;
-      if (tu.name === 'search_inventory') { const found = searchInventory(tu.input || {}); lastSearchCount = found.length; result = { shoes: found }; }
+      if (tu.name === 'search_inventory') {
+        const found = searchInventory(tu.input || {});
+        lastSearchCount = found.length;
+        result = { shoes: found };
+        // Log every search (params + hit count) — "she can't find it" bugs were
+        // impossible to diagnose without seeing what she actually searched (2026-07-14).
+        record(req, { endpoint: 'search', sub, params: tu.input, found: found.length });
+      }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         const includeSizes = inp.include_sizes !== false; // default true
