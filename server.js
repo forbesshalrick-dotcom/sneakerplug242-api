@@ -1829,7 +1829,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // forced into a fresh search below — hold the unverified "we don't have it" text so
     // the customer never sees a from-memory answer that the live search then contradicts.
     const willForceStockSearch = !toolUses.length && !didSearch && !photosSentRun && step === 0
-      && /\b(do (you|u|ya|y'?all) have|you got|got any|have any|any more|is there|in stock|available)\b/i.test(text || '');
+      && /\b(do (you|u|ya|y'?all) have|you got|got any|have any|any more|is there|in stock|available)\b/i.test(userText || '');
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
