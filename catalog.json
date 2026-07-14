@@ -4700,15 +4700,19 @@
  {
   "id": "c0382",
   "brand": "New Balance",
-  "name": "New Balance 9060",
+  "name": "New Balance 530",
   "color": "White/Blue",
   "price": 130,
   "sizes": [
+   "5.5",
+   "5.5",
    "5.5",
    "6.5",
    "10"
   ],
   "sizesRaw": [
+   "5.5",
+   "5.5",
    "5.5",
    "6.5",
    "10"
