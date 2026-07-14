@@ -114,7 +114,7 @@ function record(req, extra) {
     parsedBody: req.body,
     ...extra,
   });
-  if (recent.length > 25) recent.length = 25;
+  if (recent.length > 120) recent.length = 120;
 }
 
 // ── Pull the customer's text out of the request, however it arrived ───────────
@@ -623,8 +623,8 @@ async function sendChunk(subscriberId, messages, token) {
   // customer (2026-07-14: two voice questions got no reply and nothing was recorded).
   const ok = r.ok && !/"status"\s*:\s*"error"/i.test(body);
   if (!ok) {
-    recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300) });
-    if (recent.length > 25) recent.length = 25;
+    recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
+    if (recent.length > 120) recent.length = 120;
   }
   return { ok, status: r.status, body: body.slice(0, 300) };
 }
@@ -1681,7 +1681,7 @@ const reminderTick = setInterval(async () => {
     try { await waSendManager(r.lines, tk); } catch (_) {}
     try { require('./shop').addAlert(r.lines, 'Jess 🤖'); } catch (_) {}
     recent.unshift({ at: new Date().toISOString(), endpoint: 'order-reminder-fired', store: r.store, lines: r.lines });
-    if (recent.length > 25) recent.length = 25;
+    if (recent.length > 120) recent.length = 120;
   }
 }, 60 * 1000);
 if (reminderTick.unref) reminderTick.unref();
