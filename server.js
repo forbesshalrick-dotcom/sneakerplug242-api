@@ -827,7 +827,7 @@ ${modelList}
   • IF YOU DON'T KNOW their size yet: don't fire back a cold "what size?" — warmly acknowledge the yes AND ask, in one friendly line, e.g. "Perfect! 👟 What size you looking for? I'll send you what we've got 😊". Then the moment they give a size, show everything in it.
 - ONCE YOU HAVE THEIR SIZE, SEND EVERYTHING — STOP ASKING (VERY IMPORTANT): the moment you know the customer's size AND they give ANY show-me cue — "catalog", "catalogue", "pictures", "pics", "photos", "I want to see pictures", "what do you have", "what you got", "options", "show me", "lemme see", "yes", "ok", "plz", "send", OR any brand/model ("Jordan", "New Balance", "Air Max", "Dunks", "Air Force", "Vapormax") — call search_inventory and send_photos RIGHT AWAY. Do NOT ask "want me to show you?" a second time. TWO hard rules on this:
   (a) INCLUDE THE HALF-SIZE UP: search_inventory with sizes = [their size AND the next half-size up] and size_match = "any" — size 9 → ["9","9.5"], size 10 → ["10","10.5"], size 10.5 → ["10.5","11"]. include_sizes = true.
-  (b) SEND THE WHOLE ALBUM AT ONCE: make ONE send_photos call with EVERY id search_inventory returned, as a single flat list, plus a lead-in ("This is what we have in size 9 rite now 👇 Ready to Order!"). Send them ALL in that one call — do NOT split into a "first 5" batch, do NOT send a few then wait, do NOT send a handful then say "check the website". Just dump the full lineup in one go. The website-link closing line is added automatically. If they named a brand, do the same for that brand + their size(s). (If the customer says STOP / "that's enough" while you're mid-conversation, don't send more.)
+  (b) SEND THE WHOLE ALBUM AT ONCE: make ONE send_photos call with EVERY id search_inventory returned, as a single flat list, plus a lead-in ("This is what we have in size 9 rite now 👇 Ready to Order!"). ⚠️ When the customer's size is known, ALWAYS pass it as send_photos's "size" argument too — the system then physically blocks any shoe that doesn't come in their size from going out (Rodney 2026-07-13: a "size 9" album went out with the Nike Shox, which has no 9 — that must never happen; only shoes they can actually get belong in a "your size" album). Send them ALL in that one call — do NOT split into a "first 5" batch, do NOT send a few then wait, do NOT send a handful then say "check the website". Just dump the full lineup in one go. The website-link closing line is added automatically. If they named a brand, do the same for that brand + their size(s). (If the customer says STOP / "that's enough" while you're mid-conversation, don't send more.)
 - "ALL IN SIZE X" MEANS ALL BRANDS — NEVER ASK "WHAT BRAND?" (IMPORTANT): if a customer says "all in size 9", "everything in size 9", "all size 9 please", "what you got in a 9", "show me everything in 9", or anything of that shape, they want to see EVERY shoe we carry in that size across ALL brands and models. Immediately call search_inventory with sizes = [that size AND the half-size up] size_match = "any" and NO brand and NO query, then send_photos of EVERY id it returns. Do NOT reply "I need to know what shoes you're after / what brand or model?" — "all" already answered that: it's all of them. Only ask a follow-up question if the search genuinely comes back empty.
 - EVEN IF THEY ONLY GAVE A SIZE (still show them — don't sit waiting): the moment you know their size, send the FULL ALBUM in that size right away (search_inventory + one send_photos with every id). A bare size with nothing else is STILL a green light to show everything — don't wait for another word and don't re-ask what they want. Everyone who gives us a size gets the whole lineup, so we never miss a customer. ⚠️ "SEND [SIZE]" IS AN ORDER, NOT A QUESTION (Rodney's rule 2026-07-13 — Bahamians talk short): "send 10.5", "send a ten and a half", "send 9", "shoot me the 8s", "let me get a 12" means SEND ME EVERYTHING YOU HAVE IN THAT SIZE, all brands. Do NOT reply "I need to know which shoe you want" or "what are you after?" — that's the #1 way to lose them. Just search that size (plus the half up) across ALL brands and send the whole album with "This is what we have in 10.5 rite now 👇 Ready to Order!".
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
@@ -984,6 +984,7 @@ const AI_TOOLS = [
             required: ['ids'],
           },
         },
+        size: { type: 'string', description: "The ONE size the customer asked for (men's number, or women's number with womens=true), e.g. \"9\". ALWAYS pass it when the customer has given their size — the system then hard-drops any shoe that doesn't actually come in that size (or its half-size up) so a wrong-size pair can NEVER go out in a \"your size\" album, and tells you what was dropped so you can offer the nearest size honestly. Omit ONLY when no size is known, when comparing two sizes with groups, or when you are DELIBERATELY showing a nearest-size alternative and saying so." },
         include_sizes: { type: 'boolean', description: 'true = show name, price AND available sizes under each photo (use when the customer has NOT given a size / is just browsing, or for a size RANGE so they see which size each pair has). false = show only name and price (use when the customer gave one exact size, or for matching/grouped sends). Defaults to true.' },
         womens: { type: 'boolean', description: 'Set true when showing photos to a customer shopping in WOMEN\'S sizes. The size labels under each photo are then shown in WOMEN\'S sizing (each men\'s size appears as its two women\'s sizes — men\'s 7 shows as "8, 8.5") so she sees HER size, not the men\'s number. Use include_sizes = true with this so the converted sizes actually show. Default false.' },
       },
@@ -1753,9 +1754,41 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         const includeSizes = inp.include_sizes !== false; // default true
+        // SIZE GUARD (2026-07-13 — a "size 9" album went out including the Nike Shox,
+        // which comes in no 9 or 9.5): when the customer's size is known, hard-drop any
+        // shoe that doesn't actually come in it (or its half-size up; women's = her
+        // men's-equivalent or the literal number) BEFORE anything sends. The dropped
+        // shoes are reported back so Jess can offer the nearest size honestly instead
+        // of implying a fit we don't have.
+        const droppedWrongSize = [];
+        const wantN = parseFloat(inp.size);
+        if (!isNaN(wantN)) {
+          const acceptable = inp.womens === true
+            ? [String(wantN - 1.5), String(wantN)]
+            : [String(wantN), String(wantN + 0.5)];
+          const liveM = liveShoeMap();
+          const fits = (id) => {
+            const s = liveM[id];
+            return !!s && s.sizesRaw.some(x => acceptable.includes(String(parseFloat(x))));
+          };
+          const drop = (id) => {
+            const s = liveM[id];
+            if (s) droppedWrongSize.push(`${displayName(s)} (only has: ${sizesOf(s)})`);
+            return false;
+          };
+          if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(id => fits(id) || drop(id));
+          if (Array.isArray(inp.groups)) for (const g of inp.groups) {
+            if (Array.isArray(g.ids)) g.ids = g.ids.filter(id => fits(id) || drop(id));
+          }
+        }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true);
+        if (droppedWrongSize.length) {
+          record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
+          result.dropped_wrong_size = droppedWrongSize;
+          result.note = `These shoes were NOT sent — they don't come in a ${inp.size}${inp.womens ? " (women's)" : ''}: ${droppedWrongSize.join('; ')}. If one of them fits what the customer wanted, you may offer it as a NEAREST-SIZE option, saying plainly it doesn't come in their size.`;
+        }
         if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
         // Customer asked to STOP mid-album — end this turn, but CLOSE the tool call
         // properly first: leaving a dangling tool_use poisons the whole conversation
