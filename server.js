@@ -679,7 +679,7 @@ const WEBSITE = '242plug.netlify.app';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟 Want more options? Search our site 👉 ${WEBSITE}`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
-const FOLLOWUP_MSG = 'Hey! Just following up 😊 Did anything catch your eye? If not, no worries — maybe next time! 👟';
+const FOLLOWUP_MSG = "Hey! Just following up 😊 See one you like? Just send me the *code* under it (like *C1* or *D2*) and I'll get you sorted fast 👟 If not, no worries — maybe next time!";
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
 const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min after the nudge
@@ -721,8 +721,8 @@ const ASKME_T = {
 };
 const FOLLOWUP_T = {
   en: FOLLOWUP_MSG,
-  es: "¡Hola! Solo dando seguimiento 😊 ¿Viste algo que te gustó? Solo respóndeme con el *código* que está debajo (como *A1*) y te ayudo rápido 👟",
-  ht: "Alo! M ap tcheke avè w 😊 Èske w wè yon bagay ou renmen? Senpleman voye *kòd* ki anba a (tankou *A1*) epi m ap ede w vit 👟",
+  es: "¡Hola! Solo dando seguimiento 😊 ¿Viste algo que te gustó? Solo respóndeme con el *código* que está debajo (como *C1* o *D2*) y te ayudo rápido 👟",
+  ht: "Alo! M ap tcheke avè w 😊 Èske w wè yon bagay ou renmen? Senpleman voye *kòd* ki anba a (tankou *C1* oswa *D2*) epi m ap ede w vit 👟",
 };
 const CLOSER_T = {
   en: CLOSER_MSG,
@@ -731,8 +731,8 @@ const CLOSER_T = {
 };
 const END_OF_PHOTOS_T = {
   en: END_OF_PHOTOS_MSG,
-  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Solo respóndeme con el *código* que está debajo (como *A1*) y te ayudo rápido 👟 ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}`,
-  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Senpleman voye *kòd* ki anba a (tankou *A1*) epi m ap ede w vit 👟 Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}`,
+  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Solo respóndeme con el *código* que está debajo (como *C1* o *D2*) y te ayudo rápido 👟 ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}`,
+  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Senpleman voye *kòd* ki anba a (tankou *C1* oswa *D2*) epi m ap ede w vit 👟 Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}`,
 };
 const DELIVERY_FOLLOWUP_T = {
   en: DELIVERY_FOLLOWUP_MSG,
