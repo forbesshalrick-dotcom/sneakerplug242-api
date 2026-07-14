@@ -928,7 +928,7 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - 📍 HOW A DROPPED PIN ACTUALLY REACHES YOU (IMPORTANT): when the customer sends a pin (or any non-text thing), WhatsApp can't hand you the pin itself — instead the system RE-DELIVERS their PREVIOUS text word-for-word, marked with a SYSTEM NOTE saying a non-text message probably arrived. So if you were waiting on a location pin and their last message suddenly repeats (with that note), that IS the pin arriving — say "Got your pin! 📍" and treat the location as received. Do NOT answer the repeated words as if they typed them again, and do NOT re-confirm the order.
 - Once the location is sent/described: call notify_manager with stage "delivery_ready" (name, shoe + size, and location = the landmark they gave OR "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). Include price/payment ONLY if the customer actually brought it up — otherwise leave those blank (payment is handled on arrival). Then reply warmly, EXACTLY in this spirit: "Perfect! 🙌 The driver's heading out shortly and he'll give you a call when he's close 👟". Do NOT invent an exact ETA or say "I'm on my way" yourself — you're alerting the team, not driving.
 - AFTER the delivery is confirmed (you've already called notify_manager) — if the customer messages again asking "how long / you coming / where's the driver / you reaching?" — do NOT re-ask for their location or the order details. Say: "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". (The system also auto-sends a "we're still on the way!" reassurance if they go quiet for a while.)
-- FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Still send the ONE stage="order_confirmed" alert when they commit (location = e.g. "scheduled for Sunday — location to come"), but only call stage="delivery_ready" once they actually drop the location and say they're ready to receive — never before.
+- FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Still send the ONE stage="order_confirmed" alert when they commit (location = e.g. "scheduled for Sunday — location to come") — and because they named a FUTURE time, ALSO pass remind_in_hours (hours until roughly 10 AM of the day they want it: "tomorrow"=24, "next week"=168, "Sunday"=hours till Sunday) so the owner automatically gets a ⏰ reminder alert when that day comes. Only call stage="delivery_ready" once they actually drop the location and say they're ready to receive — never before.
 
 BAHAMIAN "COMING" PHRASING (IMPORTANT — locals often ask questions with no question mark):
 - "you coming", "you coming bro", "you reaching", "wen you coming", "how long" → this means "ARE YOU COMING for the delivery / how soon?" They want to know you're on the way. Reply that yes you're coming / sorting their delivery, and ask for the details you still need (what shoe + size if you don't have them yet, and where to meet). Do NOT just recite the location line at them.
@@ -1021,6 +1021,7 @@ const AI_TOOLS = [
         payment: { type: 'string', description: 'How they are paying: website/card, cash, which bank transfer, or SunCash.' },
         location: { type: 'string', description: "The customer's meet-up spot / address exactly as they gave it. Mention if they dropped a pin. For stage=\"order_confirmed\" before they've sent it, use \"not sent yet\"." },
         stage: { type: 'string', enum: ['order_confirmed', 'delivery_ready'], description: "\"order_confirmed\" = the customer just committed to buying but the location isn't in hand yet (owner gets a NEW ORDER heads-up). \"delivery_ready\" = location received, driver can roll. Default: delivery_ready." },
+        remind_in_hours: { type: 'number', description: "For FUTURE / SCHEDULED orders only: how many hours from now the customer wants it — the owner then gets a second ⏰ reminder alert when that time arrives, so a \"next week\" order can't be forgotten. \"tomorrow\" = 24, \"this weekend\" ≈ days until Saturday × 24, \"next week\" = 168, a named day = hours until ~10 AM that day. Leave out for right-now orders." },
       },
       required: ['location'],
     },
@@ -1610,6 +1611,56 @@ function clearFollowUp(sub) {
   if (h) { clearTimeout(h); followUps.delete(sub); }
 }
 
+// ── ⏰ SCHEDULED-ORDER REMINDERS (Rodney's design 2026-07-13) ─────────────────
+// A customer who commits for a FUTURE day ("next week", "Sunday") gets the owner
+// TWO alerts: the heads-up now, and a re-alert when that day actually arrives —
+// otherwise the order lives only in the owner's memory for a week. Persisted to
+// the /data volume so deploys/restarts can't eat a pending reminder.
+const REMINDERS_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'reminders.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+let reminders = [];
+try {
+  if (REMINDERS_FILE && require('fs').existsSync(REMINDERS_FILE)) {
+    reminders = JSON.parse(require('fs').readFileSync(REMINDERS_FILE, 'utf8')) || [];
+    console.log('[remind] restored', reminders.length, 'pending reminder(s)');
+  }
+} catch (e) { console.log('[remind] restore failed:', e.message); }
+let remindersSaveT = null;
+function saveReminders() {
+  if (!REMINDERS_FILE) return;
+  clearTimeout(remindersSaveT);
+  remindersSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(REMINDERS_FILE, JSON.stringify(reminders)); } catch (_) {}
+  }, 1500);
+  if (remindersSaveT.unref) remindersSaveT.unref();
+}
+function scheduleOrderReminder(ms, store, lines) {
+  reminders.push({ at: Date.now() + ms, store: store || null, lines });
+  saveReminders();
+}
+const reminderTick = setInterval(async () => {
+  const now = Date.now();
+  const due = reminders.filter(r => r.at <= now);
+  if (!due.length) return;
+  reminders = reminders.filter(r => r.at > now);
+  saveReminders();
+  for (const r of due) {
+    const tk = (r.store && storeTokens.get(r.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+    try { await waSendManager(r.lines, tk); } catch (_) {}
+    try { require('./shop').addAlert(r.lines, 'Jess 🤖'); } catch (_) {}
+    recent.unshift({ at: new Date().toISOString(), endpoint: 'order-reminder-fired', store: r.store, lines: r.lines });
+    if (recent.length > 25) recent.length = 25;
+  }
+}, 60 * 1000);
+if (reminderTick.unref) reminderTick.unref();
+
 // Keep memory bounded without splitting a tool_use/tool_result pair: trim to a
 // window that begins on a genuine customer text turn.
 function trimHistory(h, maxLen = 24) {
@@ -1866,7 +1917,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         let staffWa = [];
         try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
-        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', waOk, staffWa, staffOk });
+        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', remindH: inp.remind_in_hours || null, waOk, staffWa, staffOk });
+        // FUTURE ORDER → also re-alert the owner when the day the customer named arrives
+        // (Rodney's design 2026-07-13: heads-up now + a ⏰ reminder at the time it's for).
+        const remindH = Number(inp.remind_in_hours);
+        if (remindH > 0 && remindH < 24 * 60) {
+          const detail = lines.split('\n').slice(1).join('\n');
+          scheduleOrderReminder(remindH * 3600 * 1000, ctx.store,
+            '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + detail);
+        }
         // Delivery is now in motion — if the customer goes quiet, auto-reassure them
         // at ~20 min ("still on the way!"). Any reply from them cancels it (and Jess
         // then offers to call the driver). Reuses the one-pending-nudge timer.
@@ -2204,6 +2263,22 @@ function consoleAuth(req, res) {
   if (key !== CONSOLE_KEY) { res.status(401).json({ error: 'bad key' }); return false; }
   return true;
 }
+
+// Manually set (or list) owner reminders — e.g. an order arranged by hand in the
+// Inbox that Jess never saw. POST {key, hours, store, text} / GET ?key= to list.
+app.post('/console/remind', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = req.body || {};
+  const hours = Number(b.hours);
+  if (!(hours > 0) || !b.text) return res.status(400).json({ error: 'need hours > 0 and text' });
+  scheduleOrderReminder(hours * 3600 * 1000, b.store || null,
+    '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + String(b.text));
+  res.json({ ok: true, fires_at: new Date(Date.now() + hours * 3600 * 1000).toISOString(), pending: reminders.length });
+});
+app.get('/console/remind', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  res.json({ pending: reminders.map(r => ({ fires_at: new Date(r.at).toISOString(), store: r.store, lines: r.lines })) });
+});
 
 // List of recent customers + which accounts we have a token for (no tokens leaked).
 app.get('/console/recent', (req, res) => {
