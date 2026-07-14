@@ -66,6 +66,10 @@ const FRAME_OVERRIDES = {
   'nb740pinksilv001': 1,
   // Jordan 5 (size 10.5 list — frame 0 wasn't a clean side profile; 19 was tilted)
   'jordan5blue001': 9,
+  // Outer-side profiles (Rodney 2026-07-14: customers see the outside of a shoe when
+  // someone walks — never lead with the inner side)
+  'jordan4yellow001': 17,
+  'p41': 18,
 };
 for (const s of catalog) {
   if (!s.image) continue;
@@ -882,6 +886,7 @@ ${modelList}
   (b) SEND THE WHOLE ALBUM AT ONCE: make ONE send_photos call with EVERY id search_inventory returned, as a single flat list, plus a lead-in ("This is what we have in size 9 rite now 👇 Ready to Order!"). 🚫 ALBUMS COME FROM A FRESH SEARCH, NEVER FROM MEMORY (2026-07-14: a customer asked for "95's" and got Jordan 4s re-sent from an earlier album, captioned "here's the 95s" — flat-out wrong shoes): every send_photos id list MUST come from a search_inventory call made THIS turn, and when the customer named a model ("95s", "Jordans", "Dunks"), that model MUST be in the search query. If the fresh search returns nothing, say so honestly — never substitute remembered shoes and never claim they match the model asked. ⚠️ When the customer's size is known, ALWAYS pass it as send_photos's "size" argument too — the system then physically blocks any shoe that doesn't come in their size from going out (Rodney 2026-07-13: a "size 9" album went out with the Nike Shox, which has no 9 — that must never happen; only shoes they can actually get belong in a "your size" album). Send them ALL in that one call — do NOT split into a "first 5" batch, do NOT send a few then wait, do NOT send a handful then say "check the website". Just dump the full lineup in one go. The website-link closing line is added automatically. If they named a brand, do the same for that brand + their size(s). (If the customer says STOP / "that's enough" while you're mid-conversation, don't send more.)
 - "ALL IN SIZE X" MEANS ALL BRANDS — NEVER ASK "WHAT BRAND?" (IMPORTANT): if a customer says "all in size 9", "everything in size 9", "all size 9 please", "what you got in a 9", "show me everything in 9", or anything of that shape, they want to see EVERY shoe we carry in that size across ALL brands and models. Immediately call search_inventory with sizes = [that size AND the half-size up] size_match = "any" and NO brand and NO query, then send_photos of EVERY id it returns. Do NOT reply "I need to know what shoes you're after / what brand or model?" — "all" already answered that: it's all of them. Only ask a follow-up question if the search genuinely comes back empty.
 - 🛑 WRAP-UP WORDS END THE PICTURES, FULL STOP (Rodney 2026-07-13 — a customer said "ok that's it", pics kept coming, and they BLOCKED us): "ok that's it", "that's all", "that's good", "I'm good", "all set", "thank you"/"thanks" after seeing shoes = they are DONE looking. Reply with ONE short warm line ("Anytime! 🙌 Holla at us when you're ready 👟") and NOTHING else — no more send_photos, no "want to see more?", no catalog offer. Sending more pictures after a wrap-up is how we get blocked. (The system also brakes a running album on these words — your job is just to not START a new one.)
+- 📸 "JUST THE PICTURES, NO INFO" = PHOTOS-ONLY MODE (Rodney 2026-07-14 — staff forward albums to their customers, and label bubbles force them to share pics one by one): when someone EXPLICITLY asks for pictures WITHOUT the info — "just the pictures", "only the photos", "no info", "no sizes", "without the words/text", "pictures only" — call send_photos with photos_only = true (still pass their size filters as normal). The images then arrive as one clean album they can save and forward in ONE tap. Keep the lead_in to nothing or one short line. Remember no order codes go out in this mode, so if they pick a shoe afterwards they'll describe it by name/colour — match it with search_inventory as usual. Use this ONLY when asked; normal customers always get the labels.
 - 🎯 ONE SHOE ALREADY LOCKED IN? "SEND PICTURES" MEANS THAT SHOE (overrides every album rule — 2026-07-14: a customer had just confirmed the D8 Air Max 95 in a 7 and Jess was asking for their delivery pin; they said "send pictures" + "7" and got the ENTIRE size-7 album dumped on them): when a SPECIFIC shoe is the active subject of the conversation — they picked a code, confirmed a pair, or you're mid-order on it — then "send pic/pictures/photos" means photos of THAT shoe. Call send_photos with just that shoe's id, no size questions (you already know their size), no full lineup. The "bare size = whole album" rules apply ONLY when no specific shoe is in play.
 - EVEN IF THEY ONLY GAVE A SIZE (still show them — don't sit waiting): the moment you know their size, send the FULL ALBUM in that size right away (search_inventory + one send_photos with every id). A bare size with nothing else is STILL a green light to show everything — don't wait for another word and don't re-ask what they want. Everyone who gives us a size gets the whole lineup, so we never miss a customer. ⚠️ "SEND [SIZE]" IS AN ORDER, NOT A QUESTION (Rodney's rule 2026-07-13 — Bahamians talk short): "send 10.5", "send a ten and a half", "send 9", "shoot me the 8s", "let me get a 12" means SEND ME EVERYTHING YOU HAVE IN THAT SIZE, all brands. Do NOT reply "I need to know which shoe you want" or "what are you after?" — that's the #1 way to lose them. Just search that size (plus the half up) across ALL brands and send the whole album with "This is what we have in 10.5 rite now 👇 Ready to Order!".
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
@@ -1040,6 +1045,7 @@ const AI_TOOLS = [
         },
         size: { type: 'string', description: "The ONE size the customer asked for (men's number, or women's number with womens=true), e.g. \"9\". ALWAYS pass it when the customer has given their size — the system then hard-drops any shoe that doesn't actually come in that size (or its half-size up) so a wrong-size pair can NEVER go out in a \"your size\" album, and tells you what was dropped so you can offer the nearest size honestly. Omit ONLY when no size is known, when comparing two sizes with groups, or when you are DELIBERATELY showing a nearest-size alternative and saying so." },
         include_sizes: { type: 'boolean', description: 'true = show name, price AND available sizes under each photo (use when the customer has NOT given a size / is just browsing, or for a size RANGE so they see which size each pair has). false = show only name and price (use when the customer gave one exact size, or for matching/grouped sends). Defaults to true.' },
+        photos_only: { type: 'boolean', description: 'true = send ONLY the bare images: no name/price/size text bubbles between them and no closing line, so the pictures arrive as one clean WhatsApp album the receiver can save and forward in one tap. Use ONLY when the person explicitly asks for "just the pictures" / "no info" / "pictures only" / "without the sizes". Default false — labels normally always go out.' },
         womens: { type: 'boolean', description: 'Set true when showing photos to a customer shopping in WOMEN\'S sizes. The size labels under each photo are then shown in WOMEN\'S sizing (each men\'s size appears as its two women\'s sizes — men\'s 7 shows as "8, 8.5") so she sees HER size, not the men\'s number. Use include_sizes = true with this so the converted sizes actually show. Default false.' },
       },
     },
@@ -1216,10 +1222,13 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
 }
 
-async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false) {
+async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false) {
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
   // clumping the photos into one album, so each pic shows with its label beneath.
+  // photosOnly=true flips that on purpose (staff request 2026-07-14): NO label
+  // bubbles and NO closing line — bare images clump into one WhatsApp album, which
+  // saves as a group on staff phones and forwards to a customer in ONE tap.
   // womens=true → show BOTH sides of the conversion so she sees her women's size
   // AND the men's size it actually is ("a men's 5.5 is a women's 7"), no confusion.
   const labelText = (s) => {
@@ -1263,7 +1272,8 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     : dedupe(ids).length;
   // ALWAYS label every photo (name + price + sizes) — no matter how many — so the
   // customer can always read the shoe's name off the pic and tell us which one.
-  const showLabels = true;
+  // (Exception: an explicit "just the pictures" request — photosOnly above.)
+  const showLabels = !photosOnly;
 
   // Lead-in line goes out FIRST so the 👇 points down at the photos that follow —
   // but ONLY when there's more than one photo. For a single picture its own label
@@ -1314,7 +1324,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // Close with the "text me the name" prompt once photos have gone out — but only
   // ONCE per burst: a two-colour request fires 3 send_photos calls back-to-back, and
   // we don't want the closing line repeated 3×. Send it at most once per 45s per sub.
-  if (sent > 0 && !interrupted) {
+  if (sent > 0 && !interrupted && !photosOnly) {
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
@@ -1950,7 +1960,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
-        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true);
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true);
         if (droppedWrongSize.length) {
           record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
           result.dropped_wrong_size = droppedWrongSize;
