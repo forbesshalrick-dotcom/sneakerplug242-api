@@ -1139,14 +1139,12 @@
   "price": 180,
   "sizes": [
    "7",
-   "8.5",
    "11",
    "12",
    "13"
   ],
   "sizesRaw": [
    "7",
-   "8.5",
    "11",
    "12",
    "13"
@@ -1163,14 +1161,12 @@
   "sizes": [
    "7",
    "7",
-   "7",
-   "8"
+   "7"
   ],
   "sizesRaw": [
    "7",
    "7",
-   "7",
-   "8"
+   "7"
   ],
   "nickname": "Winter",
   "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan12black001-thumb.jpg"
