@@ -1151,8 +1151,10 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
     // "gray" and "grey" are the same colour — normalise BOTH sides so either spelling
     // matches (2026-07-13: a customer asked for "gray Jordans", catalog says "Grey",
     // search found nothing and Jess wrongly said we were out).
-    const c = color.toLowerCase().replace(/\bgray\b/g, 'grey');
-    rows = rows.filter(({ s }) => `${s.color || ''} ${s.nickname || ''} ${s.name}`.toLowerCase().replace(/\bgray\b/g, 'grey').includes(c));
+    // "navy" IS blue — a shoe labelled just "Navy" must match a customer asking for
+    // "navy blue" (2026-07-14: the only size-10 navy NB was invisible to that ask).
+    const c = color.toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue');
+    rows = rows.filter(({ s }) => `${s.color || ''} ${s.nickname || ''} ${s.name}`.toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue').includes(c));
   }
   // Price filter: "under $150" → max_price 150; "over $100" → min_price 100; a range uses both.
   const maxP = parseFloat(max_price), minP = parseFloat(min_price);
@@ -1173,7 +1175,7 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
       // gray = grey (both spellings must match the catalog's "Grey")
       .map(w => w === 'gray' ? 'grey' : w);
     rows = rows.filter(({ s }) => {
-      const hay = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''} ${aliasTokens(s).join(' ')}`.toLowerCase().replace(/\bgray\b/g, 'grey');
+      const hay = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''} ${aliasTokens(s).join(' ')}`.toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue');
       const hayWords = hay.split(/[^a-z0-9.]+/).filter(Boolean);
       return words.every(w => wordMatches(hay, hayWords, w));
     });
