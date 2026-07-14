@@ -102,6 +102,32 @@ const PORT = process.env.PORT || 3000;
 // sends. View at GET /last?key=<DEBUG_KEY> . Purely diagnostic.
 const DEBUG_KEY = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
 const recent = [];
+// Persist the debug log across restarts (2026-07-14: every deploy wiped the evidence
+// mid-investigation four times in one day). Best-effort, debounced, /data volume only.
+const RECENT_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'debug-log.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (RECENT_FILE && require('fs').existsSync(RECENT_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(RECENT_FILE, 'utf8'));
+    if (Array.isArray(saved)) recent.push(...saved.slice(0, 120));
+  }
+} catch (_) {}
+let recentLogSaveT = null;
+function saveRecent() {
+  if (!RECENT_FILE) return;
+  clearTimeout(recentLogSaveT);
+  recentLogSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(RECENT_FILE, JSON.stringify(recent)); } catch (_) {}
+  }, 2000);
+  if (recentLogSaveT.unref) recentLogSaveT.unref();
+}
 function record(req, extra) {
   recent.unshift({
     at: new Date().toISOString(),
@@ -115,6 +141,7 @@ function record(req, extra) {
     ...extra,
   });
   if (recent.length > 120) recent.length = 120;
+  saveRecent();
 }
 
 // ── Pull the customer's text out of the request, however it arrived ───────────
@@ -623,7 +650,7 @@ async function sendChunk(subscriberId, messages, token) {
   // customer (2026-07-14: two voice questions got no reply and nothing was recorded).
   const ok = r.ok && !/"status"\s*:\s*"error"/i.test(body);
   if (!ok) {
-    recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
+    saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
     if (recent.length > 120) recent.length = 120;
   }
   return { ok, status: r.status, body: body.slice(0, 300) };
@@ -852,7 +879,7 @@ ${modelList}
   • IF YOU DON'T KNOW their size yet: don't fire back a cold "what size?" — warmly acknowledge the yes AND ask, in one friendly line, e.g. "Perfect! 👟 What size you looking for? I'll send you what we've got 😊". Then the moment they give a size, show everything in it.
 - ONCE YOU HAVE THEIR SIZE, SEND EVERYTHING — STOP ASKING (VERY IMPORTANT): the moment you know the customer's size AND they give ANY show-me cue — "catalog", "catalogue", "pictures", "pics", "photos", "I want to see pictures", "what do you have", "what you got", "options", "show me", "lemme see", "yes", "ok", "plz", "send", OR any brand/model ("Jordan", "New Balance", "Air Max", "Dunks", "Air Force", "Vapormax") — call search_inventory and send_photos RIGHT AWAY. CATALOG (IMPORTANT): if a customer says "catalog" or "catalogue" and you don't know their size yet — ask ONLY "What size are you? 👟" then immediately call search_inventory with no filters and send_photos of EVERY shoe in that size. Never send just the website link when a customer asks for the catalog. SHOE CODES (IMPORTANT): if a customer replies with a short alphanumeric code like "F6", "H9", "C1", "D2" etc. after seeing photos — that is them SELECTING a shoe. Recognize it as a shoe selection, confirm it ("Got it! You want the [shoe name] in size [X] 👟") then ask how they're paying and where to deliver. BRAND TYPOS (IMPORTANT): "Jordon", "Jordin", "Jodan" all mean Jordan. Always run search_inventory for the intended brand — never ask "what are you looking for?" when the brand is obvious from context. PAYMENT RECEIPT (IMPORTANT): if payment was already confirmed earlier in the conversation, a subsequent failed or unsuccessful receipt does NOT override it. The payment is still confirmed — do not ask the customer to pay again. Acknowledge the failed receipt gently if needed ("Looks like that one didn't go through, but your earlier payment is confirmed — we're good 👍") and move on. Do NOT ask "want me to show you?" a second time. TWO hard rules on this:
   (a) INCLUDE THE HALF-SIZE UP: search_inventory with sizes = [their size AND the next half-size up] and size_match = "any" — size 9 → ["9","9.5"], size 10 → ["10","10.5"], size 10.5 → ["10.5","11"]. include_sizes = true.
-  (b) SEND THE WHOLE ALBUM AT ONCE: make ONE send_photos call with EVERY id search_inventory returned, as a single flat list, plus a lead-in ("This is what we have in size 9 rite now 👇 Ready to Order!"). ⚠️ When the customer's size is known, ALWAYS pass it as send_photos's "size" argument too — the system then physically blocks any shoe that doesn't come in their size from going out (Rodney 2026-07-13: a "size 9" album went out with the Nike Shox, which has no 9 — that must never happen; only shoes they can actually get belong in a "your size" album). Send them ALL in that one call — do NOT split into a "first 5" batch, do NOT send a few then wait, do NOT send a handful then say "check the website". Just dump the full lineup in one go. The website-link closing line is added automatically. If they named a brand, do the same for that brand + their size(s). (If the customer says STOP / "that's enough" while you're mid-conversation, don't send more.)
+  (b) SEND THE WHOLE ALBUM AT ONCE: make ONE send_photos call with EVERY id search_inventory returned, as a single flat list, plus a lead-in ("This is what we have in size 9 rite now 👇 Ready to Order!"). 🚫 ALBUMS COME FROM A FRESH SEARCH, NEVER FROM MEMORY (2026-07-14: a customer asked for "95's" and got Jordan 4s re-sent from an earlier album, captioned "here's the 95s" — flat-out wrong shoes): every send_photos id list MUST come from a search_inventory call made THIS turn, and when the customer named a model ("95s", "Jordans", "Dunks"), that model MUST be in the search query. If the fresh search returns nothing, say so honestly — never substitute remembered shoes and never claim they match the model asked. ⚠️ When the customer's size is known, ALWAYS pass it as send_photos's "size" argument too — the system then physically blocks any shoe that doesn't come in their size from going out (Rodney 2026-07-13: a "size 9" album went out with the Nike Shox, which has no 9 — that must never happen; only shoes they can actually get belong in a "your size" album). Send them ALL in that one call — do NOT split into a "first 5" batch, do NOT send a few then wait, do NOT send a handful then say "check the website". Just dump the full lineup in one go. The website-link closing line is added automatically. If they named a brand, do the same for that brand + their size(s). (If the customer says STOP / "that's enough" while you're mid-conversation, don't send more.)
 - "ALL IN SIZE X" MEANS ALL BRANDS — NEVER ASK "WHAT BRAND?" (IMPORTANT): if a customer says "all in size 9", "everything in size 9", "all size 9 please", "what you got in a 9", "show me everything in 9", or anything of that shape, they want to see EVERY shoe we carry in that size across ALL brands and models. Immediately call search_inventory with sizes = [that size AND the half-size up] size_match = "any" and NO brand and NO query, then send_photos of EVERY id it returns. Do NOT reply "I need to know what shoes you're after / what brand or model?" — "all" already answered that: it's all of them. Only ask a follow-up question if the search genuinely comes back empty.
 - 🛑 WRAP-UP WORDS END THE PICTURES, FULL STOP (Rodney 2026-07-13 — a customer said "ok that's it", pics kept coming, and they BLOCKED us): "ok that's it", "that's all", "that's good", "I'm good", "all set", "thank you"/"thanks" after seeing shoes = they are DONE looking. Reply with ONE short warm line ("Anytime! 🙌 Holla at us when you're ready 👟") and NOTHING else — no more send_photos, no "want to see more?", no catalog offer. Sending more pictures after a wrap-up is how we get blocked. (The system also brakes a running album on these words — your job is just to not START a new one.)
 - EVEN IF THEY ONLY GAVE A SIZE (still show them — don't sit waiting): the moment you know their size, send the FULL ALBUM in that size right away (search_inventory + one send_photos with every id). A bare size with nothing else is STILL a green light to show everything — don't wait for another word and don't re-ask what they want. Everyone who gives us a size gets the whole lineup, so we never miss a customer. ⚠️ "SEND [SIZE]" IS AN ORDER, NOT A QUESTION (Rodney's rule 2026-07-13 — Bahamians talk short): "send 10.5", "send a ten and a half", "send 9", "shoot me the 8s", "let me get a 12" means SEND ME EVERYTHING YOU HAVE IN THAT SIZE, all brands. Do NOT reply "I need to know which shoe you want" or "what are you after?" — that's the #1 way to lose them. Just search that size (plus the half up) across ALL brands and send the whole album with "This is what we have in 10.5 rite now 👇 Ready to Order!".
@@ -1685,7 +1712,7 @@ const reminderTick = setInterval(async () => {
     const tk = (r.store && storeTokens.get(r.store)) || lastToken || process.env.MANYCHAT_TOKEN;
     try { await waSendManager(r.lines, tk); } catch (_) {}
     try { require('./shop').addAlert(r.lines, 'Jess 🤖'); } catch (_) {}
-    recent.unshift({ at: new Date().toISOString(), endpoint: 'order-reminder-fired', store: r.store, lines: r.lines });
+    saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'order-reminder-fired', store: r.store, lines: r.lines });
     if (recent.length > 120) recent.length = 120;
   }
 }, 60 * 1000);
@@ -1839,7 +1866,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // live search would contradict (2026-07-14: 1906 Navy 10 in stock, told "no" 4x).
     const willForceStockSearch = !didSearch && !photosSentRun && step === 0
       && !toolUses.some(t => t.name === 'search_inventory')
-      && /\b(do (you|u|ya|y'?all) have|you got|got any|have any|any more|is there|in stock|available)\b/i.test(userText || '');
+      && /\b(do (you|u|ya|y'?all) have|you got|got any|have any|any more|is there|in stock|available)\b|^\s*any\b/i.test(userText || '');
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
