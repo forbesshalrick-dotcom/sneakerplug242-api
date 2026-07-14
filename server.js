@@ -934,7 +934,7 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - 🚨 ALERT THE OWNER AT COMMITMENT, NOT JUST AT THE PIN (Rodney's rule 2026-07-13 — a real $260 order slipped by unnoticed because the pin never registered): as soon as the customer has picked their shoe + size and is clearly buying (arranging where to meet, "bring it", "I'll take it"), call notify_manager with stage="order_confirmed" and location="not sent yet" ON THAT SAME TURN — even though you don't have the pin. Then keep going and get the pin as normal. Call it with stage "order_confirmed" only ONCE per order — if the order then changes (extra pair, different size), do NOT re-send order_confirmed; the update goes in the later delivery_ready alert.
 - ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin — tap 📎 (or ＋) → Location → Send your current location — then text me \"sent\" so I know it came through 👟".
 - ⚠️ NEVER KEEP ASKING FOR THE PIN. The moment the customer says they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here" — OR they describe a spot/landmark, TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
-- 📍 HOW A DROPPED PIN ACTUALLY REACHES YOU (IMPORTANT): when the customer sends a pin (or any non-text thing), WhatsApp can't hand you the pin itself — instead the system RE-DELIVERS their PREVIOUS text word-for-word, marked with a SYSTEM NOTE saying a non-text message probably arrived. So if you were waiting on a location pin and their last message suddenly repeats (with that note), that IS the pin arriving — say "Got your pin! 📍" and treat the location as received. Do NOT answer the repeated words as if they typed them again, and do NOT re-confirm the order.
+- 📍 HOW A DROPPED PIN ACTUALLY REACHES YOU (IMPORTANT): when the customer sends a pin (or any non-text thing), WhatsApp can't hand you the pin itself — instead the system RE-DELIVERS their PREVIOUS text word-for-word, marked with a SYSTEM NOTE saying a non-text message probably arrived. So if you were waiting on a location pin and their last message suddenly repeats (with that note), that is PROBABLY the pin arriving — say "Got your pin! 📍 (if that was a photo or something else, just say so!)" and treat the location as received. ⚠️ The replay can also be a PHOTO or sticker WhatsApp couldn't deliver (2026-07-14: a shoe photo got a "Got your pin!"), so always include that little escape hatch, and if the customer corrects you ("that was a picture"), apologize lightly, handle what they actually sent, and ask for the pin again. Do NOT answer the repeated words as if they typed them again, and do NOT re-confirm the order.
 - Once the location is sent/described: call notify_manager with stage "delivery_ready" (name, shoe + size, and location = the landmark they gave OR "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). Include price/payment ONLY if the customer actually brought it up — otherwise leave those blank (payment is handled on arrival). Then reply warmly, EXACTLY in this spirit: "Perfect! 🙌 The driver's heading out shortly and he'll give you a call when he's close 👟". Do NOT invent an exact ETA or say "I'm on my way" yourself — you're alerting the team, not driving.
 - AFTER the delivery is confirmed (you've already called notify_manager) — if the customer messages again asking "how long / you coming / where's the driver / you reaching?" — do NOT re-ask for their location or the order details. Say: "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". (The system also auto-sends a "we're still on the way!" reassurance if they go quiet for a while.)
 - FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Still send the ONE stage="order_confirmed" alert when they commit (location = e.g. "scheduled for Sunday — location to come") — and because they named a FUTURE time, ALSO pass remind_in_hours (hours until roughly 10 AM of the day they want it: "tomorrow"=24, "next week"=168, "Sunday"=hours till Sunday) so the owner automatically gets a ⏰ reminder alert when that day comes. Only call stage="delivery_ready" once they actually drop the location and say they're ready to receive — never before.
@@ -1297,6 +1297,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 // while questions let the album finish (they queue and get answered right after).
 const lastIncoming = new Map();
 const lastIncomingText = new Map(); // sub -> the text of that latest message
+const lastReplayAt = new Map(); // sub -> when a non-text replay (pin/sticker/undelivered photo) last arrived
 const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
 const EMPTY_ASK_T = {
   en: "Hey! 👋 Would you like to see some pictures, or what we have in stock? 👟",
@@ -1968,6 +1969,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           inp.shoe ? `👟 ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : (inp.size ? `👟 size ${inp.size}` : null),
           inp.price ? `💰 ${inp.price}${inp.payment ? ` (${inp.payment})` : ''}` : (inp.payment ? `💰 ${inp.payment}` : null),
           `📍 ${inp.location || '(no location given)'}`,
+          // The "pin" may actually have been a photo/sticker WhatsApp couldn't deliver
+          // (2026-07-14: a shoe PHOTO arrived as a text-replay → "Got your pin!" → driver
+          // alert with NO real location in the chat). Tell the team to VERIFY.
+          (!earlyStage && lastReplayAt.get(sub) && (Date.now() - lastReplayAt.get(sub)) < 3 * 60 * 1000)
+            ? '⚠️ VERIFY THE PIN: it was auto-detected from an attachment — open the chat and make sure a real location pin is there (it could have been a photo). Ask the customer if not.'
+            : null,
           ctx.store ? `🏬 ${ctx.store}` : null,
         ].filter(Boolean).join('\n');
         let waOk = false;
@@ -2203,7 +2210,7 @@ function handleChat(req, res) {
   if (userText.trim() && !imageUrl && !audioUrl) {
     const prevTxt = (lastIncomingText.get(sub) || '').trim().toLowerCase().replace(/\s+/g, ' ');
     const nowTxt = userText.trim().toLowerCase().replace(/\s+/g, ' ');
-    if (prevTxt && prevTxt === nowTxt) nonTextReplay = true;
+    if (prevTxt && prevTxt === nowTxt) { nonTextReplay = true; lastReplayAt.set(sub, Date.now()); }
   }
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
   lastIncoming.set(sub, Date.now()); // stamps "they just spoke" (albums check this + the text below)
