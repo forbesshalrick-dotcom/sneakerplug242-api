@@ -1600,9 +1600,11 @@ async function waSendManager(text, token) {
   // have a live token for. His one phone gets the alert from whichever bot can reach it.
   let anyDirect = false;
   for (const [store, subId] of Object.entries(MANAGER_SUB_BY_STORE)) {
-    const tk = storeTokens.get(store) || token || lastToken || process.env.MANYCHAT_TOKEN;
+    // ONLY that store's own token can reach that store's subscriber id — sending TK's
+    // sub via OSC's token 400s with "Subscriber does not exist" (send-fail, 2026-07-14).
+    const tk = storeTokens.get(store);
     if (!tk) continue;
-    try { await sendChunk(subId, [{ type: 'text', text }], tk); anyDirect = true; } catch (_) {}
+    try { const r = await sendChunk(subId, [{ type: 'text', text }], tk); if (r && r.ok) anyDirect = true; } catch (_) {}
   }
   if (anyDirect) return true;
   // Legacy fallback: the old phone lookup (kept in case the sub ids ever change).
@@ -1825,16 +1827,29 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
     // photos (👇 points at them), no matter how the model sequences its turns.
     const searchingOnly = toolUses.some(t => t.name === 'search_inventory') && !sendPhotosTU;
-    // A STOCK question answered with words only (no search this turn) is about to be
-    // forced into a fresh search below — hold the unverified "we don't have it" text so
-    // the customer never sees a from-memory answer that the live search then contradicts.
-    const willForceStockSearch = !toolUses.length && !didSearch && !photosSentRun && step === 0
+    // A STOCK question where this turn ran NO search (words only, or she skipped straight
+    // to get_agent/anything else) gets forced into a fresh search below — hold the
+    // unverified "we don't have it" text and don't execute the other tools, so the
+    // customer never gets a from-memory answer (or a needless human-escalation) that a
+    // live search would contradict (2026-07-14: 1906 Navy 10 in stock, told "no" 4x).
+    const willForceStockSearch = !didSearch && !photosSentRun && step === 0
+      && !toolUses.some(t => t.name === 'search_inventory')
       && /\b(do (you|u|ya|y'?all) have|you got|got any|have any|any more|is there|in stock|available)\b/i.test(userText || '');
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
       const sc = await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => ({ ok: false }));
       if (sc && sc.ok) sentToCustomer = true;
+    }
+    // Stock question + tools called but NONE of them a search (e.g. she jumped straight
+    // to get_agent): don't execute them — close the tool calls as skipped and force the
+    // fresh search instead. (Every tool_use must get a tool_result or the convo poisons.)
+    if (willForceStockSearch && toolUses.length) {
+      const skipped = toolUses.map(tu => ({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({ skipped: 'Not executed — this was a STOCK question and you have not searched yet this turn. Call search_inventory for exactly what they asked FIRST, then decide.' }) }));
+      skipped.push({ type: 'text', text: '(SYSTEM NOTE — the customer cannot see this: earlier results in this conversation are STALE. Search the live inventory NOW — "navy" also means "navy blue" — and answer only from what it returns.)' });
+      history.push({ role: 'user', content: skipped });
+      forceSearchNext = true;
+      continue;
     }
     if (!toolUses.length) {
       // SHOE PHOTO but she just TALKED about it (identified/asked the name) without ever
