@@ -439,7 +439,27 @@ function mount(app) {
       // brand-new shoes, never overwrite an existing one. This closes the last revert hole.
       const exT = (state.shoes[i].updatedAt || state.shoes[i].createdAt || 0);
       const inT = (sh.updatedAt || sh.createdAt || 0);
-      if (inT === 0 || inT < exT) return res.json({ ok: true, skipped: 'stale' });
+      if (inT === 0 || inT < exT) {
+        // A SALE MUST NEVER BE DROPPED (2026-07-14, the Foamposite revert): a timeless/older
+        // push that only SHRINKS stock — same-or-fewer sizes and/or flips sold ON — is a human
+        // marking a sale on a phone running an old cached app. Silently skipping it meant the
+        // sale "reverted" and the bot kept offering a sold shoe. Accept JUST the shrink (sizes /
+        // sold flag), keep everything else (price, name edits) from the newer stored copy, and
+        // stamp it with server time. GROWTH (sizes reappearing, un-solding, price changes) from
+        // a stale push stays blocked — that's the classic resurrection bug this lock exists for.
+        const ex = state.shoes[i];
+        const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[s] = (m[s] || 0) + 1, m), {});
+        const inC = count(sh.sizes), exC = count(ex.sizes);
+        const subset = Object.keys(inC).every(s => inC[s] <= (exC[s] || 0));
+        const fewer = (Array.isArray(sh.sizes) ? sh.sizes.length : 0) < (Array.isArray(ex.sizes) ? ex.sizes.length : 0);
+        const soldFlip = !!sh.sold && !ex.sold;
+        if (subset && (fewer || soldFlip)) {
+          state.shoes[i] = Object.assign({}, ex, { sizes: sh.sizes, sold: !!sh.sold || !!ex.sold, updatedAt: Date.now() });
+          persist('shoes.json'); bump();
+          return res.json({ ok: true, accepted: 'shrink-from-stale-app' });
+        }
+        return res.json({ ok: true, skipped: 'stale' });
+      }
       state.shoes[i] = sh;
     } else state.shoes.push(sh);
     persist('shoes.json'); bump();
