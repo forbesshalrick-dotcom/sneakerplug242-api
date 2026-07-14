@@ -356,13 +356,9 @@
   "name": "Air Jordan 14 Retro",
   "color": "Black/White",
   "price": 180,
-  "sizes": [
-   "7"
-  ],
-  "sizesRaw": [
-   "7"
-  ],
-  "nickname": "University Blue",
+  "sizes": [],
+  "sizesRaw": [],
+  "nickname": "",
   "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan14black001-thumb.jpg"
  },
  {
