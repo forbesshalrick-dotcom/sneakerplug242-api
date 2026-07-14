@@ -491,7 +491,9 @@ const MAX_PHOTOS = catalog.length;  // send a photo for EVERY matching shoe (cap
 const CHUNK = 10;               // ManyChat caps messages per content payload
 
 function getContactId(req) {
-  const keys = ['contact_id', 'subscriber_id', 'subscriberId', 'contactId', 'user_id'];
+  // 'id' (last) covers ManyChat's machine-built "full contact data" payload — used
+  // because hand-typed JSON bodies silently die on multi-line customer texts (2026-07-13).
+  const keys = ['contact_id', 'subscriber_id', 'subscriberId', 'contactId', 'user_id', 'id'];
   const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
   for (const src of srcs) for (const k of keys) {
     if (src[k] == null) continue;
@@ -510,6 +512,12 @@ function getStore(req) {
   for (const src of srcs) {
     if (src.store != null && !isJunk(src.store)) return String(src.store).trim();
   }
+  // No explicit store field (e.g. ManyChat's full-contact-data payload): derive it
+  // from the account id embedded in the token ("3732738:..." = Trendy Kicks).
+  const tok = req.headers && req.headers['x-mc-token'] ? String(req.headers['x-mc-token']) : '';
+  const acct = tok.split(':')[0];
+  if (acct === '3732738') return 'Trendy Kicks';
+  if (acct === '3732170') return 'Official Sneaker Crew';
   return null;
 }
 
@@ -535,11 +543,19 @@ function getPhone(req) {
 
 // Every http(s) URL ManyChat sent, with its (lowercased) field name. Used to tell
 // a voice note from a photo from any other attachment.
+// Platform-metadata URL fields that must NEVER be mistaken for a customer photo or
+// voice note. ManyChat's full-contact-data payload carries the customer's PROFILE
+// PICTURE (a lookaside/fbcdn link — exactly what MEDIA_HOST matches) plus a
+// live-chat link on EVERY message; treating those as attachments would make Jess
+// "see a photo" in every single text.
+const IGNORE_URL_FIELDS = new Set(['profile_pic', 'profile_pic_url', 'profile_picture',
+  'avatar', 'avatar_url', 'live_chat_url', 'profile_link', 'page_profile_pic', 'ig_avatar']);
 function collectUrls(req) {
   const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
   const out = [];
   for (const src of srcs) for (const [k, v] of Object.entries(src)) {
     if (v == null || isJunk(v)) continue;
+    if (IGNORE_URL_FIELDS.has(k.toLowerCase())) continue;
     const s = String(v).trim();
     if (/^https?:\/\//i.test(s)) out.push({ key: k.toLowerCase(), url: s });
   }
