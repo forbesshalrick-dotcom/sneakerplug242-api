@@ -103,18 +103,25 @@ for (const s of catalog) {
 // under the same name, customers keep getting the OLD picture (Rodney caught this
 // 2026-07-15: his re-picked angles never showed). Pin every image URL to the frames
 // repo's current commit so each card push mints brand-new URLs that nothing can
-// have cached. Runs async right after boot; until it lands the @master URLs still work.
-(async () => {
+// have cached. Re-checks every 5 minutes, so newly pushed cards go live on their
+// own — no bot restart needed. Until the first pin lands, @master URLs still work.
+let framesPin = '@master';
+async function repinCardUrls() {
   try {
     const r = await fetch('https://api.github.com/repos/forbesshalrick-dotcom/Sp242-frames/commits/master',
       { headers: { 'User-Agent': 'sp242-api', 'Accept': 'application/vnd.github+json' } });
     const sha = (await r.json()).sha;
     if (!sha) throw new Error('no sha in response');
-    const pin = `/Sp242-frames@${sha.slice(0, 10)}/`;
-    for (const s of catalog) if (s.image) s.image = s.image.replace('/Sp242-frames@master/', pin);
-    console.log('[cards] image URLs pinned to frames commit', sha.slice(0, 10));
-  } catch (e) { console.log('[cards] commit pin failed, staying on @master:', e.message); }
-})();
+    const pin = `@${sha.slice(0, 10)}`;
+    if (pin === framesPin) return;
+    for (const s of catalog) if (s.image) s.image = s.image.replace(`/Sp242-frames${framesPin}/`, `/Sp242-frames${pin}/`);
+    framesPin = pin;
+    console.log('[cards] image URLs pinned to frames commit', pin);
+  } catch (e) { console.log('[cards] commit pin check failed (keeping ' + framesPin + '):', e.message); }
+}
+repinCardUrls();
+const repinTick = setInterval(repinCardUrls, 5 * 60 * 1000);
+if (repinTick.unref) repinTick.unref();
 
 const app = express();
 app.use(cors());
