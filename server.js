@@ -1707,12 +1707,40 @@ const MUTE_MS = 20 * 1000; // 20s ROLLING window (Rodney's call 2026-07-12) — 
 const recentCustomers = new Map(); // sub -> {sub, name, store, lastText, at}
 const storeTokens = new Map();     // store name -> latest ManyChat token seen for it
 let lastToken = null;              // most-recent token of any account (fallback)
+// Tokens survive restarts (2026-07-14: every deploy wiped them, so console sends, shift
+// reminders and manager alerts were mute until a customer happened to text; 3 restarts
+// in one night = 3 deaf spells). Best-effort persistence on the /data disk.
+const TOKENS_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) if (fs.existsSync(d)) return require('path').join(d, 'store-tokens.json');
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (TOKENS_FILE && require('fs').existsSync(TOKENS_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(TOKENS_FILE, 'utf8')) || {};
+    for (const [k, v] of Object.entries(saved.stores || {})) storeTokens.set(k, v);
+    lastToken = saved.last || null;
+    console.log('[tokens] restored', storeTokens.size, 'store token(s)');
+  }
+} catch (e) { console.log('[tokens] restore failed:', e.message); }
+let tokensSaveT = null;
+function saveTokens() {
+  if (!TOKENS_FILE) return;
+  clearTimeout(tokensSaveT);
+  tokensSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(TOKENS_FILE, JSON.stringify({ stores: Object.fromEntries(storeTokens), last: lastToken })); } catch (_) {}
+  }, 1000);
+  if (tokensSaveT.unref) tokensSaveT.unref();
+}
 function rememberCustomer(sub, name, store, text, token) {
   if (sub && token) {
     recentCustomers.set(sub, { sub, name: name || '', store: store || '', lastText: (text || '').slice(0, 80), at: new Date().toISOString() });
     if (recentCustomers.size > 80) { const first = recentCustomers.keys().next().value; recentCustomers.delete(first); }
     if (store) storeTokens.set(store, token);
     lastToken = token;
+    saveTokens();
   }
 }
 
