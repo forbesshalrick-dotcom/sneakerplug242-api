@@ -2550,7 +2550,7 @@ function handleChat(req, res) {
   // re-delivery, or a keyword automation AND the Default Reply both firing), which makes
   // Jess reply 2-3 times to ONE message. If the exact same text from the same customer
   // arrives within a few seconds, treat it as a duplicate and skip it.
-  if (userText.trim() && !imageUrl && !audioUrl) {
+  if (userText.trim()) {
     const mk = sub + '|' + userText.trim().toLowerCase().replace(/\s+/g, ' ');
     const prevM = recentMsgSeen.get(mk);
     // 10s window (was 60s): a true ManyChat double-fire lands within ~2-3s. A slower
@@ -2558,7 +2558,11 @@ function handleChat(req, res) {
     // message (location pin!) arrived — tonight a customer's re-dropped pin replayed
     // her text 22s later and the 60s window silently ate it. Those now fall through
     // to the non-text-replay detector below instead of being skipped.
-    if (prevM && (Date.now() - prevM) < 10000) {
+    // Only TEXT-ONLY arrivals are ever skipped — but photo-with-caption arrivals DO
+    // stamp the marker (2026-07-15: an ad-entry message carries the product image, so
+    // it bypassed this block entirely and its text-only twin got a SECOND answer —
+    // customers were seeing Jess reply twice in different words).
+    if (!imageUrl && !audioUrl && prevM && (Date.now() - prevM) < 10000) {
       record(req, { endpoint: 'dupe-msg-skip', sub, q: userText.slice(0, 30) });
       return;
     }
