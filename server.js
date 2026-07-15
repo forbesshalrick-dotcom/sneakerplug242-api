@@ -1333,7 +1333,7 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
 }
 
-async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false) {
+async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false, requestAt = 0) {
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
   // clumping the photos into one album, so each pic shows with its label beneath.
@@ -1364,8 +1364,18 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // ONLY when the customer clearly asks it to ("stop", "that's enough", "never mind"...).
   // A QUESTION mid-album ("same price all?", "got Jordan 5s?") does NOT stop the pictures —
   // it queues up and Jess answers it right after the album finishes.
-  const startedAt = Date.now();
+  // Compare against the message that ASKED for this album (requestAt), not the moment
+  // the album started — a customer who changes their mind while Jess is still thinking
+  // ("send size 9.5" … "jordan") used to slip through the gap and get the whole wrong
+  // album anyway (Rodney 2026-07-15: "even if they write before jess, she still sends
+  // all pics"). Anything they say after the triggering message now counts.
+  const startedAt = requestAt || Date.now();
   let interrupted = false;
+  // CHANGED-THEIR-MIND detector (Rodney 2026-07-15: "she needs to stop and give new
+  // request"): a correction phrase or a different shoe/brand named mid-album halts the
+  // pictures — the new message already has its own chat turn queued right behind this
+  // album (chatLocks), so Jess answers the NEW request the moment the album stops.
+  const REDIRECT = /\b(i meant|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|new balance|jordans?|jays?|nikes?|asics|dunks?|vapor ?max(es)?|air ?max(es)?|air ?force|af1s?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|shox|mules?|yeezys?|scorpions?|balenciagas?)\b/i;
   // "that's it / that's all / i'm good / thank you" mid-album are polite Bahamian
   // wrap-ups, not browsing chatter — a customer said "ok that's it" then "thank you",
   // the album kept rolling, and they BLOCKED the account (2026-07-13). Better to halt
@@ -1375,7 +1385,8 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   const customerSpoke = () => {
     const t = lastIncoming.get(sub);
     if (!(t && t > startedAt)) return false;
-    return STOPPISH.test(lastIncomingText.get(sub) || '');
+    const txt = lastIncomingText.get(sub) || '';
+    return STOPPISH.test(txt) || REDIRECT.test(txt);
   };
   // PAUSE-ANSWER-CONTINUE (Rodney 2026-07-14: a customer asked "How much" mid-album,
   // the pictures kept rolling and the question never got answered): a non-stop message
@@ -1391,7 +1402,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     const t = lastIncoming.get(sub);
     if (!(t && t > startedAt && t > midAlbumHandledAt)) return;
     const q = lastIncomingText.get(sub) || '';
-    if (STOPPISH.test(q)) return; // the stop check owns that case
+    if (STOPPISH.test(q) || REDIRECT.test(q)) return; // the halt check owns those cases — never "Good question!" a change of mind
     // Only speak when it's actually a QUESTION (2026-07-14: "I don't want see no more"
     // got a cheery "Good question!" — a non-question mid-album is left for the queued
     // chat turn after the album; saying anything to it reads deaf).
@@ -1471,6 +1482,14 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // Staff chats never get the customer closing pitch ("reply with the code and I'll
   // get you sorted!") — a sold-shoe confirm ended with a sales pitch reads absurd
   // (Deashinique 2026-07-14).
+  // Halted because they changed the request (not a plain "stop"): say so, so the
+  // customer knows the switch registered — their new request is answered right after.
+  if (interrupted) {
+    const txt = lastIncomingText.get(sub) || '';
+    if (REDIRECT.test(txt) && !STOPPISH.test(txt)) {
+      try { await sendChunk(sub, [{ type: 'text', text: `Say less — switching to that now 👌` }], token); } catch (e) { /* non-fatal */ }
+    }
+  }
   if (sent > 0 && !interrupted && !photosOnly && !isStaff) {
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
@@ -2221,7 +2240,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
-        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName);
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName, turnAt);
         if (droppedWrongSize.length) {
           record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
           result.dropped_wrong_size = droppedWrongSize;
@@ -2557,7 +2576,8 @@ function handleChat(req, res) {
     if (prevTxt && prevTxt === nowTxt) { nonTextReplay = true; lastReplayAt.set(sub, Date.now()); }
   }
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
-  lastIncoming.set(sub, Date.now()); // stamps "they just spoke" (albums check this + the text below)
+  const turnAt = Date.now(); // when THIS message arrived — albums born from this turn ignore nothing after it
+  lastIncoming.set(sub, turnAt); // stamps "they just spoke" (albums check this + the text below)
   lastIncomingText.set(sub, userText || ''); // so the album knows if it was a STOP or just a question
   if (lastIncoming.size > 500) { const f = lastIncoming.keys().next().value; lastIncoming.delete(f); lastIncomingText.delete(f); }
 
