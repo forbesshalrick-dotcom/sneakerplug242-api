@@ -78,7 +78,7 @@ const FRAME_OVERRIDES = {
   'jordan4gum001': 12,
   'jordan3green001': 18,
   'jordan11red001': 15,
-  'nikemuleblack001': 15,
+  'nikemuleblack001': 12,
   'nikemulewhite001': 15,
   'airmax95gryorg001': 0,
   'airmax95bkbl001': 15,
