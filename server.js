@@ -69,7 +69,22 @@ const FRAME_OVERRIDES = {
   // Outer-side profiles (Rodney 2026-07-14: customers see the outside of a shoe when
   // someone walks — never lead with the inner side)
   'jordan4yellow001': 17,
-  'p41': 18,
+  'p41': 3,
+  'jordan5blue001': 9,
+  'jordan4blackred001': 0,
+  'jordan4blackred002': 12,
+  'jordan11volt001': 15,
+  'jordan4milblue001': 15,
+  'jordan4gum001': 12,
+  'jordan3green001': 18,
+  'jordan11red001': 15,
+  'nikemuleblack001': 15,
+  'nikemulewhite001': 15,
+  'airmax95gryorg001': 0,
+  'airmax95bkbl001': 15,
+  'asicsgrywht001': 0,
+  'asicswhtblk001': 15,
+  'asicspnksuede001': 24,
 };
 for (const s of catalog) {
   if (!s.image) continue;
