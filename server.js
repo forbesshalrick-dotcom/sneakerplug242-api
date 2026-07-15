@@ -1287,7 +1287,7 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
 }
 
-async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false) {
+async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false) {
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
   // clumping the photos into one album, so each pic shows with its label beneath.
@@ -1417,7 +1417,10 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // Close with the "text me the name" prompt once photos have gone out — but only
   // ONCE per burst: a two-colour request fires 3 send_photos calls back-to-back, and
   // we don't want the closing line repeated 3×. Send it at most once per 45s per sub.
-  if (sent > 0 && !interrupted && !photosOnly) {
+  // Staff chats never get the customer closing pitch ("reply with the code and I'll
+  // get you sorted!") — a sold-shoe confirm ended with a sales pitch reads absurd
+  // (Deashinique 2026-07-14).
+  if (sent > 0 && !interrupted && !photosOnly && !isStaff) {
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
@@ -2129,13 +2132,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
-        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true);
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName);
         if (droppedWrongSize.length) {
           record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
           result.dropped_wrong_size = droppedWrongSize;
           result.note = `These shoes were NOT sent — they don't come in a ${inp.size}${inp.womens ? " (women's)" : ''}: ${droppedWrongSize.join('; ')}. If one of them fits what the customer wanted, you may offer it as a NEAREST-SIZE option, saying plainly it doesn't come in their size.`;
         }
-        if (result.sent > 0) { scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
+        if (result.sent > 0) { if (!staffName) scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // staff don't get 10-min nudges // nudge 10 min later if quiet
         // Customer asked to STOP mid-album — end this turn, but CLOSE the tool call
         // properly first: leaving a dangling tool_use poisons the whole conversation
         // (every later message 400s → endless "didn't come through") (fixed 2026-07-13).
