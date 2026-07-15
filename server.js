@@ -1168,7 +1168,7 @@ function aliasTokens(s) {
   // (Foamposites are basketball shoes — NOT in this family.)
   const isFoamFamily = name.includes('mule') || brand.includes('croc') || name.includes('croc')
     || ((brand.includes('yeezy') || name.includes('yeezy')) && (name.includes('foam') || name.includes('rnr') || name.includes('slide')));
-  if (isFoamFamily) out.push('slipper', 'slippers', 'slide', 'slides', 'sandal', 'sandals', 'mule', 'mules', 'croc', 'crocs', 'yeezy', 'yeezys', 'foam');
+  if (isFoamFamily) out.push('slipper', 'slippers', 'slide', 'slides', 'sandal', 'sandals', 'mule', 'mules', 'croc', 'crocs', 'yeezy', 'yeezys', 'foam', 'mind', 'mine', 'mines');
   return out;
 }
 
