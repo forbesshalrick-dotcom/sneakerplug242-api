@@ -2240,7 +2240,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
-        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName, turnAt);
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName, ctx.turnAt || 0);
         if (droppedWrongSize.length) {
           record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
           result.dropped_wrong_size = droppedWrongSize;
@@ -2640,7 +2640,7 @@ function handleChat(req, res) {
         return; // stay silent — the owner is handling this customer himself
       }
     }
-    return runChat(req, sub, text, token, { store, name }, photo);
+    return runChat(req, sub, text, token, { store, name, turnAt }, photo);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
