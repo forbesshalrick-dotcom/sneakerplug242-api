@@ -1344,10 +1344,12 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // womens=true → show BOTH sides of the conversion so she sees her women's size
   // AND the men's size it actually is ("a men's 5.5 is a women's 7"), no confusion.
   const labelText = (s) => {
+    // Price and sizes in WhatsApp BOLD (Rodney 2026-07-15: "some people still ask for
+    // price") — the two facts customers ask about should jump off the label.
     const sizeLine = womens
-      ? `📏 women's ${sizesOf(s, true)}  ·  men's ${sizesOf(s, false)}`
-      : `📏 ${sizesOf(s, false)}`;
-    return `${displayName(s)} — $${s.price}\n${sizeLine}`;
+      ? `📏 women's *${sizesOf(s, true)}*  ·  men's *${sizesOf(s, false)}*`
+      : `📏 *${sizesOf(s, false)}*`;
+    return `${displayName(s)} — *$${s.price}*\n${sizeLine}`;
   };
   // Look shoes up through the LIVE map so labels show current sizes and anything
   // marked sold/deleted on the website is dropped even if it slipped into `ids`.
