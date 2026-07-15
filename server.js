@@ -99,6 +99,22 @@ for (const s of catalog) {
   const frame = FRAME_OVERRIDES[s.id] != null ? FRAME_OVERRIDES[s.id] : 0;
   s.image = s.image.replace(/-thumb\.(jpe?g|png|webp)$/i, `-${frame}.$1`);
 }
+// WhatsApp/ManyChat cache media BY URL — when a card file is replaced on the CDN
+// under the same name, customers keep getting the OLD picture (Rodney caught this
+// 2026-07-15: his re-picked angles never showed). Pin every image URL to the frames
+// repo's current commit so each card push mints brand-new URLs that nothing can
+// have cached. Runs async right after boot; until it lands the @master URLs still work.
+(async () => {
+  try {
+    const r = await fetch('https://api.github.com/repos/forbesshalrick-dotcom/Sp242-frames/commits/master',
+      { headers: { 'User-Agent': 'sp242-api', 'Accept': 'application/vnd.github+json' } });
+    const sha = (await r.json()).sha;
+    if (!sha) throw new Error('no sha in response');
+    const pin = `/Sp242-frames@${sha.slice(0, 10)}/`;
+    for (const s of catalog) if (s.image) s.image = s.image.replace('/Sp242-frames@master/', pin);
+    console.log('[cards] image URLs pinned to frames commit', sha.slice(0, 10));
+  } catch (e) { console.log('[cards] commit pin failed, staying on @master:', e.message); }
+})();
 
 const app = express();
 app.use(cors());
