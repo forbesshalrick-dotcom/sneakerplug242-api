@@ -1934,9 +1934,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   if (staffName) rememberStaffSub(staffName, sub, ctx.store);
   if (staffName) {
     system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
+- 🎙 VOICE-NOTE TRAP — "ASICS" NOBODY SAID (Deashinique 2026-07-14: voice-noted "sold the pink Air Max Plus in a SIZE 10", the transcript rendered "ASICS 10", and Jess invented a second ASICS shoe — staff replied "I never said ASICS"): transcripts routinely turn "a size [number]" / "in a size [number]" into "ASICS [number]" or "a six [number]". When a voice message names ANOTHER shoe and ASICS appears right before a number with no colour or model of its own, read it as "a size [number]" of the shoe they named — do NOT treat it as a second shoe. Only take ASICS as the brand when typed, or clearly its own ask with its own colour/size.
 - STAFF SALE REPORTING: when they say a shoe SOLD ("sold the pink Air Max Plus in a 10", "the D3 gone in a 9", "just sold the grey 9060 size 8"), your job is to remove that pair from stock — with ONE unskippable safety step:
   (1) search_inventory for the shoe they described.
-  (2) SEND THE PHOTO of the best match (send_photos, include_sizes = true) asking them to CONFIRM — lead_in like "This one? I'll take ONE size 10 out — say YES ✅". If 2-3 pairs could match what they said, send them all and ask which one.
+  (2) SEND THE PHOTO of the best match (send_photos, include_sizes = true) asking them to CONFIRM — lead_in like "Is this the one you sold today? I'll take ONE size 10 out — say YES ✅". If 2-3 pairs could match what they said, send them all and ask which one.
   (3) ONLY after they explicitly confirm ("yes", "yeah", "that one", or the code) call record_sale with that shoe's id and the size. ⚠️ NEVER call record_sale before a photo has been sent AND confirmed in THIS conversation — deleting the wrong shoe is far worse than asking one extra question. If they say "no, the other one", show the next candidate and confirm again.
   (4) They sold TWO pairs of a size = TWO record_sale calls (same id + size, twice) — but only after confirmation.
 - After record_sale succeeds, report back exactly what it returns: "✅ Done — size 10 removed. That shoe now has: 7, 8, 8.5." If it says the size isn't in stock, say exactly that and list the sizes it DOES have — the website may already be updated.
@@ -2224,7 +2225,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const s2 = liveM[inp.shoe_id];
           if (!s2) result = { error: 'unknown shoe id ' + inp.shoe_id + ' — use an id from a search_inventory call in THIS conversation' };
           else {
-            result = require('./shop').recordStaffSale(inp.shoe_id, inp.size, staffName, s2.price, displayName(s2), s2.sizesRaw);
+            // The tool gets the bot's catalog-INDEX key; the shared store + website key
+            // by the shoe's real id (2026-07-14: first live staff sale wrote ghost id "56"
+            // and the website never saw it) — always write under s2.id.
+            result = require('./shop').recordStaffSale(s2.id, inp.size, staffName, s2.price, displayName(s2), s2.sizesRaw);
             if (result && result.ok) {
               const remain = (result.remaining_sizes && result.remaining_sizes.length) ? result.remaining_sizes.join(', ') : 'NONE — sold out';
               try { await waSendManager(`🧾 SOLD (reported by ${staffName} via Jess): ${displayName(s2)} — size ${inp.size} — $${s2.price}\nRemaining sizes: ${remain}`, token); } catch (_) {}
