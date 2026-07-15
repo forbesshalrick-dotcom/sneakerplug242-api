@@ -1346,7 +1346,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // the album kept rolling, and they BLOCKED the account (2026-07-13). Better to halt
   // a shoe early than lose the contact forever; if they actually wanted more they'll
   // just say so. ("thanks" only counts MID-album — this regex only ever runs there.)
-  const STOPPISH = /\b(stop|enough|never ?mind|nvm|don'?t send|dont send|leave it|forget it|chill|hold (on|up)|unsubscribe|that'?s? (it|all|good|fine|plenty|okay|ok)|i'?m (good|okay|ok|fine|straight|set)|we('re| are)? good|all set|no thanks|no more pic(ture)?s|thanks|thank you|tanks|ty)\b/i;
+  const STOPPISH = /\b(stop|enough|never ?mind|nvm|don'?t send|dont send|leave it|forget it|chill|hold (on|up)|wait( a (minute|min|sec|second))?|unsubscribe|that'?s? (it|all|good|fine|plenty|okay|ok)|i'?m (good|okay|ok|fine|straight|set|done)|we('re| are)? (good|done)|all set|no thanks|no more( pic(ture)?s)?|don'?t want (to )?see|done look(ing)?|thanks|thank you|tanks|ty)\b/i;
   const customerSpoke = () => {
     const t = lastIncoming.get(sub);
     if (!(t && t > startedAt)) return false;
@@ -1367,6 +1367,11 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     if (!(t && t > startedAt && t > midAlbumHandledAt)) return;
     const q = lastIncomingText.get(sub) || '';
     if (STOPPISH.test(q)) return; // the stop check owns that case
+    // Only speak when it's actually a QUESTION (2026-07-14: "I don't want see no more"
+    // got a cheery "Good question!" — a non-question mid-album is left for the queued
+    // chat turn after the album; saying anything to it reads deaf).
+    const IS_QUESTION = /\?|\b(how|what|when|where|which|why|who|do (you|u)|can (you|u)|is (it|there)|got any|price|much|cost)\b/i;
+    if (!IS_QUESTION.test(q)) { midAlbumHandledAt = t; return; }
     midAlbumHandledAt = t;
     recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-question', sub, q: q.slice(0, 80) });
     saveRecent();
