@@ -1135,6 +1135,19 @@ const AI_TOOLS = [
       },
     },
   },
+  {
+    name: 'record_restock',
+    description: "STAFF ONLY — add pairs of a size to live stock (new stock arrived, a return came back, or undoing a mistaken removal). Same photo-confirm-first rule as record_sale: confirm the exact shoe with its picture in THIS conversation before calling. Updates the website and every phone instantly and posts a restock note.",
+    input_schema: {
+      type: 'object',
+      required: ['shoe_id', 'size'],
+      properties: {
+        shoe_id: { type: 'string', description: "The shoe's id from THIS conversation's search_inventory results." },
+        size: { type: 'string', description: "The size to add, e.g. '10.5'." },
+        count: { type: 'number', description: 'How many pairs to add. Default 1.' },
+      },
+    },
+  },
 ];
 
 // Shorthand customers actually use that isn't in a shoe's stored text. We fold
@@ -1945,6 +1958,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   (3) ONLY after they explicitly confirm ("yes", "yeah", "that one", or the code) call record_sale with that shoe's id and the size. ⚠️ NEVER call record_sale before a photo has been sent AND confirmed in THIS conversation — deleting the wrong shoe is far worse than asking one extra question. If they say "no, the other one", show the next candidate and confirm again.
   (3b) ⚠️ NEVER REMOVE FIRST AND ASK AFTER (2026-07-14: staff replied "This one" to a photo, Jess removed a size 12 and THEN asked "Which one sold — A2 or A3?" — that's backwards): if there is ANY doubt which shoe their confirmation points at (a bare "this one", a photo-quote you can't see, two similar shoes in play), ASK FIRST and only call record_sale once they've named it. A removal you had to question was not a confirmed removal.
   (4) They sold TWO pairs of a size = TWO record_sale calls (same id + size, twice) — but only after confirmation.
+- 📦 RESTOCK: staff can also ADD stock ("we got 3 more size 10s of the Bred", "put that 10.5 back") — same photo-confirm-first flow, then call record_restock with the shoe id, size and count.
+- 🔢 STAFF SEE QUANTITIES, ALWAYS (Rodney 2026-07-14: "we are workers — it's best to see full quantity, not 1 pair like the customer"): when talking to staff, express stock as per-size COUNTS ("10.5 x2, 11 x1"), never a bare size list. record_sale/record_restock return remaining_summary — repeat it VERBATIM, never retype or shorten it (2026-07-14: Jess dropped 10.5 from her summary while 2 pairs remained — a hand-typed list lost a size the tool result plainly showed).
 - After record_sale succeeds, report back exactly what it returns: "✅ Done — size 10 removed. That shoe now has: 7, 8, 8.5." If it says the size isn't in stock, say exactly that and list the sizes it DOES have — the website may already be updated.
 - Staff can also ask stock questions ("how many 9.5 in the Cave Stone left?") — answer with real search_inventory numbers, plain and quick.`;
   }
@@ -2241,6 +2256,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         }
         record(req, { endpoint: 'staff-sale', sub, by: staffName, params: tu.input, out: result && (result.ok ? 'ok' : result.error) });
+      }
+      else if (tu.name === 'record_restock') {
+        const inp = tu.input || {};
+        if (!staffName) {
+          result = { error: 'REFUSED — this chat is not from a recognized staff number.' };
+        } else {
+          const liveM = liveShoeMap();
+          const s2 = liveM[inp.shoe_id];
+          if (!s2) result = { error: 'unknown shoe id ' + inp.shoe_id + ' — use an id from a search_inventory call in THIS conversation' };
+          else result = require('./shop').recordStaffRestock(s2.id, inp.size, inp.count, staffName, displayName(s2), s2.sizesRaw);
+        }
+        record(req, { endpoint: 'staff-restock', sub, by: staffName, params: tu.input, out: result && (result.ok ? 'ok' : result.error) });
       }
       else if (tu.name === 'get_agent') {
         const inp = tu.input || {};

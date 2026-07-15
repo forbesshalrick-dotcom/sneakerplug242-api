@@ -138,6 +138,14 @@ try {
   }
 } catch (e) { console.error('[shop] sold recovery failed:', e.message); }
 
+// Per-size counts, the way staff think ("10.5 x2, 11 x1 — 22 pairs total").
+function sizeSummary(sizes) {
+  const counts = {};
+  for (const x of sizes || []) { const k = String(parseFloat(x)); if (k !== 'NaN') counts[k] = (counts[k] || 0) + 1; }
+  const parts = Object.keys(counts).sort((a, b) => parseFloat(a) - parseFloat(b)).map(k => `${k} x${counts[k]}`);
+  return parts.length ? `${parts.join(', ')} — ${(sizes || []).length} pairs total` : 'NONE — sold out';
+}
+
 // Jess-reported sale (staff WhatsApps "sold the pink Air Max in a 10" and confirms
 // the photo): remove ONE pair of that size from the live shoe entry, append a real
 // sale record (same shape the website writes, so voiding works the same way), stamp
@@ -165,7 +173,28 @@ function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
   if (state.sales.length > MAX_SALES) state.sales.length = MAX_SALES;
   persist('shoes.json'); persist('sales.json'); bump();
   addAlert('🧾 SALE — ' + (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : '') + ' (reported by ' + (by || 'staff') + ' via Jess)', by || 'Jess 🤖');
-  return { ok: true, saleId: uid, remaining_sizes: shoe.sizes.slice(), sold_out: !!shoe.sold };
+  return { ok: true, saleId: uid, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes), sold_out: !!shoe.sold };
+}
+
+// Staff restock via Jess — the inverse of recordStaffSale: add pairs of a size.
+// No sale record (nothing sold); a task note + rev bump so every phone syncs.
+function recordStaffRestock(shoeId, size, count, by, label, baseSizes) {
+  const sz = String(parseFloat(size));
+  if (sz === 'NaN') return { error: 'bad size' };
+  const n = Math.max(1, Math.min(20, parseInt(count) || 1));
+  if (!Array.isArray(state.shoes)) state.shoes = [];
+  let shoe = state.shoes.find(x => x && String(x.id) === String(shoeId));
+  if (!shoe) {
+    shoe = { id: shoeId, _catalog: true, sizes: (baseSizes || []).slice(), sold: false };
+    state.shoes.push(shoe);
+  }
+  if (!Array.isArray(shoe.sizes)) shoe.sizes = (baseSizes || []).slice();
+  for (let i = 0; i < n; i++) shoe.sizes.push(sz);
+  shoe.sold = false;
+  shoe.updatedAt = Date.now();
+  persist('shoes.json'); bump();
+  addAlert('📦 RESTOCK — ' + (label || shoeId) + ' — size ' + sz + ' x' + n + ' added (by ' + (by || 'staff') + ' via Jess)', by || 'Jess 🤖');
+  return { ok: true, added: n, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes) };
 }
 
 // Add a note to the shared board programmatically (e.g. a delivery-ready alert
@@ -582,4 +611,4 @@ function mount(app) {
 function getShoes() { return Array.isArray(state.shoes) ? state.shoes : []; }
 function getDeleted() { return Array.isArray(state.deleted) ? state.deleted : []; }
 
-module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, getEmployees: () => state.employees };
+module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, getEmployees: () => state.employees };
