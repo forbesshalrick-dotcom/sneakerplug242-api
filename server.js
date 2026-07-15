@@ -1281,6 +1281,32 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     if (!(t && t > startedAt)) return false;
     return STOPPISH.test(lastIncomingText.get(sub) || '');
   };
+  // PAUSE-ANSWER-CONTINUE (Rodney 2026-07-14: a customer asked "How much" mid-album,
+  // the pictures kept rolling and the question never got answered): a non-stop message
+  // that lands mid-album gets a quick inline reply between shoes, then the album keeps
+  // going. Price questions are answered on the spot about the shoe JUST sent (that's
+  // the pic they're replying to); anything else gets a "one sec, right after these" so
+  // the customer is never left talking to a wall. The full answer still comes after
+  // the album via the queued chat turn.
+  let lastShoeSent = null;
+  let midAlbumHandledAt = 0;
+  const PRICE_Q = /\b(how much|price|cost|what.*(cost|price)|much for)\b/i;
+  const answerMidAlbum = async () => {
+    const t = lastIncoming.get(sub);
+    if (!(t && t > startedAt && t > midAlbumHandledAt)) return;
+    const q = lastIncomingText.get(sub) || '';
+    if (STOPPISH.test(q)) return; // the stop check owns that case
+    midAlbumHandledAt = t;
+    recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-question', sub, q: q.slice(0, 80) });
+    saveRecent();
+    try {
+      if (PRICE_Q.test(q) && lastShoeSent) {
+        await sendChunk(sub, [{ type: 'text', text: `That one's the ${displayName(lastShoeSent)} — $${lastShoeSent.price} 👟 more pics coming 👇` }], token);
+      } else {
+        await sendChunk(sub, [{ type: 'text', text: `Good question! One sec — let me finish sending these and I'll answer you right after 👟` }], token);
+      }
+    } catch (e) { /* non-fatal */ }
+  };
 
   const totalPhotos = (Array.isArray(groups) && groups.length)
     ? (() => { const seen = new Set(); return groups.reduce((n, g) => n + dedupe(g.ids, seen).length, 0); })()
@@ -1299,7 +1325,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 
   // Send ONE shoe (photo + its label) per call, so a "stop" halts within a single shoe.
   const sendShoe = async (s) => {
-    try { await sendChunk(sub, photoWithLabel(s), token); sent += 1; } catch (e) { /* keep going */ }
+    try { await sendChunk(sub, photoWithLabel(s), token); sent += 1; lastShoeSent = s; } catch (e) { /* keep going */ }
   };
 
   // One shoe → its photo immediately followed by its label bubble (when labelling).
@@ -1322,6 +1348,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
         try { await sendChunk(sub, [{ type: 'text', text: String(g.label).trim() }], token); } catch (e) {}
       }
       for (const s of chosen) {
+        await answerMidAlbum();
         if (customerSpoke()) { interrupted = true; break outer; }
         await sendShoe(s);
       }
@@ -1331,6 +1358,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     const chosen = dedupe(ids);
     requested = (ids || []).length;
     for (const s of chosen) {
+      await answerMidAlbum();
       if (customerSpoke()) { interrupted = true; break; }
       await sendShoe(s);
     }
