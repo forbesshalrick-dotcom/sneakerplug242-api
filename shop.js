@@ -138,6 +138,18 @@ try {
   }
 } catch (e) { console.error('[shop] sold recovery failed:', e.message); }
 
+// Shared ACTIVITY LOG entry, in the exact shape the website's audit log uses
+// ({id, action, detail, category, shoeId, user, time}) so Jess's actions show up
+// on every device's Log tab (Rodney 2026-07-14: "no sales being logged, what a joke").
+function addLogEntry(action, detail, category, shoeId, user) {
+  const e = { id: Date.now() + Math.random(), action, detail: detail || '', category: category || 'general',
+    shoeId: shoeId || null, user: user || 'Jess 🤖', time: new Date().toISOString() };
+  state.log.unshift(e);
+  if (state.log.length > MAX_LOG) state.log.length = MAX_LOG;
+  persist('log.json'); bump();
+  return e;
+}
+
 // Per-size counts, the way staff think ("10.5 x2, 11 x1 — 22 pairs total").
 function sizeSummary(sizes) {
   const counts = {};
@@ -173,6 +185,7 @@ function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
   if (state.sales.length > MAX_SALES) state.sales.length = MAX_SALES;
   persist('shoes.json'); persist('sales.json'); bump();
   addAlert('🧾 SALE — ' + (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : '') + ' (reported by ' + (by || 'staff') + ' via Jess)', by || 'Jess 🤖');
+  addLogEntry('Sale (via Jess)', (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : ''), 'sales', shoeId, by || 'staff');
   return { ok: true, saleId: uid, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes), sold_out: !!shoe.sold };
 }
 
@@ -194,6 +207,7 @@ function recordStaffRestock(shoeId, size, count, by, label, baseSizes) {
   shoe.updatedAt = Date.now();
   persist('shoes.json'); bump();
   addAlert('📦 RESTOCK — ' + (label || shoeId) + ' — size ' + sz + ' x' + n + ' added (by ' + (by || 'staff') + ' via Jess)', by || 'Jess 🤖');
+  addLogEntry('Restock (via Jess)', (label || shoeId) + ' — size ' + sz + ' x' + n, 'inventory', shoeId, by || 'staff');
   return { ok: true, added: n, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes) };
 }
 
