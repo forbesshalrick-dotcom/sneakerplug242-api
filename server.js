@@ -86,8 +86,16 @@ const FRAME_OVERRIDES = {
   'asicswhtblk001': 15,
   'asicspnksuede001': 24,
 };
+// Customer-facing PHOTO CARDS (Rodney 2026-07-14 — "we do the most for our customers"):
+// one pro composite per shoe (approved hero angle on top, four more turns beneath, all
+// upscaled), hosted on the frames CDN as <id>-card.jpg. Jess sends the card whenever one
+// exists; FRAME_OVERRIDES stays as the fallback for shoes without a card. The website
+// keeps its plain spin frames — cards are WhatsApp-only.
+let CARD_IDS = new Set();
+try { CARD_IDS = new Set(require('./cards-manifest.json')); } catch (_) { /* no cards yet */ }
 for (const s of catalog) {
   if (!s.image) continue;
+  if (CARD_IDS.has(s.id)) { s.image = s.image.replace(/-thumb\.(jpe?g|png|webp)$/i, '-card.jpg'); continue; }
   const frame = FRAME_OVERRIDES[s.id] != null ? FRAME_OVERRIDES[s.id] : 0;
   s.image = s.image.replace(/-thumb\.(jpe?g|png|webp)$/i, `-${frame}.$1`);
 }
@@ -1096,7 +1104,7 @@ const AI_TOOLS = [
         payment: { type: 'string', description: 'How they are paying: website/card, cash, which bank transfer, or SunCash.' },
         location: { type: 'string', description: "The customer's meet-up spot / address exactly as they gave it. Mention if they dropped a pin. For stage=\"order_confirmed\" before they've sent it, use \"not sent yet\"." },
         stage: { type: 'string', enum: ['order_confirmed', 'delivery_ready'], description: "\"order_confirmed\" = the customer just committed to buying but the location isn't in hand yet (owner gets a NEW ORDER heads-up). \"delivery_ready\" = location received, driver can roll. Default: delivery_ready." },
-        remind_in_hours: { type: 'number', description: "For FUTURE / SCHEDULED orders only: how many hours from now the customer wants it — the owner then gets a second ⏰ reminder alert when that time arrives, so a \"next week\" order can't be forgotten. \"tomorrow\" = 24, \"this weekend\" ≈ days until Saturday × 24, \"next week\" = 168, a named day = hours until ~10 AM that day. Leave out for right-now orders." },
+        remind_in_hours: { type: 'number', description: "⚠️ MANDATORY whenever the customer names ANY future day or time — an order_confirmed call for \"Friday\" / \"tomorrow\" / \"next week\" WITHOUT this number is a bug (2026-07-14: a Friday order went in with no reminder and had to be added by hand). For FUTURE / SCHEDULED orders: how many hours from now the customer wants it — the owner then gets a second ⏰ reminder alert when that time arrives, so a \"next week\" order can't be forgotten. \"tomorrow\" = 24, \"this weekend\" ≈ days until Saturday × 24, \"next week\" = 168, a named day = hours until ~10 AM that day. Leave out for right-now orders." },
       },
       required: ['location'],
     },
@@ -1810,6 +1818,66 @@ const reminderTick = setInterval(async () => {
 }, 60 * 1000);
 if (reminderTick.unref) reminderTick.unref();
 
+// ── Staff subscriber map — learned from staff messages, survives restarts ──────
+// Maps employee name -> {sub, store} the moment a recognized staff number texts
+// either bot, so shift reminders (below) can reach them directly on WhatsApp.
+const STAFF_SUBS_FILE = REMINDERS_FILE ? REMINDERS_FILE.replace('reminders.json', 'staff-subs.json') : null;
+let staffSubs = {};
+try { if (STAFF_SUBS_FILE && require('fs').existsSync(STAFF_SUBS_FILE)) staffSubs = JSON.parse(require('fs').readFileSync(STAFF_SUBS_FILE, 'utf8')) || {}; } catch (_) {}
+function rememberStaffSub(nm, sub, store) {
+  const cur = staffSubs[nm];
+  if (cur && cur.sub === sub && cur.store === store) return;
+  staffSubs[nm] = { sub, store: store || null, at: Date.now() };
+  try { if (STAFF_SUBS_FILE) require('fs').writeFileSync(STAFF_SUBS_FILE, JSON.stringify(staffSubs)); } catch (_) {}
+}
+
+// ── Evening-before SHIFT REMINDERS (Rodney 2026-07-14) ────────────────────────
+// Around 6 PM Nassau time, every employee on tomorrow's rota gets a thank-you +
+// reminder of their hours, on WhatsApp if we know their subscriber id (they've
+// texted Jess at least once), otherwise as a task-board note + owner alert.
+// Schedule lives in shifts.json: { "Name": { "shifts": { "YYYY-MM-DD": "hours" } } }.
+let SHIFTS = {};
+try { SHIFTS = require('./shifts.json') || {}; } catch (_) {}
+const SHIFT_SENT_FILE = REMINDERS_FILE ? REMINDERS_FILE.replace('reminders.json', 'shift-sent.json') : null;
+let shiftSent = {};
+try { if (SHIFT_SENT_FILE && require('fs').existsSync(SHIFT_SENT_FILE)) shiftSent = JSON.parse(require('fs').readFileSync(SHIFT_SENT_FILE, 'utf8')) || {}; } catch (_) {}
+const NASSAU_OFFSET_H = -4; // Bahamas summer time (EDT). Winter is -5; adjust then.
+function nassauNow() { return new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000); }
+const shiftTick = setInterval(async () => {
+  const local = nassauNow();
+  if (local.getUTCHours() !== 18) return; // fire during the 6 PM Nassau hour only
+  const tomorrow = new Date(local.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+  for (const [nm, info] of Object.entries(SHIFTS)) {
+    const hours = info && info.shifts && info.shifts[tomorrow];
+    if (!hours) continue;
+    const key = nm + '@' + tomorrow;
+    if (shiftSent[key]) continue;
+    shiftSent[key] = Date.now();
+    try { if (SHIFT_SENT_FILE) require('fs').writeFileSync(SHIFT_SENT_FILE, JSON.stringify(shiftSent)); } catch (_) {}
+    const msg = `🙏 Big thanks for the work you've been putting in — it doesn't go unnoticed! 💪\n📅 Quick reminder: you're on tomorrow, ${hours}.\nSee you then! 👟🔥`;
+    const known = staffSubs[nm];
+    let sent = false;
+    if (known && known.sub) {
+      const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+      try { await sendChunk(known.sub, [{ type: 'text', text: msg }], tk); sent = true; } catch (_) {}
+    }
+    try { require('./shop').addAlert(`📅 ${nm} works tomorrow (${tomorrow}): ${hours}${sent ? '' : ' — ⚠️ WhatsApp reminder NOT sent (they have not texted Jess yet, so there is no direct line)'}`, 'Jess 🤖'); } catch (_) {}
+    saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'shift-reminder', name: nm, date: tomorrow, hours, sentDirect: sent });
+    if (recent.length > 120) recent.length = 120;
+  }
+}, 10 * 60 * 1000);
+if (shiftTick.unref) shiftTick.unref();
+
+// ── Delivery-day banner feed (Rodney 2026-07-14): the website shows a banner on days
+// with scheduled deliveries. Count only — no customer details leave this endpoint.
+app.get('/delivery-days', (req, res) => {
+  const startLocal = nassauNow(); startLocal.setUTCHours(0, 0, 0, 0);
+  const dayStartUtc = startLocal.getTime() - NASSAU_OFFSET_H * 3600 * 1000;
+  const dayEndUtc = dayStartUtc + 24 * 3600 * 1000;
+  const today = reminders.filter(r => r.at >= dayStartUtc && r.at < dayEndUtc).length;
+  res.json({ today });
+});
+
 // Keep memory bounded without splitting a tool_use/tool_result pair: trim to a
 // window that begins on a genuine customer text turn.
 function trimHistory(h, maxLen = 24) {
@@ -1860,6 +1928,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // 🎽 STAFF CHAT — recognized by WhatsApp number. Jess switches to coworker mode and
   // gains the sale-reporting flow (photo-confirm first, then record_sale).
   const staffName = staffNameFor(req);
+  if (staffName) rememberStaffSub(staffName, sub, ctx.store);
   if (staffName) {
     system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
 - STAFF SALE REPORTING: when they say a shoe SOLD ("sold the pink Air Max Plus in a 10", "the D3 gone in a 9", "just sold the grey 9060 size 8"), your job is to remove that pair from stock — with ONE unskippable safety step:
@@ -2116,6 +2185,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         let waOk = false;
         try { waOk = await waSendManager(lines, token); } catch (_) {}
         try { require('./shop').addAlert(lines, 'Jess 🤖'); } catch (_) {} // shows on the website Tasks board
+        // WhatsApp alert bounced (usually the 24h window closed — "Subscriber is not
+        // active", 2026-07-14: two order alerts silently never reached Rodney): flag it
+        // loudly on the task board so the app push still wakes someone.
+        if (!waOk) { try { require('./shop').addAlert('⚠️ The WhatsApp owner-alert for the order above BOUNCED — text the store line from the owner phone to reopen the 24h window.', 'Jess 🤖'); } catch (_) {} }
         // Also best-effort WhatsApp every on-duty staff number so whoever's around gets it
         // (each still subject to WhatsApp's 24h window). MANYCHAT_TOKEN drives the send.
         let staffWa = [];
