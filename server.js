@@ -996,6 +996,7 @@ PAYMENT (ONLY when THEY ask — NEVER bring it up yourself): Do NOT ask the cust
 - SunCash (📲, ONLY if they choose SunCash) → "SunCash 📲\nNumber: 8033126\nName: Rodney Munnings"
 
 WHERE WE ARE (Rodney 2026-07-14 — a customer asked "Which island?" and Jess answered with a question instead of the address): the store is in NASSAU, on CARMICHAEL ROAD. When a customer asks which island we're on / where we're located / where the store is, ANSWER IT: "We're in Nassau — Carmichael Road 🏝 and we ship to ALL the Family Islands!" Never reply to a location question with only a question back.
+🌙 AFTER-HOURS ORDERS = TOMORROW MORNING 8 AM (Rodney 2026-07-14): we deliver 7 AM–11 PM. When a customer commits to buying AFTER 11 PM (check the current Bahamas time given below), do NOT promise a driver tonight: tell them warmly the first run is TOMORROW MORNING from 8 AM — "We'll have it to you first thing tomorrow morning from 8 AM ⏰ that work?". If they accept: proceed exactly as normal (order_confirmed / delivery_ready with their pin) BUT prefix the location with "🌅 MORNING DELIVERY (8 AM) — " AND set remind_in_hours = hours from now until about 7:30 AM so the owner gets re-alerted in the morning. If they'd rather a different time tomorrow, note THAT time instead and set remind_in_hours to match.
 DELIVERY (Nassau is the DEFAULT — IMPORTANT): If a customer asks about delivery — "do you deliver?", "delivery available?", "you does deliver?", "can you bring it", "you bringing it?" — ASSUME they're right here in Nassau and want it brought to their door. We're mobile and delivery-only, so yes — we come to you. Reply that yes, we deliver to you, and ask their area / where to meet (and the shoe + size if you don't have them yet). Do NOT bring up boat, plane, shipping fees, or the Family Islands unless THEY first say they're on another island. Plain "delivery" = Nassau doorstep, never island shipping.
 
 SHIPPING (Family Islands — ONLY when they say they're off-island): Only if the customer says they're on another island (Abaco, Grand Bahama/Freeport, Eleuthera, Exuma, Andros, Bimini, Long Island, Cat Island, Inagua, etc.) OR explicitly asks to ship to an island: tell them yes we ship to ALL the Family Islands! Explain the two options clearly:
@@ -1102,6 +1103,7 @@ const AI_TOOLS = [
       type: 'object',
       properties: {
         customer_name: { type: 'string', description: "The customer's name, if known." },
+        shoe_id: { type: 'string', description: "The ordered shoe's id from THIS conversation's search_inventory results — its PICTURE is then attached to the owner's alert (and the reminder). Include it whenever you know which shoe the order is for." },
         customer_phone: { type: 'string', description: "The customer's callback number IF they typed one in the chat (e.g. 'call me at 359-1234'). Leave blank otherwise — the system fills in their WhatsApp number automatically." },
         shoe: { type: 'string', description: 'The shoe(s) they are buying — colour/model.' },
         size: { type: 'string', description: 'Their size.' },
@@ -1788,7 +1790,10 @@ const MANAGER_SUB_BY_STORE = {
   'Official Sneaker Crew': '318550271',  // Driplomatics on OSC
 };
 
-async function waSendManager(text, token) {
+async function waSendManager(text, token, image) {
+  // image (optional): shoe picture sent right above the alert text (Rodney 2026-07-14:
+  // "is it possible to add the shoe picture to the notification?").
+  const chunk = image ? [{ type: 'image', url: image }, { type: 'text', text }] : [{ type: 'text', text }];
   // NEW primary path: direct sends to Rodney's subscriber id on every account we
   // have a live token for. His one phone gets the alert from whichever bot can reach it.
   let anyDirect = false;
@@ -1797,7 +1802,7 @@ async function waSendManager(text, token) {
     // sub via OSC's token 400s with "Subscriber does not exist" (send-fail, 2026-07-14).
     const tk = storeTokens.get(store);
     if (!tk) continue;
-    try { const r = await sendChunk(subId, [{ type: 'text', text }], tk); if (r && r.ok) anyDirect = true; } catch (_) {}
+    try { const r = await sendChunk(subId, chunk, tk); if (r && r.ok) anyDirect = true; } catch (_) {}
   }
   if (anyDirect) return true;
   // Legacy fallback: the old phone lookup (kept in case the sub ids ever change).
@@ -1816,7 +1821,7 @@ async function waSendManager(text, token) {
       try {
         const sub = await findSubscriberByPhone(num, tk);
         if (!sub) continue;
-        await sendChunk(sub, [{ type: 'text', text }], tk);
+        await sendChunk(sub, chunk, tk);
         anyOk = true;
         break;                                   // this number is alerted — stop trying tokens
       } catch (_) { /* try the next account token */ }
@@ -1859,8 +1864,8 @@ function saveReminders() {
   }, 1500);
   if (remindersSaveT.unref) remindersSaveT.unref();
 }
-function scheduleOrderReminder(ms, store, lines) {
-  reminders.push({ at: Date.now() + ms, store: store || null, lines });
+function scheduleOrderReminder(ms, store, lines, image) {
+  reminders.push({ at: Date.now() + ms, store: store || null, lines, image: image || null });
   saveReminders();
 }
 const reminderTick = setInterval(async () => {
@@ -1871,7 +1876,7 @@ const reminderTick = setInterval(async () => {
   saveReminders();
   for (const r of due) {
     const tk = (r.store && storeTokens.get(r.store)) || lastToken || process.env.MANYCHAT_TOKEN;
-    try { await waSendManager(r.lines, tk); } catch (_) {}
+    try { await waSendManager(r.lines, tk, r.image); } catch (_) {}
     try { require('./shop').addAlert(r.lines, 'Jess 🤖'); } catch (_) {}
     saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'order-reminder-fired', store: r.store, lines: r.lines });
     if (recent.length > 120) recent.length = 120;
@@ -1986,6 +1991,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // Greet ONLY on the very first message of the chat — decided here in code, not by Jess —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
   let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo });
+  // Jess needs the clock for the after-hours (11 PM+) morning-delivery rule.
+  try {
+    const bah = new Date(Date.now() - 4 * 3600 * 1000); // Nassau summer time (UTC-4)
+    system += `\n\n(Current Bahamas date & time: ${bah.toISOString().slice(0, 10)} ${bah.toISOString().slice(11, 16)} — 24h clock.)`;
+  } catch (_) {}
   // 🎽 STAFF CHAT — recognized by WhatsApp number. Jess switches to coworker mode and
   // gains the sale-reporting flow (photo-confirm first, then record_sale).
   const staffName = staffNameFor(req);
@@ -2247,8 +2257,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             : null,
           ctx.store ? `🏬 ${ctx.store}` : null,
         ].filter(Boolean).join('\n');
+        let alertImg = null;
+        try { const sh = liveShoeMap()[inp.shoe_id]; if (sh && sh.image) alertImg = sh.image; } catch (_) {}
         let waOk = false;
-        try { waOk = await waSendManager(lines, token); } catch (_) {}
+        try { waOk = await waSendManager(lines, token, alertImg); } catch (_) {}
         try { require('./shop').addAlert(lines, 'Jess 🤖'); } catch (_) {} // shows on the website Tasks board
         // WhatsApp alert bounced (usually the 24h window closed — "Subscriber is not
         // active", 2026-07-14: two order alerts silently never reached Rodney): flag it
@@ -2266,7 +2278,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (remindH > 0 && remindH < 24 * 60) {
           const detail = lines.split('\n').slice(1).join('\n');
           scheduleOrderReminder(remindH * 3600 * 1000, ctx.store,
-            '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + detail);
+            '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + detail, alertImg);
         }
         // Delivery is now in motion — if the customer goes quiet, auto-reassure them
         // at ~20 min ("still on the way!"). Any reply from them cancels it (and Jess
