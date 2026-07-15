@@ -587,6 +587,23 @@ function getPhone(req) {
   return null;
 }
 
+// Staff recognition: the numbers in the shop's employees list (+ the core numbers
+// below) matched against the whatsapp_phone ManyChat includes on every message.
+// Digits-only, compared on the last 10 digits so +1242 / 1242 / 242 formats all match.
+const EXTRA_STAFF = { Test: '12424324406', Rodney: '12428256405', Manager2: '12428033126' };
+function staffNameFor(req) {
+  const p = getPhone(req);
+  if (!p) return null;
+  const tail = String(p).replace(/\D/g, '').slice(-10);
+  if (tail.length < 10) return null;
+  let emp = {};
+  try { emp = require('./shop').getEmployees() || {}; } catch (_) {}
+  for (const [nm, num] of Object.entries(Object.assign({}, EXTRA_STAFF, emp))) {
+    if (String(num || '').replace(/\D/g, '').slice(-10) === tail) return nm;
+  }
+  return null;
+}
+
 // Every http(s) URL ManyChat sent, with its (lowercased) field name. Used to tell
 // a voice note from a photo from any other attachment.
 // Platform-metadata URL fields that must NEVER be mistaken for a customer photo or
@@ -1091,6 +1108,18 @@ const AI_TOOLS = [
       type: 'object',
       properties: {
         reason: { type: 'string', description: "One short line on what the customer needs and where you got stuck, e.g. \"wants 'Nike mind 001 black' in size 11 but I can't confirm which pair\"." },
+      },
+    },
+  },
+  {
+    name: 'record_sale',
+    description: "STAFF ONLY — remove ONE sold pair from live stock. Call this ONLY in a staff chat (the system tells you when the sender is staff), and ONLY after the staffer has CONFIRMED the exact shoe from a photo you sent them in THIS conversation. It removes one pair of the given size, writes a sale record, updates the website and every store phone instantly, and alerts the owner. Sold two pairs of the same size = call it twice.",
+    input_schema: {
+      type: 'object',
+      required: ['shoe_id', 'size'],
+      properties: {
+        shoe_id: { type: 'string', description: "The shoe's id from THIS conversation's search_inventory results — the pair the staffer confirmed by photo." },
+        size: { type: 'string', description: "The size sold (men's sizing as stored), e.g. '10' or '8.5'." },
       },
     },
   },
@@ -1818,7 +1847,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   // Greet ONLY on the very first message of the chat — decided here in code, not by Jess —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
-  const system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo });
+  let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo });
+  // 🎽 STAFF CHAT — recognized by WhatsApp number. Jess switches to coworker mode and
+  // gains the sale-reporting flow (photo-confirm first, then record_sale).
+  const staffName = staffNameFor(req);
+  if (staffName) {
+    system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
+- STAFF SALE REPORTING: when they say a shoe SOLD ("sold the pink Air Max Plus in a 10", "the D3 gone in a 9", "just sold the grey 9060 size 8"), your job is to remove that pair from stock — with ONE unskippable safety step:
+  (1) search_inventory for the shoe they described.
+  (2) SEND THE PHOTO of the best match (send_photos, include_sizes = true) asking them to CONFIRM — lead_in like "This one? I'll take ONE size 10 out — say YES ✅". If 2-3 pairs could match what they said, send them all and ask which one.
+  (3) ONLY after they explicitly confirm ("yes", "yeah", "that one", or the code) call record_sale with that shoe's id and the size. ⚠️ NEVER call record_sale before a photo has been sent AND confirmed in THIS conversation — deleting the wrong shoe is far worse than asking one extra question. If they say "no, the other one", show the next candidate and confirm again.
+  (4) They sold TWO pairs of a size = TWO record_sale calls (same id + size, twice) — but only after confirmation.
+- After record_sale succeeds, report back exactly what it returns: "✅ Done — size 10 removed. That shoe now has: 7, 8, 8.5." If it says the size isn't in stock, say exactly that and list the sizes it DOES have — the website may already be updated.
+- Staff can also ask stock questions ("how many 9.5 in the Cave Stone left?") — answer with real search_inventory numbers, plain and quick.`;
+  }
   // When the customer sent a photo, attach it as an image block so Claude can SEE it.
   // If we JUST showed this customer some shoes, tell Claude — because customers often
   // forward one of OUR pics back to say "I want this one", and Jess should recognise it
@@ -2085,6 +2127,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // (Skip for the early "order_confirmed" heads-up — nobody's driving yet.)
         if (!earlyStage) try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
+      }
+      else if (tu.name === 'record_sale') {
+        const inp = tu.input || {};
+        if (!staffName) {
+          // Hard server-side gate: the model only sees this tool's staff rules, but the
+          // number check is what actually protects the stock from a clever customer.
+          result = { error: 'REFUSED — this chat is not from a recognized staff number. Do not retry; treat the sender as a customer.' };
+        } else {
+          const liveM = liveShoeMap();
+          const s2 = liveM[inp.shoe_id];
+          if (!s2) result = { error: 'unknown shoe id ' + inp.shoe_id + ' — use an id from a search_inventory call in THIS conversation' };
+          else {
+            result = require('./shop').recordStaffSale(inp.shoe_id, inp.size, staffName, s2.price, displayName(s2), s2.sizesRaw);
+            if (result && result.ok) {
+              const remain = (result.remaining_sizes && result.remaining_sizes.length) ? result.remaining_sizes.join(', ') : 'NONE — sold out';
+              try { await waSendManager(`🧾 SOLD (reported by ${staffName} via Jess): ${displayName(s2)} — size ${inp.size} — $${s2.price}\nRemaining sizes: ${remain}`, token); } catch (_) {}
+            }
+          }
+        }
+        record(req, { endpoint: 'staff-sale', sub, by: staffName, params: tu.input, out: result && (result.ok ? 'ok' : result.error) });
       }
       else if (tu.name === 'get_agent') {
         const inp = tu.input || {};

@@ -138,6 +138,36 @@ try {
   }
 } catch (e) { console.error('[shop] sold recovery failed:', e.message); }
 
+// Jess-reported sale (staff WhatsApps "sold the pink Air Max in a 10" and confirms
+// the photo): remove ONE pair of that size from the live shoe entry, append a real
+// sale record (same shape the website writes, so voiding works the same way), stamp
+// updatedAt so no stale phone can resurrect the pair, and bump rev so every phone
+// syncs. baseSizes = the shoe's current live sizes from the caller's liveShoeMap,
+// used when the shoe has no live override entry yet.
+function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
+  const sz = String(parseFloat(size));
+  if (sz === 'NaN') return { error: 'bad size' };
+  if (!Array.isArray(state.shoes)) state.shoes = [];
+  let shoe = state.shoes.find(x => x && String(x.id) === String(shoeId));
+  if (!shoe) {
+    shoe = { id: shoeId, _catalog: true, sizes: (baseSizes || []).slice(), sold: false };
+    state.shoes.push(shoe);
+  }
+  if (!Array.isArray(shoe.sizes)) shoe.sizes = (baseSizes || []).slice();
+  const idx = shoe.sizes.findIndex(x => String(parseFloat(x)) === sz);
+  if (idx === -1) return { error: 'size ' + size + ' is not in stock for this shoe', sizes: shoe.sizes.slice() };
+  shoe.sizes.splice(idx, 1);
+  if (!shoe.sizes.length) shoe.sold = true;
+  shoe.updatedAt = Date.now();
+  const uid = 'jess-' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  state.sales.unshift({ id: uid, shoeId: shoeId, shoeLabel: label || String(shoeId), size: sz,
+    price: price != null ? price : null, by: by || 'staff', at: new Date().toISOString(), src: 'jess-staff' });
+  if (state.sales.length > MAX_SALES) state.sales.length = MAX_SALES;
+  persist('shoes.json'); persist('sales.json'); bump();
+  addAlert('🧾 SALE — ' + (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : '') + ' (reported by ' + (by || 'staff') + ' via Jess)', by || 'Jess 🤖');
+  return { ok: true, saleId: uid, remaining_sizes: shoe.sizes.slice(), sold_out: !!shoe.sold };
+}
+
 // Add a note to the shared board programmatically (e.g. a delivery-ready alert
 // from the bot), so it shows on the website's Tasks for whoever's on duty.
 // Does NOT fire the employee WhatsApp blast — the caller handles any messaging.
@@ -552,4 +582,4 @@ function mount(app) {
 function getShoes() { return Array.isArray(state.shoes) ? state.shoes : []; }
 function getDeleted() { return Array.isArray(state.deleted) ? state.deleted : []; }
 
-module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted };
+module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, getEmployees: () => state.employees };
