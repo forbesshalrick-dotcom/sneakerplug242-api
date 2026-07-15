@@ -1236,8 +1236,17 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
     // search found nothing and Jess wrongly said we were out).
     // "navy" IS blue — a shoe labelled just "Navy" must match a customer asking for
     // "navy blue" (2026-07-14: the only size-10 navy NB was invisible to that ask).
-    const c = color.toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue');
-    rows = rows.filter(({ s }) => `${s.color || ''} ${s.nickname || ''} ${s.name}`.toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue').includes(c));
+    const normC = (t) => String(t).toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue');
+    const c = normC(color);
+    const hayOf = (s) => normC(`${s.color || ''} ${s.nickname || ''} ${s.name}`);
+    // MULTI-COLOUR = OR, exact phrase ranked first (2026-07-14: "black or white tennis
+    // in 11/11.5" became color "black white", the strict phrase match returned 0 of the
+    // 49 size-11 shoes, and Jess told the customer we had nothing): a shoe matches if
+    // ANY colour word appears, with true "black white" colourways sorted to the front.
+    const cWords = [...new Set(c.split(/[^a-z]+/).filter(w => w.length >= 3))];
+    const phraseHits = rows.filter(({ s }) => hayOf(s).includes(c));
+    const wordHits = cWords.length ? rows.filter(({ s }) => { const h = hayOf(s); return !h.includes(c) && cWords.some(w => h.includes(w)); }) : [];
+    rows = phraseHits.concat(wordHits);
   }
   // Price filter: "under $150" → max_price 150; "over $100" → min_price 100; a range uses both.
   const maxP = parseFloat(max_price), minP = parseFloat(min_price);
