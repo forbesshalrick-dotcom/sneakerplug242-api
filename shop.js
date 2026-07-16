@@ -635,4 +635,4 @@ function mount(app) {
 function getShoes() { return Array.isArray(state.shoes) ? state.shoes : []; }
 function getDeleted() { return Array.isArray(state.deleted) ? state.deleted : []; }
 
-module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []) };
+module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []) };

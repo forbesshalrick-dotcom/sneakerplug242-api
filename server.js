@@ -2129,7 +2129,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 - 📦 RESTOCK: staff can also ADD stock ("we got 3 more size 10s of the Bred", "put that 10.5 back") — same photo-confirm-first flow, then call record_restock with the shoe id, size and count.
 - 🔢 STAFF SEE QUANTITIES, ALWAYS (Rodney 2026-07-14: "we are workers — it's best to see full quantity, not 1 pair like the customer"): when talking to staff, express stock as per-size COUNTS ("10.5 x2, 11 x1"), never a bare size list. record_sale/record_restock return remaining_summary — repeat it VERBATIM, never retype or shorten it (2026-07-14: Kiki dropped 10.5 from her summary while 2 pairs remained — a hand-typed list lost a size the tool result plainly showed).
 - ⚠️ NEVER SAY "DONE" WITHOUT THE TOOL (2026-07-16: Kiki told staff "✅ Done — size 10 removed" TWICE, never called record_sale, nothing was removed, the register missed the sale): the words "done/removed/updated" may ONLY follow a record_sale/record_restock result in THIS SAME turn. The tool now also REFUSES unless that exact shoe's photo went out in this chat first — if it refuses, do what it says (photo → YES → call again), don't apologize your way past it.
-- 💵 END-OF-SHIFT FLOAT PHOTO (Rodney 2026-07-16): staff send a PHOTO of the float cash spread out on the table before leaving. COUNT IT from the photo, denomination by denomination, separating US dollars from Bahamian dollars (they count 1:1 — B$20 = $20): reply with your full count ("I see 3x$100 + 4x$50 US + 2xB$20... = $520 total — that right?") and wait for their YES. If bills overlap or the photo is unclear, ask for a clearer photo — never guess. Once they confirm, call record_float_count with the total and breakdown. If today's payout note said how much SHOULD be left, compare and say plainly whether it matches or is short/over.
+- 💵 END-OF-SHIFT FLOAT PHOTO (Rodney 2026-07-16): staff send a PHOTO of the float cash spread out on the table before leaving. COUNT IT from the photo, denomination by denomination, separating US dollars from Bahamian dollars (they count 1:1 — B$20 = $20): reply with your full count ("I see 3x$100 + 4x$50 US + 2xB$20... = $520 total — that right?") and wait for their YES. If bills overlap or the photo is unclear, ask for a clearer photo — never guess. Once they confirm, call record_float_count with the total and breakdown. The tool result tells you their recorded pay for today and what the float SHOULD hold — use it: (1) say plainly whether the count matches or is short/over, (2) then ALWAYS close the shift with a warm thank-you message: thank them by name for the day, confirm in writing how much they earned and that it's recorded ("You earned $60 today — logged and locked in ✅"), and end with ONE short motivational line tying selling to earning ("every pair you move puts more in your pocket — the more you sell, the more you make 💪👟"). Vary the wording day to day so it stays human, keep it Bahamian-warm, never skip it — that message IS their receipt.
 - "WHAT SOLD TODAY?" → call sales_today (staff/owner only) and repeat its list verbatim — count, shoes, sizes, who reported. Never guess or say you don't know: the register knows.
 - After record_sale succeeds, report back exactly what it returns: "✅ Done — size 10 removed. That shoe now has: 7, 8, 8.5." If it says the size isn't in stock, say exactly that and list the sizes it DOES have — the website may already be updated.
 - Staff can also ask stock questions ("how many 9.5 in the Cave Stone left?") — answer with real search_inventory numbers, plain and quick.`;
@@ -2418,7 +2418,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         else {
           try {
             require('./shop').addAlert('💵 FLOAT COUNT (end of shift, by ' + staffName + '): $' + (Number(inp.total_dollars) || 0).toFixed(2) + '\n' + String(inp.breakdown || '').slice(0, 300), staffName);
-            result = { ok: true, note: 'Float count logged to the owner board. Tell them it is recorded and they are good to go.' };
+            // Find what THIS staff member paid themselves today (the website's payout
+            // note) so Kiki can thank them and confirm the exact recorded amount.
+            let todayPay = null, floatShould = null;
+            try {
+              const today = new Date().toDateString();
+              for (const n of require('./shop').getNotes()) {
+                if (!n || !/💵 PAYOUT/.test(n.text || '')) continue;
+                if (String(n.text).indexOf(staffName) === -1) continue;
+                if (new Date(n.createdAt).toDateString() !== today) continue;
+                const mp = /= \$([0-9]+(?:\.[0-9]+)?) taken/.exec(n.text);
+                const mf = /hold \$([0-9]+(?:\.[0-9]+)?)/.exec(n.text);
+                if (mp) todayPay = parseFloat(mp[1]);
+                if (mf) floatShould = parseFloat(mf[1]);
+                break;
+              }
+            } catch (_) {}
+            result = { ok: true, today_recorded_pay: todayPay, float_should_hold: floatShould,
+              note: 'Float count logged. NOW send the end-of-shift thank-you (see the FLOAT PHOTO rule): thank them by name, confirm their recorded pay for today' + (todayPay != null ? ' ($' + todayPay.toFixed(2) + ')' : ' (recorded on the website)') + (floatShould != null ? ', compare the counted float to the expected $' + floatShould.toFixed(2) + ' and say if it matches or is short/over' : '') + ', and close with one short motivational line: the more they sell, the more they make.' };
           } catch (e) { result = { error: 'log failed: ' + String(e).slice(0, 80) }; }
         }
       }
