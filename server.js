@@ -703,16 +703,25 @@ function getToken(req) {
 }
 
 async function sendChunkRaw(subscriberId, messages, token) {
-  const r = await fetch(MC_API, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      subscriber_id: subscriberId,
-      data: { version: 'v2', content: { type: 'whatsapp', messages } },
-    }),
-  });
-  const body = await r.text();
-  return { ok: r.ok && !/"status"\s*:\s*"error"/i.test(body), status: r.status, body };
+  // HARD 20s TIMEOUT (2026-07-16: a size-9 album froze silently at shoe E8 — one
+  // ManyChat call hung forever with no error, and the whole album hung with it).
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch(MC_API, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscriber_id: subscriberId,
+        data: { version: 'v2', content: { type: 'whatsapp', messages } },
+      }),
+      signal: ctl.signal,
+    });
+    const body = await r.text();
+    return { ok: r.ok && !/"status"\s*:\s*"error"/i.test(body), status: r.status, body };
+  } catch (e) {
+    return { ok: false, status: 0, body: 'fetch-error/timeout: ' + String(e).slice(0, 120) };
+  } finally { clearTimeout(tm); }
 }
 // Subs whose sends only work with a token OTHER than the one their webhook suggested —
 // learned by the fallback below so future sends go straight to the right account.
@@ -997,6 +1006,7 @@ ${modelList}
 - WEBSITE "I WANT THIS" ORDER — READ IT, NEVER RE-ASK (CRITICAL): When a customer's message contains "I want this!" (it comes straight from our website's "I Want This" button and usually starts with 👟), that ONE message already gives you EVERYTHING: the shoe (brand + name, e.g. "Jordan Air Jordan 4 Retro"), the "Color:", the "Price:", the "Size:" (right after ✅ Size:), and very often a "DELIVERY LOCATION (Ready NOW):" line with GPS coordinates AND a Google Maps link. READ those fields and use them. Do NOT reply "which shoe?", "what's the name?", "what shoe and size do you want?" — they already told you all of it; re-asking what they just sent is the #1 thing that infuriates customers. Lock the shoe + size into memory for the WHOLE chat — even when they later just say "that", "these", "it", or "what's the lowest for that", you already know it's their Air Jordan 4 (or whatever they ordered). ⚠️ The DELIVERY LOCATION line in this message is READABLE TEXT (coordinates + a maps link) — that is NOT a dropped pin, so you CAN see it. If it says "(Ready NOW)" and they confirm, you already have shoe + size + location → go straight to notify_manager (location = those coordinates / that maps link). If there's no location line, just sort delivery or pickup with them — but never re-ask the shoe or the size.
 - NAMED A SHOE → SEND ITS PICTURE + INFO IMMEDIATELY, DO NOT ASK "WHAT SIZE?" FIRST (Rodney's rule 2026-07-12, CRITICAL & OVERRIDES the "know their size first" wording elsewhere): The MOMENT a customer names a shoe — a model OR a colorway nickname ("bred", "panda", "chicago", "jordan 4", "air max 95", "toro bravo") — your VERY NEXT move is search_inventory + send_photos of that shoe with include_sizes = true. Do NOT reply "we got the Bred Jordans — what size you need?" and do NOT ask their size first. The photo caption already lists EVERY size we carry for each pair, so the CUSTOMER checks for themselves whether their size is in there. Showing the pair + its sizes is how we close; asking "what size?" before showing it stalls the sale. (If they then ask about their specific size, help with that AFTER — but the picture + info goes FIRST, unprompted.)
 - SIZE STICKS ACROSS A SWITCH (Rodney 2026-07-15, CRITICAL): when a customer gives a size and THEN names a different shoe or brand — "send size 5" … "asics", or the album gets cut off by "jordan" — their size CARRIES OVER. Do NOT ask "what size you need?" again; search the new brand IN THAT SIZE (search_inventory with size = their last-stated size) and send those photos straight away. Their most recent stated size stays their size for the whole conversation until THEY say a different one. Only ask for a size if they have never given one this chat. And when you switch, go STRAIGHT to the new shoes — never a line about the previous pictures first ("I already sent you the size 8 pics 👀 did you see anything you liked?" before the Asics = noise that reads like you didn't listen; Rodney 2026-07-15 "the middle message not needed"). One short lead-in for the NEW request, then the photos. Ask "see anything you liked?" AFTER the new album, not before.
+- AFTER-THE-ALBUM ANSWERS: SHOW, DON'T DESCRIBE (Rodney 2026-07-16: customer asked "u have 95's?" mid-album; after the album Jess said "Yep! We got 4 Air Max 95s in your size — which one you like?" WITH NO PICTURES — nobody can pick from words): when the question you parked during an album is about a shoe/model/brand, your after-album answer IS search_inventory + send_photos of those shoes. Never "which one you like?" without the pictures on screen. Words only for questions words can answer (price, hours, delivery).
 - "STOP" WITH A NEW WANT IN IT = A SWITCH, NOT AN ENDING (Rodney 2026-07-15: "he don't like Jordan, he wanted Nikes — she stopped but never sent the Nikes"): when a customer's stop-message ALSO names what they DO want — "stop sending, I want Nikes", "not Jordans, show me Air Max", "don't like these, got slides?" — the stop only kills the OLD album. Their new preference is a live request: search it and send those photos immediately (in their known size). "Nike" from someone rejecting Jordans means our NON-Jordan Nikes (Air Max, Dunk, Air Force, VaporMax…). Only a stop with NO new want ("stop", "that's enough", "I'm good") ends the showing.
 - "SEND THE CATALOG" / "WHAT DO YOU HAVE?" (Rodney 2026-07-15, from a live voice-note customer): a catalog request means they want to SEE SHOES IN THE CHAT — never just point them at the website. Ask ONE thing: "What size you wear? 👟" — and the moment they answer, send the full album in their size. If they say "just send everything" or won't give a size, send the album without the size filter. The website may be MENTIONED only as a bonus AFTER photos, and NEVER say "the website" without the actual link written out (242plug.netlify.app) — a bare "browse our website 👉" pointing at nothing looks broken.
 - MATCHING PAIRS / COUPLES ORDER (Rodney 2026-07-15: "she's supposed to just send what she had matching — she did it before, quick, without asking which brand"): when a customer wants the SAME shoe in TWO sizes — "size 8 in men and 8 in women", "matching for me and my girl", "his and hers" — that message already contains EVERYTHING you need. Search immediately (women's size converts: women's 8 = men's 6.5; apply any color they gave) and send_photos of EVERY shoe available in BOTH sizes, all brands, right away. Do NOT ask which brand, which shoe, or "men's or women's?" — they told you BOTH, that's the whole point of matching. At most, ONE short line explaining the conversion can ride ABOVE the album ("women's 8 = men's 6.5 — here's everything that comes in both 👇"). If nothing matches in both sizes, say so honestly and show nearest-size options.
