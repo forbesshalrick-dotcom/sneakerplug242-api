@@ -702,7 +702,7 @@ function getToken(req) {
   return null;
 }
 
-async function sendChunk(subscriberId, messages, token) {
+async function sendChunkRaw(subscriberId, messages, token) {
   const r = await fetch(MC_API, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -712,10 +712,37 @@ async function sendChunk(subscriberId, messages, token) {
     }),
   });
   const body = await r.text();
+  return { ok: r.ok && !/"status"\s*:\s*"error"/i.test(body), status: r.status, body };
+}
+// Subs whose sends only work with a token OTHER than the one their webhook suggested —
+// learned by the fallback below so future sends go straight to the right account.
+const subTokenFix = new Map();
+async function sendChunk(subscriberId, messages, token) {
+  // CROSS-ACCOUNT TOKEN FALLBACK (2026-07-15: some customers get tagged with the WRONG
+  // store, so every send bounces with "Subscriber is not active" / "Something went
+  // wrong" while the SAME send works fine with the other account's token — Antoinette,
+  // MOBB and a size-4.5 customer all lost service this way). Try the suggested token
+  // first; on those errors, try every other token we know. Remember what worked.
+  const fixed = subTokenFix.get(String(subscriberId));
+  const candidates = [fixed, token, ...storeTokens.values(), lastToken, process.env.MANYCHAT_TOKEN]
+    .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+  let last = null;
+  for (const tk of candidates) {
+    const r = await sendChunkRaw(subscriberId, messages, tk);
+    if (r.ok) {
+      if (tk !== token) subTokenFix.set(String(subscriberId), tk);
+      return { ok: true, status: r.status, body: r.body.slice(0, 300) };
+    }
+    last = r;
+    // Only rotate tokens on the wrong-account signatures; other errors are real.
+    if (!/not active|Something went wrong/i.test(r.body)) break;
+  }
+  const body = (last && last.body) || '';
+  const r = { ok: false, status: (last && last.status) || 0 };
   // ManyChat can fail with an error HTTP status OR a 200 carrying {"status":"error"}.
   // Either way, LOG it — silent send failures made Jess look like she ignored a
   // customer (2026-07-14: two voice questions got no reply and nothing was recorded).
-  const ok = r.ok && !/"status"\s*:\s*"error"/i.test(body);
+  const ok = false;
   if (!ok) {
     saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
     if (recent.length > 120) recent.length = 120;
@@ -2512,7 +2539,11 @@ function handleChat(req, res) {
   // we reply to those we SPAM the customer with repeat "Got it"/"No worries" messages
   // and even hand off to an agent. So when there's no photo/voice and the text is only
   // dots/punctuation/whitespace (no real letters or numbers), do nothing.
-  if (!audioUrl && !imageUrl && !/[a-z0-9]/i.test(userText)) {
+  // ...but MEANINGFUL emoji are real replies, not junk (2026-07-15: a customer answered
+  // "which brand?" with a pointing finger meaning "the one I already said" and got
+  // silence): pointing, thumbs, hearts, fire, checkmarks, prayer = the customer talking.
+  const MEANINGFUL_EMOJI = /[\u{1F446}\u{1F447}\u{1F448}\u{1F449}\u{1F44C}\u{1F44D}\u{1F44E}\u{1F4AF}\u{1F525}\u{1F60D}\u{1F64F}\u{261D}\u{2705}\u{2764}]/u;
+  if (!audioUrl && !imageUrl && !/[a-z0-9]/i.test(userText) && !MEANINGFUL_EMOJI.test(userText)) {
     record(req, { endpoint: 'junk-skip', sub, q: userText.slice(0, 20) });
     return;
   }
