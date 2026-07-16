@@ -1193,6 +1193,11 @@ const AI_TOOLS = [
     },
   },
   {
+    name: 'sales_today',
+    description: "STAFF/OWNER ONLY — list the sales recorded in the shared register for today (Bahamas time): what sold, size, price, and who reported it. Use it whenever staff or the owner asks what/how many sold today or wants to cross-check that a reported sale actually registered. Data comes straight from the register the website shows.",
+    input_schema: { type: 'object', properties: {}, required: [] },
+  },
+  {
     name: 'record_sale',
     description: "STAFF ONLY — remove ONE sold pair from live stock. Call this ONLY in a staff chat (the system tells you when the sender is staff), and ONLY after the staffer has CONFIRMED the exact shoe from a photo you sent them in THIS conversation. It removes one pair of the given size, writes a sale record, updates the website and every store phone instantly, and alerts the owner. Sold two pairs of the same size = call it twice.",
     input_schema: {
@@ -1488,7 +1493,11 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 
   // Send ONE shoe (photo + its label) per call, so a "stop" halts within a single shoe.
   const sendShoe = async (s) => {
-    try { await sendChunk(sub, photoWithLabel(s), token); sent += 1; lastShoeSent = s; } catch (e) { /* keep going */ }
+    try {
+      await sendChunk(sub, photoWithLabel(s), token); sent += 1; lastShoeSent = s;
+      // Remember WHICH shoes this chat has actually SEEN — record_sale demands it.
+      if (s && s.id != null) photoConfirmSeen.set(sub + '|' + s.id, Date.now());
+    } catch (e) { /* keep going */ }
   };
 
   // One shoe → its photo immediately followed by its label bubble (when labelling).
@@ -1557,6 +1566,11 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 // between shoes; a STOP-worded message ("stop", "that's enough") halts the rest,
 // while questions let the album finish (they queue and get answered right after).
 const lastIncoming = new Map();
+// sub|shoeId -> ts of the last photo of that shoe sent to that chat. record_sale is
+// REFUSED unless the shoe was photo'd in the same chat within 2h (2026-07-16: Kiki
+// said "Done — size 10 removed" TWICE with no photo, no tool call, and no removal —
+// the photo-confirm rule now has teeth the model can't skip).
+const photoConfirmSeen = new Map();
 const lastIncomingText = new Map(); // sub -> the text of that latest message
 const lastReplayAt = new Map(); // sub -> when a non-text replay (pin/sticker/undelivered photo) last arrived
 const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
@@ -2106,6 +2120,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   (4) They sold TWO pairs of a size = TWO record_sale calls (same id + size, twice) — but only after confirmation.
 - 📦 RESTOCK: staff can also ADD stock ("we got 3 more size 10s of the Bred", "put that 10.5 back") — same photo-confirm-first flow, then call record_restock with the shoe id, size and count.
 - 🔢 STAFF SEE QUANTITIES, ALWAYS (Rodney 2026-07-14: "we are workers — it's best to see full quantity, not 1 pair like the customer"): when talking to staff, express stock as per-size COUNTS ("10.5 x2, 11 x1"), never a bare size list. record_sale/record_restock return remaining_summary — repeat it VERBATIM, never retype or shorten it (2026-07-14: Kiki dropped 10.5 from her summary while 2 pairs remained — a hand-typed list lost a size the tool result plainly showed).
+- ⚠️ NEVER SAY "DONE" WITHOUT THE TOOL (2026-07-16: Kiki told staff "✅ Done — size 10 removed" TWICE, never called record_sale, nothing was removed, the register missed the sale): the words "done/removed/updated" may ONLY follow a record_sale/record_restock result in THIS SAME turn. The tool now also REFUSES unless that exact shoe's photo went out in this chat first — if it refuses, do what it says (photo → YES → call again), don't apologize your way past it.
+- "WHAT SOLD TODAY?" → call sales_today (staff/owner only) and repeat its list verbatim — count, shoes, sizes, who reported. Never guess or say you don't know: the register knows.
 - After record_sale succeeds, report back exactly what it returns: "✅ Done — size 10 removed. That shoe now has: 7, 8, 8.5." If it says the size isn't in stock, say exactly that and list the sizes it DOES have — the website may already be updated.
 - Staff can also ask stock questions ("how many 9.5 in the Cave Stone left?") — answer with real search_inventory numbers, plain and quick.`;
   }
@@ -2387,6 +2403,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (!earlyStage) try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
       }
+      else if (tu.name === 'sales_today') {
+        const ownerLike = (() => { try { return Object.values(MANAGER_SUB_BY_STORE).includes(String(sub)); } catch (_) { return false; } })();
+        if (!staffName && !ownerLike) {
+          result = { error: 'REFUSED — sales data is staff/owner only.' };
+        } else {
+          try {
+            const bahNow = new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000);
+            const today = bahNow.toISOString().slice(0, 10);
+            const sales = require('./shop').getSales().filter(x => {
+              const at = new Date(new Date(x.at).getTime() + NASSAU_OFFSET_H * 3600 * 1000);
+              return !isNaN(at) && at.toISOString().slice(0, 10) === today;
+            });
+            result = {
+              date: today,
+              count: sales.length,
+              total_dollars: sales.reduce((n, x) => n + (Number(x.price) || 0), 0),
+              sales: sales.map(x => ({ shoe: x.shoeLabel || x.shoeId, size: x.size, price: x.price, by: x.by })),
+              note: 'This is the live register the website shows — repeat it verbatim.',
+            };
+          } catch (e) { result = { error: 'register unavailable: ' + String(e).slice(0, 80) }; }
+        }
+      }
       else if (tu.name === 'record_sale') {
         const inp = tu.input || {};
         if (!staffName) {
@@ -2397,6 +2435,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const liveM = liveShoeMap();
           const s2 = liveM[inp.shoe_id];
           if (!s2) result = { error: 'unknown shoe id ' + inp.shoe_id + ' — use an id from a search_inventory call in THIS conversation' };
+          else if (!photoConfirmSeen.get(sub + '|' + s2.id) || (Date.now() - photoConfirmSeen.get(sub + '|' + s2.id)) > 2 * 3600 * 1000) {
+            result = { error: 'REFUSED — you have NOT sent this exact shoe\'s photo in this chat (or it was hours ago). Send its photo with send_photos, get the staff member\'s YES, then call record_sale again. Never claim a removal is done without this tool succeeding.' };
+          }
           else {
             // The tool gets the bot's catalog-INDEX key; the shared store + website key
             // by the shoe's real id (2026-07-14: first live staff sale wrote ghost id "56"
