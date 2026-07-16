@@ -2351,6 +2351,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             ? '⚠️ VERIFY THE PIN: it was auto-detected from an attachment — open the chat and make sure a real location pin is there (it could have been a photo). Ask the customer if not.'
             : null,
           ctx.store ? `🏬 ${ctx.store}` : null,
+          // One tap straight into THIS conversation in the ManyChat Inbox — where the
+          // dropped location pin actually lives (Rodney 2026-07-16: "forward the
+          // customer's location with the info" — the pin never reaches our server, but
+          // this link opens the chat with the pin on screen).
+          ctx.chatUrl ? `💬 Open the chat / see the pin: ${ctx.chatUrl}` : null,
         ].filter(Boolean).join('\n');
         let alertImg = null;
         try { const sh = liveShoeMap()[inp.shoe_id]; if (sh && sh.image) alertImg = sh.image; } catch (_) {}
@@ -2701,7 +2706,9 @@ function handleChat(req, res) {
         return; // stay silent — the owner is handling this customer himself
       }
     }
-    return runChat(req, sub, text, token, { store, name, turnAt }, photo);
+    let chatUrl = null;
+    try { chatUrl = (req.body && typeof req.body === 'object' && req.body.live_chat_url) ? String(req.body.live_chat_url) : null; } catch (_) {}
+    return runChat(req, sub, text, token, { store, name, turnAt, chatUrl }, photo);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
