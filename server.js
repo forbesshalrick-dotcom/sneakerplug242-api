@@ -1193,6 +1193,14 @@ const AI_TOOLS = [
     },
   },
   {
+    name: 'record_float_count',
+    description: "STAFF ONLY — log the end-of-shift float count after the staff member sends a PHOTO of the cash spread on the table and CONFIRMS your count. Records the breakdown on the owner's task board. Never call it without (1) a cash photo in this chat, (2) your denomination-by-denomination count shown to them, and (3) their explicit yes.",
+    input_schema: { type: 'object', properties: {
+      total_dollars: { type: 'number', description: 'The confirmed total in dollars (US$ and B$ count 1:1).' },
+      breakdown: { type: 'string', description: "Denominations exactly as counted, e.g. '3x$100 + 4x$50 + 6x$20 (US) + 2xB$20 + 5xB$5'." },
+    }, required: ['total_dollars', 'breakdown'] },
+  },
+  {
     name: 'sales_today',
     description: "STAFF/OWNER ONLY — list the sales recorded in the shared register for today (Bahamas time): what sold, size, price, and who reported it. Use it whenever staff or the owner asks what/how many sold today or wants to cross-check that a reported sale actually registered. Data comes straight from the register the website shows.",
     input_schema: { type: 'object', properties: {}, required: [] },
@@ -2121,6 +2129,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 - 📦 RESTOCK: staff can also ADD stock ("we got 3 more size 10s of the Bred", "put that 10.5 back") — same photo-confirm-first flow, then call record_restock with the shoe id, size and count.
 - 🔢 STAFF SEE QUANTITIES, ALWAYS (Rodney 2026-07-14: "we are workers — it's best to see full quantity, not 1 pair like the customer"): when talking to staff, express stock as per-size COUNTS ("10.5 x2, 11 x1"), never a bare size list. record_sale/record_restock return remaining_summary — repeat it VERBATIM, never retype or shorten it (2026-07-14: Kiki dropped 10.5 from her summary while 2 pairs remained — a hand-typed list lost a size the tool result plainly showed).
 - ⚠️ NEVER SAY "DONE" WITHOUT THE TOOL (2026-07-16: Kiki told staff "✅ Done — size 10 removed" TWICE, never called record_sale, nothing was removed, the register missed the sale): the words "done/removed/updated" may ONLY follow a record_sale/record_restock result in THIS SAME turn. The tool now also REFUSES unless that exact shoe's photo went out in this chat first — if it refuses, do what it says (photo → YES → call again), don't apologize your way past it.
+- 💵 END-OF-SHIFT FLOAT PHOTO (Rodney 2026-07-16): staff send a PHOTO of the float cash spread out on the table before leaving. COUNT IT from the photo, denomination by denomination, separating US dollars from Bahamian dollars (they count 1:1 — B$20 = $20): reply with your full count ("I see 3x$100 + 4x$50 US + 2xB$20... = $520 total — that right?") and wait for their YES. If bills overlap or the photo is unclear, ask for a clearer photo — never guess. Once they confirm, call record_float_count with the total and breakdown. If today's payout note said how much SHOULD be left, compare and say plainly whether it matches or is short/over.
 - "WHAT SOLD TODAY?" → call sales_today (staff/owner only) and repeat its list verbatim — count, shoes, sizes, who reported. Never guess or say you don't know: the register knows.
 - After record_sale succeeds, report back exactly what it returns: "✅ Done — size 10 removed. That shoe now has: 7, 8, 8.5." If it says the size isn't in stock, say exactly that and list the sizes it DOES have — the website may already be updated.
 - Staff can also ask stock questions ("how many 9.5 in the Cave Stone left?") — answer with real search_inventory numbers, plain and quick.`;
@@ -2402,6 +2411,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // (Skip for the early "order_confirmed" heads-up — nobody's driving yet.)
         if (!earlyStage) try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
+      }
+      else if (tu.name === 'record_float_count') {
+        const inp = tu.input || {};
+        if (!staffName) result = { error: 'REFUSED — staff numbers only.' };
+        else {
+          try {
+            require('./shop').addAlert('💵 FLOAT COUNT (end of shift, by ' + staffName + '): $' + (Number(inp.total_dollars) || 0).toFixed(2) + '\n' + String(inp.breakdown || '').slice(0, 300), staffName);
+            result = { ok: true, note: 'Float count logged to the owner board. Tell them it is recorded and they are good to go.' };
+          } catch (e) { result = { error: 'log failed: ' + String(e).slice(0, 80) }; }
+        }
       }
       else if (tu.name === 'sales_today') {
         const ownerLike = (() => { try { return Object.values(MANAGER_SUB_BY_STORE).includes(String(sub)); } catch (_) { return false; } })();
