@@ -2434,7 +2434,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
                 break;
               }
             } catch (_) {}
-            result = { ok: true, today_recorded_pay: todayPay, float_should_hold: floatShould,
+            // FLOAT MISMATCH = LOUD (Rodney 2026-07-16: "if the float is wrong, will
+            // Kiki verify, or just say thank you?"): a count that differs from what the
+            // payout screen said should be left goes STRAIGHT to the owner's WhatsApp,
+            // not just the task board.
+            const counted = Number(inp.total_dollars) || 0;
+            let mismatch = null;
+            if (floatShould != null && Math.abs(counted - floatShould) > 1) {
+              mismatch = counted - floatShould;
+              try {
+                await waSendManager('⚠️ *FLOAT MISMATCH* (end of shift)\n👤 ' + staffName + '\n🧮 Counted: $' + counted.toFixed(2) + '\n📋 Should hold: $' + floatShould.toFixed(2) + '\n' + (mismatch < 0 ? '🔻 SHORT $' + Math.abs(mismatch).toFixed(2) : '🔺 OVER $' + mismatch.toFixed(2)) + '\n📸 Count breakdown: ' + String(inp.breakdown || '').slice(0, 200), token);
+              } catch (_) {}
+              try { require('./shop').addAlert('⚠️ FLOAT MISMATCH — counted $' + counted.toFixed(2) + ' vs expected $' + floatShould.toFixed(2) + (mismatch < 0 ? ' (SHORT $' + Math.abs(mismatch).toFixed(2) + ')' : ' (OVER $' + mismatch.toFixed(2) + ')') + ' — by ' + staffName, 'Kiki 🤖'); } catch (_) {}
+            }
+            result = { ok: true, today_recorded_pay: todayPay, float_should_hold: floatShould, mismatch_dollars: mismatch,
               note: 'Float count logged. NOW send the end-of-shift thank-you (see the FLOAT PHOTO rule): thank them by name, confirm their recorded pay for today' + (todayPay != null ? ' ($' + todayPay.toFixed(2) + ')' : ' (recorded on the website)') + (floatShould != null ? ', compare the counted float to the expected $' + floatShould.toFixed(2) + ' and say if it matches or is short/over' : '') + ', and close with one short motivational line: the more they sell, the more they make.' };
           } catch (e) { result = { error: 'log failed: ' + String(e).slice(0, 80) }; }
         }
