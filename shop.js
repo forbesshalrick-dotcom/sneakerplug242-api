@@ -139,11 +139,11 @@ try {
 } catch (e) { console.error('[shop] sold recovery failed:', e.message); }
 
 // Shared ACTIVITY LOG entry, in the exact shape the website's audit log uses
-// ({id, action, detail, category, shoeId, user, time}) so Jess's actions show up
+// ({id, action, detail, category, shoeId, user, time}) so Kiki's actions show up
 // on every device's Log tab (Rodney 2026-07-14: "no sales being logged, what a joke").
 function addLogEntry(action, detail, category, shoeId, user) {
   const e = { id: Date.now() + Math.random(), action, detail: detail || '', category: category || 'general',
-    shoeId: shoeId || null, user: user || 'Jess 🤖', time: new Date().toISOString() };
+    shoeId: shoeId || null, user: user || 'Kiki 🤖', time: new Date().toISOString() };
   state.log.unshift(e);
   if (state.log.length > MAX_LOG) state.log.length = MAX_LOG;
   persist('log.json'); bump();
@@ -158,7 +158,7 @@ function sizeSummary(sizes) {
   return parts.length ? `${parts.join(', ')} — ${(sizes || []).length} pairs total` : 'NONE — sold out';
 }
 
-// Jess-reported sale (staff WhatsApps "sold the pink Air Max in a 10" and confirms
+// Kiki-reported sale (staff WhatsApps "sold the pink Air Max in a 10" and confirms
 // the photo): remove ONE pair of that size from the live shoe entry, append a real
 // sale record (same shape the website writes, so voiding works the same way), stamp
 // updatedAt so no stale phone can resurrect the pair, and bump rev so every phone
@@ -184,12 +184,12 @@ function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
     price: price != null ? price : null, by: by || 'staff', at: new Date().toISOString(), src: 'jess-staff' });
   if (state.sales.length > MAX_SALES) state.sales.length = MAX_SALES;
   persist('shoes.json'); persist('sales.json'); bump();
-  addAlert('🧾 SALE — ' + (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : '') + ' (reported by ' + (by || 'staff') + ' via Jess)', by || 'Jess 🤖');
-  addLogEntry('Sale (via Jess)', (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : ''), 'sales', shoeId, by || 'staff');
+  addAlert('🧾 SALE — ' + (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : '') + ' (reported by ' + (by || 'staff') + ' via Kiki)', by || 'Kiki 🤖');
+  addLogEntry('Sale (via Kiki)', (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : ''), 'sales', shoeId, by || 'staff');
   return { ok: true, saleId: uid, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes), sold_out: !!shoe.sold };
 }
 
-// Staff restock via Jess — the inverse of recordStaffSale: add pairs of a size.
+// Staff restock via Kiki — the inverse of recordStaffSale: add pairs of a size.
 // No sale record (nothing sold); a task note + rev bump so every phone syncs.
 function recordStaffRestock(shoeId, size, count, by, label, baseSizes) {
   const sz = String(parseFloat(size));
@@ -206,8 +206,8 @@ function recordStaffRestock(shoeId, size, count, by, label, baseSizes) {
   shoe.sold = false;
   shoe.updatedAt = Date.now();
   persist('shoes.json'); bump();
-  addAlert('📦 RESTOCK — ' + (label || shoeId) + ' — size ' + sz + ' x' + n + ' added (by ' + (by || 'staff') + ' via Jess)', by || 'Jess 🤖');
-  addLogEntry('Restock (via Jess)', (label || shoeId) + ' — size ' + sz + ' x' + n, 'inventory', shoeId, by || 'staff');
+  addAlert('📦 RESTOCK — ' + (label || shoeId) + ' — size ' + sz + ' x' + n + ' added (by ' + (by || 'staff') + ' via Kiki)', by || 'Kiki 🤖');
+  addLogEntry('Restock (via Kiki)', (label || shoeId) + ' — size ' + sz + ' x' + n, 'inventory', shoeId, by || 'staff');
   return { ok: true, added: n, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes) };
 }
 
@@ -218,7 +218,7 @@ function addAlert(text, by) {
   const uid = Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
   const note = {
     id: uid, text: String(text || '').trim(), kind: 'task',
-    shoeId: null, shoeLabel: null, by: by || 'Jess 🤖',
+    shoeId: null, shoeLabel: null, by: by || 'Kiki 🤖',
     done: false, doneBy: null, doneAt: null, createdAt: new Date().toISOString(),
   };
   if (!note.text) return null;

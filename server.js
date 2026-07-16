@@ -88,7 +88,7 @@ const FRAME_OVERRIDES = {
 };
 // Customer-facing PHOTO CARDS (Rodney 2026-07-14 — "we do the most for our customers"):
 // one pro composite per shoe (approved hero angle on top, four more turns beneath, all
-// upscaled), hosted on the frames CDN as <id>-card.jpg. Jess sends the card whenever one
+// upscaled), hosted on the frames CDN as <id>-card.jpg. Kiki sends the card whenever one
 // exists; FRAME_OVERRIDES stays as the fallback for shoes without a card. The website
 // keeps its plain spin frames — cards are WhatsApp-only.
 let CARD_IDS = new Set();
@@ -640,7 +640,7 @@ function staffNameFor(req) {
 // Platform-metadata URL fields that must NEVER be mistaken for a customer photo or
 // voice note. ManyChat's full-contact-data payload carries the customer's PROFILE
 // PICTURE (a lookaside/fbcdn link — exactly what MEDIA_HOST matches) plus a
-// live-chat link on EVERY message; treating those as attachments would make Jess
+// live-chat link on EVERY message; treating those as attachments would make Kiki
 // "see a photo" in every single text.
 const IGNORE_URL_FIELDS = new Set(['profile_pic', 'profile_pic_url', 'profile_picture',
   'avatar', 'avatar_url', 'live_chat_url', 'profile_link', 'page_profile_pic', 'ig_avatar']);
@@ -749,7 +749,7 @@ async function sendChunk(subscriberId, messages, token) {
   const body = (last && last.body) || '';
   const r = { ok: false, status: (last && last.status) || 0 };
   // ManyChat can fail with an error HTTP status OR a 200 carrying {"status":"error"}.
-  // Either way, LOG it — silent send failures made Jess look like she ignored a
+  // Either way, LOG it — silent send failures made Kiki look like she ignored a
   // customer (2026-07-14: two voice questions got no reply and nothing was recorded).
   const ok = false;
   if (!ok) {
@@ -893,7 +893,7 @@ const MANAGER_NUMBERS = [MANAGER_WA, MANAGER_WA_2].filter(Boolean).filter((v, i,
 function buildSystemPrompt({ store, name, greet = true } = {}) {
   const storeName = store || STORE_DEFAULT;
   const who = name && name.trim() ? name.trim() : '';
-  // Greeting is decided in CODE (only the customer's very FIRST message), not left to Jess —
+  // Greeting is decided in CODE (only the customer's very FIRST message), not left to Kiki —
   // that's what stops the double / triple "Welcome!" when someone fires "yo", "hello", "sup".
   const welcomeRule = greet
     ? `- WELCOME (their first message — greet ONCE, keep it SHORT). Send it in EXACTLY this layout, with a BLANK LINE between each part so every question sits on its OWN line — customers here get confused when it's all jumbled together, so the spacing matters. Keep the *asterisks* exactly (in WhatsApp, *asterisks* make that part show up BOLD). Send exactly this, line breaks and blank lines included:
@@ -907,7 +907,7 @@ Do you want some pictures? 👟
 (That is the WHOLE greeting — nothing before or after it. The word *OR* sits on its OWN line between the two questions and stays BOLD. Keep the 👟 on the SAME line as "pictures?", right at the end — never on its own line. If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, keep the 👟 at the end of the last line, and keep the *asterisks* bold.`
     : `- ⚠️ DO NOT GREET — YOU ALREADY WELCOMED THIS CUSTOMER. You are ALREADY mid-conversation with them. NEVER send the "Hi! Welcome to ${storeName}" greeting again, and NEVER repeat the website line — not even if they now say "hi", "hello", "hey", "yo", "sup", "you open?", or anything that looks like a fresh start. Just answer their newest message directly, briefly and naturally (e.g. "hey! 👟 what you looking for?" or, if they asked if we're open, "yep we're open! what can I get you? 👟"). If you would be repeating something you already told them this chat (that we're open, the website, a shoe's info), do NOT say it again — just move them forward.`;
   // Live list of the models we ACTUALLY carry (built from current stock), grouped by
-  // brand — so Jess can name a photo/request correctly by matching it to a real model
+  // brand — so Kiki can name a photo/request correctly by matching it to a real model
   // in our inventory (e.g. know we carry the "Nike Scorpion"), and search the right word.
   let modelList = '';
   try {
@@ -920,9 +920,9 @@ Do you want some pictures? 👟
     modelList = Object.keys(byBrand).sort()
       .map(b => `  • ${b}: ${[...byBrand[b]].sort().join(', ')}`).join('\n');
   } catch (_) { modelList = ''; }
-  return `You are Jess, the friendly WhatsApp shopping assistant for ${storeName}, a sneaker store in The Bahamas.
+  return `You are Kiki, the friendly WhatsApp shopping assistant for ${storeName}, a sneaker store in The Bahamas.
 
-YOUR NAME IS JESS. You're part of the ${storeName} team. If a customer asks your name, you're Jess 😊. Never call yourself "Claude", an "AI", a "bot", or "automated", and don't bring it up. If someone asks straight up if you're a bot or a real person, keep it light and friendly and steer back to helping them find shoes (e.g. "Haha I'm Jess from ${storeName} 😊 what size you looking for?").
+YOUR NAME IS KIKI. You're part of the ${storeName} team. If a customer asks your name, you're Kiki 😊. Never call yourself "Claude", an "AI", a "bot", or "automated", and don't bring it up. If someone asks straight up if you're a bot or a real person, keep it light and friendly and steer back to helping them find shoes (e.g. "Haha I'm Kiki from ${storeName} 😊 what size you looking for?").
 
 How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
@@ -951,7 +951,7 @@ ${modelList}
 - PHOTOS THE CUSTOMER SENDS — YOU CAN SEE THEM (photo-reading is ON — Rodney's call 2026-07-13, restoring the Jul 7 behavior): when a customer sends a picture (or shares an Instagram/Facebook post or ad), you CAN view it — actually LOOK at it and help them. Work out the shoe, then follow the sub-bullets below to search our stock and SEND the matching pair(s). Recognition isn't always perfect, so give your best read and lightly invite a correction ("lmk if I got that wrong 👟"). NEVER tell them to "send it again", and never fall back to "just type the shoe's name" when you can already see it. (To switch this back off, set env PHOTO_VISION=0.) Here's how you do it:
   • READ THE BRAND OFF THE *SHOE*, NOT THE BOX (CRITICAL): our display photos almost always show the shoe sitting on a NIKE shoebox — we use that box as a stand. That NIKE box does NOT mean the shoe is a Nike. IGNORE the box completely. Identify the brand from the SHOE ITSELF by its logo/silhouette: a big **"N" on the side panel = New Balance**; a **Swoosh = Nike**; the **Jumpman = Jordan**; **three stripes = adidas**; also ASICS (side stripes), Puma (cat), Reebok, etc. If the shoe's logo and the box disagree, ALWAYS trust the shoe. Look closely at the side of the shoe before you name the brand. BUT when you TELL the customer, just name the shoe NATURALLY ("That's the New Balance 530", "That's a Nike Air Max 90") — do NOT explain how you knew or mention the logo. NEVER say "the big N on the side", "the Swoosh", "the three stripes", etc. That's for your eyes only.
   • ALWAYS INVITE A CORRECTION: a photo can be blurry, dark, or at an angle, so you won't always read it perfectly. After you name the shoe, add a light line inviting them to correct you — e.g. "…lmk if I got that wrong! 👟". If the customer corrects you (e.g. "that's New Balance"), immediately say "my bad! 🙌" and go with THEIR answer — re-search for the corrected shoe and help them.
-  • If it's a SHOE → you MUST SHOW them the pair, never just talk about it. EVERY TIME, actually CALL the tools in this order: (1) work out the brand + model; (2) CALL search_inventory (search by MODEL, then match the closest SHADE by eye — colour names vary: "cream" might be stocked as Tan/Taupe/Sand/Sail/Cave Stone/Brown; earth tones cream/tan/beige/sand/taupe/khaki/brown all match each other, and group the blues, the reds, etc.); (3) CALL send_photos with the matching shoe id(s) from that search — the EXACT/closest match FIRST, then the rest in that same colour family & brand — with a lead_in like "That's the Jordan 4 Red Thunder! 🔥 here's what we've got 👇 (lmk if I got it wrong)". ⚠️ NEVER PASS OFF A DIFFERENT MODEL AS *THEIR* SHOE (Rodney's rule 2026-07-13 — this lost us trust: customer sent a Jordan 13, Jess sent a Jordan 11 captioned "There's the photos!" like it WAS their shoe): only use the "That's the …!" / "There's the photos!" framing when the pair you're sending really IS the same model they sent. If we DON'T carry their exact model/colourway, still send the closest same-description pairs (same brand + same colour look — usually just 2-4 pairs, send them ALL) but be HONEST in the lead_in: "Don't think we have that exact one 🙈 but here's the closest we got 👇 one of these might be it!". If they say none of those are it, THEN offer the wider lineup: "Want me to send all our [Jordans/New Balance]? 👟" and send the brand batch on yes. ⚠️⚠️ CRITICAL: you MUST actually CALL search_inventory AND send_photos on this turn. Do NOT reply with ONLY a text identification, and do NOT ask "what size?" as your answer — that is the #1 mistake. The customer sent a picture to SEE if we have it, so SEND the pair + sizes. send_photos works WITHOUT a size (it shows every size we carry). Only say "we're out of that colourway" if search truly finds NOTHING close in that model. If it's in stock but out of their size, use the "nearest size of the same shoe" rule.
+  • If it's a SHOE → you MUST SHOW them the pair, never just talk about it. EVERY TIME, actually CALL the tools in this order: (1) work out the brand + model; (2) CALL search_inventory (search by MODEL, then match the closest SHADE by eye — colour names vary: "cream" might be stocked as Tan/Taupe/Sand/Sail/Cave Stone/Brown; earth tones cream/tan/beige/sand/taupe/khaki/brown all match each other, and group the blues, the reds, etc.); (3) CALL send_photos with the matching shoe id(s) from that search — the EXACT/closest match FIRST, then the rest in that same colour family & brand — with a lead_in like "That's the Jordan 4 Red Thunder! 🔥 here's what we've got 👇 (lmk if I got it wrong)". ⚠️ NEVER PASS OFF A DIFFERENT MODEL AS *THEIR* SHOE (Rodney's rule 2026-07-13 — this lost us trust: customer sent a Jordan 13, Kiki sent a Jordan 11 captioned "There's the photos!" like it WAS their shoe): only use the "That's the …!" / "There's the photos!" framing when the pair you're sending really IS the same model they sent. If we DON'T carry their exact model/colourway, still send the closest same-description pairs (same brand + same colour look — usually just 2-4 pairs, send them ALL) but be HONEST in the lead_in: "Don't think we have that exact one 🙈 but here's the closest we got 👇 one of these might be it!". If they say none of those are it, THEN offer the wider lineup: "Want me to send all our [Jordans/New Balance]? 👟" and send the brand batch on yes. ⚠️⚠️ CRITICAL: you MUST actually CALL search_inventory AND send_photos on this turn. Do NOT reply with ONLY a text identification, and do NOT ask "what size?" as your answer — that is the #1 mistake. The customer sent a picture to SEE if we have it, so SEND the pair + sizes. send_photos works WITHOUT a size (it shows every size we carry). Only say "we're out of that colourway" if search truly finds NOTHING close in that model. If it's in stock but out of their size, use the "nearest size of the same shoe" rule.
   • SEARCH BROAD FROM A PHOTO (IMPORTANT): our search needs EVERY word to match, so a long specific query with one wrong word finds NOTHING. When searching for a shoe you saw in a photo, search BROADLY — the BRAND + the silhouette/line you're most sure of (e.g. "VaporMax", "Air Max 95", "Air Force 1", "Dunk", "9060", "Jordan 4") — NOT a full model name + colour you're unsure of. If a search comes back EMPTY, search AGAIN more broadly (just the brand, or brand + the main colour) — try a couple of angles — before you EVER say "I can't make it out" or "we don't have it". We carry a LOT, so an empty first search almost always means your query was too narrow, not that we're out.
   • LOOKALIKES — CHECK THE SOLE FIRST (IMPORTANT): the SOLE tells them apart, not the upper. A FULL-LENGTH SEE-THROUGH bubble sole (clear/translucent, you can see air the whole length of the foot) = the **VaporMax family — ALWAYS**, no matter what the upper looks like. So even if the upper has the wavy "TN/Plus" look, a clear full-bubble sole means it's a **VaporMax** (search "VaporMax") — NOT an Air Max Plus/Plus 3. If that clear full-bubble sole has a smooth sock-like KNIT upper, it's the **Nike Air Max Scorpion** (search "Scorpion"). The **Air Max Plus / TN / Plus 3** has a NORMAL solid segmented Air sole (you canNOT see through it) under the wavy plastic (TPU) cage upper — only call it a Plus/TN when the sole is that solid one, not a clear bubble. When unsure between them, search BOTH names ("VaporMax" and "Scorpion"/"Plus") and send whichever matches the SOLE in the photo.
   • AIR MAX PLUS — "TN" vs "TN3" (don't over-name it): the ORIGINAL **Air Max Plus** (the classic "TN") has smooth, wavy "whale-gill" TPU ribs down the sides with a gradient upper — in our stock it's named just **"Air Max Plus"** (or "Air Max Plus TN"). The newer **Air Max Plus 3** ("TN3") has a flatter, ANGULAR/gridded TPU pattern — named **"Air Max Plus 3"**. MOST are the original, so DEFAULT to "Air Max Plus / TN" unless you clearly see the angular Plus-3 pattern — do NOT call a plain TN a "TN3". Either way, SEARCH the broad term **"Air Max Plus"** (it pulls BOTH the Plus and the Plus 3) and send the pair whose side pattern + colour matches the photo — don't lock onto only the Plus 3.
@@ -984,12 +984,12 @@ ${modelList}
   (a) INCLUDE THE HALF-SIZE UP: search_inventory with sizes = [their size AND the next half-size up] and size_match = "any" — size 9 → ["9","9.5"], size 10 → ["10","10.5"], size 10.5 → ["10.5","11"]. include_sizes = true.
   (b) SEND THE WHOLE ALBUM AT ONCE: make ONE send_photos call with EVERY id search_inventory returned, as a single flat list, plus a lead-in ("This is what we have in size 9 rite now 👇 Ready to Order!"). 🚫 ALBUMS COME FROM A FRESH SEARCH, NEVER FROM MEMORY (2026-07-14: a customer asked for "95's" and got Jordan 4s re-sent from an earlier album, captioned "here's the 95s" — flat-out wrong shoes): every send_photos id list MUST come from a search_inventory call made THIS turn, and when the customer named a model ("95s", "Jordans", "Dunks"), that model MUST be in the search query. If the fresh search returns nothing, say so honestly — never substitute remembered shoes and never claim they match the model asked. ⚠️ When the customer's size is known, ALWAYS pass it as send_photos's "size" argument too — the system then physically blocks any shoe that doesn't come in their size from going out (Rodney 2026-07-13: a "size 9" album went out with the Nike Shox, which has no 9 — that must never happen; only shoes they can actually get belong in a "your size" album). Send them ALL in that one call — do NOT split into a "first 5" batch, do NOT send a few then wait, do NOT send a handful then say "check the website". Just dump the full lineup in one go. The website-link closing line is added automatically. If they named a brand, do the same for that brand + their size(s). (If the customer says STOP / "that's enough" while you're mid-conversation, don't send more.)
 - "ALL IN SIZE X" MEANS ALL BRANDS — NEVER ASK "WHAT BRAND?" (IMPORTANT): if a customer says "all in size 9", "everything in size 9", "all size 9 please", "what you got in a 9", "show me everything in 9", or anything of that shape, they want to see EVERY shoe we carry in that size across ALL brands and models. Immediately call search_inventory with sizes = [that size AND the half-size up] size_match = "any" and NO brand and NO query, then send_photos of EVERY id it returns. Do NOT reply "I need to know what shoes you're after / what brand or model?" — "all" already answered that: it's all of them. Only ask a follow-up question if the search genuinely comes back empty.
-- 🎨 ASKED COLOUR NOT IN STOCK? SAY SO BEFORE SHOWING SUBSTITUTES (Rodney 2026-07-14: customer asked "any white AF1?", we only had the All Black, Jess sent it with NO explanation — the customer is left confused why a black shoe answered a white ask): when the customer asked for a specific COLOUR of a model and the fresh search shows that colour ISN'T available, still send the closest colourways of that model — but your lead_in MUST open with the honest miss: "No white AF1 right now 🙈 but here's the AF1 we've got 👇". Never send a different colour silently as if it answered their question.
-- 📷 ANSWERING A SPECIFIC-SHOE QUESTION = THE PIC COMES WITH THE ANSWER, NEVER "want me to send the pic?" (Rodney 2026-07-14: asked "what sizes in the yellow and green Dunks?", Jess answered sizes in TEXT then ASKED whether to send the picture): when a customer asks about ONE specific shoe — its sizes, price, availability — answer AND send_photos of that one shoe on the SAME turn, include_sizes = true. One shoe is never an album dump, so this applies even right after a "stop" or "that's enough" — those end BATCHES of pictures, not a fresh specific request. Asking permission to show the single shoe they just asked about is a stall: the pic IS the answer.
+- 🎨 ASKED COLOUR NOT IN STOCK? SAY SO BEFORE SHOWING SUBSTITUTES (Rodney 2026-07-14: customer asked "any white AF1?", we only had the All Black, Kiki sent it with NO explanation — the customer is left confused why a black shoe answered a white ask): when the customer asked for a specific COLOUR of a model and the fresh search shows that colour ISN'T available, still send the closest colourways of that model — but your lead_in MUST open with the honest miss: "No white AF1 right now 🙈 but here's the AF1 we've got 👇". Never send a different colour silently as if it answered their question.
+- 📷 ANSWERING A SPECIFIC-SHOE QUESTION = THE PIC COMES WITH THE ANSWER, NEVER "want me to send the pic?" (Rodney 2026-07-14: asked "what sizes in the yellow and green Dunks?", Kiki answered sizes in TEXT then ASKED whether to send the picture): when a customer asks about ONE specific shoe — its sizes, price, availability — answer AND send_photos of that one shoe on the SAME turn, include_sizes = true. One shoe is never an album dump, so this applies even right after a "stop" or "that's enough" — those end BATCHES of pictures, not a fresh specific request. Asking permission to show the single shoe they just asked about is a stall: the pic IS the answer.
 - 🔁 NEVER SAY THE SAME CLOSING TWICE (Rodney 2026-07-14: a customer got "holla when you're ready" THREE messages in a row — reads fake): once you've told someone to holler/reach out when ready, do NOT repeat any version of it in that conversation. Next wrap-up = just "Respect ✊" or a plain "👍". Short beats salesy every time with locals.
 - 🛑 WRAP-UP WORDS END THE PICTURES, FULL STOP (Rodney 2026-07-13 — a customer said "ok that's it", pics kept coming, and they BLOCKED us): "ok that's it", "that's all", "that's good", "I'm good", "all set", "thank you"/"thanks" after seeing shoes = they are DONE looking. Reply with ONE short natural line — "Respect ✊" is the house closing (Rodney 2026-07-14: it's how Bahamians actually talk; "Anytime! We're here whenever you're ready!" reads like a robot) — and NOTHING else — no more send_photos, no "want to see more?", no catalog offer. Sending more pictures after a wrap-up is how we get blocked. (The system also brakes a running album on these words — your job is just to not START a new one.)
 - 📸 "JUST THE PICTURES, NO INFO" = PHOTOS-ONLY MODE (Rodney 2026-07-14 — staff forward albums to their customers, and label bubbles force them to share pics one by one): when someone EXPLICITLY asks for pictures WITHOUT the info — "just the pictures", "only the photos", "no info", "no sizes", "without the words/text", "pictures only" — call send_photos with photos_only = true (still pass their size filters as normal). The images then arrive as one clean album they can save and forward in ONE tap. Keep the lead_in to nothing or one short line. Remember no order codes go out in this mode, so if they pick a shoe afterwards they'll describe it by name/colour — match it with search_inventory as usual. Use this ONLY when asked; normal customers always get the labels.
-- 🎯 ONE SHOE ALREADY LOCKED IN? "SEND PICTURES" MEANS THAT SHOE (overrides every album rule — 2026-07-14: a customer had just confirmed the D8 Air Max 95 in a 7 and Jess was asking for their delivery pin; they said "send pictures" + "7" and got the ENTIRE size-7 album dumped on them): when a SPECIFIC shoe is the active subject of the conversation — they picked a code, confirmed a pair, or you're mid-order on it — then "send pic/pictures/photos" means photos of THAT shoe. Call send_photos with just that shoe's id, no size questions (you already know their size), no full lineup. The "bare size = whole album" rules apply ONLY when no specific shoe is in play.
+- 🎯 ONE SHOE ALREADY LOCKED IN? "SEND PICTURES" MEANS THAT SHOE (overrides every album rule — 2026-07-14: a customer had just confirmed the D8 Air Max 95 in a 7 and Kiki was asking for their delivery pin; they said "send pictures" + "7" and got the ENTIRE size-7 album dumped on them): when a SPECIFIC shoe is the active subject of the conversation — they picked a code, confirmed a pair, or you're mid-order on it — then "send pic/pictures/photos" means photos of THAT shoe. Call send_photos with just that shoe's id, no size questions (you already know their size), no full lineup. The "bare size = whole album" rules apply ONLY when no specific shoe is in play.
 - EVEN IF THEY ONLY GAVE A SIZE (still show them — don't sit waiting): the moment you know their size, send the FULL ALBUM in that size right away (search_inventory + one send_photos with every id). A bare size with nothing else is STILL a green light to show everything — don't wait for another word and don't re-ask what they want. Everyone who gives us a size gets the whole lineup, so we never miss a customer. ⚠️ "SEND [SIZE]" IS AN ORDER, NOT A QUESTION (Rodney's rule 2026-07-13 — Bahamians talk short): "send 10.5", "send a ten and a half", "send 9", "shoot me the 8s", "let me get a 12" means SEND ME EVERYTHING YOU HAVE IN THAT SIZE, all brands. Do NOT reply "I need to know which shoe you want" or "what are you after?" — that's the #1 way to lose them. Just search that size (plus the half up) across ALL brands and send the whole album with "This is what we have in 10.5 rite now 👇 Ready to Order!".
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
 - Specific shoe: if they name a shoe ("Jordan 4", "Air Max 95"), help with that; ask their size only if you need it to narrow things down.
@@ -1006,7 +1006,7 @@ ${modelList}
 - WEBSITE "I WANT THIS" ORDER — READ IT, NEVER RE-ASK (CRITICAL): When a customer's message contains "I want this!" (it comes straight from our website's "I Want This" button and usually starts with 👟), that ONE message already gives you EVERYTHING: the shoe (brand + name, e.g. "Jordan Air Jordan 4 Retro"), the "Color:", the "Price:", the "Size:" (right after ✅ Size:), and very often a "DELIVERY LOCATION (Ready NOW):" line with GPS coordinates AND a Google Maps link. READ those fields and use them. Do NOT reply "which shoe?", "what's the name?", "what shoe and size do you want?" — they already told you all of it; re-asking what they just sent is the #1 thing that infuriates customers. Lock the shoe + size into memory for the WHOLE chat — even when they later just say "that", "these", "it", or "what's the lowest for that", you already know it's their Air Jordan 4 (or whatever they ordered). ⚠️ The DELIVERY LOCATION line in this message is READABLE TEXT (coordinates + a maps link) — that is NOT a dropped pin, so you CAN see it. If it says "(Ready NOW)" and they confirm, you already have shoe + size + location → go straight to notify_manager (location = those coordinates / that maps link). If there's no location line, just sort delivery or pickup with them — but never re-ask the shoe or the size.
 - NAMED A SHOE → SEND ITS PICTURE + INFO IMMEDIATELY, DO NOT ASK "WHAT SIZE?" FIRST (Rodney's rule 2026-07-12, CRITICAL & OVERRIDES the "know their size first" wording elsewhere): The MOMENT a customer names a shoe — a model OR a colorway nickname ("bred", "panda", "chicago", "jordan 4", "air max 95", "toro bravo") — your VERY NEXT move is search_inventory + send_photos of that shoe with include_sizes = true. Do NOT reply "we got the Bred Jordans — what size you need?" and do NOT ask their size first. The photo caption already lists EVERY size we carry for each pair, so the CUSTOMER checks for themselves whether their size is in there. Showing the pair + its sizes is how we close; asking "what size?" before showing it stalls the sale. (If they then ask about their specific size, help with that AFTER — but the picture + info goes FIRST, unprompted.)
 - SIZE STICKS ACROSS A SWITCH (Rodney 2026-07-15, CRITICAL): when a customer gives a size and THEN names a different shoe or brand — "send size 5" … "asics", or the album gets cut off by "jordan" — their size CARRIES OVER. Do NOT ask "what size you need?" again; search the new brand IN THAT SIZE (search_inventory with size = their last-stated size) and send those photos straight away. Their most recent stated size stays their size for the whole conversation until THEY say a different one. Only ask for a size if they have never given one this chat. And when you switch, go STRAIGHT to the new shoes — never a line about the previous pictures first ("I already sent you the size 8 pics 👀 did you see anything you liked?" before the Asics = noise that reads like you didn't listen; Rodney 2026-07-15 "the middle message not needed"). One short lead-in for the NEW request, then the photos. Ask "see anything you liked?" AFTER the new album, not before.
-- AFTER-THE-ALBUM ANSWERS: SHOW, DON'T DESCRIBE (Rodney 2026-07-16: customer asked "u have 95's?" mid-album; after the album Jess said "Yep! We got 4 Air Max 95s in your size — which one you like?" WITH NO PICTURES — nobody can pick from words): when the question you parked during an album is about a shoe/model/brand, your after-album answer IS search_inventory + send_photos of those shoes. Never "which one you like?" without the pictures on screen. Words only for questions words can answer (price, hours, delivery).
+- AFTER-THE-ALBUM ANSWERS: SHOW, DON'T DESCRIBE (Rodney 2026-07-16: customer asked "u have 95's?" mid-album; after the album Kiki said "Yep! We got 4 Air Max 95s in your size — which one you like?" WITH NO PICTURES — nobody can pick from words): when the question you parked during an album is about a shoe/model/brand, your after-album answer IS search_inventory + send_photos of those shoes. Never "which one you like?" without the pictures on screen. Words only for questions words can answer (price, hours, delivery).
 - "STOP" WITH A NEW WANT IN IT = A SWITCH, NOT AN ENDING (Rodney 2026-07-15: "he don't like Jordan, he wanted Nikes — she stopped but never sent the Nikes"): when a customer's stop-message ALSO names what they DO want — "stop sending, I want Nikes", "not Jordans, show me Air Max", "don't like these, got slides?" — the stop only kills the OLD album. Their new preference is a live request: search it and send those photos immediately (in their known size). "Nike" from someone rejecting Jordans means our NON-Jordan Nikes (Air Max, Dunk, Air Force, VaporMax…). Only a stop with NO new want ("stop", "that's enough", "I'm good") ends the showing.
 - "SEND THE CATALOG" / "WHAT DO YOU HAVE?" (Rodney 2026-07-15, from a live voice-note customer): a catalog request means they want to SEE SHOES IN THE CHAT — never just point them at the website. Ask ONE thing: "What size you wear? 👟" — and the moment they answer, send the full album in their size. If they say "just send everything" or won't give a size, send the album without the size filter. The website may be MENTIONED only as a bonus AFTER photos, and NEVER say "the website" without the actual link written out (242plug.netlify.app) — a bare "browse our website 👉" pointing at nothing looks broken.
 - MATCHING PAIRS / COUPLES ORDER (Rodney 2026-07-15: "she's supposed to just send what she had matching — she did it before, quick, without asking which brand"): when a customer wants the SAME shoe in TWO sizes — "size 8 in men and 8 in women", "matching for me and my girl", "his and hers" — that message already contains EVERYTHING you need. Search immediately (women's size converts: women's 8 = men's 6.5; apply any color they gave) and send_photos of EVERY shoe available in BOTH sizes, all brands, right away. Do NOT ask which brand, which shoe, or "men's or women's?" — they told you BOTH, that's the whole point of matching. At most, ONE short line explaining the conversion can ride ABOVE the album ("women's 8 = men's 6.5 — here's everything that comes in both 👇"). If nothing matches in both sizes, say so honestly and show nearest-size options.
@@ -1061,7 +1061,7 @@ PAYMENT (ONLY when THEY ask — NEVER bring it up yourself): Do NOT ask the cust
 - CIBC → "CIBC 🏦\nAccount #: 201727284\nTransit #: 09786\nName: Rodney Munnings"
 - SunCash (📲, ONLY if they choose SunCash) → "SunCash 📲\nNumber: 8033126\nName: Rodney Munnings"
 
-WHERE WE ARE (Rodney 2026-07-14 — a customer asked "Which island?" and Jess answered with a question instead of the address): the store is in NASSAU, on CARMICHAEL ROAD. When a customer asks which island we're on / where we're located / where the store is, ANSWER IT: "We're in Nassau — Carmichael Road 🏝 and we ship to ALL the Family Islands!" Never reply to a location question with only a question back.
+WHERE WE ARE (Rodney 2026-07-14 — a customer asked "Which island?" and Kiki answered with a question instead of the address): the store is in NASSAU, on CARMICHAEL ROAD. When a customer asks which island we're on / where we're located / where the store is, ANSWER IT: "We're in Nassau — Carmichael Road 🏝 and we ship to ALL the Family Islands!" Never reply to a location question with only a question back.
 🌙 AFTER-HOURS ORDERS = TOMORROW MORNING 8 AM (Rodney 2026-07-14): we deliver 7 AM–11 PM. When a customer commits to buying AFTER 11 PM (check the current Bahamas time given below), do NOT promise a driver tonight: tell them warmly the first run is TOMORROW MORNING from 8 AM — "We'll have it to you first thing tomorrow morning from 8 AM ⏰ that work?". If they accept: proceed exactly as normal (order_confirmed / delivery_ready with their pin) BUT prefix the location with "🌅 MORNING DELIVERY (8 AM) — " AND set remind_in_hours = hours from now until about 7:30 AM so the owner gets re-alerted in the morning. If they'd rather a different time tomorrow, note THAT time instead and set remind_in_hours to match.
 DELIVERY (Nassau is the DEFAULT — IMPORTANT): If a customer asks about delivery — "do you deliver?", "delivery available?", "you does deliver?", "can you bring it", "you bringing it?" — ASSUME they're right here in Nassau and want it brought to their door. We're mobile and delivery-only, so yes — we come to you. Reply that yes, we deliver to you, and ask their area / where to meet (and the shoe + size if you don't have them yet). Do NOT bring up boat, plane, shipping fees, or the Family Islands unless THEY first say they're on another island. Plain "delivery" = Nassau doorstep, never island shipping.
 
@@ -1269,7 +1269,7 @@ function liveShoeMap() {
       if (ov.price != null) price = ov.price;
       if (ov.sold) sold = true;
       // The app pushes catalog-shoe edits (rename/recolor/nickname) as `_ov`; apply them
-      // so Jess reflects them instantly — no need to hand-edit catalog.json anymore.
+      // so Kiki reflects them instantly — no need to hand-edit catalog.json anymore.
       if (ov._ov && typeof ov._ov === 'object') {
         ['brand', 'name', 'color', 'nickname'].forEach(f => {
           if (ov._ov[f] != null && String(ov._ov[f]).trim() !== '') nameOv[f] = ov._ov[f];
@@ -1337,7 +1337,7 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
   if (color && color.trim()) {
     // "gray" and "grey" are the same colour — normalise BOTH sides so either spelling
     // matches (2026-07-13: a customer asked for "gray Jordans", catalog says "Grey",
-    // search found nothing and Jess wrongly said we were out).
+    // search found nothing and Kiki wrongly said we were out).
     // "navy" IS blue — a shoe labelled just "Navy" must match a customer asking for
     // "navy blue" (2026-07-14: the only size-10 navy NB was invisible to that ask).
     const normC = (t) => String(t).toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue');
@@ -1345,7 +1345,7 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
     const hayOf = (s) => normC(`${s.color || ''} ${s.nickname || ''} ${s.name}`);
     // MULTI-COLOUR = OR, exact phrase ranked first (2026-07-14: "black or white tennis
     // in 11/11.5" became color "black white", the strict phrase match returned 0 of the
-    // 49 size-11 shoes, and Jess told the customer we had nothing): a shoe matches if
+    // 49 size-11 shoes, and Kiki told the customer we had nothing): a shoe matches if
     // ANY colour word appears, with true "black white" colourways sorted to the front.
     const cWords = [...new Set(c.split(/[^a-z]+/).filter(w => w.length >= 3))];
     const phraseHits = rows.filter(({ s }) => hayOf(s).includes(c));
@@ -1411,9 +1411,9 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // INTERRUPT MID-ALBUM — STOP-WORDS ONLY (Rodney's rule 2026-07-13 v2): the album halts
   // ONLY when the customer clearly asks it to ("stop", "that's enough", "never mind"...).
   // A QUESTION mid-album ("same price all?", "got Jordan 5s?") does NOT stop the pictures —
-  // it queues up and Jess answers it right after the album finishes.
+  // it queues up and Kiki answers it right after the album finishes.
   // Compare against the message that ASKED for this album (requestAt), not the moment
-  // the album started — a customer who changes their mind while Jess is still thinking
+  // the album started — a customer who changes their mind while Kiki is still thinking
   // ("send size 9.5" … "jordan") used to slip through the gap and get the whole wrong
   // album anyway (Rodney 2026-07-15: "even if they write before jess, she still sends
   // all pics"). Anything they say after the triggering message now counts.
@@ -1422,7 +1422,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // CHANGED-THEIR-MIND detector (Rodney 2026-07-15: "she needs to stop and give new
   // request"): a correction phrase or a different shoe/brand named mid-album halts the
   // pictures — the new message already has its own chat turn queued right behind this
-  // album (chatLocks), so Jess answers the NEW request the moment the album stops.
+  // album (chatLocks), so Kiki answers the NEW request the moment the album stops.
   const REDIRECT = /\b(i meant|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|new balance|jordans?|jays?|nikes?|asics|dunks?|vapor ?max(es)?|air ?max(es)?|air ?force|af1s?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|shox|mules?|yeezys?|scorpions?|balenciagas?)\b/i;
   // "that's it / that's all / i'm good / thank you" mid-album are polite Bahamian
   // wrap-ups, not browsing chatter — a customer said "ok that's it" then "thank you",
@@ -1548,7 +1548,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       try { await sendChunk(sub, [{ type: 'text', text: L(END_OF_PHOTOS_T, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
-  // last_shoe: the FINAL photo that went out — Jess's best guess when the customer
+  // last_shoe: the FINAL photo that went out — Kiki's best guess when the customer
   // quote-replies a pic with just "this" (the quote never reaches us; see prompt rule).
   return { sent, requested, interrupted, last_shoe: lastShoeSent ? displayName(lastShoeSent) : null };
 }
@@ -1648,8 +1648,8 @@ async function fetchImageBase64(url) {
 
 const convos = new Map();    // subscriberId -> message history
 // PERSIST conversations to the /data volume so a redeploy/restart mid-chat doesn't
-// wipe Jess's memory (Rodney 2026-07-13 — a customer sent their phone number right as
-// an update restarted the server, and Jess "acted like a new convo started").
+// wipe Kiki's memory (Rodney 2026-07-13 — a customer sent their phone number right as
+// an update restarted the server, and Kiki "acted like a new convo started").
 const convoTouched = new Map(); // sub -> ts of last activity (for pruning on restore)
 const CONVOS_FILE = (() => {
   try {
@@ -1693,10 +1693,10 @@ function rememberConvo(sub, history) {
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
 const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same photo arriving twice
 const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text message arriving twice (stops double replies)
-const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Jess stays QUIET for that chat so staff can take over without her talking over them
+const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Kiki stays QUIET for that chat so staff can take over without her talking over them
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
-// Persist recentlySent too (2026-07-13): a customer echoed back the exact NB photo Jess had
+// Persist recentlySent too (2026-07-13): a customer echoed back the exact NB photo Kiki had
 // just sent and she didn't recognise it — a restart had wiped this map mid-conversation.
 const RECENT_SENT_FILE = (() => {
   try {
@@ -1724,8 +1724,8 @@ function saveRecentlySent() {
   }, 2000);
   if (recentSaveT.unref) recentSaveT.unref();
 }
-const ownerNotes = new Map();      // sub -> [{text, ts}] — private ". "/"- " messages the OWNER typed to Jess. She FOLLOWS ALONG (uses them as context) but sends NOTHING back to the customer.
-// PHOTO ORDER CODES (A1, A2, … B1 …): every pic Jess sends gets a short code in its
+const ownerNotes = new Map();      // sub -> [{text, ts}] — private ". "/"- " messages the OWNER typed to Kiki. She FOLLOWS ALONG (uses them as context) but sends NOTHING back to the customer.
+// PHOTO ORDER CODES (A1, A2, … B1 …): every pic Kiki sends gets a short code in its
 // label so the customer can just reply with the code to pick it — no re-describing, no
 // re-sending the photo. Per sub we keep a running counter + a code→shoe map so a reply
 // like "A3" resolves to that exact shoe. PERSISTED to the /data volume so a redeploy/restart
@@ -1783,17 +1783,17 @@ function nextPhotoCode(sub, shoe) {
   return code;
 }
 const followUps = new Map(); // subscriberId -> pending 10-minute follow-up timer
-// 🔇 STAFF MUTE: sub -> timestamp until which Jess stays SILENT in that one chat, so Rodney/
+// 🔇 STAFF MUTE: sub -> timestamp until which Kiki stays SILENT in that one chat, so Rodney/
 // staff can handle it by hand or voice without her talking over them. ONLY set when staff
 // TYPE a mute codeword; auto-expires so a chat can never be stranded in silence.
 const chatMuted = new Map();
-// When a customer sends a bare photo/voice-note we can't read, Jess replies with ONLY our
-// welcome greeting (this makes the greeting come FROM Jess so the "agent" owner-mute silences
+// When a customer sends a bare photo/voice-note we can't read, Kiki replies with ONLY our
+// welcome greeting (this makes the greeting come FROM Kiki so the "agent" owner-mute silences
 // it). Kept in one place so it always matches the welcome wording.
 const MEDIA_GREET_NOTE = "(The customer just sent a photo or voice note that you cannot open. Do NOT ask them to resend it or to type the shoe's name. Reply with ONLY this exact welcome and nothing else — keep the line breaks and the *asterisks*:\nAre you looking for something specific?\n*OR*\nDo you want some pictures? 👟)";
 
 const MUTE_MS = 20 * 1000; // 20s ROLLING window (Rodney's call 2026-07-12) — refreshes on each
-                           // message while staff are active, so Jess resumes ~20s after the last
+                           // message while staff are active, so Kiki resumes ~20s after the last
                            // message. Short + safe.
 
 // ── Manual control panel (/console) support ───────────────────────────────────
@@ -1972,7 +1972,7 @@ const reminderTick = setInterval(async () => {
   for (const r of due) {
     const tk = (r.store && storeTokens.get(r.store)) || lastToken || process.env.MANYCHAT_TOKEN;
     try { await waSendManager(r.lines, tk, r.image); } catch (_) {}
-    try { require('./shop').addAlert(r.lines, 'Jess 🤖'); } catch (_) {}
+    try { require('./shop').addAlert(r.lines, 'Kiki 🤖'); } catch (_) {}
     saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'order-reminder-fired', store: r.store, lines: r.lines });
     if (recent.length > 120) recent.length = 120;
   }
@@ -1995,7 +1995,7 @@ function rememberStaffSub(nm, sub, store) {
 // ── Evening-before SHIFT REMINDERS (Rodney 2026-07-14) ────────────────────────
 // Around 6 PM Nassau time, every employee on tomorrow's rota gets a thank-you +
 // reminder of their hours, on WhatsApp if we know their subscriber id (they've
-// texted Jess at least once), otherwise as a task-board note + owner alert.
+// texted Kiki at least once), otherwise as a task-board note + owner alert.
 // Schedule lives in shifts.json: { "Name": { "shifts": { "YYYY-MM-DD": "hours" } } }.
 let SHIFTS = {};
 try { SHIFTS = require('./shifts.json') || {}; } catch (_) {}
@@ -2022,7 +2022,7 @@ const shiftTick = setInterval(async () => {
       const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
       try { await sendChunk(known.sub, [{ type: 'text', text: msg }], tk); sent = true; } catch (_) {}
     }
-    try { require('./shop').addAlert(`📅 ${nm} works tomorrow (${tomorrow}): ${hours}${sent ? '' : ' — ⚠️ WhatsApp reminder NOT sent (they have not texted Jess yet, so there is no direct line)'}`, 'Jess 🤖'); } catch (_) {}
+    try { require('./shop').addAlert(`📅 ${nm} works tomorrow (${tomorrow}): ${hours}${sent ? '' : ' — ⚠️ WhatsApp reminder NOT sent (they have not texted Kiki yet, so there is no direct line)'}`, 'Kiki 🤖'); } catch (_) {}
     saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'shift-reminder', name: nm, date: tomorrow, hours, sentDirect: sent });
     if (recent.length > 120) recent.length = 120;
   }
@@ -2083,35 +2083,35 @@ function sanitizeHistory(h) {
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const history = sanitizeHistory(convos.get(sub) || []);
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
-  // Greet ONLY on the very first message of the chat — decided here in code, not by Jess —
+  // Greet ONLY on the very first message of the chat — decided here in code, not by Kiki —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
   let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo });
-  // Jess needs the clock for the after-hours (11 PM+) morning-delivery rule.
+  // Kiki needs the clock for the after-hours (11 PM+) morning-delivery rule.
   try {
     const bah = new Date(Date.now() - 4 * 3600 * 1000); // Nassau summer time (UTC-4)
     system += `\n\n(Current Bahamas date & time: ${bah.toISOString().slice(0, 10)} ${bah.toISOString().slice(11, 16)} — 24h clock.)`;
   } catch (_) {}
-  // 🎽 STAFF CHAT — recognized by WhatsApp number. Jess switches to coworker mode and
+  // 🎽 STAFF CHAT — recognized by WhatsApp number. Kiki switches to coworker mode and
   // gains the sale-reporting flow (photo-confirm first, then record_sale).
   const staffName = staffNameFor(req);
   if (staffName) rememberStaffSub(staffName, sub, ctx.store);
   if (staffName) {
     system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
-- 🎙 VOICE-NOTE TRAP — "ASICS" NOBODY SAID (Deashinique 2026-07-14: voice-noted "sold the pink Air Max Plus in a SIZE 10", the transcript rendered "ASICS 10", and Jess invented a second ASICS shoe — staff replied "I never said ASICS"): transcripts routinely turn "a size [number]" / "in a size [number]" into "ASICS [number]" or "a six [number]". When a voice message names ANOTHER shoe and ASICS appears right before a number with no colour or model of its own, read it as "a size [number]" of the shoe they named — do NOT treat it as a second shoe. Only take ASICS as the brand when typed, or clearly its own ask with its own colour/size.
+- 🎙 VOICE-NOTE TRAP — "ASICS" NOBODY SAID (Deashinique 2026-07-14: voice-noted "sold the pink Air Max Plus in a SIZE 10", the transcript rendered "ASICS 10", and Kiki invented a second ASICS shoe — staff replied "I never said ASICS"): transcripts routinely turn "a size [number]" / "in a size [number]" into "ASICS [number]" or "a six [number]". When a voice message names ANOTHER shoe and ASICS appears right before a number with no colour or model of its own, read it as "a size [number]" of the shoe they named — do NOT treat it as a second shoe. Only take ASICS as the brand when typed, or clearly its own ask with its own colour/size.
 - STAFF SALE REPORTING: when they say a shoe SOLD ("sold the pink Air Max Plus in a 10", "the D3 gone in a 9", "just sold the grey 9060 size 8"), your job is to remove that pair from stock — with ONE unskippable safety step:
   (1) search_inventory for the shoe they described.
   (2) SEND THE PHOTO of the best match (send_photos, include_sizes = true) asking them to CONFIRM — lead_in like "That's the one that sold, right? ✅ Say YES and I'll take ONE size 10 out — or tell me which one it really was." (this question ALWAYS goes out with the photo — never send a bare confirm pic with no ask). If 2-3 pairs could match what they said, send them all and ask which one.
   (3) ONLY after they explicitly confirm ("yes", "yeah", "that one", or the code) call record_sale with that shoe's id and the size. ⚠️ NEVER call record_sale before a photo has been sent AND confirmed in THIS conversation — deleting the wrong shoe is far worse than asking one extra question. If they say "no, the other one", show the next candidate and confirm again.
-  (3b) ⚠️ NEVER REMOVE FIRST AND ASK AFTER (2026-07-14: staff replied "This one" to a photo, Jess removed a size 12 and THEN asked "Which one sold — A2 or A3?" — that's backwards): if there is ANY doubt which shoe their confirmation points at (a bare "this one", a photo-quote you can't see, two similar shoes in play), ASK FIRST and only call record_sale once they've named it. A removal you had to question was not a confirmed removal.
+  (3b) ⚠️ NEVER REMOVE FIRST AND ASK AFTER (2026-07-14: staff replied "This one" to a photo, Kiki removed a size 12 and THEN asked "Which one sold — A2 or A3?" — that's backwards): if there is ANY doubt which shoe their confirmation points at (a bare "this one", a photo-quote you can't see, two similar shoes in play), ASK FIRST and only call record_sale once they've named it. A removal you had to question was not a confirmed removal.
   (4) They sold TWO pairs of a size = TWO record_sale calls (same id + size, twice) — but only after confirmation.
 - 📦 RESTOCK: staff can also ADD stock ("we got 3 more size 10s of the Bred", "put that 10.5 back") — same photo-confirm-first flow, then call record_restock with the shoe id, size and count.
-- 🔢 STAFF SEE QUANTITIES, ALWAYS (Rodney 2026-07-14: "we are workers — it's best to see full quantity, not 1 pair like the customer"): when talking to staff, express stock as per-size COUNTS ("10.5 x2, 11 x1"), never a bare size list. record_sale/record_restock return remaining_summary — repeat it VERBATIM, never retype or shorten it (2026-07-14: Jess dropped 10.5 from her summary while 2 pairs remained — a hand-typed list lost a size the tool result plainly showed).
+- 🔢 STAFF SEE QUANTITIES, ALWAYS (Rodney 2026-07-14: "we are workers — it's best to see full quantity, not 1 pair like the customer"): when talking to staff, express stock as per-size COUNTS ("10.5 x2, 11 x1"), never a bare size list. record_sale/record_restock return remaining_summary — repeat it VERBATIM, never retype or shorten it (2026-07-14: Kiki dropped 10.5 from her summary while 2 pairs remained — a hand-typed list lost a size the tool result plainly showed).
 - After record_sale succeeds, report back exactly what it returns: "✅ Done — size 10 removed. That shoe now has: 7, 8, 8.5." If it says the size isn't in stock, say exactly that and list the sizes it DOES have — the website may already be updated.
 - Staff can also ask stock questions ("how many 9.5 in the Cave Stone left?") — answer with real search_inventory numbers, plain and quick.`;
   }
   // When the customer sent a photo, attach it as an image block so Claude can SEE it.
   // If we JUST showed this customer some shoes, tell Claude — because customers often
-  // forward one of OUR pics back to say "I want this one", and Jess should recognise it
+  // forward one of OUR pics back to say "I want this one", and Kiki should recognise it
   // as that exact shoe rather than trying to identify it from scratch.
   let photoNote = `(The customer sent a PHOTO. FIRST look at WHAT it actually shows before doing anything:
 • If it's a SHOE / sneaker → identify it and you MUST call search_inventory then send_photos (never just ask "what size?").
@@ -2131,7 +2131,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     codeCtx = `\n\n[PHOTO CODES you gave this customer — every pic you sent was labelled with its code, and the sizes shown are the ONLY sizes that shoe comes in. If their message IS or CONTAINS one of these codes, they mean THAT exact shoe: confirm it and go straight to their order — do NOT re-ask what shoe. ⚠️ If the customer states a SIZE for a code (e.g. "D9 in 7"), CHECK it against that code's listed sizes: only agree if that size is actually in the list. If it is NOT, do NOT agree — tell them that shoe only comes in [its real sizes] and offer the nearest. NEVER confirm a size that isn't in the code's sizes. Codes → shoes: ${lines.join('; ')}]`;
   }
   // PRIVATE OWNER CONTEXT: anything Rodney/staff typed with the ". " code since the customer
-  // last wrote. Jess uses it as the TRUTH to guide her help, but NEVER quotes or announces it.
+  // last wrote. Kiki uses it as the TRUTH to guide her help, but NEVER quotes or announces it.
   let ownerCtx = '';
   const on = ownerNotes.get(sub);
   if (on && on.length && (Date.now() - on[on.length - 1].ts) < 6 * 60 * 60 * 1000) {
@@ -2161,7 +2161,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   try {
   for (let step = 0; step < 6; step++) {
-    // On the FIRST move of a photo turn, FORCE Jess to search inventory — so she can't
+    // On the FIRST move of a photo turn, FORCE Kiki to search inventory — so she can't
     // answer "what size?" or "we're out" without actually looking first. This is the
     // reliable, low-risk way to make photo replies show the pair (no re-loop/hang).
     // Photo turns: force her to LOOK, then SHOW. Step 0 = search. If that search found
@@ -2268,7 +2268,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // which comes in no 9 or 9.5): when the customer's size is known, hard-drop any
         // shoe that doesn't actually come in it (or its half-size up; women's = her
         // men's-equivalent or the literal number) BEFORE anything sends. The dropped
-        // shoes are reported back so Jess can offer the nearest size honestly instead
+        // shoes are reported back so Kiki can offer the nearest size honestly instead
         // of implying a fit we don't have.
         const droppedWrongSize = [];
         const wantN = parseFloat(inp.size);
@@ -2328,7 +2328,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       else if (tu.name === 'notify_manager') {
         const inp = tu.input || {};
         // Pull the customer's WhatsApp number so staff can call/message them for the
-        // drop-off. Prefer what Jess passed or the request field; else ask ManyChat.
+        // drop-off. Prefer what Kiki passed or the request field; else ask ManyChat.
         let custPhone = inp.customer_phone || getPhone(req);
         if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
         custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
@@ -2361,11 +2361,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try { const sh = liveShoeMap()[inp.shoe_id]; if (sh && sh.image) alertImg = sh.image; } catch (_) {}
         let waOk = false;
         try { waOk = await waSendManager(lines, token, alertImg); } catch (_) {}
-        try { require('./shop').addAlert(lines, 'Jess 🤖'); } catch (_) {} // shows on the website Tasks board
+        try { require('./shop').addAlert(lines, 'Kiki 🤖'); } catch (_) {} // shows on the website Tasks board
         // WhatsApp alert bounced (usually the 24h window closed — "Subscriber is not
         // active", 2026-07-14: two order alerts silently never reached Rodney): flag it
         // loudly on the task board so the app push still wakes someone.
-        if (!waOk) { try { require('./shop').addAlert('⚠️ The WhatsApp owner-alert for the order above BOUNCED — text the store line from the owner phone to reopen the 24h window.', 'Jess 🤖'); } catch (_) {} }
+        if (!waOk) { try { require('./shop').addAlert('⚠️ The WhatsApp owner-alert for the order above BOUNCED — text the store line from the owner phone to reopen the 24h window.', 'Kiki 🤖'); } catch (_) {} }
         // Also best-effort WhatsApp every on-duty staff number so whoever's around gets it
         // (each still subject to WhatsApp's 24h window). MANYCHAT_TOKEN drives the send.
         let staffWa = [];
@@ -2381,7 +2381,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + detail, alertImg);
         }
         // Delivery is now in motion — if the customer goes quiet, auto-reassure them
-        // at ~20 min ("still on the way!"). Any reply from them cancels it (and Jess
+        // at ~20 min ("still on the way!"). Any reply from them cancels it (and Kiki
         // then offers to call the driver). Reuses the one-pending-nudge timer.
         // (Skip for the early "order_confirmed" heads-up — nobody's driving yet.)
         if (!earlyStage) try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
@@ -2404,7 +2404,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             result = require('./shop').recordStaffSale(s2.id, inp.size, staffName, s2.price, displayName(s2), s2.sizesRaw);
             if (result && result.ok) {
               const remain = (result.remaining_sizes && result.remaining_sizes.length) ? result.remaining_sizes.join(', ') : 'NONE — sold out';
-              try { await waSendManager(`🧾 SOLD (reported by ${staffName} via Jess): ${displayName(s2)} — size ${inp.size} — $${s2.price}\nRemaining sizes: ${remain}`, token); } catch (_) {}
+              try { await waSendManager(`🧾 SOLD (reported by ${staffName} via Kiki): ${displayName(s2)} — size ${inp.size} — $${s2.price}\nRemaining sizes: ${remain}`, token); } catch (_) {}
             }
           }
         }
@@ -2436,7 +2436,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         ].filter(Boolean).join('\n');
         let waOk = false;
         try { waOk = await waSendManager(lines, token); } catch (_) {}
-        try { require('./shop').addAlert(lines, 'Jess 🤖'); } catch (_) {} // website Tasks board
+        try { require('./shop').addAlert(lines, 'Kiki 🤖'); } catch (_) {} // website Tasks board
         let staffWa = [];
         try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
@@ -2482,7 +2482,7 @@ function handleChat(req, res) {
   let imageUrl = getImageUrl(req);
   // A message that is JUST a bare link (no other words) and isn't audio is almost
   // always the customer's photo arriving via Last Text Input. Catch it even if the
-  // link's host/extension wasn't recognised above, so Jess looks at the picture
+  // link's host/extension wasn't recognised above, so Kiki looks at the picture
   // instead of reading a raw URL out loud.
   if (!imageUrl && !audioUrl) {
     const t = (userText || '').trim();
@@ -2493,15 +2493,15 @@ function handleChat(req, res) {
         // A NON-image link — a share.google / instagram / webpage link the customer
         // pasted. It is NOT a photo, so we must NOT feed it to vision (that fetches
         // HTML, fails, and loops "Sorry, I'm having a little hiccup"). Replace it with
-        // a note so Jess just asks for the shoe details instead of erroring.
+        // a note so Kiki just asks for the shoe details instead of erroring.
         userText = "(The customer sent an outside web link I can't open — it is NOT a photo. Don't error or say 'hiccup'. Just warmly ask them for the shoe's NAME and COLOUR, or to send an actual photo, so I can find it.)";
       }
     }
   }
   // PICTURE READING TURNED OFF (Rodney's call 2026-07-12): photo recognition wasn't
   // accurate enough, so we do NOT feed customer photos to Claude vision. A BARE photo
-  // (no typed caption) now makes JESS send the WELCOME GREETING (Rodney's call 2026-07-13 —
-  // the greeting now comes FROM Jess so his "agent" code can silence it, instead of a static
+  // (no typed caption) now makes KIKI send the WELCOME GREETING (Rodney's call 2026-07-13 —
+  // the greeting now comes FROM Kiki so his "agent" code can silence it, instead of a static
   // ManyChat message that ignores the code). A photo WITH a caption still gets helped via
   // that caption text. Re-enable full photo replies with env PHOTO_VISION=1.
   if (process.env.PHOTO_VISION === '0' && imageUrl) {
@@ -2510,7 +2510,7 @@ function handleChat(req, res) {
   }
   // VOICE NOTES — recognition ON by default (Rodney's call 2026-07-13, same as photos):
   // a voice note gets downloaded + transcribed (Whisper, needs OPENAI_API_KEY) and treated
-  // as typed text. If transcription fails/no key, Jess kindly asks them to type it.
+  // as typed text. If transcription fails/no key, Kiki kindly asks them to type it.
   // Set env VOICE_RECOGNITION=0 to switch voice reading back off.
   if (process.env.VOICE_RECOGNITION === '0' && audioUrl && (!userText || !userText.trim())) {
     audioUrl = '';
@@ -2547,7 +2547,7 @@ function handleChat(req, res) {
   }
   // (Removed the post-hand-off "go quiet for 6h" pause: with no human actually taking
   // over, it silenced live customers into a void — they messaged, got nothing but timed
-  // follow-ups, and blocked us. Jess must ALWAYS keep answering. Handing off just alerts
+  // follow-ups, and blocked us. Kiki must ALWAYS keep answering. Handing off just alerts
   // the team; it never mutes her.)
   // Ignore JUNK "messages": ManyChat's Default Reply fires on non-message events
   // (delivery/read receipts, reactions, status pings) with a placeholder like "." — if
@@ -2565,7 +2565,7 @@ function handleChat(req, res) {
 
   // 🔇 STAFF QUIET — the moment Rodney/staff types a message that STARTS with the codeword
   // "agent" (Rodney's pick 2026-07-12 — Bahamian customers never open a message with it) or
-  // with "." / "-", that's HIM talking in the chat himself, so Jess stays SILENT and hushes
+  // with "." / "-", that's HIM talking in the chat himself, so Kiki stays SILENT and hushes
   // for MUTE_MS (rolling) — she never speaks over him. "agent back" / ".back" (or wake/on/go)
   // turns her back on right away. Auto-resumes after MUTE_MS so a chat can NEVER get stranded.
   {
@@ -2578,7 +2578,7 @@ function handleChat(req, res) {
     if (!imageUrl && !audioUrl && (/^agent\b/i.test(t) || /^[.\-]\s*\S/.test(t))) {
       chatMuted.set(sub, Date.now() + MUTE_MS);
       record(req, { endpoint: 'staff-quiet', sub, q: t.slice(0, 30) });
-      return; // silent — Jess never replies to the boss's own message
+      return; // silent — Kiki never replies to the boss's own message
     }
     const mUntil = chatMuted.get(sub);
     if (mUntil && Date.now() < mUntil) {
@@ -2591,7 +2591,7 @@ function handleChat(req, res) {
 
   // Dedupe photos: the SAME image can hit us twice in quick succession (a
   // Default-Reply / ManyChat quirk). If we just handled this exact photo for this
-  // customer, skip the duplicate so Jess doesn't answer the same picture twice.
+  // customer, skip the duplicate so Kiki doesn't answer the same picture twice.
   if (imageUrl) {
     const k = sub + '|' + imageUrl;
     const prevSeen = recentImageSeen.get(k);
@@ -2604,7 +2604,7 @@ function handleChat(req, res) {
   }
   // Dedupe rapid duplicate TEXT messages: the same message can reach us twice (ManyChat
   // re-delivery, or a keyword automation AND the Default Reply both firing), which makes
-  // Jess reply 2-3 times to ONE message. If the exact same text from the same customer
+  // Kiki reply 2-3 times to ONE message. If the exact same text from the same customer
   // arrives within a few seconds, treat it as a duplicate and skip it.
   if (userText.trim()) {
     const mk = sub + '|' + userText.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -2617,7 +2617,7 @@ function handleChat(req, res) {
     // Only TEXT-ONLY arrivals are ever skipped — but photo-with-caption arrivals DO
     // stamp the marker (2026-07-15: an ad-entry message carries the product image, so
     // it bypassed this block entirely and its text-only twin got a SECOND answer —
-    // customers were seeing Jess reply twice in different words).
+    // customers were seeing Kiki reply twice in different words).
     if (!imageUrl && !audioUrl && prevM && (Date.now() - prevM) < 10000) {
       record(req, { endpoint: 'dupe-msg-skip', sub, q: userText.slice(0, 30) });
       return;
@@ -2630,10 +2630,10 @@ function handleChat(req, res) {
   // customer sends a location pin / sticker / contact card (no text, no media URL),
   // ManyChat has nothing to put in Last Text Input — so it RE-DELIVERS the customer's
   // PREVIOUS text word-for-word. Tonight that replay ("C7 -7 /71/2" twice, 20 min
-  // apart, right as a $260 customer dropped her pin) made Jess re-confirm the order
+  // apart, right as a $260 customer dropped her pin) made Kiki re-confirm the order
   // instead of noticing the pin landed — and the owner was never notified. Rapid
   // (<60s) duplicates were already skipped above, so an exact duplicate arriving
-  // LATER is almost always a non-text message. Flag it so Jess can treat it as
+  // LATER is almost always a non-text message. Flag it so Kiki can treat it as
   // "their pin/attachment probably just arrived" instead of answering stale words.
   let nonTextReplay = false;
   if (userText.trim() && !imageUrl && !audioUrl) {
@@ -2650,7 +2650,7 @@ function handleChat(req, res) {
   // CUSTOMER OPTED OUT ("stop"/"unsubscribe" — 2026-07-13): ManyChat swallows the literal
   // word "stop" itself (its built-in opt-out) so it never reaches us as a normal message.
   // The ManyChat Opt-out Automation is wired to POST us this marker instead. Halt everything
-  // for this customer and stay SILENT — no Jess reply, no follow-ups, nothing more.
+  // for this customer and stay SILENT — no Kiki reply, no follow-ups, nothing more.
   if (/^\(SYSTEM:\s*STOP\)/i.test(userText.trim()) || /^(stop|unsubscribe)$/i.test(userText.trim())) {
     clearFollowUp(sub); // kill any queued nudges too — they've asked us to stop
     record(req, { endpoint: 'customer-stop', sub });
@@ -2662,7 +2662,7 @@ function handleChat(req, res) {
     let text = userText;
     // The voice note's link usually IS the whole "text" (it rides in via Last Text Input,
     // same as photos) — blank it so the transcription branch below actually runs instead
-    // of feeding a raw audio URL to Jess as words (2026-07-13 fix, mirrors the photo path).
+    // of feeding a raw audio URL to Kiki as words (2026-07-13 fix, mirrors the photo path).
     if (audioUrl && text.trim() === audioUrl.trim()) text = '';
     // Voice note with no typed text: transcribe it first, then chat as normal.
     if (!text.trim() && audioUrl) {
@@ -2675,7 +2675,7 @@ function handleChat(req, res) {
       text = t;
     }
     // Customer sent a PHOTO (its link arrives via Last Text Input). Pass the URL straight
-    // to Jess — Anthropic fetches + resizes the image itself, so even full-res photos work
+    // to Kiki — Anthropic fetches + resizes the image itself, so even full-res photos work
     // (the old local download had a 4.5MB cap that killed big photos with "can't open").
     let photo = null;
     if (imageUrl) {
@@ -2686,16 +2686,16 @@ function handleChat(req, res) {
     }
     // Exact duplicate of their previous message (past the 60s dupe window) = WhatsApp
     // re-delivering old words because a NON-TEXT message arrived (see detector above).
-    // Tell Jess so she treats it as "pin/attachment landed", not as fresh words.
+    // Tell Kiki so she treats it as "pin/attachment landed", not as fresh words.
     if (nonTextReplay) {
       record(req, { endpoint: 'non-text-replay', sub, q: text.slice(0, 40) });
       text += '\n\n(SYSTEM NOTE: this text is a WhatsApp RE-DELIVERY of the customer\'s previous message — they just sent something non-text that can\'t be shown to you. WHICH thing depends entirely on context: ✅ ONLY IF you were mid-delivery and waiting on their location pin THIS conversation, it\'s the pin — confirm warmly ("Got your pin! 📍") and call notify_manager stage "delivery_ready". ❌ In EVERY other case (they\'re browsing, asking about shoes, no order in play) it is almost certainly a PHOTO — usually a picture of the shoe they want (2026-07-14: a slides shopper sent pics and got "Got your pin!" + "driver\'s heading out" with NO order — bizarre and trust-killing). Then: never mention pins or drivers; and NEVER say you can\'t open or see pictures — you CAN see photos, this one just didn\'t come through. Say exactly that ("hmm, that pic didn\'t come through on my end 🙈 — fire it over one more time?") or, if the words around it already say what they want, just keep helping with that. Do NOT answer the repeated words as if freshly typed, and do NOT re-confirm an already-confirmed order.)';
     }
     // 🔴 OWNER "." MESSAGE — a message that starts with "." or "-" is Rodney/staff jumping in.
     // We can't tell his messages from the customer's any other way, so this tiny mark is his
-    // signal. He wants Jess to FOLLOW ALONG SILENTLY,
+    // signal. He wants Kiki to FOLLOW ALONG SILENTLY,
     // not talk. So we STASH what he said as private context and send NOTHING to the customer.
-    // Jess will use it (as the truth) the next time the CUSTOMER writes, but never announce it.
+    // Kiki will use it (as the truth) the next time the CUSTOMER writes, but never announce it.
     if (!photo && /^\s*[.\-]\s*\S/.test(text)) {
       const note = text.replace(/^\s*[.\-]+\s*/, '').trim();
       if (note) {
@@ -2765,7 +2765,7 @@ function consoleAuth(req, res) {
 }
 
 // Manually set (or list) owner reminders — e.g. an order arranged by hand in the
-// Inbox that Jess never saw. POST {key, hours, store, text} / GET ?key= to list.
+// Inbox that Kiki never saw. POST {key, hours, store, text} / GET ?key= to list.
 app.post('/console/remind', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = req.body || {};
@@ -2833,7 +2833,7 @@ app.post('/console/send', async (req, res) => {
 app.get('/console', (req, res) => {
   res.type('html').send(`<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Jess — Send Shoes</title>
+<title>Kiki — Send Shoes</title>
 <style>
   *{box-sizing:border-box} body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0f1115;color:#e7e9ee}
   .wrap{max-width:520px;margin:0 auto;padding:16px}
@@ -2851,7 +2851,7 @@ app.get('/console', (req, res) => {
   .sel{outline:2px solid #2f6df6} #status{font-size:14px;margin-top:10px;min-height:20px}
   .ok{color:#7ee0a2} .err{color:#ff9a9a}
 </style></head><body><div class="wrap">
-<h1>🟢 Jess — Send Shoes</h1>
+<h1>🟢 Kiki — Send Shoes</h1>
 <div class="sub">Pick a customer (or type their number), choose what to send, hit Send.</div>
 <div class="banner">⚠️ This sends real WhatsApp photos to the customer. Test with YOUR own number first.</div>
 
