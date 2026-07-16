@@ -180,8 +180,18 @@ function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
   if (!shoe.sizes.length) shoe.sold = true;
   shoe.updatedAt = Date.now();
   const uid = 'jess-' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  // Write BOTH dialects: the bot's fields (at/shoeLabel/by) AND the website sales
+  // page's native fields (date/dateStr/timeStr/name/soldBy, Bahamas clock) so a
+  // Kiki-reported sale counts in TODAY'S REGISTER immediately (2026-07-16).
+  const bah = new Date(Date.now() - 4 * 3600 * 1000);
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateStr = MONTHS[bah.getUTCMonth()] + ' ' + bah.getUTCDate() + ', ' + bah.getUTCFullYear();
+  let hr = bah.getUTCHours(); const ampm = hr >= 12 ? 'PM' : 'AM'; hr = hr % 12 || 12;
+  const timeStr = String(hr).padStart(2, '0') + ':' + String(bah.getUTCMinutes()).padStart(2, '0') + ' ' + ampm;
   state.sales.unshift({ id: uid, shoeId: shoeId, shoeLabel: label || String(shoeId), size: sz,
-    price: price != null ? price : null, by: by || 'staff', at: new Date().toISOString(), src: 'jess-staff' });
+    price: price != null ? price : null, by: by || 'staff', at: new Date().toISOString(), src: 'jess-staff',
+    name: label || String(shoeId), brand: '', color: '',
+    date: new Date().toISOString(), dateStr: dateStr, timeStr: timeStr, soldBy: by || 'staff' });
   if (state.sales.length > MAX_SALES) state.sales.length = MAX_SALES;
   persist('shoes.json'); persist('sales.json'); bump();
   addAlert('🧾 SALE — ' + (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : '') + ' (reported by ' + (by || 'staff') + ' via Kiki)', by || 'Kiki 🤖');
