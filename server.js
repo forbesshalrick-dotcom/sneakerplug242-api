@@ -2184,6 +2184,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // gains the sale-reporting flow (photo-confirm first, then record_sale).
   const staffName = staffNameFor(req);
   if (staffName) rememberStaffSub(staffName, sub, ctx.store);
+  // 🔒 HARD OVERRIDE (2026-07-17): even with staff detected AND the staff rules present,
+  // the model kept running the CUSTOMER photo script on a staff cash/receipt photo —
+  // pitching sneakers, calling a stack of Bahamian bills "an Air Max Plus". So when a
+  // recognized staff member sends a PHOTO, inject the coworker interpretation straight
+  // into THEIR message (highest-weight place) so it can't be overridden.
+  if (staffName && image) {
+    userText = '🎽 [STAFF PHOTO — I am ' + staffName + ', your coworker, NOT a customer]: this picture is my END-OF-SHIFT FLOAT CASH or a RECEIPT — it is NOT a shoe and NOT a customer order. If it is cash / banknotes: COUNT it denomination by denomination (Bahamian $ and US $ each count 1:1) and call record_float_count once I confirm. If it is a receipt: read the total and call record_expense. ⛔ Do NOT call search_inventory, do NOT send_photos, do NOT say "not a shoe / sent by accident", and NEVER pitch sneakers or ask my size.'
+      + (userText && userText.trim() ? (' My note: ' + userText) : '');
+  }
   if (staffName) {
     system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
 - 🎙 VOICE-NOTE TRAP — "ASICS" NOBODY SAID (Deashinique 2026-07-14: voice-noted "sold the pink Air Max Plus in a SIZE 10", the transcript rendered "ASICS 10", and Kiki invented a second ASICS shoe — staff replied "I never said ASICS"): transcripts routinely turn "a size [number]" / "in a size [number]" into "ASICS [number]" or "a six [number]". When a voice message names ANOTHER shoe and ASICS appears right before a number with no colour or model of its own, read it as "a size [number]" of the shoe they named — do NOT treat it as a second shoe. Only take ASICS as the brand when typed, or clearly its own ask with its own colour/size.
