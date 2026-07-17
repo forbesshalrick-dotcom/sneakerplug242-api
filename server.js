@@ -723,10 +723,51 @@ async function sendChunkRaw(subscriberId, messages, token) {
     return { ok: false, status: 0, body: 'fetch-error/timeout: ' + String(e).slice(0, 120) };
   } finally { clearTimeout(tm); }
 }
+// ── 🟢 WHATSAPP CLOUD API (direct, no ManyChat) ───────────────────────────────
+// New numbers (e.g. Shoe Box 451-5264) talk to customers straight through Meta's
+// Graph API. A customer who messages a WA-API number is remembered here so every
+// reply Kiki makes (sendChunk, sendShoePhotos, alerts) routes to the Graph API
+// instead of ManyChat — reusing ALL of Kiki's brain unchanged. (Rodney 2026-07-16)
+const WA_GRAPH = 'https://graph.facebook.com/v21.0';
+const waChannel = new Map(); // customer wa-id -> phone_number_id that should reply
+function waToken() { return (process.env.WA_TOKEN || '').trim(); }
+async function waSendOne(to, m, phoneNumberId) {
+  const tok = waToken();
+  if (!tok || !phoneNumberId) return { ok: false, status: 0, body: 'wa-not-configured' };
+  const body = (m.type === 'image' && m.url)
+    ? { messaging_product: 'whatsapp', to, type: 'image', image: { link: m.url } }
+    : { messaging_product: 'whatsapp', to, type: 'text', text: { preview_url: false, body: String(m.text || '').slice(0, 4096) } };
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const r = await fetch(`${WA_GRAPH}/${phoneNumberId}/messages`, {
+      method: 'POST', signal: ctl.signal,
+      headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const txt = await r.text();
+    return { ok: r.ok, status: r.status, body: txt.slice(0, 300) };
+  } catch (e) {
+    return { ok: false, status: 0, body: 'wa-fetch-error: ' + String(e).slice(0, 120) };
+  } finally { clearTimeout(tm); }
+}
+async function waSendChunk(to, messages, phoneNumberId) {
+  let anyOk = false, last = null;
+  for (const m of (messages || [])) {
+    const r = await waSendOne(to, m, phoneNumberId);
+    last = r; if (r.ok) anyOk = true;
+    if (!r.ok) { try { recent.unshift({ at: new Date().toISOString(), endpoint: 'wa-send-fail', sub: to, status: r.status, body: r.body }); if (recent.length > 120) recent.length = 120; } catch (_) {} }
+  }
+  return { ok: anyOk, status: last ? last.status : 0, body: last ? last.body : '' };
+}
+
 // Subs whose sends only work with a token OTHER than the one their webhook suggested —
 // learned by the fallback below so future sends go straight to the right account.
 const subTokenFix = new Map();
 async function sendChunk(subscriberId, messages, token) {
+  // WhatsApp-API customers: route straight to the Graph API, skip ManyChat entirely.
+  const waPhoneId = waChannel.get(String(subscriberId));
+  if (waPhoneId) return waSendChunk(String(subscriberId), messages, waPhoneId);
   // CROSS-ACCOUNT TOKEN FALLBACK (2026-07-15: some customers get tagged with the WRONG
   // store, so every send bounces with "Subscriber is not active" / "Something went
   // wrong" while the SAME send works fine with the other account's token — Antoinette,
@@ -1602,9 +1643,10 @@ const EMPTY_ASK_T = {
 // download the audio file ManyChat points us at and transcribe it with Whisper,
 // then feed the text into the normal chat. Needs OPENAI_API_KEY in the env.
 const WHISPER_API = 'https://api.openai.com/v1/audio/transcriptions';
-async function transcribeAudio(url) {
+async function transcribeAudio(url, mediaAuth) {
   if (!process.env.OPENAI_API_KEY) return null;
-  const audio = await fetch(url);
+  // mediaAuth: WhatsApp Cloud API media URLs need a Bearer token to download.
+  const audio = await fetch(url, mediaAuth ? { headers: { Authorization: `Bearer ${mediaAuth}` } } : undefined);
   if (!audio.ok) return null;
   const buf = Buffer.from(await audio.arrayBuffer());
   // WhatsApp voice notes are ogg/opus; the filename extension tells Whisper the format.
@@ -2186,11 +2228,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
   // full-res customer photos with an "I can't open that file" reply).
+  // image may be a plain URL string (ManyChat) OR a {data, media_type} base64 object
+  // (WhatsApp Cloud API media needs an auth header to fetch, so we download it in the
+  // webhook and pass the bytes here).
+  const imageSource = (image && typeof image === 'object' && image.data)
+    ? { type: 'base64', media_type: image.media_type || 'image/jpeg', data: image.data }
+    : { type: 'url', url: image };
   const userMsg = {
     role: 'user',
     content: image
       ? [ { type: 'text', text: photoNote + codeCtx + ownerCtx },
-          { type: 'image', source: { type: 'url', url: image } } ]
+          { type: 'image', source: imageSource } ]
       : (userText + codeCtx + ownerCtx),
   };
   history.push(userMsg);
@@ -2849,6 +2897,94 @@ app.get('/chat', handleChat);
 // Alias: the ManyChat flow points here (it was simplest to edit "send-photos" -> "send-chat").
 app.post('/send-chat', handleChat);
 app.get('/send-chat', handleChat);
+
+// ── 🟢 WHATSAPP CLOUD API WEBHOOK (direct line, Shoe Box + future numbers) ─────
+// GET = Meta's one-time verification handshake. POST = live customer messages
+// (text / photo-caption / voice / location pin) arriving straight from WhatsApp,
+// no ManyChat. Each is fed into Kiki's normal brain (runChat) with replies routed
+// to the Graph API by the waChannel map. (Rodney 2026-07-16)
+const WA_VERIFY = () => (process.env.WA_VERIFY_TOKEN || 'sp242-wa-verify-7c1d').trim();
+app.get('/wa-webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === WA_VERIFY()) {
+    record(req, { endpoint: 'wa-webhook-verified' });
+    return res.status(200).send(String(challenge || ''));
+  }
+  record(req, { endpoint: 'wa-webhook-verify-fail', gotToken: token });
+  return res.sendStatus(403);
+});
+
+// Fetch a WhatsApp media object's temporary download URL (images/audio arrive as
+// IDs). Needs the WA token. Returns a URL Kiki's vision/whisper code can read.
+async function waMediaUrl(mediaId) {
+  try {
+    const r = await fetch(`${WA_GRAPH}/${mediaId}`, { headers: { Authorization: `Bearer ${waToken()}` } });
+    const d = await r.json();
+    return d && d.url ? d.url : null;
+  } catch (_) { return null; }
+}
+// Download a WhatsApp media file (needs the auth header) and return it as base64 so
+// Kiki's vision can read it — the media URL is short-lived and auth-gated, so we can't
+// hand the bare URL to Anthropic.
+async function waMediaBase64(mediaId) {
+  try {
+    const url = await waMediaUrl(mediaId);
+    if (!url) return null;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${waToken()}` } });
+    const ct = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
+    const buf = Buffer.from(await r.arrayBuffer());
+    return { media_type: ct, data: buf.toString('base64') };
+  } catch (_) { return null; }
+}
+
+app.post('/wa-webhook', async (req, res) => {
+  res.sendStatus(200); // ACK Meta immediately; process after
+  try {
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const entry = (body.entry || [])[0] || {};
+    const change = (entry.changes || [])[0] || {};
+    const value = change.value || {};
+    const phoneNumberId = value.metadata && value.metadata.phone_number_id;
+    const msg = (value.messages || [])[0];
+    if (!msg || !phoneNumberId) return; // status callbacks etc. — ignore
+    const from = String(msg.from); // customer's wa-id (their number)
+    const profileName = (((value.contacts || [])[0] || {}).profile || {}).name || '';
+    waChannel.set(from, phoneNumberId); // so Kiki's replies route back here
+
+    let text = '', imageObj = null, audioUrl = null, locNote = '';
+    if (msg.type === 'text') text = (msg.text && msg.text.body) || '';
+    else if (msg.type === 'image') { text = (msg.image && msg.image.caption) || ''; if (msg.image && msg.image.id) imageObj = await waMediaBase64(msg.image.id); }
+    else if (msg.type === 'audio' || msg.type === 'voice') { if (msg.audio && msg.audio.id) audioUrl = await waMediaUrl(msg.audio.id); }
+    else if (msg.type === 'location' && msg.location) {
+      const L = msg.location;
+      locNote = `(SYSTEM: customer dropped a LOCATION PIN — ${L.latitude},${L.longitude}${L.name ? ' · ' + L.name : ''}${L.address ? ' · ' + L.address : ''} — maps: https://maps.google.com/?q=${L.latitude},${L.longitude})`;
+      text = locNote;
+    }
+    else if (msg.type === 'button' && msg.button) text = msg.button.text || '';
+    else if (msg.type === 'interactive' && msg.interactive) { const it = msg.interactive; text = (it.button_reply && it.button_reply.title) || (it.list_reply && it.list_reply.title) || ''; }
+
+    // Voice note with no caption → transcribe it (Whisper) and treat as typed text,
+    // exactly like the ManyChat path does in handleChat.
+    if (audioUrl && !String(text).trim()) {
+      const t = await transcribeAudio(audioUrl, waToken()).catch(() => null);
+      record(req, { endpoint: 'wa-voice-transcribe', sub: from, transcript: t });
+      if (t && t.trim()) text = t.trim();
+    }
+    record(req, { endpoint: 'wa-in', sub: from, name: profileName, msgType: msg.type, q: String(text).slice(0, 60), hasImage: !!imageObj, hasAudio: !!audioUrl });
+    if (!String(text).trim() && !imageObj) return; // nothing usable
+
+    const shimReq = { method: 'POST', path: '/wa-webhook', headers: {}, query: {}, rawBody: null, body: {} };
+    const turnAt = Date.now();
+    lastIncoming.set(from, turnAt);
+    lastIncomingText.set(from, text || '');
+    // Kiki thinks + replies; waChannel routing sends everything to the Graph API.
+    await runChat(shimReq, from, text, waToken(), { store: 'Shoe Box', name: profileName, turnAt, chatUrl: null, wa: true, phoneNumberId }, imageObj || null);
+  } catch (e) {
+    try { record({ method: 'POST', path: '/wa-webhook', headers: {}, query: {}, body: {} }, { endpoint: 'wa-webhook-error', error: String(e).slice(0, 200) }); } catch (_) {}
+  }
+});
 
 // Live delivery tracking (driver GPS → customer + manager watch a map).
 require('./delivery').mount(app);
