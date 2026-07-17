@@ -2736,7 +2736,7 @@ function handleChat(req, res) {
   const token = getToken(req);
   const store = getStore(req);
   const name = getName(req);
-  record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, imageUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY });
+  record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, imageUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY, dbgPhone: getPhone(req), dbgStaff: staffNameFor(req) });
   rememberCustomer(sub, name, store, userText, token); // for the /console control panel
   // Track the customer's language (conservative; English by default) so the automatic
   // nudges/handoff go out in Creole/Spanish only when they clearly speak it.
