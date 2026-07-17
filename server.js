@@ -2549,7 +2549,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               try {
                 await waSendManager('⚠️ *FLOAT MISMATCH* (end of shift)\n👤 ' + staffName + '\n🧮 Counted: $' + counted.toFixed(2) + '\n📋 Should hold: $' + floatShould.toFixed(2) + '\n' + (mismatch < 0 ? '🔻 SHORT $' + Math.abs(mismatch).toFixed(2) : '🔺 OVER $' + mismatch.toFixed(2)) + '\n📸 Count breakdown: ' + String(inp.breakdown || '').slice(0, 200), token);
               } catch (_) {}
-              try { require('./shop').addAlert('⚠️ FLOAT MISMATCH — counted $' + counted.toFixed(2) + ' vs expected $' + floatShould.toFixed(2) + (mismatch < 0 ? ' (SHORT $' + Math.abs(mismatch).toFixed(2) + ')' : ' (OVER $' + mismatch.toFixed(2) + ')') + ' — by ' + staffName, 'Kiki 🤖'); } catch (_) {}
+              if (mismatch < 0) {
+                // SHORT = money missing = SERIOUS (Rodney 2026-07-17): count how many times THIS
+                // staff has come up short, log it as its own SHORTAGE note, and fire a loud
+                // siren-style alert STRAIGHT to the employee's WhatsApp so they recount NOW.
+                let shortCount = 1;
+                try {
+                  for (const n of require('./shop').getNotes()) {
+                    if (n && /🚨 SHORTAGE/.test(n.text || '') && String(n.text).indexOf(staffName) !== -1) shortCount++;
+                  }
+                } catch (_) {}
+                try { require('./shop').addAlert('🚨 SHORTAGE — ' + staffName + ' came up SHORT $' + Math.abs(mismatch).toFixed(2) + ' (short #' + shortCount + ' on record) — counted $' + counted.toFixed(2) + ' vs expected $' + floatShould.toFixed(2), 'Kiki 🤖'); } catch (_) {}
+                try {
+                  await sendChunk(sub, [{ type: 'text', text: '🚨🚨🚨 HOLD UP — THE FLOAT IS SHORT 🚨🚨🚨\n\nThe cash is *$' + Math.abs(mismatch).toFixed(2) + ' LESS* than it should be — I count $' + counted.toFixed(2) + ', it should be $' + floatShould.toFixed(2) + '.\n\n👉 RECOUNT the cash right now and straighten it BEFORE you close out. This is serious — it\'s been logged for Rodney (this is short #' + shortCount + ' on your record). Send me a fresh photo once it matches. 🙏' }], token);
+                } catch (_) {}
+              } else {
+                try { require('./shop').addAlert('⚠️ FLOAT OVER — counted $' + counted.toFixed(2) + ' vs expected $' + floatShould.toFixed(2) + ' (OVER $' + mismatch.toFixed(2) + ') — by ' + staffName, 'Kiki 🤖'); } catch (_) {}
+              }
             }
             // Always tell the owner a shift closed + the pay — even a CLEAN count (Rodney
             // 2026-07-17: a whole float count logged with ZERO notification to him).
