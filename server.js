@@ -1194,6 +1194,14 @@ const AI_TOOLS = [
     },
   },
   {
+    name: 'record_expense',
+    description: "STAFF ONLY — log money taken from the float for an expense (gas for deliveries, supplies). RECEIPT PHOTO FIRST: they must send a photo of the receipt in this chat; READ the total on it and make sure it matches the amount they claim before calling. Logs to the owner's task board and is counted when the end-of-shift float is checked.",
+    input_schema: { type: 'object', properties: {
+      amount_dollars: { type: 'number', description: 'Amount taken, matching the receipt.' },
+      what: { type: 'string', description: "What it was for, e.g. 'gas for deliveries'." },
+    }, required: ['amount_dollars', 'what'] },
+  },
+  {
     name: 'record_float_count',
     description: "STAFF ONLY — log the end-of-shift float count after the staff member sends a PHOTO of the cash spread on the table and CONFIRMS your count. Records the breakdown on the owner's task board. Never call it without (1) a cash photo in this chat, (2) your denomination-by-denomination count shown to them, and (3) their explicit yes.",
     input_schema: { type: 'object', properties: {
@@ -2130,6 +2138,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 - 📦 RESTOCK: staff can also ADD stock ("we got 3 more size 10s of the Bred", "put that 10.5 back") — same photo-confirm-first flow, then call record_restock with the shoe id, size and count.
 - 🔢 STAFF SEE QUANTITIES, ALWAYS (Rodney 2026-07-14: "we are workers — it's best to see full quantity, not 1 pair like the customer"): when talking to staff, express stock as per-size COUNTS ("10.5 x2, 11 x1"), never a bare size list. record_sale/record_restock return remaining_summary — repeat it VERBATIM, never retype or shorten it (2026-07-14: Kiki dropped 10.5 from her summary while 2 pairs remained — a hand-typed list lost a size the tool result plainly showed).
 - ⚠️ NEVER SAY "DONE" WITHOUT THE TOOL (2026-07-16: Kiki told staff "✅ Done — size 10 removed" TWICE, never called record_sale, nothing was removed, the register missed the sale): the words "done/removed/updated" may ONLY follow a record_sale/record_restock result in THIS SAME turn. The tool now also REFUSES unless that exact shoe's photo went out in this chat first — if it refuses, do what it says (photo → YES → call again), don't apologize your way past it.
+- ⛽ GAS / EXPENSE MONEY = RECEIPT PHOTO FIRST (Rodney 2026-07-16): when staff take float money for gas or supplies, they MUST send a photo of the receipt in this chat. READ the receipt with your eyes: check the total on the slip matches the amount they claim (if it doesn't, say so and ask which is right). Only after the photo + match, call record_expense. No receipt photo = no logging = tell them to snap it before they spend another dollar. Logged expenses are automatically subtracted when the end-of-shift float is checked, so an honest gas run never reads as "short".
 - 💵 END-OF-SHIFT FLOAT PHOTO (Rodney 2026-07-16): staff send a PHOTO of the float cash spread out on the table before leaving. COUNT IT from the photo, denomination by denomination, separating US dollars from Bahamian dollars (they count 1:1 — B$20 = $20): reply with your full count ("I see 3x$100 + 4x$50 US + 2xB$20... = $520 total — that right?") and wait for their YES. If bills overlap or the photo is unclear, ask for a clearer photo — never guess. Once they confirm, call record_float_count with the total and breakdown. The tool result tells you their recorded pay for today and what the float SHOULD hold — use it: (1) say plainly whether the count matches or is short/over, (2) then ALWAYS close the shift with a warm thank-you message: thank them by name for the day, confirm in writing how much they earned and that it's recorded ("You earned $60 today — logged and locked in ✅"), and end with ONE short motivational line tying selling to earning ("every pair you move puts more in your pocket — the more you sell, the more you make 💪👟"). Vary the wording day to day so it stays human, keep it Bahamian-warm, never skip it — that message IS their receipt.
 - "WHAT SOLD TODAY?" → call sales_today (staff/owner only) and repeat its list verbatim — count, shoes, sizes, who reported. Never guess or say you don't know: the register knows.
 - After record_sale succeeds, report back exactly what it returns: "✅ Done — size 10 removed. That shoe now has: 7, 8, 8.5." If it says the size isn't in stock, say exactly that and list the sizes it DOES have — the website may already be updated.
@@ -2413,6 +2422,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (!earlyStage) try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
       }
+      else if (tu.name === 'record_expense') {
+        const inp = tu.input || {};
+        if (!staffName) result = { error: 'REFUSED — staff numbers only.' };
+        else {
+          try {
+            require('./shop').addAlert('⛽ EXPENSE from float (by ' + staffName + '): $' + (Number(inp.amount_dollars) || 0).toFixed(2) + ' — ' + String(inp.what || '').slice(0, 120) + ' (receipt photo confirmed in chat)', staffName);
+            result = { ok: true, note: 'Expense logged. It will be subtracted when the end-of-shift float is checked.' };
+          } catch (e) { result = { error: 'log failed: ' + String(e).slice(0, 80) }; }
+        }
+      }
       else if (tu.name === 'record_float_count') {
         const inp = tu.input || {};
         if (!staffName) result = { error: 'REFUSED — staff numbers only.' };
@@ -2440,6 +2459,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             // payout screen said should be left goes STRAIGHT to the owner's WhatsApp,
             // not just the task board.
             const counted = Number(inp.total_dollars) || 0;
+            // Gas/expense receipts logged today reduce what the float should hold.
+            let expenses = 0;
+            try {
+              const today = new Date().toDateString();
+              for (const n of require('./shop').getNotes()) {
+                if (!n || !/⛽ EXPENSE/.test(n.text || '')) continue;
+                if (new Date(n.createdAt).toDateString() !== today) continue;
+                const me = /\$([0-9]+(?:\.[0-9]+)?)/.exec(n.text);
+                if (me) expenses += parseFloat(me[1]);
+              }
+            } catch (_) {}
+            if (floatShould != null && expenses > 0) floatShould = Math.max(0, floatShould - expenses);
             let mismatch = null;
             if (floatShould != null && Math.abs(counted - floatShould) > 1) {
               mismatch = counted - floatShould;
@@ -2448,7 +2479,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               } catch (_) {}
               try { require('./shop').addAlert('⚠️ FLOAT MISMATCH — counted $' + counted.toFixed(2) + ' vs expected $' + floatShould.toFixed(2) + (mismatch < 0 ? ' (SHORT $' + Math.abs(mismatch).toFixed(2) + ')' : ' (OVER $' + mismatch.toFixed(2) + ')') + ' — by ' + staffName, 'Kiki 🤖'); } catch (_) {}
             }
-            result = { ok: true, today_recorded_pay: todayPay, float_should_hold: floatShould, mismatch_dollars: mismatch,
+            result = { ok: true, today_recorded_pay: todayPay, float_should_hold: floatShould, expenses_subtracted: expenses || 0, mismatch_dollars: mismatch,
               note: 'Float count logged. NOW send the end-of-shift thank-you (see the FLOAT PHOTO rule): thank them by name, confirm their recorded pay for today' + (todayPay != null ? ' ($' + todayPay.toFixed(2) + ')' : ' (recorded on the website)') + (floatShould != null ? ', compare the counted float to the expected $' + floatShould.toFixed(2) + ' and say if it matches or is short/over' : '') + ', and close with one short motivational line: the more they sell, the more they make.' };
           } catch (e) { result = { error: 'log failed: ' + String(e).slice(0, 80) }; }
         }
