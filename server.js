@@ -2174,8 +2174,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
     const ads = Object.values(liveShoeMap()).filter(s => s.advertised);
     if (ads.length) {
-      system += `\n\n📣 CURRENTLY ADVERTISED (customers from ads usually mean one of these — when an ad-entry customer is vague, SHOW these first, don't interrogate): ` +
-        ads.map(s => `${displayName(s)} ($${s.price})`).join('; ');
+      system += `\n\n📣 CURRENTLY ADVERTISED — a customer from an ad came for ONE of THESE (their opener "Can I get more info on this?" IS about the ad shoe): ` +
+        ads.map(s => `${displayName(s)} ($${s.price}, comes in ${sizesOf(s)})`).join('; ') +
+        `. ⛔ HARD RULE (2026-07-17 — a customer clicked the Red Toro ad, asked "size 7", and Kiki sent every OTHER size-7 Jordan but NOT the Red Toro, the one shoe they came for): whenever you send an album for a size or brand, you MUST INCLUDE every advertised shoe above that comes in the customer's size, and put it/them FIRST in the album (send_photos: list its id first) — NEVER omit an advertised shoe from an album it fits. If the customer is vague, lead with these too.`;
     }
   } catch (_) {}
   // 🎽 STAFF CHAT — recognized by WhatsApp number. Kiki switches to coworker mode and
