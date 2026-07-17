@@ -1299,7 +1299,7 @@ function liveShoeMap() {
       }
     }
     if (sold || !sizesRaw || sizesRaw.length === 0) return; // out of stock — never offer it
-    map[id] = Object.assign({}, s, { sizesRaw, price }, nameOv);
+    map[id] = Object.assign({}, s, { sizesRaw, price, advertised: !!(ov && ov.advertised) }, nameOv);
   });
   return map;
 }
@@ -2121,6 +2121,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
     const bah = new Date(Date.now() - 4 * 3600 * 1000); // Nassau summer time (UTC-4)
     system += `\n\n(Current Bahamas date & time: ${bah.toISOString().slice(0, 10)} ${bah.toISOString().slice(11, 16)} — 24h clock.)`;
+  } catch (_) {}
+  // 📣 SHOES CURRENTLY RUNNING AS ADS (Rodney tags each relaunched ad 2026-07-16):
+  // ad-entry customers ("Hello! Can I get more info on this?", chat-started-from-an-ad)
+  // most likely clicked one of THESE. Kiki leads with them when the opener is vague.
+  try {
+    const ads = Object.values(liveShoeMap()).filter(s => s.advertised);
+    if (ads.length) {
+      system += `\n\n📣 CURRENTLY ADVERTISED (customers from ads usually mean one of these — when an ad-entry customer is vague, SHOW these first, don't interrogate): ` +
+        ads.map(s => `${displayName(s)} ($${s.price})`).join('; ');
+    }
   } catch (_) {}
   // 🎽 STAFF CHAT — recognized by WhatsApp number. Kiki switches to coworker mode and
   // gains the sale-reporting flow (photo-confirm first, then record_sale).
