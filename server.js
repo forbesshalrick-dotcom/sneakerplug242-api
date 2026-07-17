@@ -2744,8 +2744,18 @@ function handleChat(req, res) {
   // silence): pointing, thumbs, hearts, fire, checkmarks, prayer = the customer talking.
   const MEANINGFUL_EMOJI = /[\u{1F446}\u{1F447}\u{1F448}\u{1F449}\u{1F44C}\u{1F44D}\u{1F44E}\u{1F4AF}\u{1F525}\u{1F60D}\u{1F64F}\u{261D}\u{2705}\u{2764}]/u;
   if (!audioUrl && !imageUrl && !/[a-z0-9]/i.test(userText) && !MEANINGFUL_EMOJI.test(userText)) {
-    record(req, { endpoint: 'junk-skip', sub, q: userText.slice(0, 20) });
-    return;
+    // A junk "." on a BRAND-NEW conversation is almost always a real customer ARRIVING
+    // (2026-07-17: an ad customer clicked the Trendy Kicks ad and sent the ad VIDEO — ManyChat
+    // delivered it as "." — and got dead silence = lost lead). On an EXISTING chat a "." is
+    // just a delivery/read receipt, so we still ignore it there. New convo → greet them once.
+    const isNewConvo = !convos.has(sub) || !(convos.get(sub) || []).length;
+    if (isNewConvo) {
+      record(req, { endpoint: 'junk-new-greet', sub, q: userText.slice(0, 20) });
+      userText = MEDIA_GREET_NOTE; // makes Kiki send the welcome instead of staying silent
+    } else {
+      record(req, { endpoint: 'junk-skip', sub, q: userText.slice(0, 20) });
+      return;
+    }
   }
 
   // 🔇 STAFF QUIET — the moment Rodney/staff types a message that STARTS with the codeword
