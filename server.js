@@ -1941,7 +1941,10 @@ function scheduleNudge(sub, token, text, ms, next) {
   followUps.set(sub, handle);
 }
 // 10-min "did you see anything you liked?" after photos.
-function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS, next: { text: L(ASKME_T, sub), ms: THIRD_MS } }); }
+// Chain ends at the CLOSER ("Okay, I guess you didn't find anything") — that is the
+// LAST follow-up. Rodney 2026-07-17: the old 4th "Let me know if you'd like the catalog"
+// nudge read like the chat was STARTING OVER; Kiki should never sound like a restart.
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, L(ASKME_T, sub), WELCOME_NUDGE_MS); }
 
