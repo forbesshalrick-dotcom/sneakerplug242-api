@@ -2190,8 +2190,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // recognized staff member sends a PHOTO, inject the coworker interpretation straight
   // into THEIR message (highest-weight place) so it can't be overridden.
   if (staffName && image) {
-    userText = '🎽 [STAFF PHOTO — I am ' + staffName + ', your coworker, NOT a customer]: this picture is my END-OF-SHIFT FLOAT CASH or a RECEIPT — it is NOT a shoe and NOT a customer order. If it is cash / banknotes: COUNT it denomination by denomination (Bahamian $ and US $ each count 1:1) and call record_float_count once I confirm. If it is a receipt: read the total and call record_expense. ⛔ Do NOT call search_inventory, do NOT send_photos, do NOT say "not a shoe / sent by accident", and NEVER pitch sneakers or ask my size.'
-      + (userText && userText.trim() ? (' My note: ' + userText) : '');
+    userText = '(SYSTEM NOTE — this is NOT the person\'s words, do NOT quote it or say "I got your note": the photo in this message is from ' + staffName + ', one of OUR STAFF. It is their end-of-shift FLOAT CASH or a RECEIPT — never a shoe. If it is cash/banknotes: count it denomination by denomination — Bahamian $ and US $ each 1:1 — show your count and ask "that right?", then STOP and wait for their YES before calling record_float_count. If it is a receipt: read the total and call record_expense. Send just ONE short message — your count and the "that right?" — nothing about shoes, sizes, or "if it was a shoe photo".)'
+      + (userText && userText.trim() ? ('\n\nThey also typed: ' + userText) : '');
   }
   if (staffName) {
     system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
