@@ -465,6 +465,23 @@ function mount(app) {
     res.json({ accounts: state.accounts, roles: state.roles, employees: state.employees });
   });
 
+  // ---- Remove a staff member entirely (name → gone from accounts/roles/employees) ----
+  // The add endpoints only merge, so there was no way to delete a staffer (e.g. old test
+  // accounts). Accepts { name } or { names: [...] } and wipes each from all three maps.
+  app.post('/shop/staff/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const names = Array.isArray(b.names) ? b.names : (b.name ? [b.name] : []);
+    names.forEach(function (n) {
+      n = String(n);
+      delete state.accounts[n];
+      delete state.roles[n];
+      delete state.employees[n];
+    });
+    if (names.length) { persist('accounts.json'); persist('roles.json'); persist('employees.json'); bump(); }
+    res.json({ ok: true, removed: names, accounts: state.accounts, roles: state.roles, employees: state.employees });
+  });
+
   // ---- Sales (append; deviceId+id dedupe) ----
   app.post('/shop/sale', (req, res) => {
     if (!auth(req, res)) return;
