@@ -1665,8 +1665,8 @@ async function transcribeAudio(url, mediaAuth) {
   return data && data.text ? String(data.text).trim() : null;
 }
 
-async function callClaude(messages, system, toolChoice) {
-  const body = { model: AI_MODEL, max_tokens: 1024, system: system || buildSystemPrompt(), tools: AI_TOOLS, messages };
+async function callClaude(messages, system, toolChoice, toolsOverride) {
+  const body = { model: AI_MODEL, max_tokens: 1024, system: system || buildSystemPrompt(), tools: toolsOverride || AI_TOOLS, messages };
   if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
   // AUTO-RETRY transient failures (overloaded 529 / rate-limit 429 / 5xx / network blips).
   // These are common with vision and used to drop STRAIGHT to the "hiccup" message on the
@@ -2268,6 +2268,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
+  // 🔒 STAFF PHOTO = float/receipt, NEVER a shoe (2026-07-17): the photo→shoe machinery is so
+  // strong the model kept SEARCHING a staff member's cash photo. Remove the shoe tools entirely
+  // for a staff photo turn — now it CAN'T search or send shoes; only count cash / log a receipt.
+  const staffPhotoTools = (staffName && image)
+    ? AI_TOOLS.filter(t => t.name !== 'search_inventory' && t.name !== 'send_photos')
+    : null;
   try {
   for (let step = 0; step < 6; step++) {
     // On the FIRST move of a photo turn, FORCE Kiki to search inventory — so she can't
@@ -2285,7 +2291,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       : forceSearchNext ? { type: 'tool', name: 'search_inventory' }
       : undefined;
     if (forceSearchNext) forceSearchNext = false;
-    const { ok, status, data } = await callClaude(history, system, forceTool);
+    const { ok, status, data } = await callClaude(history, system, staffPhotoTools ? undefined : forceTool, staffPhotoTools);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
       // Only reached after the auto-retries above ALL failed. Keep the sale warm instead of
