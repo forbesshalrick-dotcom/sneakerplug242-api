@@ -2158,6 +2158,26 @@ function sanitizeHistory(h) {
   return out;
 }
 
+// Jess stays HAND-IN-HAND with the website's money (Rodney 2026-07-17): what the float
+// SHOULD hold right now = today's register (all sales) − what staff paid themselves today −
+// logged gas/expenses. Same live data + same date logic the website uses (dateStr, Nassau
+// time), so Jess knows the exact amount even BEFORE anyone clocks out on the pay screen.
+function expectedFloatNow() {
+  try {
+    const shop = require('./shop');
+    const nassauDate = (d) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Nassau' });
+    const todayStr = nassauDate(Date.now());
+    const register = (shop.getSales() || []).reduce((n, x) => (x && x.dateStr === todayStr) ? n + (Number(x.price) || 0) : n, 0);
+    let payouts = 0, expenses = 0;
+    for (const nte of (shop.getNotes() || [])) {
+      const t = (nte && nte.text) || '';
+      if (!nte.createdAt || nassauDate(nte.createdAt) !== todayStr) continue;
+      if (/💵 PAYOUT/.test(t)) { const m = /= \$([0-9]+(?:\.[0-9]+)?) taken/.exec(t); if (m) payouts += parseFloat(m[1]); }
+      else if (/⛽ EXPENSE/.test(t)) { const m = /\$([0-9]+(?:\.[0-9]+)?)/.exec(t); if (m) expenses += parseFloat(m[1]); }
+    }
+    return Math.max(0, register - payouts - expenses);
+  } catch (_) { return null; }
+}
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const history = sanitizeHistory(convos.get(sub) || []);
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
@@ -2190,18 +2210,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // recognized staff member sends a PHOTO, inject the coworker interpretation straight
   // into THEIR message (highest-weight place) so it can't be overridden.
   if (staffName && image) {
-    // Pull tonight's expected float from this staffer's payout note so Jess flags a SHORT count
-    // right when she counts (Rodney 2026-07-17: she counted $50 vs a $190 float and said nothing).
-    let floatShould = null;
-    try {
-      const today = new Date().toDateString();
-      for (const n of require('./shop').getNotes()) {
-        if (!n || !/💵 PAYOUT/.test(n.text || '') || String(n.text).indexOf(staffName) === -1) continue;
-        if (new Date(n.createdAt).toDateString() !== today) continue;
-        const mf = /hold \$([0-9]+(?:\.[0-9]+)?)/.exec(n.text);
-        if (mf) { floatShould = parseFloat(mf[1]); break; }
-      }
-    } catch (_) {}
+    // Live expected float straight from the website's money (register − payouts − expenses),
+    // so Jess flags a SHORT count right when she counts (Rodney 2026-07-17: she counted $50
+    // against a $190 float and said nothing).
+    const floatShould = expectedFloatNow();
     const floatLine = floatShould != null
       ? (' 💡 Tonight the float SHOULD hold $' + floatShould.toFixed(2) + ' (they already recorded their pay). COMPARE your count to it: if your count is LESS than $' + floatShould.toFixed(2) + ', do NOT just ask "that right?" — say plainly it is SHORT (by the difference) and to recount and straighten it before closing out. If it matches or is over, proceed normally.')
       : '';
