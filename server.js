@@ -367,8 +367,17 @@ function scoreShoe(shoe, tokens, sizeFilter) {
   }
 
   if (shoe.nickname) {
+    // A nickname word only earns the big bonus when it's DISTINCTIVE — the actual
+    // colourway name ("Bred", "Thunder", "Cement", "Bugs"). Skip colour words the
+    // shoe already lists ("White and Black" on a White/Black shoe) and connectives
+    // ("and"): otherwise a colour-word nickname out-scores — and hides — the real
+    // match. (Searching "black and white retro" was returning the Jordan 5 nicknamed
+    // "White and Black" and dropping the actual Black/White Jordan 4.) Colours are
+    // still scored on their own below, so nothing that should match is lost.
+    const colourWords = new Set(tokenize(shoe.color));
+    const STOP = new Set(['and', 'the', 'in', 'of', 'with']);
     for (const nt of tokenize(shoe.nickname)) {
-      if (nt.length >= 3 && tokens.includes(nt)) score += 4;
+      if (nt.length >= 3 && tokens.includes(nt) && !colourWords.has(nt) && !STOP.has(nt)) score += 4;
     }
   }
 
