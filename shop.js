@@ -359,13 +359,25 @@ function mount(app) {
     persist('notes.json'); bump();
 
     // WhatsApp blast to employees (best effort, don't block the response long)
-    const label = note.kind === 'shoe' && note.shoeLabel ? `\n👟 ${note.shoeLabel}` : '';
-    const msg = `📋 New task from ${note.by}:\n${note.text}${label}\n\nOpen the app to see it. ✅`;
     let delivery = [];
-    try { delivery = await blastEmployees(msg, note.by); } catch (_) {}
-    // Web push to installed staff phones (works when the app is closed).
-    const pushBody = note.kind === 'shoe' && note.shoeLabel ? `${note.text} — ${note.shoeLabel}` : note.text;
-    sendPush(`New task from ${note.by}`, pushBody, '/').catch(() => {});
+    // 💵 A PAYOUT note = an employee just clocked out on the pay screen. Instead of a generic
+    // "new task", message THAT employee directly with tonight's expected float so Jess is
+    // already primed and waiting for their float photo (Rodney 2026-07-17).
+    const payoutFloat = /💵 PAYOUT/.test(note.text) ? /float should now hold \$([0-9]+(?:\.[0-9]+)?)/.exec(note.text) : null;
+    if (payoutFloat) {
+      const floatShould = parseFloat(payoutFloat[1]);
+      const empDigits = String((state.employees || {})[note.by] || '').replace(/[^0-9]/g, '');
+      const floatMsg = `🌙 Nice work today, ${note.by}! 👏\n\nTonight's float should come to *$${floatShould.toFixed(2)}*. Whenever you're ready, spread it on the table and snap me a quick photo right here 📸 — I'll count it up and close you out. 💵`;
+      if (empDigits) { try { const ok = await waSend(empDigits, floatMsg); delivery = [{ name: note.by, floatRequest: true, ok }]; } catch (_) {} }
+      sendPush(`Float time, ${note.by}`, `Tonight's float should be $${floatShould.toFixed(2)} — send Kiki a photo to close out`, '/').catch(() => {});
+    } else {
+      const label = note.kind === 'shoe' && note.shoeLabel ? `\n👟 ${note.shoeLabel}` : '';
+      const msg = `📋 New task from ${note.by}:\n${note.text}${label}\n\nOpen the app to see it. ✅`;
+      try { delivery = await blastEmployees(msg, note.by); } catch (_) {}
+      // Web push to installed staff phones (works when the app is closed).
+      const pushBody = note.kind === 'shoe' && note.shoeLabel ? `${note.text} — ${note.shoeLabel}` : note.text;
+      sendPush(`New task from ${note.by}`, pushBody, '/').catch(() => {});
+    }
     res.json({ note, delivery });
   });
 

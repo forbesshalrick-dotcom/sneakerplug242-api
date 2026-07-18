@@ -2190,7 +2190,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // recognized staff member sends a PHOTO, inject the coworker interpretation straight
   // into THEIR message (highest-weight place) so it can't be overridden.
   if (staffName && image) {
-    userText = '(SYSTEM NOTE — this is NOT the person\'s words, do NOT quote it or say "I got your note": the photo in this message is from ' + staffName + ', one of OUR STAFF. It is their end-of-shift FLOAT CASH or a RECEIPT — never a shoe. If it is cash/banknotes: count it denomination by denomination — Bahamian $ and US $ each 1:1 — show your count and ask "that right?", then STOP and wait for their YES before calling record_float_count. If it is a receipt: read the total and call record_expense. Send just ONE short message — your count and the "that right?" — nothing about shoes, sizes, or "if it was a shoe photo".)'
+    // Pull tonight's expected float from this staffer's payout note so Jess flags a SHORT count
+    // right when she counts (Rodney 2026-07-17: she counted $50 vs a $190 float and said nothing).
+    let floatShould = null;
+    try {
+      const today = new Date().toDateString();
+      for (const n of require('./shop').getNotes()) {
+        if (!n || !/💵 PAYOUT/.test(n.text || '') || String(n.text).indexOf(staffName) === -1) continue;
+        if (new Date(n.createdAt).toDateString() !== today) continue;
+        const mf = /hold \$([0-9]+(?:\.[0-9]+)?)/.exec(n.text);
+        if (mf) { floatShould = parseFloat(mf[1]); break; }
+      }
+    } catch (_) {}
+    const floatLine = floatShould != null
+      ? (' 💡 Tonight the float SHOULD hold $' + floatShould.toFixed(2) + ' (they already recorded their pay). COMPARE your count to it: if your count is LESS than $' + floatShould.toFixed(2) + ', do NOT just ask "that right?" — say plainly it is SHORT (by the difference) and to recount and straighten it before closing out. If it matches or is over, proceed normally.')
+      : '';
+    userText = '(SYSTEM NOTE — this is NOT the person\'s words, do NOT quote it or say "I got your note": the photo in this message is from ' + staffName + ', one of OUR STAFF. It is their end-of-shift FLOAT CASH or a RECEIPT — never a shoe. If it is cash/banknotes: count it denomination by denomination — Bahamian $ and US $ each 1:1 — show your count.' + floatLine + ' Then STOP and wait for their YES before calling record_float_count. If it is a receipt: read the total and call record_expense. Keep it to ONE short message — nothing about shoes, sizes, or "if it was a shoe photo".)'
       + (userText && userText.trim() ? ('\n\nThey also typed: ' + userText) : '');
   }
   if (staffName) {
