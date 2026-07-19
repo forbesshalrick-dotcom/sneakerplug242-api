@@ -3540,6 +3540,17 @@ app.get('/inbox/catalog-meta', (req, res) => {
   } catch (e) { res.json({ ok: false, error: String(e).slice(0, 160) }); }
 });
 
+// Luxury-lifestyle photos used as random message-bubble backgrounds (Rodney's pack,
+// resized + committed under inbox-lux/). Count them at boot so the page knows the range.
+const LUX_COUNT = (() => {
+  try { return require('fs').readdirSync(require('path').join(__dirname, 'inbox-lux')).filter(f => /^inbox-lux-\d+\.jpg$/.test(f)).length; } catch (_) { return 0; }
+})();
+app.get('/inbox/lux/:n', (req, res) => {
+  const n = parseInt(req.params.n, 10);
+  if (!(n >= 1 && n <= LUX_COUNT)) return res.status(404).end();
+  serveInboxAsset(res, 'inbox-lux/inbox-lux-' + n + '.jpg', 'image/jpeg');
+});
+
 // ── 📥 UNIFIED INBOX PAGE (served slim; the 242plug PWA links here with ?key=) ──
 const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -3633,7 +3644,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     background:rgba(10,9,20,.66);backdrop-filter:blur(7px);border:1.6px solid rgba(255,255,255,.15);position:relative;overflow:hidden}
   /* luxury-lifestyle texture behind each text bubble — a random slice of the collage,
      under a dark scrim so the message stays readable. Image bubbles keep the photo. */
-  body.hasbg .b:not(.hasimg){background-image:var(--chatbg);background-size:560px;background-position:var(--bp,50% 50%);background-repeat:no-repeat}
+  body.hasbg .b:not(.hasimg){background-image:var(--bimg,var(--chatbg));background-size:cover;background-position:var(--bp,center);background-repeat:no-repeat}
   body.hasbg .b:not(.hasimg)::before{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(150deg,rgba(9,7,17,.72),rgba(8,7,16,.9));z-index:0}
   body.hasbg .b:not(.hasimg){text-shadow:0 1px 5px rgba(0,0,0,.95),0 0 3px rgba(0,0,0,.9)}
   .b>*{position:relative;z-index:1}
@@ -3898,6 +3909,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // Key handling: accept ?key= (once), otherwise remember it per-device in
   // localStorage — so the staff key is NOT baked into the public 242plug source.
   var LS = 'sp242_inbox_key';
+  var LUX_COUNT = ${LUX_COUNT};
   var qkey = new URLSearchParams(location.search).get('key') || '';
   if (qkey) { try { localStorage.setItem(LS, qkey); } catch(e){} }
   var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
@@ -4042,8 +4054,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var tap = x.dir==='in' ? ' tap' : '';
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
         var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : esc(x.text);
-        var bp = x.img ? '' : ' style="--bp:'+(5+Math.floor(Math.random()*90))+'% '+(5+Math.floor(Math.random()*90))+'%"';
-        return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bp+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
+        var bimg = x.img ? '' : (LUX_COUNT>0 ? ' style="--bimg:url(/inbox/lux/'+(1+Math.floor(Math.random()*LUX_COUNT))+')"' : '');
+        return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
       // tap a customer message to quote it in your reply
       Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
