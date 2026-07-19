@@ -132,7 +132,9 @@ app.set('trust proxy', true); // Railway runs behind a proxy → correct https i
 // an unexpected/absent Content-Type. We keep the raw bytes and let every parser
 // try, so extractQuery() below can read whatever actually came through.
 const saveRaw = (req, res, buf) => { if (buf && buf.length) req.rawBody = buf.toString(); };
-app.use(express.json({ strict: false, verify: saveRaw }));
+// 12mb JSON limit so the Inbox can POST a base64 photo to /inbox/upload (customer
+// chat messages are tiny; the client compresses photos well under this first).
+app.use(express.json({ strict: false, limit: '12mb', verify: saveRaw }));
 app.use(express.urlencoded({ extended: true, verify: saveRaw }));
 app.use(express.text({ type: () => true, verify: saveRaw }));
 // If JSON parsing fails (e.g. raw text labelled application/json), don't 500 —
@@ -756,6 +758,8 @@ async function waSendOne(to, m, phoneNumberId) {
   if (!tok || !phoneNumberId) return { ok: false, status: 0, body: 'wa-not-configured' };
   const body = (m.type === 'image' && m.url)
     ? { messaging_product: 'whatsapp', to, type: 'image', image: { link: m.url } }
+    : (m.type === 'audio' && m.url)
+    ? { messaging_product: 'whatsapp', to, type: 'audio', audio: { link: m.url } }
     : { messaging_product: 'whatsapp', to, type: 'text', text: { preview_url: false, body: String(m.text || '').slice(0, 4096) } };
   const ctl = new AbortController();
   const tm = setTimeout(() => ctl.abort(), 20000);
@@ -795,7 +799,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       const t = sidx ? inboxThreads.get(sidx) : null;
       const account = (logOpts && logOpts.account) || (t && t.account) || '';
       for (const mm of (messages || [])) {
-        const txt = (mm && mm.type === 'image') ? '📷 photo' : (mm && mm.text ? String(mm.text) : '');
+        const txt = (mm && mm.type === 'image') ? '📷 photo' : (mm && mm.type === 'audio') ? '🎙 voice note' : (mm && mm.text ? String(mm.text) : '');
         if (txt) inboxRecord(account, subscriberId, { dir: 'out', sender: (logOpts && logOpts.sender) || 'kiki', text: txt });
       }
     }
@@ -3437,63 +3441,142 @@ app.post('/console/send', async (req, res) => {
 // ── 📥 UNIFIED INBOX PAGE (served slim; the 242plug PWA links here with ?key=) ──
 const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>📥 Inbox — SNEAKERPLUG242</title>
+<title>Inbox — SNEAKERPLUG242</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  :root{--acc:#7c5cff;--acc2:#22d3ee;--ink:#eef1fb;--dim:#98a0b8;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.08)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%}
-  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0f1115;color:#e7e9ee;overflow:hidden}
-  header{position:sticky;top:0;background:#151924;border-bottom:1px solid #232a38;padding:12px 14px;display:flex;align-items:center;gap:10px;z-index:5}
-  header h1{font-size:17px;margin:0;flex:1}
-  header .sm{font-size:12px;color:#9aa3b2}
-  .icon{background:#212838;border:0;color:#cfe0ff;font-size:15px;padding:8px 12px;border-radius:9px;cursor:pointer}
+  body{font-family:'Inter',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;
+    background:radial-gradient(1100px 720px at 50% -12%, #1a1c33 0%, #0b0c15 52%, #06060c 100%) fixed;
+    -webkit-font-smoothing:antialiased}
+  h1,h2,.brandname,.nm,.tag,.who,.sendbtn{font-family:'Outfit',sans-serif}
+  header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
+    background:linear-gradient(180deg, rgba(20,22,38,.92), rgba(20,22,38,.72));backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
+  header .brandname{font-size:18px;font-weight:700;margin:0;flex:1;letter-spacing:.2px;line-height:1.05}
+  header .brandsub{display:block;font-size:10.5px;font-weight:600;color:var(--dim);letter-spacing:2px;font-family:'Inter'}
+  header .sm{font-size:11px;color:var(--dim);font-weight:600}
+  .icon{background:var(--card);border:1px solid var(--line);color:#cfe0ff;font-size:16px;width:38px;height:38px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+  .icon:active{transform:scale(.9)}
+  .avatar{border-radius:50%;flex-shrink:0;overflow:hidden;background:linear-gradient(135deg,var(--acc),var(--acc2));display:block}
   #listView,#threadView{position:absolute;inset:0;display:flex;flex-direction:column}
-  #threadView{display:none;background:#0f1115}
+  #threadView{display:none}
   .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .row{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid #1c2230;cursor:pointer}
-  .row:active{background:#151b27}
-  .row .av{width:40px;height:40px;border-radius:50%;background:#26304a;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .row{display:flex;gap:12px;align-items:center;padding:13px 15px;cursor:pointer;position:relative;transition:.15s;border-bottom:1px solid rgba(255,255,255,.04)}
+  .row:active{background:rgba(255,255,255,.04)}
+  .row .av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;color:#fff;font-family:'Outfit'}
+  .row.unread{background:linear-gradient(90deg, rgba(124,92,255,.09), transparent)}
   .row .mid{flex:1;min-width:0}
-  .row .nm{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
-  .row .lt{font-size:13px;color:#9aa3b2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .row .rt{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
-  .row .tm{font-size:11px;color:#7c8698}
-  .tag{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;letter-spacing:.4px}
-  .tag.TK{background:#12315e;color:#8ec2ff}.tag.OSC{background:#123f2c;color:#7ee0a2}.tag.SB{background:#3a2258;color:#d3aef7}.tag.OTH{background:#333b4d;color:#c3ccdc}
-  .dot{width:9px;height:9px;border-radius:50%;background:#2f8bf6}
-  .pz{font-size:10px;color:#ffcf8f}
-  .msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
-  .b{max-width:78%;padding:9px 12px;border-radius:14px;font-size:14.5px;line-height:1.35;white-space:pre-wrap;word-wrap:break-word}
-  .b.in{background:#222c3d;align-self:flex-start;border-bottom-left-radius:4px}
-  .b.kiki{background:#1f3a5c;align-self:flex-end;border-bottom-right-radius:4px}
-  .b.rodney{background:#1f5c3a;align-self:flex-end;border-bottom-right-radius:4px}
-  .b .who{font-size:10.5px;opacity:.7;margin-bottom:2px}
-  .b .tm{font-size:10px;opacity:.55;margin-top:3px;text-align:right}
-  .banner{padding:9px 14px;font-size:12.5px;text-align:center}
-  .banner.paused{background:#3a2f12;color:#ffd79a;border-bottom:1px solid #5b4a1f}
-  .banner.live{background:#12331f;color:#8fe6ac;border-bottom:1px solid #1f5b39}
-  .banner b{cursor:pointer;text-decoration:underline}
-  .composer{display:flex;gap:8px;padding:10px;border-top:1px solid #232a38;background:#151924}
-  .composer textarea{flex:1;resize:none;background:#11151d;border:1px solid #2a3140;color:#e7e9ee;border-radius:12px;padding:10px 12px;font-size:15px;font-family:inherit;max-height:120px}
-  .composer button{background:#2f6df6;border:0;color:#fff;font-weight:600;border-radius:12px;padding:0 16px;font-size:15px;cursor:pointer}
-  .composer button:disabled{opacity:.5}
-  .empty{color:#7c8698;text-align:center;padding:40px 20px;font-size:14px}
-  .toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:#b23b3b;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;z-index:20;display:none;max-width:90%}
+  .row .nm{font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.2px}
+  .row.unread .nm{color:#fff}
+  .row .lt{font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .row .rt{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}
+  .row .tm{font-size:11px;color:#727a92;font-weight:500}
+  .tag{font-size:10px;font-weight:800;padding:3px 8px;border-radius:7px;letter-spacing:.8px;border:1px solid transparent}
+  .tag.TK{background:rgba(47,109,246,.16);color:#7fb4ff;border-color:rgba(47,109,246,.4)}
+  .tag.OSC{background:rgba(18,184,102,.16);color:#5fe0a0;border-color:rgba(18,184,102,.4)}
+  .tag.SB{background:rgba(154,92,255,.16);color:#c6a6ff;border-color:rgba(154,92,255,.4)}
+  .tag.OTH{background:rgba(120,134,168,.16);color:#c3ccdc;border-color:rgba(120,134,168,.4)}
+  .dot{width:11px;height:11px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 0 0 3px rgba(124,92,255,.18);animation:pulse 1.6s infinite}
+  .pz{font-size:10.5px;color:#ffcf8f;font-weight:600}
+  /* thread */
+  .thead{gap:11px}
+  .thead .av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;font-family:'Outfit';flex-shrink:0}
+  .thead .who-wrap{flex:1;min-width:0}
+  .thead h1{font-size:16.5px;margin:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .msgs{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:9px}
+  .brow{display:flex;align-items:flex-end;gap:7px;max-width:82%;animation:rise .22s ease}
+  .brow.out{align-self:flex-end;flex-direction:row-reverse}
+  .brow.inb{align-self:flex-start}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .b{padding:10px 13px;border-radius:17px;font-size:14.5px;line-height:1.38;white-space:pre-wrap;word-wrap:break-word;box-shadow:0 2px 10px rgba(0,0,0,.22)}
+  .b.in{background:#20242f;border-bottom-left-radius:5px}
+  .b.kiki{border-bottom-right-radius:5px;background:rgba(124,92,255,.14);border:1px solid rgba(124,92,255,.35)}
+  .b.rodney{border-bottom-right-radius:5px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0b12;font-weight:500}
+  .acc-TK{--acc:#2f6df6;--acc2:#38bdf8}
+  .acc-OSC{--acc:#12b866;--acc2:#5fe0a0}
+  .acc-SB{--acc:#9a5cff;--acc2:#c6a6ff}
+  .acc-OTH{--acc:#7c5cff;--acc2:#22d3ee}
+  .b .who{font-size:10.5px;font-weight:700;opacity:.85;margin-bottom:3px;display:flex;align-items:center;gap:5px;letter-spacing:.3px}
+  .b.rodney .who{opacity:.75}
+  .b .tm{font-size:9.5px;opacity:.5;margin-top:4px;text-align:right}
+  .mini{width:17px;height:17px;border-radius:50%;vertical-align:middle}
+  .banner{padding:10px 14px;font-size:12.5px;text-align:center;font-weight:500}
+  .banner.paused{background:linear-gradient(90deg,rgba(255,183,77,.13),rgba(255,183,77,.05));color:#ffcf8f;border-bottom:1px solid rgba(255,183,77,.25)}
+  .banner.live{background:linear-gradient(90deg,rgba(18,184,102,.13),rgba(18,184,102,.04));color:#7fe6ab;border-bottom:1px solid rgba(18,184,102,.22)}
+  .banner b{cursor:pointer;text-decoration:underline;font-weight:700}
+  .composer{display:flex;gap:9px;padding:11px;align-items:flex-end;background:linear-gradient(0deg,rgba(20,22,38,.95),rgba(20,22,38,.75));backdrop-filter:blur(18px);border-top:1px solid var(--line)}
+  .composer textarea{flex:1;resize:none;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:15px;padding:11px 14px;font-size:15px;font-family:inherit;max-height:120px;transition:.15s}
+  .composer textarea:focus{outline:none;border-color:var(--acc)}
+  .sendbtn{background:linear-gradient(135deg,var(--acc),var(--acc2));border:0;color:#0a0b12;font-weight:700;border-radius:15px;padding:0 18px;height:44px;font-size:15px;cursor:pointer;transition:.15s;flex-shrink:0}
+  .sendbtn:active{transform:scale(.94)} .sendbtn:disabled{opacity:.5}
+  .attach{background:rgba(255,255,255,.06);border:1px solid var(--line);color:#cfe0ff;font-size:19px;width:44px;height:44px;border-radius:15px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s}
+  .attach:active{transform:scale(.9)}
+  .attach.rec{background:#e23b5a;color:#fff;border-color:#e23b5a;animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .replybar{display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(124,92,255,.1);border-top:1px solid var(--line);font-size:13px}
+  .replybar #replyText{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--acc);padding-left:9px;color:#c8d2ee}
+  .replybar #replyX,.imgprev #imgX,.imgprev #audX{cursor:pointer;color:#98a0b8;padding:0 6px;font-size:17px}
+  .imgprev{display:flex;align-items:center;gap:11px;padding:9px 13px;background:rgba(124,92,255,.1);border-top:1px solid var(--line)}
+  .imgprev img{height:54px;width:54px;object-fit:cover;border-radius:10px}
+  .imgprev .ip-label{flex:1;font-size:13px;color:#c8d2ee;font-weight:500}
+  .b.tap{cursor:pointer}
+  .empty{color:var(--dim);text-align:center;padding:52px 24px;font-size:14px;line-height:1.5}
+  .toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:rgba(15,16,26,.96);border:1px solid var(--line);color:#fff;padding:11px 18px;border-radius:13px;font-size:13px;z-index:30;display:none;max-width:88%;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(10px)}
+  /* brief-Kiki modal */
+  .modal{position:fixed;inset:0;z-index:40;display:none;align-items:flex-end;justify-content:center;background:rgba(4,5,10,.6);backdrop-filter:blur(4px)}
+  .modal.open{display:flex}
+  .sheet{width:100%;max-width:560px;background:linear-gradient(180deg,#171a2b,#12131f);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:rise .25s ease}
+  .sheet h2{font-size:18px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  .sheet p{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.5}
+  .sheet textarea{width:100%;min-height:96px;resize:vertical;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit}
+  .sheet textarea:focus{outline:none;border-color:var(--acc)}
+  .sheet .btns{display:flex;gap:10px;margin-top:14px}
+  .sheet .btns button{flex:1;height:46px;border-radius:14px;border:0;font-size:15px;font-weight:700;font-family:'Outfit';cursor:pointer}
+  .sheet .cancel{background:rgba(255,255,255,.07);color:var(--ink)}
+  .sheet .save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0b12}
+  .agtoggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;user-select:none;font-weight:600}
+  .agtoggle input{accent-color:var(--acc);width:15px;height:15px}
 </style></head><body>
 <div id="listView">
-  <header><h1>📥 Inbox</h1><span class="sm" id="rev"></span><button class="icon" id="rf">↻</button></header>
+  <header>
+    <span id="brandAv"></span>
+    <h1 class="brandname">Inbox<span class="brandsub">SNEAKERPLUG242 · KIKI</span></h1>
+    <span class="sm" id="rev"></span>
+    <button class="icon" id="rf">↻</button>
+  </header>
   <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
 </div>
 <div id="threadView">
-  <header>
+  <header class="thead">
     <button class="icon" id="back">‹</button>
-    <div style="flex:1;min-width:0"><h1 id="tName" style="font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></h1><span class="sm" id="tSub"></span></div>
+    <span class="av" id="tAv"></span>
+    <div class="who-wrap"><h1 id="tName"></h1><span class="sm" id="tSub"></span></div>
+    <button class="icon" id="brief" title="Brief Kiki on this chat">🧠</button>
     <span class="tag" id="tTag"></span>
   </header>
   <div class="banner" id="tBanner" style="display:none"></div>
   <div class="msgs" id="msgs"></div>
+  <div class="replybar" id="replyBar" style="display:none"><span id="replyText"></span><span id="replyX">✕</span></div>
+  <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label">Photo ready to send</span><span id="imgX">✕</span></div>
+  <div class="imgprev" id="audPreview" style="display:none"><span class="ip-label">🎙 Voice note ready to send</span><span id="audX">✕</span></div>
   <div class="composer">
+    <button class="attach" id="attach" title="Send a photo">📷</button>
+    <button class="attach" id="mic" title="Record a voice note">🎙</button>
+    <input type="file" id="file" accept="image/*" style="display:none">
     <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
-    <button id="send">Send</button>
+    <button class="sendbtn" id="send">Send</button>
+  </div>
+</div>
+<div class="modal" id="briefModal">
+  <div class="sheet">
+    <h2><span id="briefAv"></span> Brief Kiki</h2>
+    <p>Tell Kiki the truth of this chat so she stops re-asking — the shoe &amp; size they want, that they already paid, delivery details, whatever she keeps getting wrong. The customer never sees this; Kiki uses it as fact on her next reply.</p>
+    <textarea id="briefText" placeholder="e.g. Customer wants the Red Thunder Jordan 4 in a 10, already paid via SunCash, just needs delivery to Carmichael Rd."></textarea>
+    <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle" checked> Label my replies with 👨‍🦱 Agent: so customers know it's a human</label>
+    <div class="btns"><button class="cancel" id="briefCancel">Cancel</button><button class="save" id="briefSave">Send to Kiki</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -3506,7 +3589,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   if (qkey) { try { localStorage.setItem(LS, qkey); } catch(e){} }
   var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
   var cur = null, lastRev = -1, threadTimer = null;
+  var pendingImageUrl = null, quoteText = null, agentLabel = true;
   function $(id){return document.getElementById(id)}
+  function kiki(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(124,92,255,.55),0 3px 12px rgba(124,92,255,.3);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👩🏽‍💼</span>'; }
+  function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
       +'<br><br><input id="pk" placeholder="Inbox key" autocomplete="off" style="width:82%;max-width:290px;padding:11px;border-radius:9px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:14px">'
@@ -3531,10 +3617,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       if(!ts.length){ $('threads').innerHTML='<div class="empty">No conversations yet. When a customer messages TK or OSC, they show up here.</div>'; return; }
       $('threads').innerHTML = ts.map(function(t){
         var nm = t.name || ('+'+t.sub);
-        var av = (t.name||'?').trim().charAt(0).toUpperCase()||'#';
+        var av = (nm.replace(/[^a-zA-Z0-9]/g,'').charAt(0)||'#').toUpperCase();
+        var c = accCols(t.tag);
         var pv = t.paused? '<span class="pz">⏸ you\\'re handling this</span>' : ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
-        return '<div class="row" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(nm)+'" data-tag="'+t.tag+'">'
-          +'<div class="av">'+esc(av)+'</div>'
+        return '<div class="row'+(t.unread?' unread':'')+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(nm)+'" data-tag="'+t.tag+'">'
+          +'<div class="av" style="background:linear-gradient(135deg,'+c[0]+','+c[1]+')">'+esc(av)+'</div>'
           +'<div class="mid"><div class="nm">'+esc(nm)+(t.unread?' <span class="dot"></span>':'')+'</div>'+pv+'</div>'
           +'<div class="rt"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="tm">'+ago(t.lastTs)+'</span></div></div>';
       }).join('');
@@ -3548,6 +3635,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     cur = {sub:sub, acct:acct, name:name, tag:tag};
     $('tName').textContent = name; $('tSub').textContent = '+'+sub;
     $('tTag').textContent = tag; $('tTag').className='tag '+tagCls(tag);
+    var c = accCols(tag);
+    $('tAv').textContent = ((name||'').replace(/[^a-zA-Z0-9]/g,'').charAt(0)||'#').toUpperCase();
+    $('tAv').style.background = 'linear-gradient(135deg,'+c[0]+','+c[1]+')';
+    $('threadView').className = 'acc-'+tagCls(tag); // colour bubbles + accents by account
     $('listView').style.display='none'; $('threadView').style.display='flex';
     $('msgs').innerHTML=''; loadThread(true);
   }
@@ -3562,32 +3653,134 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
       m.innerHTML = (d.msgs||[]).map(function(x){
         var cls = x.dir==='in'?'in':(x.sender==='rodney'?'rodney':'kiki');
-        var who = x.dir==='in'?'':(x.sender==='rodney'?'You':'Kiki 🤖');
-        return '<div class="b '+cls+'">'+(who?'<div class="who">'+who+'</div>':'')+esc(x.text)+'<div class="tm">'+clock(x.ts)+'</div></div>';
+        var row = x.dir==='in' ? 'inb' : 'out';
+        var who = x.dir==='in'?'':(x.sender==='rodney'?'You':(kiki(15)+' Kiki'));
+        var tap = x.dir==='in' ? ' tap' : '';
+        var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
+        return '<div class="brow '+row+'"><div class="b '+cls+tap+'"'+dq+'>'+(who?'<div class="who">'+who+'</div>':'')+esc(x.text)+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
+      // tap a customer message to quote it in your reply
+      Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
       if(scroll || atBottom) m.scrollTop = m.scrollHeight;
       var b=$('tBanner');
       if(d.paused){ b.style.display='block'; b.className='banner paused'; b.innerHTML='⏸ Kiki is paused (~'+countdown(d.pausedUntil)+' left) — <b id="handback">hand back to Kiki</b>'; $('handback').onclick=handBack; }
-      else { b.style.display='block'; b.className='banner live'; b.innerHTML='🤖 Kiki is answering this chat. Your reply pauses her automatically.'; }
+      else { b.style.display='block'; b.className='banner live'; b.innerHTML=kiki(16)+' <span style="vertical-align:middle">Kiki is answering this chat — your reply pauses her automatically.</span>'; }
     }).catch(function(){});
   }
 
   function send(){
-    if(!cur) return; var txt=$('text').value.trim(); if(!txt) return;
+    if(!cur) return; var txt=$('text').value.trim();
+    if(!txt && !pendingImageUrl && !pendingAudioUrl){ return; }
     $('send').disabled=true;
-    post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt}).then(function(d){
+    post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt, imageUrl:pendingImageUrl||'', audioUrl:pendingAudioUrl||'', quote:quoteText||'', agent:agentLabel}).then(function(d){
       $('send').disabled=false;
-      if(d && d.ok){ $('text').value=''; $('text').style.height='auto'; loadThread(true); }
+      if(d && d.ok){ $('text').value=''; $('text').style.height='auto'; clearImg(); clearAud(); clearQuote(); loadThread(true); }
       else { toast((d&&d.error)||'Send failed'); }
     }).catch(function(){ $('send').disabled=false; toast('Send failed — network'); });
   }
   function handBack(){ if(!cur) return; post('/inbox/resume',{sub:cur.sub}).then(function(){ loadThread(false); toast('Kiki is back on this chat ✅'); }); }
 
+  // ── photo attach: shrink + compress in-browser, upload, hold the URL until Send ──
+  function shrink(file, cb){
+    var rd=new FileReader();
+    rd.onload=function(){ var img=new Image(); img.onload=function(){
+      var max=1600, w=img.width, h=img.height;
+      if(w>max||h>max){ if(w>h){ h=Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } }
+      try{ var c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); cb(c.toDataURL('image/jpeg',0.82)); }
+      catch(e){ cb(rd.result); }
+    }; img.onerror=function(){ cb(rd.result); }; img.src=rd.result; };
+    rd.readAsDataURL(file);
+  }
+  function pickPhoto(file){
+    if(!file) return; toast('Uploading photo…');
+    shrink(file, function(dataUrl){
+      post('/inbox/upload', {image:dataUrl}).then(function(d){
+        if(d && d.ok && d.url){ pendingImageUrl=d.url; $('imgThumb').src=dataUrl; $('imgPreview').style.display='flex'; toast('Photo ready — add a caption or hit Send'); }
+        else toast((d&&d.error)||'Upload failed');
+      }).catch(function(){ toast('Upload failed — network'); });
+    });
+  }
+  function clearImg(){ pendingImageUrl=null; $('imgThumb').src=''; $('imgPreview').style.display='none'; $('file').value=''; }
+  function setQuote(txt){ quoteText=txt; $('replyText').textContent='↩️ '+txt; $('replyBar').style.display='flex'; $('text').focus(); }
+  function clearQuote(){ quoteText=null; $('replyBar').style.display='none'; }
+
+  // ── voice notes: record ogg/opus (WhatsApp's voice-note format) via opus-recorder,
+  // loaded from jsdelivr on first use so the page stays slim. jsdelivr sends CORS
+  // headers, so we pull the encoder worker into a same-origin blob URL (a cross-origin
+  // Worker URL would be blocked). Records → uploads → holds the URL until Send. ──
+  var pendingAudioUrl = null, recorder = null, recording = false, opusReady = false, encoderBlobUrl = null;
+  function loadOpus(cb){
+    if(opusReady){ cb(); return; }
+    var base='https://cdn.jsdelivr.net/npm/opus-recorder@8.0.5/dist/';
+    var s=document.createElement('script'); s.src=base+'recorder.min.js';
+    s.onload=function(){
+      fetch(base+'encoderWorker.min.js').then(function(r){return r.blob();}).then(function(bl){
+        encoderBlobUrl=URL.createObjectURL(bl); opusReady=!!window.Recorder; opusReady?cb():toast('Recorder didn\\'t load');
+      }).catch(function(){ toast('Could not load recorder — check connection'); });
+    };
+    s.onerror=function(){ toast('Could not load recorder — check connection'); };
+    document.head.appendChild(s);
+  }
+  function startRec(){
+    loadOpus(function(){
+      try{
+        recorder = new window.Recorder({ encoderPath: encoderBlobUrl, numberOfChannels:1, encoderSampleRate:16000, streamPages:false });
+        recorder.ondataavailable = function(arr){ onRecorded(arr); };
+        recorder.start().then(function(){ recording=true; $('mic').classList.add('rec'); $('mic').textContent='⏹'; toast('Recording… tap 🎙 again to stop'); })
+          .catch(function(){ toast('Allow microphone access to record'); });
+      }catch(e){ toast('Recorder error'); }
+    });
+  }
+  function stopRec(){ if(recorder && recording){ recording=false; $('mic').classList.remove('rec'); $('mic').textContent='🎙'; try{ recorder.stop(); }catch(e){} } }
+  function onRecorded(arr){
+    try{
+      var blob=new Blob([arr], {type:'audio/ogg'});
+      var rd=new FileReader();
+      rd.onload=function(){ post('/inbox/upload', {image: rd.result}).then(function(d){
+        if(d && d.ok && d.url){ pendingAudioUrl=d.url; $('audPreview').style.display='flex'; toast('Voice note ready — hit Send'); }
+        else toast((d&&d.error)||'Upload failed');
+      }).catch(function(){ toast('Upload failed — network'); }); };
+      rd.readAsDataURL(blob);
+    }catch(e){ toast('Could not save recording'); }
+  }
+  function micTap(){ if(recording) stopRec(); else startRec(); }
+  function clearAud(){ pendingAudioUrl=null; $('audPreview').style.display='none'; if(recording) stopRec(); }
+
+  // ── Brief Kiki: privately tell her the truth of this chat so she stops re-asking ──
+  function openBrief(){ if(!cur) return; $('briefText').value=''; $('agToggle').checked=agentLabel; $('briefModal').classList.add('open'); setTimeout(function(){ $('briefText').focus(); }, 60); }
+  function closeBrief(){ $('briefModal').classList.remove('open'); }
+  function saveBrief(){
+    if(!cur) return; agentLabel = $('agToggle').checked;
+    var note=$('briefText').value.trim();
+    if(!note){ closeBrief(); return; }
+    $('briefSave').disabled=true;
+    post('/inbox/note', {sub:cur.sub, text:note}).then(function(d){
+      $('briefSave').disabled=false;
+      if(d && d.ok){ closeBrief(); toast('Got it 🧠 Kiki will use that and stop re-asking'); }
+      else toast((d&&d.error)||'Could not save');
+    }).catch(function(){ $('briefSave').disabled=false; toast('Could not save — network'); });
+  }
+
   $('rf').onclick=loadThreads;
-  $('back').onclick=closeThread;
+  $('back').onclick=function(){ clearImg(); clearAud(); clearQuote(); closeThread(); };
   $('send').onclick=send;
+  $('attach').onclick=function(){ $('file').click(); };
+  $('file').onchange=function(){ if(this.files && this.files[0]) pickPhoto(this.files[0]); };
+  $('mic').onclick=micTap;
+  $('imgX').onclick=clearImg;
+  $('audX').onclick=clearAud;
+  $('replyX').onclick=clearQuote;
+  $('brief').onclick=openBrief;
+  $('briefCancel').onclick=closeBrief;
+  $('briefSave').onclick=saveBrief;
+  $('agToggle').onchange=function(){ agentLabel=this.checked; };
+  $('briefModal').onclick=function(e){ if(e.target===this) closeBrief(); };
   $('text').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(120,this.scrollHeight)+'px'; });
   $('text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+
+  // brand marks
+  $('brandAv').innerHTML = kiki(38);
+  $('briefAv').innerHTML = kiki(24);
 
   // Near-live: poll the open thread every 3s; otherwise cheap-poll rev for the list.
   threadTimer = setInterval(function(){
@@ -3642,13 +3835,60 @@ app.get('/inbox/thread', (req, res) => {
 });
 
 // Send Rodney's reply to the customer on the RIGHT account, and AUTO-PAUSE Kiki.
+// 📷 Photo upload for the Inbox: the staff page POSTs a base64 photo here, we hold it
+// in memory briefly and hand back a public URL. sendChunk/ManyChat/Graph fetch that URL
+// server-side at send time, so it only needs to live for a minute. Memory (not disk) so
+// it never bloats the /data volume; capped + auto-expired.
+const inboxMedia = new Map(); // id -> { buf, type, ts }
+function pruneInboxMedia() {
+  const now = Date.now();
+  for (const [k, v] of inboxMedia) if (now - v.ts > 60 * 60 * 1000) inboxMedia.delete(k);
+  while (inboxMedia.size > 60) { const f = inboxMedia.keys().next().value; inboxMedia.delete(f); }
+}
+app.post('/inbox/upload', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const m = /^data:((?:image|audio)\/[a-z0-9.+-]+);base64,(.+)$/i.exec(String(b.image || ''));
+  if (!m) return res.status(400).json({ ok: false, error: 'need a base64 image/audio data URL' });
+  let buf;
+  try { buf = Buffer.from(m[2], 'base64'); } catch (_) { return res.status(400).json({ ok: false, error: 'bad image' }); }
+  if (!buf.length || buf.length > 10 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'image too big (max 10MB)' });
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  inboxMedia.set(id, { buf, type: m[1], ts: Date.now() });
+  pruneInboxMedia();
+  const host = req.get('host');
+  const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0];
+  res.json({ ok: true, url: proto + '://' + host + '/inbox/media/' + id });
+});
+// Public (not key-gated) so ManyChat / the Graph API can fetch it. The id is random.
+app.get('/inbox/media/:id', (req, res) => {
+  const v = inboxMedia.get(req.params.id);
+  if (!v) return res.status(404).send('not found');
+  res.set('Content-Type', v.type);
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(v.buf);
+});
+
 app.post('/inbox/send', async (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
   const sub = String(b.sub || '').replace(/[^0-9]/g, '');
-  const text = String(b.text || '').trim();
-  if (!sub || !text) return res.status(400).json({ ok: false, error: 'need sub + text' });
+  let text = String(b.text || '').trim();
+  const imageUrl = String(b.imageUrl || '').trim();
+  const audioUrl = String(b.audioUrl || '').trim();
+  const quote = String(b.quote || '').trim();
+  if (!sub || (!text && !imageUrl && !audioUrl)) return res.status(400).json({ ok: false, error: 'need sub + text, photo or voice note' });
+  // Reply-to-a-specific-message: WhatsApp's native quote isn't available through ManyChat's
+  // send API, so we quote the message as context right above the reply (works on every
+  // account). The customer sees what you're answering.
   const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
+  // 👨‍🦱 Agent label so the customer knows a HUMAN took over — only on the FIRST human
+  // reply of a takeover (not every line, which would read spammy). Default on; the client
+  // can switch it off per-send with agent:false.
+  const lastMsg = t && t.msgs && t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
+  const firstHuman = !lastMsg || lastMsg.sender !== 'rodney';
+  if (quote) text = '↩️ "' + quote.slice(0, 180) + '"' + (text ? '\n\n' + text : '');
+  if (b.agent !== false && firstHuman && text) text = '👨‍🦱 Agent: ' + text;
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   // Right account token: the customer's own account first, then env fallbacks. Direct-API
   // customers (waChannel) route to the Graph API inside sendChunk no matter the token.
@@ -3660,11 +3900,15 @@ app.post('/inbox/send', async (req, res) => {
   // and any pending nudge is cancelled so she never talks over us.
   setHumanPause(sub);
   clearFollowUp(sub);
+  const messages = [];
+  if (imageUrl) messages.push({ type: 'image', url: imageUrl });
+  if (audioUrl) messages.push({ type: 'audio', url: audioUrl });
+  if (text) messages.push({ type: 'text', text });
   try {
-    const r = await sendChunk(sub, [{ type: 'text', text }], token, { sender: 'rodney', account });
+    const r = await sendChunk(sub, messages, token, { sender: 'rodney', account });
     // Fold the human turn into Kiki's own convo history so she has context when she resumes.
-    try { const h = convos.get(sub) || []; h.push({ role: 'assistant', content: text }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
-    record(req, { endpoint: 'inbox-send', sub, account, ok: !!(r && r.ok) });
+    try { const note = (imageUrl ? '[sent a photo] ' : '') + (audioUrl ? '[sent a voice note] ' : '') + (text || ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note.trim() || '[sent media]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
+    record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, hasAudio: !!audioUrl, ok: !!(r && r.ok) });
     if (r && r.ok) return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
     return res.json({ ok: false, error: 'Send failed: ' + String((r && r.body) || '').slice(0, 160), pausedUntil: pausedUntilOf(sub) });
   } catch (e) { return res.json({ ok: false, error: String(e).slice(0, 200) }); }
@@ -3686,6 +3930,24 @@ app.post('/inbox/resume', (req, res) => {
   if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
   clearHumanPause(sub);
   record(req, { endpoint: 'inbox-resume', sub });
+  res.json({ ok: true });
+});
+
+// 🧠 BRIEF KIKI — Rodney privately tells Kiki the truth of this chat (the shoe/size the
+// customer wants, that they already paid, whatever she keeps getting wrong). It goes into
+// the SAME private owner-context channel her "." notes use: she treats it as the TRUTH and
+// lets it guide her next reply, NEVER repeats it to the customer, and never re-asks what she
+// was told. The customer sees nothing. Kiki uses it the next time she answers this chat.
+app.post('/inbox/note', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  const note = String(b.text || '').trim().slice(0, 600);
+  if (!sub || !note) return res.status(400).json({ ok: false, error: 'need sub + note' });
+  const arr = ownerNotes.get(sub) || [];
+  arr.push({ text: note, ts: Date.now() });
+  ownerNotes.set(sub, arr.slice(-8));
+  record(req, { endpoint: 'inbox-brief-kiki', sub, note: note.slice(0, 80) });
   res.json({ ok: true });
 });
 
