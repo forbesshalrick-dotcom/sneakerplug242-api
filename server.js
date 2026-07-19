@@ -806,6 +806,19 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       }
     }
   } catch (_) {}
+  // 🌍 TRANSLATION IS INTERNAL — FOR THE OWNER ONLY (Rodney 2026-07-19): on a foreign-language
+  // (Creole/Spanish) chat Kiki appends a "🔎 _Customer said: …_" line so the owner can follow
+  // along. That line is logged to the Inbox above (owner sees it) but must NOT reach the
+  // customer — strip it from the outgoing WhatsApp text so the customer only gets the reply.
+  try {
+    const TRANS_RE = /\n*[ \t>_*]*🔎[ \t]*_*\s*Customer said:[\s\S]*$/i;
+    for (const mm of (messages || [])) {
+      if (mm && mm.type === 'text' && mm.text && TRANS_RE.test(mm.text)) {
+        const stripped = String(mm.text).replace(TRANS_RE, '').trim();
+        if (stripped) mm.text = stripped; // never blank the whole message
+      }
+    }
+  } catch (_) {}
   // WhatsApp-API customers: route straight to the Graph API, skip ManyChat entirely.
   const waPhoneId = waChannel.get(String(subscriberId));
   if (waPhoneId) return waSendChunk(String(subscriberId), messages, waPhoneId);
@@ -1137,6 +1150,7 @@ PHOTOS — every photo always carries a label (handled automatically, you don't 
 - EVERY photo we send — no matter how many — automatically gets a little note right under it that STARTS WITH A SHORT ORDER CODE (*A1*, *A2*, *A3*… then *B1*…), followed by the shoe's NAME, price and sizes. This always happens, for one shoe or fifty. So every pic the customer sees has its own code in plain sight.
 - Just call send_photos with ALL the matches; the codes + labels are added for you.
 - 🔢 CUSTOMERS ORDER BY THE CODE — push this, it's the easy way: after you show photos, the customer just REPLIES WITH THE CODE (like *A1*) to pick a pair — no typing the shoe name, no sending a picture back. When their message IS or CONTAINS a code (A1, a2, "the b3", "how much for A5"), the [PHOTO CODES] note in their message tells you EXACTLY which shoe → confirm it and go straight to their size / order. Do NOT ask them to type the shoe's name — always steer them to the code (the name is still on the label as a backup).
+- 🎯 A CODE IS A COMMITMENT SIGNAL — MOVE THE SALE FORWARD (Rodney 2026-07-19, codes go up past A9 to B/C/D…H, e.g. *F6*, *H9*, *C1*): the moment a customer sends ANY code — a lone "F6", "h9", "c1", or inside a sentence — treat it as "I want THIS one". On that same turn: (1) confirm the exact shoe by name from the [PHOTO CODES] note, (2) if you don't already have their size, ask it (and check it against that code's real sizes), (3) then move straight into closing — get their delivery area / location and fire notify_manager stage="order_confirmed". Payment stays pay-on-arrival by default (don't push it unless they ask). NEVER answer a code with "what shoe?" or by re-asking them to describe it — the code already told you.
 - Every photo WE send is labelled with the shoe's name. ⚠️ PHOTO-READING IS OFF: you canNOT see pictures a customer sends. When they send one, don't pretend to look and don't tell them to resend it — warmly say you can't open pics here and ask them to TYPE the shoe's name + colour so you can find it (keep any size they gave). (You can still SEND photos to a customer who asks to see a shoe — that always works.)
 
 SIZES — when a customer gives TWO OR MORE sizes (IMPORTANT — never send the same shoe twice, and never make them pick just one):
@@ -1175,6 +1189,7 @@ SHIPPING (Family Islands — ONLY when they say they're off-island): Only if the
 Then ask whether they prefer Boat or Plane, and get the island name + the full name of the person receiving it. ⚠️ NEVER ask for a phone number (Rodney's rule 2026-07-13) — the system automatically attaches the customer's own WhatsApp number to the team alert. Only note a DIFFERENT receiver's number if the customer volunteers one themselves.
 ⚠️ SHIPPING IS PAY-FIRST (CRITICAL — different from local delivery, which is pay-on-arrival): for ANY island shipment the customer must PAY FIRST, then SEND US THE RECEIPT / proof of payment to confirm it — and ONLY THEN do we ship it out. You MUST tell them this plainly, e.g. "For shipping, we just need payment upfront 🙏 — send over the receipt once you've paid and we'll ship it out on the next [boat/plane]." Never imply it ships before payment. (Share the payment/bank details using the payment rules above when they're ready to pay.)
 THEN — exactly like a local delivery — you MUST CALL notify_manager (the tool) with the shipping details (customer_name, shoe + size, and location = "SHIPMENT to [island] via [boat/plane] — receiver [name] [number]") so the owner is alerted on WhatsApp (both phones) AND the job posts to the website. Do NOT just say you'll arrange it — actually call the tool. In your confirmation, restate that it ships once payment + receipt are in.
+⚠️ PAYMENT ALREADY CONFIRMED — NEVER RE-LITIGATE IT (Rodney 2026-07-19): once a customer has PAID and that payment was acknowledged earlier in the chat (you said you got the receipt / confirmed it, OR the owner told you privately it's paid), that order is PAID — full stop. If they later send ANOTHER receipt, a blurry / duplicate / "failed-looking" one, or a screenshot you can't read, do NOT say the payment didn't go through, do NOT ask them to pay again, and do NOT re-request proof. Just reassure them warmly: "You're all set — payment's confirmed ✅ 👟". A customer who already paid must NEVER be made to prove it twice or worry it failed.
 ⚠️ SHIPPING customers can't show you pictures either — you CANNOT see photos they send. If a shipping customer mentions a shoe they saw or want, say plainly: "I can't see pictures 🙈 just tell me the NAME of the shoe and the COLOUR and I'll find it for you 👟" — get the name + colour so you can identify it in the inventory and confirm it before arranging the shipment.
 
 LOCATION: If they ask where you're located, tell them: we're on Carmichael Road West, but we're mobile and delivery-only — we'll come to your nearest spot. 📍
@@ -1914,7 +1929,7 @@ const PHOTO_CODES_FILE = (() => {
 try {
   if (PHOTO_CODES_FILE && require('fs').existsSync(PHOTO_CODES_FILE)) {
     const saved = JSON.parse(require('fs').readFileSync(PHOTO_CODES_FILE, 'utf8'));
-    const cutoff = Date.now() - 45 * 60 * 1000; // only restore codes still within their 45-min life
+    const cutoff = Date.now() - 12 * 60 * 60 * 1000; // restore codes still within their 12-hour life
     for (const [k, v] of Object.entries(saved)) if (v && v.ts > cutoff) photoCodes.set(k, v);
     console.log('[codes] restored photo codes for', photoCodes.size, 'customers');
   }
@@ -2497,7 +2512,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // reply like "A3" resolves to that exact shoe (works for a typed code, no photo needed).
   let codeCtx = '';
   const cc = photoCodes.get(sub);
-  if (cc && cc.map && Object.keys(cc.map).length && (Date.now() - (cc.ts || 0)) < 45 * 60 * 1000) {
+  if (cc && cc.map && Object.keys(cc.map).length && (Date.now() - (cc.ts || 0)) < 12 * 60 * 60 * 1000) {
     const lines = Object.entries(cc.map).map(([code, v]) => `${code} = ${v.name}${v.price != null ? ` ($${v.price})` : ''}${v.sizes ? ` [sizes: ${v.sizes}]` : ''}`);
     codeCtx = `\n\n[PHOTO CODES you gave this customer — every pic you sent was labelled with its code, and the sizes shown are the ONLY sizes that shoe comes in. If their message IS or CONTAINS one of these codes, they mean THAT exact shoe: confirm it and go straight to their order — do NOT re-ask what shoe. ⚠️ If the customer states a SIZE for a code (e.g. "D9 in 7"), CHECK it against that code's listed sizes: only agree if that size is actually in the list. If it is NOT, do NOT agree — tell them that shoe only comes in [its real sizes] and offer the nearest. NEVER confirm a size that isn't in the code's sizes. Codes → shoes: ${lines.join('; ')}]`;
   }
@@ -3587,6 +3602,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="theme-color" content="#0a0812">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="242 Inbox">
+<link rel="manifest" href="/inbox/app.webmanifest">
+<link rel="apple-touch-icon" href="/inbox/kiki.png">
 <title>Inbox — SNEAKERPLUG242</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3627,6 +3646,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     background:transparent;border-bottom:0}
   .thead h1,.thead .sm{text-shadow:0 1px 6px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.7)}
   #tSub{color:#ff5cb4}
+  .callnum{color:#ff5cb4;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:4px;padding:2px 8px;margin-left:-4px;border-radius:9px;background:rgba(255,92,180,.14);border:1px solid rgba(255,92,180,.4)}
+  .callnum:active{transform:scale(.94)}
   /* plain back arrow, no circle */
   #back{background:none;border:0;box-shadow:none;width:auto;height:auto;font-size:32px;color:#fff;padding:0 4px;text-shadow:0 1px 6px rgba(0,0,0,.9)}
   #back:active{transform:scale(.85)}
@@ -3655,7 +3676,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .row .mid{flex:1;min-width:0}
   .row .nm{font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.2px}
   .row.unread .nm{color:#fff}
-  .row .lt{font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0}
+  .row .lt{display:block;font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0}
+  .row .lt.cust{color:#eef1fb;font-weight:600}
+  .row .lt.rep{color:var(--dim)}
+  .row .lt.rep b{color:#a7b0c6;font-weight:700}
   .row .rt{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}
   .row .tm{font-size:11px;color:#727a92;font-weight:500}
   .tag{font-size:10px;font-weight:800;padding:3px 8px;border-radius:7px;letter-spacing:.8px;border:1px solid transparent}
@@ -3704,7 +3728,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .banner b{cursor:pointer;text-decoration:underline;font-weight:700}
   .composer{display:flex;padding:4px 10px calc(4px + env(safe-area-inset-bottom));align-items:flex-end;background:transparent}
   /* scrollable icon strip inside the composer: camera/mic/dictate + pics/orders/pay/money */
-  .iconstrip{display:flex;gap:5px;align-items:center;overflow-x:auto;flex:0 1 auto;max-width:46%;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px}
+  /* show only 3 icons (photo, send-pics, voice note); the rest are a swipe away. The mask
+     fades the right edge so it's clear more icons hide off-screen. */
+  .iconstrip{display:flex;gap:5px;align-items:center;overflow-x:auto;flex:0 0 auto;width:132px;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px;
+    -webkit-mask-image:linear-gradient(90deg,#000 84%,transparent);mask-image:linear-gradient(90deg,#000 84%,transparent)}
   .iconstrip::-webkit-scrollbar{display:none}
   .compinner{flex:1;display:flex;gap:5px;align-items:flex-end;padding:5px;border-radius:26px;border:1.7px solid transparent;
     background:linear-gradient(rgba(9,8,18,.9),rgba(9,8,18,.9)) padding-box, linear-gradient(90deg,#ff5cb4,#c65cff,#22d3ee) border-box;
@@ -3777,7 +3804,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sheet{width:100%;max-width:560px;background:linear-gradient(180deg,#171a2b,#12131f);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:rise .25s ease}
   .sheet h2{font-size:18px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
   .sheet p{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.5}
-  .picklabel{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin:2px 0 7px}
+  .picklabel{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin:2px 0 7px;display:flex;align-items:center;gap:8px}
+  .matchtog{margin-left:auto;background:rgba(255,255,255,.06);border:1.4px solid rgba(56,189,248,.55);color:#bdefff;font-family:'Space Grotesk';font-weight:800;font-size:11px;letter-spacing:.5px;padding:5px 10px;border-radius:11px;cursor:pointer;text-transform:none}
+  .matchtog.on{background:linear-gradient(135deg,#38bdf8,#22d3ee);border-color:#7dffdf;color:#04121a;box-shadow:0 0 12px rgba(34,211,238,.6)}
+  .matchtog:active{transform:scale(.94)}
   .chiprow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px;max-height:118px;overflow-y:auto}
   .chip{padding:8px 14px;border-radius:20px;font-size:14px;font-weight:700;font-family:'Space Grotesk';background:rgba(124,92,255,.14);border:1.5px solid rgba(124,92,255,.5);color:#e8dcff;cursor:pointer;white-space:nowrap;transition:.12s}
   .chip.brandchip{background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.45);color:#c8f4fb}
@@ -3806,12 +3836,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .agtoggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;user-select:none;font-weight:600}
   .agtoggle input{accent-color:var(--acc);width:15px;height:15px}
   /* ── OUTER UI: graffiti hero, search, spray rows, bottom nav ── */
-  .hero{padding:calc(env(safe-area-inset-top) + 9px) 16px 6px;position:relative;flex-shrink:0}
+  .hero{padding:calc(env(safe-area-inset-top) + 7px) 16px 2px;position:relative;flex-shrink:0;cursor:pointer}
+  .hero:active{transform:scale(.99)}
   .heroTop{display:flex;align-items:flex-start;gap:2px}
+  .wordwrap{position:relative;display:inline-block;padding-bottom:6px}
+  /* graffiti tag: "WhatsApp" overlaps the bottom-right of INBOX */
   .crown{width:46px;height:46px;margin:-6px 0 -2px -4px;filter:drop-shadow(0 0 10px rgba(46,224,138,.75))}
   .wordmark{font-family:'Permanent Marker',cursive;font-size:52px;line-height:.86;margin:0;color:#fff;letter-spacing:1px;transform:skew(-5deg);text-shadow:0 3px 14px rgba(0,0,0,.7),0 0 2px #000,3px 3px 0 rgba(0,0,0,.35)}
-  .wabrand{font-family:'Permanent Marker',cursive;font-size:22px;line-height:1;color:#25D366;margin:2px 0 1px 5px;transform:skew(-5deg);text-shadow:0 0 12px rgba(37,211,102,.6),0 2px 6px rgba(0,0,0,.7)}
-  .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:3px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
+  /* WhatsApp overlaps the bottom-right of INBOX, graffiti-tag style */
+  .wabrand{position:absolute;right:-8px;bottom:-3px;font-family:'Permanent Marker',cursive;font-size:23px;line-height:1;color:#25D366;margin:0;transform:skew(-5deg) rotate(-5deg);text-shadow:0 0 12px rgba(37,211,102,.85),0 2px 6px rgba(0,0,0,.9),1px 1px 0 rgba(0,0,0,.5)}
+  .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:5px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
   .searchbar{display:flex;gap:9px;padding:8px 14px 10px;align-items:center;flex-shrink:0}
   .searchbar .sbox{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
   .searchbar .sbox svg{width:18px;height:18px;flex-shrink:0;opacity:.7}
@@ -3864,7 +3898,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn.dens{font-family:'Space Grotesk'}
   .sbtn.dens.on{color:#7dffb0;border-color:rgba(46,224,138,.6);box-shadow:0 0 12px rgba(46,224,138,.35)}
   /* bottom nav */
-  .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:5px 6px calc(4px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(6,6,14,.02),rgba(6,6,14,.16));backdrop-filter:blur(6px);border-top:1px solid rgba(255,255,255,.05);flex-shrink:0}
+  .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:5px 6px calc(4px + env(safe-area-inset-bottom));background:transparent;border-top:0;flex-shrink:0}
   .navbtn{background:none;border:0;color:#c3c8d6;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px;text-shadow:0 1px 4px rgba(0,0,0,.9)}
   .navbtn svg{width:19px;height:19px}
   .navbtn.active{color:#ff5cb4;filter:drop-shadow(0 0 8px rgba(255,92,180,.6))}
@@ -3891,22 +3925,23 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <div id="stopBar" style="display:none"><span id="stopMsg"></span><button id="stopBtn">✋ STOP</button></div>
 <div id="listView">
   <div class="fxlayer" id="fxList"><div class="glow"></div></div>
-  <div class="hero">
+  <div class="hero" id="heroLogo" title="Back to top">
     <div class="heroTop">
       <svg class="crown" viewBox="0 0 100 80"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dffb0"/><stop offset="1" stop-color="#12b866"/></linearGradient></defs><path d="M8 70 L2 22 L28 44 L50 8 L72 44 L98 22 L92 70 Z" fill="url(#cg)" stroke="#2fe08a" stroke-width="3" stroke-linejoin="round"/><circle cx="2" cy="18" r="6" fill="#7dffb0"/><circle cx="50" cy="6" r="6" fill="#7dffb0"/><circle cx="98" cy="18" r="6" fill="#7dffb0"/></svg>
-      <h1 class="wordmark">INBOX</h1>
+      <div class="wordwrap">
+        <h1 class="wordmark">INBOX</h1>
+        <div class="wabrand">WhatsApp</div>
+      </div>
     </div>
-    <div class="wabrand">WhatsApp</div>
     <div class="tagline">STAY CONNECTED</div>
   </div>
   <div class="searchbar">
     <div class="sbox">
       <svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
-      <input id="search" placeholder="Search messages…">
+      <input id="search" inputmode="search" placeholder="Search name or number…">
       <span class="sm" id="rev" style="font-size:10px;color:var(--dim)"></span>
     </div>
     <button class="sbtn dens" id="density" title="Smaller rows — fit the full name & number"><span style="font-weight:800;line-height:1">A<span style="font-size:11px">a</span></span></button>
-    <button class="sbtn compose" id="newmsg" title="Text a number"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
     <button class="sbtn" id="rf" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg></button>
   </div>
   <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
@@ -3917,7 +3952,6 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <button class="navbtn" id="nav-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>New</span></button>
     <button class="navbtn" id="nav-chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/></svg><span id="navChatBadge" class="navbadge" style="display:none">0</span><span>Chats</span></button>
     <button class="navbtn" id="nav-my"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2.2"/><path d="M12 6.7V21"/><path d="M7 11h10"/><path d="M4.5 13.5a7.5 7.5 0 0 0 15 0"/></svg><span>My #</span></button>
-    <button class="navbtn" id="nav-profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 18 L2 7 L8 12 L12 4 L16 12 L22 7 L20 18 Z"/></svg><span>Profile</span></button>
   </nav>
 </div>
 <div id="threadView">
@@ -3936,11 +3970,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   <div class="imgprev" id="audPreview" style="display:none"><span class="ip-label">🎙 Voice note ready to send</span><span id="audX">✕</span></div>
   <div class="composer">
     <div class="compinner">
+      <!-- Only the first 3 (photo, send-pics, voice note) show; swipe left for the rest. -->
       <div class="iconstrip" id="iconStrip">
         <button class="attach" id="attach" title="Send a photo">📷</button>
+        <button class="attach q-shoes" id="q-shoes" title="Send pics by size / brand">📸</button>
         <button class="attach" id="mic" title="Record a voice note">🎙</button>
         <button class="attach" id="dictate" title="Speak to type">🗣️</button>
-        <button class="attach q-shoes" id="q-shoes" title="Send pics by size / brand">📸</button>
         <button class="attach q-orders" id="q-orders" title="Today's orders">🛍️<span class="ordbadge" id="ordBadge" style="display:none">0</span></button>
         <button class="attach q-pay" id="q-pay" title="Payments">💰</button>
         <button class="attach q-money" id="q-money" title="Money">💵</button>
@@ -3980,9 +4015,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <div class="modal" id="shoeModal">
   <div class="sheet">
     <h2>📸 Send pictures<span id="shCount" style="font-size:13px;color:#ff8ad4;font-weight:700"></span></h2>
-    <p>Tap a <b>size</b>, a <b>brand</b>, and/or a <b>colour</b> — combine them for an exact set — then press <b>Send</b>. Nothing goes out until you hit Send. Or just type a shoe below. Pauses Kiki automatically.</p>
+    <p>Tap <b>sizes</b>, a <b>brand</b>, and/or a <b>colour</b> — combine them for an exact set — then press <b>Send</b>. Nothing goes out until you hit Send. Or just type a shoe below. Pauses Kiki automatically.</p>
     <input id="shQuery" placeholder="🔎 Type a shoe — e.g. Air Max Plus pink" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.5);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit;margin-bottom:12px">
-    <div class="picklabel">Size — tap one</div>
+    <div class="picklabel">Sizes — tap one or more <button class="matchtog" id="matchTog" style="display:none" title="Only shoes that come in ALL the sizes you picked (a matching pair)">🔗 Matching</button></div>
     <div class="chiprow" id="sizeChips"><span class="chipmini">Loading…</span></div>
     <div class="picklabel">Brand — tap one</div>
     <div class="chiprow" id="brandChips"><span class="chipmini">Loading…</span></div>
@@ -4090,7 +4125,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function closeCtx(){ $('ctxModal').classList.remove('open'); }
   function setLabel(l){ if(!ctxTarget) return; post('/inbox/label',{sub:ctxTarget.sub,account:ctxTarget.account,text:l?l.text:'',color:l?l.color:''}).then(function(r){ if(r&&r.ok){ toast(l?('🏷️ '+l.text):'Label removed'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not label'); }); }
   function openPickerMulti(){ var arr=Object.keys(selected).map(function(k){return selected[k];}); if(!arr.length){ toast('Press & hold a contact to pick who to send to 📸'); return; } pickTargets=arr; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=arr.length>1?(' · '+arr.length+' contacts'):(' · '+arr[0].name); $('shoeModal').classList.add('open'); loadPickChips(); }
-  function resetPicker(){ pickSize=null; pickBrand=null; $('shColor').value=''; $('shQuery').value=''; }
+  function resetPicker(){ pickSizes=[]; pickBrand=null; pickMatch=false; $('shColor').value=''; $('shQuery').value=''; }
   // Send one filter to every pickTarget — but FIRST a 4-second STOP window so a mistake
   // can be aborted before anything actually goes out.
   var pickBusy=false, sendTimer=null;
@@ -4105,18 +4140,22 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     var tick=function(){ n--; if(n>0){ showN(); sendTimer=setTimeout(tick,1000); } else { sb.style.display='none'; dispatch(); } };
     sendTimer=setTimeout(tick,1000);
     $('stopBtn').onclick=function(){ if(sendTimer){clearTimeout(sendTimer);sendTimer=null;} sb.style.display='none'; pickBusy=false; $('shoeModal').classList.remove('busy'); if(btn) btn.classList.remove('sending'); toast('✋ Stopped — nothing was sent'); };
+    // done/sent/ok/lastErr live in the sendToTargets scope so finish() can read them —
+    // they used to be trapped inside dispatch(), so finish() threw a ReferenceError and
+    // NEITHER the success toast NOR the error toast ever fired (the "countdown then nothing"
+    // + "no error when a size is out" bug). Now both paths report.
+    var done=0, sent=0, ok=0, lastErr='';
     function dispatch(){
-      var done=0, sent=0, ok=0;
       targets.forEach(function(tg){
         post('/inbox/send-shoe', Object.assign({sub:tg.sub, account:tg.account}, filter)).then(function(d){
-          done++; if(d&&d.ok){ sent+=(d.sent||0); ok++; } if(done===targets.length) finish();
+          done++; if(d&&d.ok){ sent+=(d.sent||0); ok++; } else if(d&&d.error){ lastErr=d.error; } if(done===targets.length) finish();
         }).catch(function(){ done++; if(done===targets.length) finish(); });
       });
     }
     function finish(){
       pickBusy=false; $('shoeModal').classList.remove('busy'); if(btn) btn.classList.remove('sending');
       if(ok>0 && sent>0){ closeShoe(); toast('✅ Sent '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' 👟'); clearSel(); if(cur) loadThread(true); }
-      else toast('⚠️ Nothing matched '+label+' — nothing was sent');
+      else toast('⚠️ '+(lastErr||('No '+label+' in stock right now — nothing sent')));
     }
   }
   function shrinkSquare(file, size, cb){
@@ -4167,8 +4206,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
           : '<span class="avini">'+esc(av)+'</span>';
         var lblHtml = (t.label && t.label.text) ? '<span class="lbl" style="background:'+esc(t.label.color||'#ff3b5c')+'">'+esc(t.label.text)+'</span>' : '';
         var pinHtml = t.pinned ? '<span class="pin">📌</span>' : '';
-        var pv = t.paused? '<span class="pz">⏸ you\\'re handling this</span>' : ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
-        return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-tag="'+t.tag+'">'
+        var pv;
+        if(t.paused){ pv='<span class="pz">⏸ you\\'re handling this</span>'; }
+        else {
+          var lns='';
+          if(t.custPrev) lns += '<span class="lt cust">'+esc(t.custPrev)+'</span>';
+          if(t.replyPrev) lns += '<span class="lt rep">'+(t.replyWho?('<b>'+esc(t.replyWho)+':</b> '):'')+esc(t.replyPrev)+'</span>';
+          pv = lns || ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
+        }
+        return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-phone="'+esc(t.phone||'')+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
             +'<div class="toprow"><div class="nm">'+pinHtml+'<span class="nmtext">'+custLabelHTML(rawName, t.phone||t.sub, t.tag)+'</span>'+lblHtml+(t.unread?'<span class="dot"></span>':'')+'</div>'
@@ -4206,7 +4252,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 
   function openThread(sub, acct, name, tag){
     cur = {sub:sub, acct:acct, name:name, tag:tag};
-    $('tName').innerHTML = custLabelHTML(name, sub, tag); $('tSub').textContent = '+'+sub;
+    $('tName').innerHTML = custLabelHTML(name, sub, tag);
+    // Tap the number to call the customer straight from the chat header.
+    $('tSub').innerHTML = '<a class="callnum" href="tel:+'+esc(sub)+'">📞 +'+esc(sub)+'</a>';
     $('tTag').textContent = tag; $('tTag').className='tag '+tagCls(tag);
     var c = accCols(tag);
     $('tAv').textContent = initials(name) || '#';
@@ -4403,10 +4451,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   var pickMeta=null;
   // Chips SELECT (not send). You build your combo — a size, a brand, a colour, words —
   // then press Send once. Nothing goes out until you do. Tapping a chip again clears it.
-  var pickSize=null, pickBrand=null;
+  var pickSizes=[], pickBrand=null, pickMatch=false;
   function paintChips(){
-    Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.classList.toggle('on', el.getAttribute('data-size')===pickSize); });
+    Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.classList.toggle('on', pickSizes.indexOf(el.getAttribute('data-size'))>-1); });
     Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.classList.toggle('on', el.getAttribute('data-brand')===pickBrand); });
+    var mt=$('matchTog'); if(mt){ mt.classList.toggle('on', pickMatch); mt.style.display = pickSizes.length>1 ? '' : 'none'; }
   }
   function loadPickChips(){
     var render=function(){
@@ -4414,7 +4463,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       if(!pickMeta){ return; }
       sc.innerHTML = (pickMeta.sizes||[]).map(function(s){ return '<span class="chip sizechip" data-size="'+s+'">'+s+'</span>'; }).join('') || '<span class="chipmini">No sizes in stock</span>';
       bc.innerHTML = (pickMeta.brands||[]).map(function(b){ return '<span class="chip brandchip" data-brand="'+esc(b)+'">'+esc(b)+'</span>'; }).join('') || '<span class="chipmini">No brands in stock</span>';
-      Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ pickSize = (pickSize===el.getAttribute('data-size'))?null:el.getAttribute('data-size'); paintChips(); }; });
+      Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ var s=el.getAttribute('data-size'); var i=pickSizes.indexOf(s); if(i>-1) pickSizes.splice(i,1); else pickSizes.push(s); if(pickSizes.length<2) pickMatch=false; paintChips(); }; });
       Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ pickBrand = (pickBrand===el.getAttribute('data-brand'))?null:el.getAttribute('data-brand'); paintChips(); }; });
       paintChips();
     };
@@ -4423,12 +4472,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   }
   function sendShoe(){
     var f={};
-    if(pickSize) f.size=pickSize;
+    if(pickSizes.length===1){ f.size=pickSizes[0]; }
+    else if(pickSizes.length>1){ f.sizes=pickSizes.slice(); f.size_match = pickMatch?'all':'any'; }
     if(pickBrand) f.brand=pickBrand;
     var col=$('shColor').value.trim(), q=$('shQuery').value.trim();
     if(col) f.color=col; if(q) f.query=q;
     if(!Object.keys(f).length){ toast('Pick a size, brand, colour, or type a shoe first'); return; }
-    var lbl=[f.query,f.color,f.brand,(f.size?'size '+f.size:'')].filter(Boolean).join(' ');
+    var sizeLbl = pickSizes.length ? ((pickMatch?'matching ':'')+'size'+(pickSizes.length>1?'s':'')+' '+pickSizes.join(' & ')) : '';
+    var lbl=[f.query,f.color,f.brand,sizeLbl].filter(Boolean).join(' ');
     sendToTargets(f, lbl||'that', $('shSend'));
   }
   // ── 🛍️ Orders: today's delivery orders ready, with a live count badge ──
@@ -4514,7 +4565,6 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('agToggle').onchange=function(){ agentLabel=this.checked; };
   $('briefModal').onclick=function(e){ if(e.target===this) closeBrief(); };
   $('dictate').onclick=dictate;
-  $('newmsg').onclick=openNew;
   $('newCancel').onclick=closeNew;
   $('newStart').onclick=startNew;
   $('newModal').onclick=function(e){ if(e.target===this) closeNew(); };
@@ -4526,6 +4576,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('q-shoes').onclick=openShoe;
   $('shCancel').onclick=closeShoe;
   $('shSend').onclick=sendShoe;
+  $('matchTog').onclick=function(){ pickMatch=!pickMatch; paintChips(); toast(pickMatch?'🔗 Matching ON — only pairs that come in ALL your sizes':'Matching off — any of your sizes'); };
   $('shoeModal').onclick=function(e){ if(e.target===this) closeShoe(); };
   $('q-pay').onclick=function(){ toast("Payments — tell me what you want here and I'll wire it 💰"); };
   $('q-money').onclick=function(){ toast("Money — tell me what you want here and I'll wire it 💵"); };
@@ -4545,10 +4596,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   if($('briefAv')) $('briefAv').innerHTML = kiki(24);
   // search filter (name / number) over the loaded rows
   $('search').oninput = function(){
-    var q=(this.value||'').toLowerCase();
+    var raw=(this.value||'').toLowerCase().trim();
+    var qd=raw.replace(/[^0-9]/g,''); // digits-only, so a typed phone matches the number
     Array.prototype.forEach.call(document.querySelectorAll('#threads .row'), function(el){
-      var nm=(el.getAttribute('data-name')||'').toLowerCase(), sub=el.getAttribute('data-sub')||'';
-      el.style.display=(!q || nm.indexOf(q)>-1 || sub.indexOf(q)>-1)?'':'none';
+      var nm=(el.getAttribute('data-name')||'').toLowerCase(), sub=el.getAttribute('data-sub')||'', ph=(el.getAttribute('data-phone')||'').replace(/[^0-9]/g,'');
+      var match = !raw || nm.indexOf(raw)>-1 || sub.indexOf(raw)>-1 || (qd && (sub.indexOf(qd)>-1 || ph.indexOf(qd)>-1));
+      el.style.display=match?'':'none';
     });
   };
   // bottom nav
@@ -4556,13 +4609,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('nav-inbox').onclick=function(){ if(cur) closeThread(); openPickerMulti(); };  // Pics: send by size/brand/colour to selected contacts
   $('selSend').onclick=openPickerMulti;
   $('selCancel').onclick=clearSel;
-  $('nav-chats').onclick=function(){ setNav('nav-chats'); if(cur) closeThread(); clearSel(); $('threads').scrollTop=0; };
+  function backToTop(){ setNav('nav-chats'); if(cur) closeThread(); clearSel(); var th=$('threads'); if(th){ if(th.scrollTo) th.scrollTo({top:0,behavior:'smooth'}); else th.scrollTop=0; } }
+  $('nav-chats').onclick=backToTop;
+  // Tapping the INBOX graffiti logo jumps back to the top of the chat list (a home button).
+  if($('heroLogo')) $('heroLogo').onclick=backToTop;
   $('nav-search').onclick=function(){ if(cur) closeThread(); $('search').focus(); };
   $('nav-new').onclick=function(){ if(cur) closeThread(); openNew(); };
   $('nav-my').onclick=openMyNumbers;
   $('myClose').onclick=function(){ $('myModal').classList.remove('open'); };
   $('myModal').onclick=function(e){ if(e.target===this) $('myModal').classList.remove('open'); };
-  $('nav-profile').onclick=function(){ toast('Profile — coming soon 👑'); };
 
   // Near-live: poll the open thread every 3s; otherwise cheap-poll rev for the list.
   threadTimer = setInterval(function(){
@@ -4594,6 +4649,20 @@ function serveInboxAsset(res, file, type) {
 }
 app.get('/inbox/kiki.png', (req, res) => serveInboxAsset(res, 'inbox-kiki.jpg', 'image/jpeg'));
 app.get('/inbox/bg.jpg', (req, res) => serveInboxAsset(res, 'inbox-bg.jpg', 'image/jpeg'));
+// PWA manifest → "Add to Home Screen" launches the Inbox standalone (no browser bar), for
+// the full top-to-bottom app look. start_url has no key; the staff key lives in localStorage
+// from the first ?key= visit and persists for the installed app.
+app.get('/inbox/app.webmanifest', (req, res) => {
+  res.type('application/manifest+json').set('Cache-Control', 'public, max-age=3600').send(JSON.stringify({
+    name: 'SNEAKERPLUG242 Inbox', short_name: '242 Inbox',
+    start_url: '/inbox', scope: '/inbox', display: 'standalone', orientation: 'portrait',
+    background_color: '#05050a', theme_color: '#0a0812',
+    icons: [
+      { src: '/inbox/kiki.png', sizes: '192x192', type: 'image/jpeg', purpose: 'any' },
+      { src: '/inbox/kiki.png', sizes: '512x512', type: 'image/jpeg', purpose: 'any' },
+    ],
+  }));
+});
 
 // Short tag (TK / OSC / SB) for a full account name, for the account chips in the UI.
 function accountTag(account) {
@@ -4609,9 +4678,21 @@ app.get('/inbox/threads', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const list = [...inboxThreads.values()].map(t => {
     const last = t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
+    // TWO-LINE PREVIEW (max 2 messages): the customer's last message + the last reply
+    // (Kiki OR Rodney — whichever answered last). Never all three.
+    const msgs = t.msgs || [];
+    const bodyOf = (m) => m.loc ? '📍 Location' : (m.img ? '📷 Photo' : (m.text || ''));
+    let custPrev = '', replyPrev = '', replyWho = '';
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]; if (!m) continue;
+      if (!custPrev && m.sender === 'customer') custPrev = bodyOf(m);
+      else if (!replyPrev && (m.sender === 'kiki' || m.sender === 'rodney')) { replyPrev = bodyOf(m); replyWho = m.sender === 'rodney' ? 'You' : 'Kiki'; }
+      if (custPrev && replyPrev) break;
+    }
     return {
       account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', avatar: t.avatar || '',
       lastText: last ? (last.sender === 'customer' || last.sender === 'system' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + (last.loc ? '📍 Location' : (last.text || '')) : '',
+      custPrev, replyPrev, replyWho,
       lastTs: t.lastTs, unread: t.unread || 0, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub),
       pinned: !!t.pinned, label: t.label || '',
     };
@@ -4871,13 +4952,17 @@ app.post('/inbox/send-shoe', async (req, res) => {
   const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
     || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store)) || lastToken || process.env.MANYCHAT_TOKEN || null;
   if (!token && !waChannel.get(sub)) return res.json({ ok: false, error: 'No account token for this customer yet.' });
-  const results = searchInventory({ size: b.size, brand: b.brand, color: b.color, query: b.query });
+  // Multi-size: the picker can send `sizes` (array) + `size_match` ("any" range, or "all"
+  // for a matching pair that must come in every selected size). Falls back to single `size`.
+  const sizes = Array.isArray(b.sizes) ? b.sizes.map(String).filter(Boolean) : null;
+  const results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, color: b.color, query: b.query });
   if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing sent.', found: 0 });
   const pieces = [];
   if (b.color) pieces.push(String(b.color).trim());
   if (b.brand) pieces.push(String(b.brand).trim());
   if (b.query) pieces.push(String(b.query).trim());
-  if (b.size) pieces.push('size ' + String(b.size).trim());
+  if (sizes && sizes.length) pieces.push((String(b.size_match).toLowerCase() === 'all' ? 'matching sizes ' : 'sizes ') + sizes.join(' & '));
+  else if (b.size) pieces.push('size ' + String(b.size).trim());
   const what = pieces.join(' ').trim();
   const leadIn = what ? ('This is what we have in ' + what + ' rite now 👇 Ready to Order!') : 'This is what we have rite now 👇 Ready to Order!';
   setHumanPause(sub); clearFollowUp(sub);
