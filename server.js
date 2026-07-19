@@ -3579,7 +3579,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       radial-gradient(700px 520px at 50% 108%, rgba(255,92,180,.16), transparent 60%),
       linear-gradient(180deg,#0a0812,#05050a);
     background-size:cover;background-position:center}
-  body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center}
+  body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center;filter:saturate(1.45) contrast(1.08) brightness(1.05)}
   body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.22),rgba(6,5,12,.34))}
   body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.50),rgba(6,5,12,.60))}
   /* haunted-luxury FX over the collage: a green halo that fades in/out (the "glowing
@@ -3644,9 +3644,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     background:rgba(10,9,20,.66);backdrop-filter:blur(7px);border:1.6px solid rgba(255,255,255,.15);position:relative;overflow:hidden}
   /* luxury-lifestyle texture behind each text bubble — a random slice of the collage,
      under a dark scrim so the message stays readable. Image bubbles keep the photo. */
-  body.hasbg .b:not(.hasimg){background-image:var(--bimg,var(--chatbg));background-size:cover;background-position:var(--bp,center);background-repeat:no-repeat}
-  body.hasbg .b:not(.hasimg)::before{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(150deg,rgba(9,7,17,.72),rgba(8,7,16,.9));z-index:0}
-  body.hasbg .b:not(.hasimg){text-shadow:0 1px 5px rgba(0,0,0,.95),0 0 3px rgba(0,0,0,.9)}
+  body.hasbg .b:not(.hasimg){text-shadow:0 0 2px rgba(0,0,0,.98),0 1px 4px #000,0 0 9px rgba(0,0,0,.9),0 0 16px rgba(0,0,0,.7)}
+  body.hasbg .b:not(.hasimg)::before{content:'';position:absolute;inset:0;border-radius:inherit;z-index:0;
+    background:linear-gradient(150deg,rgba(7,5,13,.5),rgba(6,5,12,.66)), var(--bimg,var(--chatbg));
+    background-size:cover;background-position:center;background-repeat:no-repeat;
+    filter:saturate(1.65) contrast(1.14) brightness(1.05)}
   .b>*{position:relative;z-index:1}
   .b.in{border-color:#22d3ee;box-shadow:0 0 15px rgba(34,211,238,.45),inset 0 0 12px rgba(34,211,238,.10);border-bottom-left-radius:6px}
   .b.kiki{border-color:#c65cff;box-shadow:0 0 17px rgba(198,92,255,.5),inset 0 0 12px rgba(198,92,255,.12);border-bottom-right-radius:6px}
@@ -3696,7 +3698,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .imgprev .ip-label{flex:1;font-size:13px;color:#c8d2ee;font-weight:500}
   .b.tap{cursor:pointer}
   .b.hasimg{padding:5px}
-  .msgimg{max-width:210px;max-height:260px;border-radius:12px;display:block;object-fit:cover}
+  .msgimg{max-width:210px;max-height:260px;border-radius:12px;display:block;object-fit:cover;filter:saturate(1.25) contrast(1.05)}
   .empty{color:var(--dim);text-align:center;padding:52px 24px;font-size:14px;line-height:1.5}
   .toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:rgba(15,16,26,.96);border:1px solid var(--line);color:#fff;padding:11px 18px;border-radius:13px;font-size:13px;z-index:30;display:none;max-width:88%;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(10px)}
   /* brief-Kiki modal */
@@ -4053,7 +4055,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var who = x.dir==='in'?'':(x.sender==='rodney'?'You':(kiki(15)+' Kiki'));
         var tap = x.dir==='in' ? ' tap' : '';
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
-        var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : esc(x.text);
+        var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : '<span class="btext">'+esc(x.text)+'</span>';
         var bimg = x.img ? '' : (LUX_COUNT>0 ? ' style="--bimg:url(/inbox/lux/'+(1+Math.floor(Math.random()*LUX_COUNT))+')"' : '');
         return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
