@@ -2793,7 +2793,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try { const sh = liveShoeMap()[inp.shoe_id]; if (sh && sh.image) alertImg = sh.image; } catch (_) {}
         let waOk = false;
         try { waOk = await waSendManager(lines, token, alertImg); } catch (_) {}
-        try { require('./shop').addAlert(lines, 'Kiki 🤖'); } catch (_) {} // shows on the website Tasks board
+        try { require('./shop').addAlert(lines, 'Kiki 🤖', { sub: String(sub), account: ctx.store || '', img: alertImg || '' }); } catch (_) {} // shows on the website Tasks board
         // 📥 Drop the order/delivery straight into the customer's Inbox thread too, so the
         // unified Inbox shows deliveries (not just WhatsApp + the Tasks board). dir:'in' so it
         // raises an unread badge and Rodney is notified right in the chat where it belongs.
@@ -3726,8 +3726,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .attach.q-money{border-color:#4ef0a0;box-shadow:0 0 9px rgba(78,240,160,.45)}
   .attach.q-orders{border-color:#ff5cb4;box-shadow:0 0 9px rgba(255,92,180,.45);position:relative}
   .ordbadge{position:absolute;top:-8px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:11px;background:linear-gradient(135deg,#ff2e6e,#ff5cb4);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(255,46,110,.7);border:1.5px solid #1a0a12}
-  .ordrow{padding:12px 13px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);margin-bottom:9px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;color:#eef1fb}
+  .ordrow{display:flex;gap:11px;align-items:flex-start;padding:12px 13px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);margin-bottom:9px;font-size:13.5px;line-height:1.45;color:#eef1fb}
   .ordrow a{color:#7fe0ff;font-weight:700}
+  .ordpic{width:52px;height:52px;border-radius:12px;object-fit:cover;flex-shrink:0;background:#171a2b;box-shadow:0 0 0 1.5px rgba(255,255,255,.12)}
+  .ordpicx{display:flex;align-items:center;justify-content:center;font-size:24px}
+  .ordbody{flex:1;min-width:0}
+  .ordtext{white-space:pre-wrap;word-wrap:break-word}
+  .ordtime{margin-top:6px;font-size:11.5px;font-weight:700;color:var(--dim)}
+  .ordopen{margin-top:9px;width:100%;padding:9px 12px;border-radius:11px;border:1px solid rgba(74,222,128,.55);
+           background:linear-gradient(180deg,rgba(34,197,94,.22),rgba(34,197,94,.10));color:#eafff1;font-weight:800;font-size:13px;cursor:pointer}
+  .ordopen:active{transform:scale(.97)}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
   .replybar{display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(124,92,255,.1);border-top:1px solid var(--line);font-size:13px}
   .replybar #replyText{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--acc);padding-left:9px;color:#c8d2ee}
@@ -4405,9 +4413,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     sendToTargets(f, lbl||'that', $('shSend'));
   }
   // ── 🛍️ Orders: today's delivery orders ready, with a live count badge ──
+  function ordClock(ts){ try{ return new Date(ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZone:'America/Nassau'}); }catch(e){ return ''; } }
   function renderOrder(o){
-    var t = esc(o.text).replace(/wa\\.me\\/(\\d{7,})/g, '<a href="https://wa.me/$1" target="_blank">wa.me/$1</a>');
-    return '<div class="ordrow">'+t+'</div>';
+    // Drop the raw "(wa.me/…)" text — the number now opens the chat IN HERE, not external WhatsApp.
+    var txt = esc(o.text||'').replace(/\\s*\\(wa\\.me\\/\\d{7,}\\)/g,'').replace(/\\n/g,'<br>');
+    var pic = o.img ? '<img class="ordpic" src="'+esc(o.img)+'" onerror="this.style.display=\\'none\\'">'
+            : (o.sub ? '<img class="ordpic" src="/inbox/avatar/'+esc(o.sub)+'" onerror="this.replaceWith(Object.assign(document.createElement(\\'div\\'),{className:\\'ordpic ordpicx\\',textContent:\\'🛍️\\'}))">'
+            : '<div class="ordpic ordpicx">🛍️</div>');
+    var when = o.at ? '<div class="ordtime">🕒 '+esc(ordClock(o.at))+'</div>' : '';
+    var open = o.sub ? '<button class="ordopen" data-sub="'+esc(o.sub)+'" data-acct="'+esc(o.account||'')+'" data-tag="'+esc(o.tag||'')+'">💬 Open chat in here</button>' : '';
+    return '<div class="ordrow">'+pic+'<div class="ordbody"><div class="ordtext">'+txt+'</div>'+when+open+'</div></div>';
   }
   function applyBadge(x){ var b=$('ordBadge'); if(x&&x.count>0){ b.textContent=x.count; b.style.display='flex'; } else { b.style.display='none'; } }
   function refreshOrderBadge(){ api('/inbox/orders').then(applyBadge).catch(function(){}); }
@@ -4417,6 +4432,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       if(!d||!d.ok){ $('ordList').innerHTML='<div class="empty">Could not load orders.</div>'; return; }
       $('ordCount').textContent = d.count? ('· '+d.count+' ready') : '';
       $('ordList').innerHTML = (d.orders&&d.orders.length) ? d.orders.map(renderOrder).join('') : '<div class="empty">No delivery orders yet today.</div>';
+      // Tapping an order opens the customer's chat INSIDE the site (not external wa.me).
+      Array.prototype.forEach.call($('ordList').querySelectorAll('.ordopen'), function(b){
+        b.onclick=function(){ var s=b.getAttribute('data-sub'); $('ordModal').classList.remove('open'); openThread(s, b.getAttribute('data-acct'), '+'+s, b.getAttribute('data-tag')); };
+      });
       applyBadge(d);
     }).catch(function(){ $('ordList').innerHTML='<div class="empty">Network error.</div>'; });
   }
@@ -4760,7 +4779,14 @@ app.get('/inbox/orders', (req, res) => {
   const today = bahDay(Date.now());
   const orders = notes
     .filter(n => n && /NEW ORDER|DELIVERY READY|🛵/.test(n.text || '') && bahDay(n.createdAt) === today)
-    .map(n => ({ id: n.id, text: n.text, by: n.by, done: !!n.done, at: n.createdAt }));
+    .map(n => {
+      // Prefer the chat link the alert carried; older alerts fall back to the wa.me number
+      // (which IS the sub on the SB/Graph account), so those still open the SB chat.
+      const phone = (String(n.text || '').match(/wa\.me\/(\d{7,})/i) || [])[1] || '';
+      const sub = n.sub || phone || '';
+      const account = n.account || (sub ? 'Shoe Box' : '');
+      return { id: n.id, text: n.text, by: n.by, done: !!n.done, at: n.createdAt, sub, account, tag: accountTag(account), img: n.img || '' };
+    });
   res.json({ ok: true, count: orders.filter(o => !o.done).length, total: orders.length, orders });
 });
 

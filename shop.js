@@ -242,13 +242,20 @@ function recordStaffRestock(shoeId, size, count, by, label, baseSizes) {
 // Add a note to the shared board programmatically (e.g. a delivery-ready alert
 // from the bot), so it shows on the website's Tasks for whoever's on duty.
 // Does NOT fire the employee WhatsApp blast — the caller handles any messaging.
-function addAlert(text, by) {
+function addAlert(text, by, meta) {
   const uid = Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
   const note = {
     id: uid, text: String(text || '').trim(), kind: 'task',
     shoeId: null, shoeLabel: null, by: by || 'Kiki 🤖',
     done: false, doneBy: null, doneAt: null, createdAt: new Date().toISOString(),
   };
+  // Optional link back to the customer's chat (delivery/order alerts pass this) so the
+  // Inbox's Today's Orders can open the exact in-site conversation + show a pic.
+  if (meta && typeof meta === 'object') {
+    if (meta.sub) note.sub = String(meta.sub);
+    if (meta.account) note.account = String(meta.account);
+    if (meta.img) note.img = String(meta.img);
+  }
   if (!note.text) return null;
   state.notes.unshift(note);
   if (state.notes.length > 500) state.notes.length = 500;
