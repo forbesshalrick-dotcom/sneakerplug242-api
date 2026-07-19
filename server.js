@@ -3736,6 +3736,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .ordopen{margin-top:9px;width:100%;padding:9px 12px;border-radius:11px;border:1px solid rgba(74,222,128,.55);
            background:linear-gradient(180deg,rgba(34,197,94,.22),rgba(34,197,94,.10));color:#eafff1;font-weight:800;font-size:13px;cursor:pointer}
   .ordopen:active{transform:scale(.97)}
+  /* ⚓ My Numbers */
+  .myrow{padding:14px 15px;border-radius:15px;background:rgba(255,255,255,.05);border:1px solid var(--line);margin-bottom:11px}
+  .myinfo{margin-bottom:11px}
+  .mylabel{font-size:12px;font-weight:700;color:var(--dim);letter-spacing:.3px}
+  .mynum{font-size:20px;font-weight:800;color:#fff;letter-spacing:.5px;margin-top:2px;font-family:'Space Grotesk'}
+  .myacts{display:flex;gap:9px}
+  .myact{flex:1;text-align:center;text-decoration:none;padding:11px;border-radius:12px;font-weight:800;font-size:14px}
+  .myact:active{transform:scale(.97)}
+  .myact.call{background:linear-gradient(180deg,rgba(34,197,94,.28),rgba(34,197,94,.12));border:1px solid rgba(74,222,128,.6);color:#eafff1}
+  .myact.wa{background:linear-gradient(180deg,rgba(56,189,248,.28),rgba(56,189,248,.12));border:1px solid rgba(56,189,248,.6);color:#e8f9ff}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
   .replybar{display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(124,92,255,.1);border-top:1px solid var(--line);font-size:13px}
   .replybar #replyText{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--acc);padding-left:9px;color:#c8d2ee}
@@ -3906,6 +3916,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <button class="navbtn" id="nav-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg><span>Search</span></button>
     <button class="navbtn" id="nav-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>New</span></button>
     <button class="navbtn" id="nav-chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/></svg><span id="navChatBadge" class="navbadge" style="display:none">0</span><span>Chats</span></button>
+    <button class="navbtn" id="nav-my"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2.2"/><path d="M12 6.7V21"/><path d="M7 11h10"/><path d="M4.5 13.5a7.5 7.5 0 0 0 15 0"/></svg><span>My #</span></button>
     <button class="navbtn" id="nav-profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 18 L2 7 L8 12 L12 4 L16 12 L22 7 L20 18 Z"/></svg><span>Profile</span></button>
   </nav>
 </div>
@@ -3983,9 +3994,17 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <div class="modal" id="ordModal">
   <div class="sheet">
     <h2>🛍️ Today's orders <span id="ordCount" style="font-size:14px;color:var(--dim);font-weight:600"></span></h2>
-    <p>Delivery orders marked ready today. Tap a number to open the customer's WhatsApp.</p>
+    <p>Delivery orders marked ready today. Tap <b>Open chat in here</b> to jump into the conversation on this site.</p>
     <div id="ordList" style="max-height:52vh;overflow-y:auto">Loading…</div>
     <div class="btns"><button class="cancel" id="ordClose">Close</button></div>
+  </div>
+</div>
+<div class="modal" id="myModal">
+  <div class="sheet">
+    <h2>⚓ My numbers</h2>
+    <p>Your own lines — tap to ring your phone or message yourself.</p>
+    <div id="myList" style="max-height:52vh;overflow-y:auto">Loading…</div>
+    <div class="btns"><button class="cancel" id="myClose">Close</button></div>
   </div>
 </div>
 <div class="modal" id="briefModal">
@@ -4440,6 +4459,22 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     }).catch(function(){ $('ordList').innerHTML='<div class="empty">Network error.</div>'; });
   }
 
+  // ── ⚓ My Numbers: the owner's own two lines — ring the phone or message himself ──
+  function prettyNum(n){ var d=String(n||'').replace(/[^0-9]/g,''); if(d.length===11&&d[0]==='1'){ return '+1 ('+d.slice(1,4)+') '+d.slice(4,7)+'-'+d.slice(7); } return '+'+d; }
+  function renderMyNum(x){
+    var d=String(x.number||'').replace(/[^0-9]/g,'');
+    return '<div class="myrow"><div class="myinfo"><div class="mylabel">'+esc(x.label||'My number')+'</div><div class="mynum">'+esc(prettyNum(d))+'</div></div>'+
+      '<div class="myacts"><a class="myact call" href="tel:+'+esc(d)+'">📞 Call</a>'+
+      '<a class="myact wa" href="https://wa.me/'+esc(d)+'" target="_blank" rel="noopener">💬 Message</a></div></div>';
+  }
+  function openMyNumbers(){
+    $('myList').innerHTML='Loading…'; $('myModal').classList.add('open');
+    api('/inbox/my-numbers').then(function(d){
+      if(!d||!d.ok||!(d.numbers&&d.numbers.length)){ $('myList').innerHTML='<div class="empty">No numbers set.</div>'; return; }
+      $('myList').innerHTML = d.numbers.map(renderMyNum).join('');
+    }).catch(function(){ $('myList').innerHTML='<div class="empty">Network error.</div>'; });
+  }
+
   // ── Brief Kiki: privately tell her the truth of this chat so she stops re-asking ──
   function openBrief(){ if(!cur) return; $('briefText').value=''; $('agToggle').checked=agentLabel; $('briefModal').classList.add('open'); setTimeout(function(){ $('briefText').focus(); }, 60); }
   function closeBrief(){ $('briefModal').classList.remove('open'); }
@@ -4524,6 +4559,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('nav-chats').onclick=function(){ setNav('nav-chats'); if(cur) closeThread(); clearSel(); $('threads').scrollTop=0; };
   $('nav-search').onclick=function(){ if(cur) closeThread(); $('search').focus(); };
   $('nav-new').onclick=function(){ if(cur) closeThread(); openNew(); };
+  $('nav-my').onclick=openMyNumbers;
+  $('myClose').onclick=function(){ $('myModal').classList.remove('open'); };
+  $('myModal').onclick=function(e){ if(e.target===this) $('myModal').classList.remove('open'); };
   $('nav-profile').onclick=function(){ toast('Profile — coming soon 👑'); };
 
   // Near-live: poll the open thread every 3s; otherwise cheap-poll rev for the list.
@@ -4788,6 +4826,16 @@ app.get('/inbox/orders', (req, res) => {
       return { id: n.id, text: n.text, by: n.by, done: !!n.done, at: n.createdAt, sub, account, tag: accountTag(account), img: n.img || '' };
     });
   res.json({ ok: true, count: orders.filter(o => !o.done).length, total: orders.length, orders });
+});
+
+// ⚓ MY NUMBERS — the owner's own two lines, so he can ring his phone / message himself in a
+// tap from the Inbox (the anchor tab from the mockup). Key-gated so the numbers never sit in
+// the public /inbox source. Labels overridable via env.
+app.get('/inbox/my-numbers', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const labels = [process.env.MANAGER_WA_LABEL || 'My main line', process.env.MANAGER_WA_2_LABEL || 'My second line'];
+  const numbers = MANAGER_NUMBERS.map((n, i) => ({ number: n, label: labels[i] || ('My number ' + (i + 1)) }));
+  res.json({ ok: true, numbers });
 });
 
 // 🔎 START A NEW CHAT BY NUMBER — resolve a typed phone number to a subscriber on the
