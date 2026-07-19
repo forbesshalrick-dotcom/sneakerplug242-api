@@ -3723,7 +3723,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .pz{font-size:10.5px;color:#ffcf8f;font-weight:600}
   /* thread */
   .thead{gap:11px}
-  .thead .av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;font-family:'Space Grotesk';flex-shrink:0}
+  /* Chat-header avatar removed (WhatsApp pics don't reliably show) — frees room for the full number. */
+  .thead .av{display:none}
+  .thead .who-wrap{margin-left:2px}
   .thead .who-wrap{flex:1;min-width:0}
   .thead h1{font-size:16.5px;margin:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .msgs{flex:1;overflow-y:auto;padding:6px 12px 4px;display:flex;flex-direction:column;gap:8px}
@@ -4132,6 +4134,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // icon), NUMBER always pink for a uniform look.
   function accTextColor(tag){ return tag==='TK'?'#38bdf8':(tag==='SB'?'#c6a6ff':'#2fe08a'); }
   function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=accTextColor(tag); if(!nm) return '<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'; return '<span class="cn-name" style="color:'+col+'">'+esc(nm)+'</span>'+(loc?'<span class="cn-num">-'+esc(loc)+'</span>':''); }
+  // Header: NAME only (no number). The full number lives once, in the call link below it.
+  function custNameHTML(name, tag){ var nm=String(name||'').trim(); var col=accTextColor(tag); return '<span class="cn-name" style="color:'+col+'">'+esc(nm||'Customer')+'</span>'; }
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
       +'<br><br><input id="pk" placeholder="Inbox key" autocomplete="off" style="width:82%;max-width:290px;padding:11px;border-radius:9px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:14px">'
@@ -4290,8 +4294,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 
   function openThread(sub, acct, name, tag){
     cur = {sub:sub, acct:acct, name:name, tag:tag};
-    $('tName').innerHTML = custLabelHTML(name, sub, tag);
-    // Tap the number to call the customer straight from the chat header.
+    $('tName').innerHTML = custNameHTML(name, tag);   // name only — number shows once, below
+    // The number lives ONCE here, as the tap-to-call link (📞 + full number).
     $('tSub').innerHTML = '<a class="callnum" href="tel:+'+esc(sub)+'">📞 +'+esc(sub)+'</a>';
     $('tTag').textContent = tag; $('tTag').className='tag '+tagCls(tag);
     var c = accCols(tag);
@@ -4316,7 +4320,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       var sig = (cur.sub||'')+'|'+((d.msgs&&d.msgs.length)||0)+'|'+(lm?(lm.id+':'+lm.ts):'')+'|'+(d.paused?1:0)+'|'+(d.name||'')+'|'+(d.avatar||'');
       if(!scroll && sig===lastThreadSig) return; // nothing changed — don't touch the page
       lastThreadSig = sig;
-      if(d.name){ cur.name=d.name; $('tName').innerHTML=custLabelHTML(d.name, cur.sub, cur.tag); }
+      if(d.name){ cur.name=d.name; $('tName').innerHTML=custNameHTML(d.name, cur.tag); }
       if(d.avatar){ var c=accCols(cur.tag); $('tAv').innerHTML='<img src="'+esc(d.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(($('tName').textContent||'?').charAt(0).toUpperCase())+'</span>'; }
       var m = $('msgs');
       var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
