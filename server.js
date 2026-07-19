@@ -2022,6 +2022,23 @@ function inboxRecord(account, sub, m) {
     inboxRev++; saveInbox();
   } catch (_) {}
 }
+// Best-effort: pull the customer's profile picture from ManyChat once, so the Inbox
+// shows their face (Rodney: "that's how I easily remember customers"). WhatsApp doesn't
+// always expose one — if ManyChat has no pic, the coloured initial stays. Fetched once
+// per customer, cached.
+const avatarTried = new Set();
+async function ensureCustomerAvatar(account, sub, token) {
+  try {
+    if (!token || !sub || avatarTried.has(String(sub))) return;
+    const t = inboxThreads.get(threadKey(account, sub)) || inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+    if (!t || t.avatar) return;
+    avatarTried.add(String(sub));
+    const r = await fetch('https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=' + encodeURIComponent(String(sub)), { headers: { Authorization: 'Bearer ' + token } });
+    const j = await r.json(); const d = j && j.data;
+    const pic = d && (d.profile_pic || d.avatar_url || d.profile_picture_url || d.profile_pic_url);
+    if (pic) { t.avatar = String(pic).slice(0, 600); inboxRev++; saveInbox(); }
+  } catch (_) {}
+}
 // Persist the inbox to the /data volume so a redeploy/restart keeps threads + pauses.
 const INBOX_FILE = (() => {
   try { const fs = require('fs'); for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) if (fs.existsSync(d)) return require('path').join(d, 'inbox.json'); } catch (_) {}
@@ -2323,6 +2340,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const inImg = ctx.inPhotoUrl || (image && typeof image === 'string' ? image : '');
       if (!inTxt && !inImg && image) inTxt = '📷 photo';
       if (inTxt || inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name, img: inImg });
+      if (!ctx.wa) ensureCustomerAvatar(ctx.store, sub, token); // fire-and-forget: fetch their photo once
     } catch (_) {}
   }
   // 🛑 AUTO-PAUSE KIKI ON A HUMAN REPLY (the critical Inbox feature): if a human is
@@ -3453,7 +3471,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <title>Inbox — SNEAKERPLUG242</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Permanent+Marker&family=Bangers&display=swap" rel="stylesheet">
 <style>
   :root{--acc:#7c5cff;--acc2:#22d3ee;--ink:#eef1fb;--dim:#98a0b8;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.08)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -3578,16 +3596,68 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sheet .save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0b12}
   .agtoggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;user-select:none;font-weight:600}
   .agtoggle input{accent-color:var(--acc);width:15px;height:15px}
+  /* ── OUTER UI: graffiti hero, search, spray rows, bottom nav ── */
+  .hero{padding:22px 16px 6px;position:relative;flex-shrink:0}
+  .heroTop{display:flex;align-items:flex-start;gap:2px}
+  .crown{width:46px;height:46px;margin:-6px 0 -2px -4px;filter:drop-shadow(0 0 10px rgba(255,92,180,.7))}
+  .wordmark{font-family:'Permanent Marker',cursive;font-size:52px;line-height:.86;margin:0;color:#fff;letter-spacing:1px;transform:skew(-5deg);text-shadow:0 3px 14px rgba(0,0,0,.7),0 0 2px #000,3px 3px 0 rgba(0,0,0,.35)}
+  .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:3px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
+  .searchbar{display:flex;gap:9px;padding:8px 14px 10px;align-items:center;flex-shrink:0}
+  .searchbar .sbox{flex:1;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+  .searchbar .sbox svg{width:18px;height:18px;flex-shrink:0;opacity:.7}
+  .searchbar input{flex:1;background:transparent;border:0;color:var(--ink);font-size:15px;font-family:'Space Grotesk'}
+  .searchbar input:focus{outline:none}
+  .sbtn{width:52px;height:48px;border-radius:15px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:#e8dcff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+  .sbtn svg{width:22px;height:22px}
+  .sbtn.compose{color:#ff5cb4;border-color:rgba(255,92,180,.55);box-shadow:0 0 12px rgba(255,92,180,.35)}
+  .sbtn:active{transform:scale(.92)}
+  #threads{padding:4px 12px 14px}
+  /* glass rows over the collage */
+  #listView .row{gap:13px;padding:13px 14px;margin-bottom:11px;border-radius:18px;border:1px solid rgba(255,255,255,.10);background:rgba(9,8,17,.82);backdrop-filter:blur(11px);border-bottom:1px solid rgba(255,255,255,.10)}
+  #listView .row:active{background:rgba(22,19,36,.88)}
+  #listView .row.unread{background:rgba(13,11,24,.85)}
+  .row .rt{position:static}
+  .row .av{width:56px;height:56px;border:3px solid var(--rc,#7c5cff);box-shadow:0 0 16px var(--rg,rgba(124,92,255,.7)),inset 0 0 10px rgba(0,0,0,.4);font-size:20px}
+  .row .av::after{content:'';position:absolute;left:22%;bottom:-5px;width:5px;height:9px;border-radius:0 0 3px 3px;background:var(--rc,#7c5cff);box-shadow:9px -2px 0 -1px var(--rc,#7c5cff),18px 1px 0 -1px var(--rc,#7c5cff),0 0 8px var(--rg,rgba(124,92,255,.7))}
+  .row .av{position:relative;overflow:visible}
+  .row .nm{font-family:'Permanent Marker',cursive;font-size:20px;font-weight:400;letter-spacing:.5px;gap:6px}
+  .row .lt{font-family:'Inter';font-size:13px}
+  .av .avimg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+  .av .avini{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .vbadge{width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-family:'Space Grotesk';font-weight:800;flex-shrink:0}
+  /* bottom nav */
+  .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:9px 6px calc(7px + env(safe-area-inset-bottom));background:rgba(6,6,14,.82);backdrop-filter:blur(20px);border-top:1px solid var(--line);flex-shrink:0}
+  .navbtn{background:none;border:0;color:#8a90a6;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px}
+  .navbtn svg{width:25px;height:25px}
+  .navbtn.active{color:#ff5cb4;filter:drop-shadow(0 0 8px rgba(255,92,180,.6))}
+  .navbtn:active{transform:scale(.9)}
+  .navbadge{position:absolute;top:-3px;right:2px;width:16px;height:16px;border-radius:50%;background:#ff2e6e;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(255,46,110,.7)}
 </style></head><body>
 <div id="listView">
-  <header>
-    <span id="brandAv"></span>
-    <h1 class="brandname">Inbox<span class="brandsub">SNEAKERPLUG242 · KIKI</span></h1>
-    <span class="sm" id="rev"></span>
-    <button class="icon" id="newmsg" title="Text a number">✏️</button>
-    <button class="icon" id="rf">↻</button>
-  </header>
+  <div class="hero">
+    <div class="heroTop">
+      <svg class="crown" viewBox="0 0 100 80"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8ad4"/><stop offset="1" stop-color="#c65cff"/></linearGradient></defs><path d="M8 70 L2 22 L28 44 L50 8 L72 44 L98 22 L92 70 Z" fill="url(#cg)" stroke="#ff5cb4" stroke-width="3" stroke-linejoin="round"/><circle cx="2" cy="18" r="6" fill="#ff8ad4"/><circle cx="50" cy="6" r="6" fill="#ff8ad4"/><circle cx="98" cy="18" r="6" fill="#ff8ad4"/></svg>
+      <h1 class="wordmark">INBOX</h1>
+    </div>
+    <div class="tagline">STAY CONNECTED</div>
+  </div>
+  <div class="searchbar">
+    <div class="sbox">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+      <input id="search" placeholder="Search messages…">
+      <span class="sm" id="rev" style="font-size:10px;color:var(--dim)"></span>
+    </div>
+    <button class="sbtn compose" id="newmsg" title="Text a number"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+    <button class="sbtn" id="rf" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg></button>
+  </div>
   <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
+  <nav class="bottomnav">
+    <button class="navbtn active" id="nav-inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Inbox</span></button>
+    <button class="navbtn" id="nav-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg><span>Search</span></button>
+    <button class="navbtn" id="nav-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>New</span></button>
+    <button class="navbtn" id="nav-chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/></svg><span id="navChatBadge" class="navbadge" style="display:none">0</span><span>Chats</span></button>
+    <button class="navbtn" id="nav-profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 18 L2 7 L8 12 L12 4 L16 12 L22 7 L20 18 Z"/></svg><span>Profile</span></button>
+  </nav>
 </div>
 <div id="threadView">
   <header class="thead">
@@ -3686,6 +3756,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   }
   window.__kikiEmoji=function(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(198,92,255,.6),0 0 12px rgba(198,92,255,.4);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👩🏽‍💼</span>'; };
   window.__imgFail=function(el){ try{ var s=document.createElement('span'); s.textContent='📷 photo'; el.replaceWith(s); }catch(e){} };
+  window.__avFail=function(el){ try{ el.style.display='none'; var s=el.parentNode.querySelector('.avini'); if(s) s.style.display='flex'; }catch(e){} };
   function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
@@ -3709,16 +3780,24 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       lastRev = d.rev; $('rev').textContent='#'+d.rev;
       var ts = (d.threads||[]);
       if(!ts.length){ $('threads').innerHTML='<div class="empty">No conversations yet. When a customer messages TK or OSC, they show up here.</div>'; return; }
+      var totalUnread = 0;
       $('threads').innerHTML = ts.map(function(t){
+        totalUnread += (t.unread||0);
         var nm = t.name || ('+'+t.sub);
         var av = (nm.replace(/[^a-zA-Z0-9]/g,'').charAt(0)||'#').toUpperCase();
         var c = accCols(t.tag);
+        var avStyle = '--rc:'+c[0]+';--rg:'+c[0]+'aa;background:linear-gradient(135deg,'+c[0]+','+c[1]+')';
+        var avInner = t.avatar
+          ? '<img src="'+esc(t.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(av)+'</span>'
+          : '<span class="avini">'+esc(av)+'</span>';
         var pv = t.paused? '<span class="pz">⏸ you\\'re handling this</span>' : ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
         return '<div class="row'+(t.unread?' unread':'')+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(nm)+'" data-tag="'+t.tag+'">'
-          +'<div class="av" style="background:linear-gradient(135deg,'+c[0]+','+c[1]+')">'+esc(av)+'</div>'
-          +'<div class="mid"><div class="nm">'+esc(nm)+(t.unread?' <span class="dot"></span>':'')+'</div>'+pv+'</div>'
+          +'<div class="av" style="'+avStyle+'">'+avInner+'</div>'
+          +'<div class="mid"><div class="nm">'+esc(nm)+' <span class="vbadge" style="background:'+c[0]+'">✓</span>'+(t.unread?' <span class="dot"></span>':'')+'</div>'+pv+'</div>'
           +'<div class="rt"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="tm">'+ago(t.lastTs)+'</span></div></div>';
       }).join('');
+      var nb=$('navChatBadge'); if(nb){ if(totalUnread>0){ nb.textContent=totalUnread>99?'99':totalUnread; nb.style.display='flex'; } else nb.style.display='none'; }
+      if($('search') && $('search').value) $('search').oninput();
       Array.prototype.forEach.call(document.querySelectorAll('.row'), function(el){
         el.onclick=function(){ openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag')); };
       });
@@ -3743,6 +3822,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     api('/inbox/thread?sub='+encodeURIComponent(cur.sub)+'&account='+encodeURIComponent(cur.acct||'')).then(function(d){
       if(!d || d.error) return;
       if(d.name){ cur.name=d.name; $('tName').textContent=d.name; }
+      if(d.avatar){ var c=accCols(cur.tag); $('tAv').innerHTML='<img src="'+esc(d.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(($('tName').textContent||'?').charAt(0).toUpperCase())+'</span>'; }
       var m = $('msgs');
       var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
       m.innerHTML = (d.msgs||[]).map(function(x){
@@ -3971,14 +4051,28 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // (else the emoji avatar + designed glow background show — no broken images)
   (function(){
     var bg=new Image(); bg.onload=function(){ document.body.style.setProperty('--chatbg','url(/inbox/bg.jpg)'); document.body.classList.add('hasbg'); }; bg.src='/inbox/bg.jpg';
-    var av=new Image(); av.onload=function(){ KIKI_AVATAR='/inbox/kiki.png'; $('brandAv').innerHTML=kiki(38); $('briefAv').innerHTML=kiki(24); if(cur) loadThread(false); }; av.src='/inbox/kiki.png';
+    var av=new Image(); av.onload=function(){ KIKI_AVATAR='/inbox/kiki.png'; if($('briefAv')) $('briefAv').innerHTML=kiki(24); if(cur) loadThread(false); }; av.src='/inbox/kiki.png';
   })();
   $('text').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(120,this.scrollHeight)+'px'; });
   $('text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
 
   // brand marks
-  $('brandAv').innerHTML = kiki(38);
-  $('briefAv').innerHTML = kiki(24);
+  if($('briefAv')) $('briefAv').innerHTML = kiki(24);
+  // search filter (name / number) over the loaded rows
+  $('search').oninput = function(){
+    var q=(this.value||'').toLowerCase();
+    Array.prototype.forEach.call(document.querySelectorAll('#threads .row'), function(el){
+      var nm=(el.getAttribute('data-name')||'').toLowerCase(), sub=el.getAttribute('data-sub')||'';
+      el.style.display=(!q || nm.indexOf(q)>-1 || sub.indexOf(q)>-1)?'':'none';
+    });
+  };
+  // bottom nav
+  function setNav(id){ Array.prototype.forEach.call(document.querySelectorAll('.navbtn'), function(b){ b.classList.toggle('active', b.id===id); }); }
+  $('nav-inbox').onclick=function(){ setNav('nav-inbox'); if(cur) closeThread(); $('threads').scrollTop=0; };
+  $('nav-chats').onclick=function(){ setNav('nav-inbox'); if(cur) closeThread(); };
+  $('nav-search').onclick=function(){ if(cur) closeThread(); $('search').focus(); };
+  $('nav-new').onclick=function(){ if(cur) closeThread(); openNew(); };
+  $('nav-profile').onclick=function(){ toast('Profile — coming soon 👑'); };
 
   // Near-live: poll the open thread every 3s; otherwise cheap-poll rev for the list.
   threadTimer = setInterval(function(){
@@ -4026,7 +4120,7 @@ app.get('/inbox/threads', (req, res) => {
   const list = [...inboxThreads.values()].map(t => {
     const last = t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
     return {
-      account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '',
+      account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', avatar: t.avatar || '',
       lastText: last ? (last.sender === 'customer' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + last.text : '',
       lastTs: t.lastTs, unread: t.unread || 0, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub),
     };
@@ -4043,7 +4137,7 @@ app.get('/inbox/thread', (req, res) => {
   const t = (key && inboxThreads.get(key)) || (inboxSubIndex.get(sub) && inboxThreads.get(inboxSubIndex.get(sub)));
   if (!t) return res.json({ ok: true, account: req.query.account || '', tag: accountTag(req.query.account), sub, name: '', phone: '', msgs: [], paused: isHumanPaused(sub), pausedUntil: pausedUntilOf(sub) });
   if (t.unread) { t.unread = 0; inboxRev++; saveInbox(); }
-  res.json({ ok: true, account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', msgs: t.msgs, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub) });
+  res.json({ ok: true, account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', avatar: t.avatar || '', msgs: t.msgs, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub) });
 });
 
 // Send Rodney's reply to the customer on the RIGHT account, and AUTO-PAUSE Kiki.
