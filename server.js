@@ -3580,8 +3580,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       linear-gradient(180deg,#0a0812,#05050a);
     background-size:cover;background-position:center}
   body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center;filter:saturate(1.45) contrast(1.08) brightness(1.05)}
-  body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.22),rgba(6,5,12,.34))}
-  body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.50),rgba(6,5,12,.60))}
+  body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.10),rgba(6,5,12,.22))}
+  body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.20),rgba(6,5,12,.32))}
   /* haunted-luxury FX over the collage: a green halo that fades in/out (the "glowing
      eyes" green ambiance across all the ladies) + twinkling sparkles for jewelry glisten.
      Sits above the darkened photo (z-index:-1) but below all the text/rows. */
@@ -3594,7 +3594,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
   header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
-    background:linear-gradient(180deg, rgba(20,22,38,.92), rgba(20,22,38,.72));backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
+    background:linear-gradient(180deg, rgba(8,6,16,.42), rgba(8,6,16,.16));backdrop-filter:blur(6px);border-bottom:1px solid rgba(255,255,255,.08)}
+  .thead h1,.thead .sm{text-shadow:0 1px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.85)}
   header .brandname{font-size:18px;font-weight:700;margin:0;flex:1;letter-spacing:.2px;line-height:1.05}
   header .brandsub{display:block;font-size:10.5px;font-weight:600;color:var(--dim);letter-spacing:2px;font-family:'Inter'}
   header .sm{font-size:11px;color:var(--dim);font-weight:600}
@@ -3741,9 +3742,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn:active{transform:scale(.92)}
   #threads{padding:4px 2px 14px}
   /* transparent rows over the vivid collage — text carries its own shadow for legibility */
-  #listView .row{gap:12px;padding:11px 10px;margin:0;border-radius:14px;border:0;background:transparent;backdrop-filter:none;align-items:center}
-  #listView .row:active{background:rgba(255,255,255,.06)}
-  #listView .row+.row{border-top:1px solid rgba(255,255,255,.06)}
+  #listView .row{gap:12px;padding:11px 12px;margin:7px 8px;border-radius:16px;border:1.6px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 13px var(--rowg,transparent)}
+  #listView .row:active{background:rgba(255,255,255,.09)}
   .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   .row .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
   .row .nm{flex:1;min-width:0;display:flex;align-items:center;gap:6px;text-shadow:0 2px 7px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.9)}
@@ -3777,7 +3777,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn.dens{font-family:'Space Grotesk'}
   .sbtn.dens.on{color:#7dffb0;border-color:rgba(46,224,138,.6);box-shadow:0 0 12px rgba(46,224,138,.35)}
   /* bottom nav */
-  .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:9px 6px calc(7px + env(safe-area-inset-bottom));background:rgba(6,6,14,.82);backdrop-filter:blur(20px);border-top:1px solid var(--line);flex-shrink:0}
+  .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:9px 6px calc(7px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(6,6,14,.28),rgba(6,6,14,.55));backdrop-filter:blur(12px);border-top:1px solid rgba(255,255,255,.08);flex-shrink:0}
   .navbtn{background:none;border:0;color:#8a90a6;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px}
   .navbtn svg{width:25px;height:25px}
   .navbtn.active{color:#ff5cb4;filter:drop-shadow(0 0 8px rgba(255,92,180,.6))}
@@ -3989,7 +3989,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
           ? '<img src="'+esc(t.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(av)+'</span>'
           : '<span class="avini">'+esc(av)+'</span>';
         var pv = t.paused? '<span class="pz">⏸ you\\'re handling this</span>' : ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
-        return '<div class="row'+(t.unread?' unread':'')+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-tag="'+t.tag+'">'
+        return '<div class="row'+(t.unread?' unread':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
             +'<div class="toprow"><div class="nm"><span class="nmtext">'+custLabelHTML(rawName, t.phone||t.sub, t.tag)+'</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
