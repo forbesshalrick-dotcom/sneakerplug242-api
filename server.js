@@ -3820,8 +3820,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   /* scrollable icon strip inside the composer: camera/mic/dictate + pics/orders/pay/money */
   /* show only 3 icons (photo, send-pics, voice note); the rest are a swipe away. The mask
      fades the right edge so it's clear more icons hide off-screen. */
-  .iconstrip{display:flex;gap:4px;align-items:center;overflow-x:auto;flex:0 0 auto;width:96px;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px;
+  .iconstrip{display:flex;gap:4px;align-items:center;overflow-x:auto;flex:0 0 auto;width:96px;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px;touch-action:pan-x;cursor:grab;
     -webkit-mask-image:linear-gradient(90deg,#000 84%,transparent);mask-image:linear-gradient(90deg,#000 84%,transparent)}
+  .iconstrip.dragging{cursor:grabbing}
   .iconstrip::-webkit-scrollbar{display:none}
   .compinner{flex:1;display:flex;gap:5px;align-items:flex-end;padding:5px;border-radius:26px;border:1.7px solid transparent;
     background:linear-gradient(rgba(9,8,18,.9),rgba(9,8,18,.9)) padding-box, linear-gradient(90deg,#ff5cb4,#c65cff,#22d3ee) border-box;
@@ -3942,9 +3943,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .wabrand{position:absolute;right:-8px;bottom:-3px;font-family:'Permanent Marker',cursive;font-size:23px;line-height:1;color:#25D366;margin:0;transform:skew(-5deg) rotate(-5deg);text-shadow:0 0 12px rgba(37,211,102,.85),0 2px 6px rgba(0,0,0,.9),1px 1px 0 rgba(0,0,0,.5)}
   .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:5px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
   .searchbar{display:flex;gap:9px;padding:8px 14px 10px;align-items:center;flex-shrink:0}
-  .searchbar .sbox{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
-  .searchbar .sbox svg{width:18px;height:18px;flex-shrink:0;opacity:.7}
+  .searchbar .sbox{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:rgba(255,92,180,.08);border:1.6px solid #ff5cb4;border-radius:16px;padding:12px 14px;box-shadow:0 0 10px rgba(255,92,180,.25)}
+  .searchbar .sbox:focus-within{border-color:#ff77c2;box-shadow:0 0 14px rgba(255,92,180,.42)}
+  .searchbar .sbox svg{width:18px;height:18px;flex-shrink:0;opacity:.9}
   .searchbar input{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font-size:15px;font-family:'Space Grotesk'}
+  .searchbar input::placeholder{color:rgba(255,180,214,.7)}
   .searchbar input:focus{outline:none}
   .sbtn{width:46px;height:48px;border-radius:15px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:#e8dcff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
   .sbtn svg{width:22px;height:22px}
@@ -4032,7 +4035,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   </div>
   <div class="searchbar">
     <div class="sbox">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ff5cb4" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
       <input id="search" inputmode="search" placeholder="Search name or number…">
       <span class="sm" id="rev" style="display:none"></span>
     </div>
@@ -4197,9 +4200,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=accTextColor(tag); if(!nm) return loc?('<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'):('<span class="cn-name" style="color:'+col+'">Customer</span>'); return '<span class="cn-name" style="color:'+col+'">'+esc(nm)+'</span>'+(loc?'<span class="cn-num">-'+esc(loc)+'</span>':''); }
   // Header: NAME only (no number). The full number lives once, in the call link below it.
   function custNameHTML(name, tag){ var nm=String(name||'').trim(); var col=accTextColor(tag); return '<span class="cn-name" style="color:'+col+'">'+esc(nm||'Customer')+'</span>'; }
-  // Call link opens WhatsApp (wa.me) with the customer, NOT the phone dialer — so tapping it
-  // rings/messages them on WhatsApp instead of a cellular call (Rodney 2026-07-19).
-  function callLinkHTML(num){ var d=String(num||'').replace(/[^0-9]/g,''); return '<a class="callnum" href="https://wa.me/'+esc(d)+'" target="_blank" rel="noopener">📞 +'+esc(d)+'</a>'; }
+  // Call link opens the phone DIALER (a normal cellular call) — Rodney's choice 2026-07-19.
+  function callLinkHTML(num){ var d=String(num||'').replace(/[^0-9]/g,''); return '<a class="callnum" href="tel:+'+esc(d)+'">📞 +'+esc(d)+'</a>'; }
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
       +'<br><br><input id="pk" placeholder="Inbox key" autocomplete="off" style="width:82%;max-width:290px;padding:11px;border-radius:9px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:14px">'
@@ -4680,6 +4682,19 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   seedSparkles('fxList', 7); seedSparkles('fxThread', 5);
   $('back').onclick=function(){ clearImg(); clearAud(); clearQuote(); closeThread(); };
   $('send').onclick=send;
+  // 👉 Drag/swipe the composer icon strip to pull out the hidden quick-actions (dictate, orders,
+  // pay, money). Native 96px micro-scroll is too fiddly to grab on a phone, so drive it by pointer
+  // drag; a real drag (>6px) is suppressed from firing the icon it started on (Rodney 2026-07-19).
+  (function(){
+    var s=$('iconStrip'); if(!s) return;
+    var down=false, moved=false, startX=0, startLeft=0;
+    s.addEventListener('pointerdown', function(e){ down=true; moved=false; startX=e.clientX; startLeft=s.scrollLeft; try{ s.setPointerCapture(e.pointerId); }catch(_){} });
+    s.addEventListener('pointermove', function(e){ if(!down) return; var dx=e.clientX-startX; if(Math.abs(dx)>6){ moved=true; s.classList.add('dragging'); } s.scrollLeft=startLeft-dx; });
+    var end=function(e){ if(!down) return; down=false; s.classList.remove('dragging'); try{ s.releasePointerCapture(e.pointerId); }catch(_){} };
+    s.addEventListener('pointerup', end); s.addEventListener('pointercancel', end);
+    // If the pointer moved (a swipe), swallow the click so it doesn't trigger the icon it landed on.
+    s.addEventListener('click', function(e){ if(moved){ e.preventDefault(); e.stopPropagation(); moved=false; } }, true);
+  })();
   $('attach').onclick=function(){ $('file').click(); };
   $('file').onchange=function(){ if(this.files){ Array.prototype.forEach.call(this.files, function(f){ pickPhoto(f); }); } };
   $('imgSend').onclick=send;
