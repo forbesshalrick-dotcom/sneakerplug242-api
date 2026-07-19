@@ -798,9 +798,11 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     if (sidx || (logOpts && logOpts.sender === 'rodney')) {
       const t = sidx ? inboxThreads.get(sidx) : null;
       const account = (logOpts && logOpts.account) || (t && t.account) || '';
+      const who = (logOpts && logOpts.sender) || 'kiki';
       for (const mm of (messages || [])) {
-        const txt = (mm && mm.type === 'image') ? '📷 photo' : (mm && mm.type === 'audio') ? '🎙 voice note' : (mm && mm.text ? String(mm.text) : '');
-        if (txt) inboxRecord(account, subscriberId, { dir: 'out', sender: (logOpts && logOpts.sender) || 'kiki', text: txt });
+        if (mm && mm.type === 'image' && mm.url) { inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: '', img: mm.url }); continue; }
+        const txt = (mm && mm.type === 'audio') ? '🎙 voice note' : (mm && mm.text ? String(mm.text) : '');
+        if (txt) inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: txt });
       }
     }
   } catch (_) {}
@@ -1999,13 +2001,15 @@ function inboxRecord(account, sub, m) {
   try {
     if (!sub) return;
     const text = (m.text == null ? '' : String(m.text)).slice(0, 4000);
-    if (!text) return;
+    const img = m.img ? String(m.img).slice(0, 600) : '';
+    if (!text && !img) return;
     const key = threadKey(account, sub);
     let t = inboxThreads.get(key);
     if (!t) { t = { account: account || '', sub: String(sub), name: m.name || '', phone: m.phone || '', msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(key, t); }
     if (m.name && !t.name) t.name = m.name;
     if (m.phone && !t.phone) t.phone = m.phone;
     const msg = { id: inboxMsgId(), dir: m.dir, sender: m.sender, text, ts: Date.now() };
+    if (img) msg.img = img;
     t.msgs.push(msg);
     if (t.msgs.length > INBOX_MAX_MSGS) t.msgs.splice(0, t.msgs.length - INBOX_MAX_MSGS);
     t.lastTs = msg.ts;
@@ -3444,15 +3448,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <title>Inbox — SNEAKERPLUG242</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{--acc:#7c5cff;--acc2:#22d3ee;--ink:#eef1fb;--dim:#98a0b8;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.08)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%}
-  body{font-family:'Inter',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;
+  body{font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;
     background:radial-gradient(1100px 720px at 50% -12%, #1a1c33 0%, #0b0c15 52%, #06060c 100%) fixed;
     -webkit-font-smoothing:antialiased}
-  h1,h2,.brandname,.nm,.tag,.who,.sendbtn{font-family:'Outfit',sans-serif}
+  /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
+  .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
   header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
     background:linear-gradient(180deg, rgba(20,22,38,.92), rgba(20,22,38,.72));backdrop-filter:blur(18px);border-bottom:1px solid var(--line)}
   header .brandname{font-size:18px;font-weight:700;margin:0;flex:1;letter-spacing:.2px;line-height:1.05}
@@ -3466,7 +3471,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .row{display:flex;gap:12px;align-items:center;padding:13px 15px;cursor:pointer;position:relative;transition:.15s;border-bottom:1px solid rgba(255,255,255,.04)}
   .row:active{background:rgba(255,255,255,.04)}
-  .row .av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;color:#fff;font-family:'Outfit'}
+  .row .av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;color:#fff;font-family:'Space Grotesk'}
   .row.unread{background:linear-gradient(90deg, rgba(124,92,255,.09), transparent)}
   .row .mid{flex:1;min-width:0}
   .row .nm{font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.2px}
@@ -3483,7 +3488,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .pz{font-size:10.5px;color:#ffcf8f;font-weight:600}
   /* thread */
   .thead{gap:11px}
-  .thead .av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;font-family:'Outfit';flex-shrink:0}
+  .thead .av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;font-family:'Space Grotesk';flex-shrink:0}
   .thead .who-wrap{flex:1;min-width:0}
   .thead h1{font-size:16.5px;margin:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .msgs{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:9px}
@@ -3523,6 +3528,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .imgprev img{height:54px;width:54px;object-fit:cover;border-radius:10px}
   .imgprev .ip-label{flex:1;font-size:13px;color:#c8d2ee;font-weight:500}
   .b.tap{cursor:pointer}
+  .b.hasimg{padding:5px}
+  .msgimg{max-width:210px;max-height:260px;border-radius:12px;display:block;object-fit:cover}
   .empty{color:var(--dim);text-align:center;padding:52px 24px;font-size:14px;line-height:1.5}
   .toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:rgba(15,16,26,.96);border:1px solid var(--line);color:#fff;padding:11px 18px;border-radius:13px;font-size:13px;z-index:30;display:none;max-width:88%;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(10px)}
   /* brief-Kiki modal */
@@ -3534,7 +3541,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sheet textarea{width:100%;min-height:96px;resize:vertical;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit}
   .sheet textarea:focus{outline:none;border-color:var(--acc)}
   .sheet .btns{display:flex;gap:10px;margin-top:14px}
-  .sheet .btns button{flex:1;height:46px;border-radius:14px;border:0;font-size:15px;font-weight:700;font-family:'Outfit';cursor:pointer}
+  .sheet .btns button{flex:1;height:46px;border-radius:14px;border:0;font-size:15px;font-weight:700;font-family:'Space Grotesk';cursor:pointer}
   .sheet .cancel{background:rgba(255,255,255,.07);color:var(--ink)}
   .sheet .save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0b12}
   .agtoggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;user-select:none;font-weight:600}
@@ -3545,6 +3552,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <span id="brandAv"></span>
     <h1 class="brandname">Inbox<span class="brandsub">SNEAKERPLUG242 · KIKI</span></h1>
     <span class="sm" id="rev"></span>
+    <button class="icon" id="newmsg" title="Text a number">✏️</button>
     <button class="icon" id="rf">↻</button>
   </header>
   <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
@@ -3565,9 +3573,23 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   <div class="composer">
     <button class="attach" id="attach" title="Send a photo">📷</button>
     <button class="attach" id="mic" title="Record a voice note">🎙</button>
+    <button class="attach" id="dictate" title="Speak to type">🗣️</button>
     <input type="file" id="file" accept="image/*" style="display:none">
     <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
     <button class="sendbtn" id="send">Send</button>
+  </div>
+</div>
+<div class="modal" id="newModal">
+  <div class="sheet">
+    <h2>✏️ Text a number</h2>
+    <p>Start a chat with any customer by their WhatsApp number — even if they're not in the list yet. Pick the account they're on.</p>
+    <input id="newPhone" inputmode="numeric" placeholder="Number with country code, e.g. 12428154887" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:16px;font-family:inherit;margin-bottom:10px">
+    <select id="newAcct" style="width:100%;background:#11131f;border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit">
+      <option value="Trendy Kicks">Trendy Kicks (TK)</option>
+      <option value="Official Sneaker Crew">Official Sneaker Crew (OSC)</option>
+      <option value="Shoe Box">Shoe Box (direct)</option>
+    </select>
+    <div class="btns"><button class="cancel" id="newCancel">Cancel</button><button class="save" id="newStart">Open chat</button></div>
   </div>
 </div>
 <div class="modal" id="briefModal">
@@ -3657,7 +3679,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var who = x.dir==='in'?'':(x.sender==='rodney'?'You':(kiki(15)+' Kiki'));
         var tap = x.dir==='in' ? ' tap' : '';
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
-        return '<div class="brow '+row+'"><div class="b '+cls+tap+'"'+dq+'>'+(who?'<div class="who">'+who+'</div>':'')+esc(x.text)+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
+        var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="this.remove()">' : esc(x.text);
+        return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
       // tap a customer message to quote it in your reply
       Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
@@ -3746,6 +3769,59 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function micTap(){ if(recording) stopRec(); else startRec(); }
   function clearAud(){ pendingAudioUrl=null; $('audPreview').style.display='none'; if(recording) stopRec(); }
 
+  // ── speak-to-type (dictation): live via the browser like Claude's voice; Whisper fallback ──
+  var recog=null, dictating=false, dictBase='', wRec=null, wRecording=false;
+  function grow(el){ el.style.height='auto'; el.style.height=Math.min(120,el.scrollHeight)+'px'; }
+  function dictate(){
+    if(dictating){ try{recog.stop();}catch(e){} return; }
+    if(wRecording){ stopWhisper(); return; }
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(SR){
+      recog=new SR(); recog.lang='en-US'; recog.interimResults=true; recog.continuous=true;
+      dictBase = $('text').value ? $('text').value.replace(/\\s*$/,'')+' ' : '';
+      recog.onresult=function(e){ var out=''; for(var i=0;i<e.results.length;i++){ out+=e.results[i][0].transcript + (e.results[i].isFinal?' ':''); } var el=$('text'); el.value=dictBase+out; grow(el); };
+      recog.onend=function(){ dictating=false; $('dictate').classList.remove('rec'); };
+      recog.onerror=function(){ dictating=false; $('dictate').classList.remove('rec'); };
+      try{ recog.start(); dictating=true; $('dictate').classList.add('rec'); toast('Listening… speak, tap 🗣️ to stop'); }
+      catch(e){ toast('Could not start voice typing'); }
+    } else { dictateWhisper(); }
+  }
+  function dictateWhisper(){
+    loadOpus(function(){
+      try{
+        wRec=new window.Recorder({ encoderPath: encoderBlobUrl, numberOfChannels:1, encoderSampleRate:16000, streamPages:false });
+        wRec.ondataavailable=function(arr){ transcribeClip(arr); };
+        wRec.start().then(function(){ wRecording=true; $('dictate').classList.add('rec'); toast('Listening… tap 🗣️ to stop'); }).catch(function(){ toast('Allow microphone to use voice typing'); });
+      }catch(e){ toast('Voice typing error'); }
+    });
+  }
+  function stopWhisper(){ if(wRec&&wRecording){ wRecording=false; $('dictate').classList.remove('rec'); try{wRec.stop();}catch(e){} } }
+  function transcribeClip(arr){
+    toast('Transcribing…');
+    var blob=new Blob([arr],{type:'audio/ogg'}); var rd=new FileReader();
+    rd.onload=function(){ post('/inbox/upload',{image:rd.result}).then(function(d){
+      if(!(d&&d.ok&&d.url)){ toast('Transcribe upload failed'); return; }
+      post('/inbox/transcribe',{url:d.url}).then(function(t){
+        if(t&&t.ok&&t.text){ var el=$('text'); el.value=(el.value?el.value.replace(/\\s*$/,'')+' ':'')+t.text; grow(el); }
+        else toast((t&&t.error)||'Could not catch that');
+      }).catch(function(){ toast('Transcribe failed'); });
+    }).catch(function(){ toast('Transcribe failed'); }); };
+    rd.readAsDataURL(blob);
+  }
+  // ── text a number: open a chat with any customer by number ──
+  function openNew(){ $('newPhone').value=''; $('newModal').classList.add('open'); setTimeout(function(){$('newPhone').focus();},60); }
+  function closeNew(){ $('newModal').classList.remove('open'); }
+  function startNew(){
+    var phone=$('newPhone').value.replace(/[^0-9]/g,''); var acct=$('newAcct').value;
+    if(!phone){ toast('Enter a number with country code'); return; }
+    $('newStart').disabled=true;
+    post('/inbox/start',{phone:phone,account:acct}).then(function(d){
+      $('newStart').disabled=false;
+      if(d&&d.ok){ closeNew(); openThread(d.sub, d.account, '+'+phone, d.tag); }
+      else toast((d&&d.error)||'Could not find that number');
+    }).catch(function(){ $('newStart').disabled=false; toast('Failed — network'); });
+  }
+
   // ── Brief Kiki: privately tell her the truth of this chat so she stops re-asking ──
   function openBrief(){ if(!cur) return; $('briefText').value=''; $('agToggle').checked=agentLabel; $('briefModal').classList.add('open'); setTimeout(function(){ $('briefText').focus(); }, 60); }
   function closeBrief(){ $('briefModal').classList.remove('open'); }
@@ -3775,6 +3851,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('briefSave').onclick=saveBrief;
   $('agToggle').onchange=function(){ agentLabel=this.checked; };
   $('briefModal').onclick=function(e){ if(e.target===this) closeBrief(); };
+  $('dictate').onclick=dictate;
+  $('newmsg').onclick=openNew;
+  $('newCancel').onclick=closeNew;
+  $('newStart').onclick=startNew;
+  $('newModal').onclick=function(e){ if(e.target===this) closeNew(); };
   $('text').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(120,this.scrollHeight)+'px'; });
   $('text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
 
@@ -3949,6 +4030,39 @@ app.post('/inbox/note', (req, res) => {
   ownerNotes.set(sub, arr.slice(-8));
   record(req, { endpoint: 'inbox-brief-kiki', sub, note: note.slice(0, 80) });
   res.json({ ok: true });
+});
+
+// 🔎 START A NEW CHAT BY NUMBER — resolve a typed phone number to a subscriber on the
+// chosen account (reuses the same ManyChat lookup the /console uses), so Rodney can text
+// someone who isn't in the list yet. The thread is created the moment he sends.
+app.post('/inbox/start', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const phone = String(b.phone || '').replace(/[^0-9]/g, '');
+  const account = b.account || '';
+  if (!phone) return res.status(400).json({ ok: false, error: 'Enter a number with country code (e.g. 1242…).' });
+  // Direct-API numbers we've already spoken to: the wa-id IS the number → open it straight.
+  if (waChannel.get(phone)) return res.json({ ok: true, sub: phone, account: account || 'Shoe Box', tag: accountTag(account || 'Shoe Box') });
+  const token = (account && storeTokens.get(account)) || lastToken || process.env.MANYCHAT_TOKEN || null;
+  if (!token) return res.json({ ok: false, error: 'No token learned for that account yet — a customer has to message it once first.' });
+  try {
+    const sub = await findSubscriberByPhone(phone, token);
+    if (!sub) return res.json({ ok: false, error: 'No customer found for that number on ' + (account || 'this account') + '. They may need to message the WhatsApp first, or try the other account.' });
+    record(req, { endpoint: 'inbox-start', phone, account });
+    res.json({ ok: true, sub: String(sub), account, tag: accountTag(account) });
+  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 150) }); }
+});
+
+// 🗣 SPEAK-TO-TYPE fallback — transcribe a recorded clip with Whisper (same engine that
+// reads customer voice notes). The browser's live SpeechRecognition is primary; this is
+// the fallback for browsers that lack it (e.g. iOS). Takes a media URL from /inbox/upload.
+app.post('/inbox/transcribe', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const url = String(((req.body && req.body.url) || '')).trim();
+  if (!url) return res.status(400).json({ ok: false, error: 'no audio' });
+  if (!process.env.OPENAI_API_KEY) return res.json({ ok: false, error: 'Voice typing needs OPENAI_API_KEY set on the server.' });
+  try { const t = await transcribeAudio(url); res.json({ ok: !!(t && t.trim()), text: (t || '').trim() }); }
+  catch (e) { res.json({ ok: false, error: String(e).slice(0, 150) }); }
 });
 
 // The Inbox page itself — a slim, mobile-first staff page served straight from the
