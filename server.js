@@ -784,7 +784,22 @@ async function waSendChunk(to, messages, phoneNumberId) {
 // Subs whose sends only work with a token OTHER than the one their webhook suggested —
 // learned by the fallback below so future sends go straight to the right account.
 const subTokenFix = new Map();
-async function sendChunk(subscriberId, messages, token) {
+async function sendChunk(subscriberId, messages, token, logOpts) {
+  // 📥 INBOX LOG: record outbound text into the customer's thread — Kiki's auto-replies
+  // AND a human's manual replies (logOpts.sender='rodney'). Only for KNOWN customer
+  // threads (an inbound created one) so manager alerts / staff blasts never spawn phantom
+  // threads. Best-effort; wrapped so logging can never break a send. (see inboxRecord)
+  try {
+    const sidx = inboxSubIndex.get(String(subscriberId));
+    if (sidx || (logOpts && logOpts.sender === 'rodney')) {
+      const t = sidx ? inboxThreads.get(sidx) : null;
+      const account = (logOpts && logOpts.account) || (t && t.account) || '';
+      for (const mm of (messages || [])) {
+        const txt = (mm && mm.type === 'image') ? '📷 photo' : (mm && mm.text ? String(mm.text) : '');
+        if (txt) inboxRecord(account, subscriberId, { dir: 'out', sender: (logOpts && logOpts.sender) || 'kiki', text: txt });
+      }
+    }
+  } catch (_) {}
   // WhatsApp-API customers: route straight to the Graph API, skip ManyChat entirely.
   const waPhoneId = waChannel.get(String(subscriberId));
   if (waPhoneId) return waSendChunk(String(subscriberId), messages, waPhoneId);
@@ -1938,6 +1953,84 @@ function rememberCustomer(sub, name, store, text, token) {
   }
 }
 
+// ── 📥 UNIFIED INBOX (Trendy Kicks + Official Sneaker Crew + direct-API numbers) ──
+// One place Rodney reads + replies to customers across ALL accounts. Every inbound
+// customer message and every outbound message (Kiki's OR a human's) is appended
+// here, keyed by account + subscriber id, so the staff Inbox shows full threads —
+// ManyChat AND Graph-API messages land in the SAME store. The instant a human
+// replies in a thread, Kiki AUTO-PAUSES for that customer (humanPaused) so they
+// never both answer; she resumes when the window ends or on "hand back to Kiki".
+// This is the longer, Inbox-triggered sibling of the existing 20s chatMuted typing-pause.
+const inboxThreads = new Map();   // `${account}|${sub}` -> {account, sub, name, phone, msgs:[{id,dir,sender,text,ts}], lastTs, unread}
+const inboxSubIndex = new Map();  // sub -> threadKey (so an outbound send finds its thread without the account)
+const humanPaused = new Map();    // sub -> pauseUntil ts: a human is handling this chat; Kiki stays SILENT
+let inboxRev = 1;                 // bumped on every change — cheap /inbox/rev polling (mirrors /shop/rev)
+const HUMAN_PAUSE_MS = 45 * 60 * 1000; // default hand-off window; refreshed on each human reply
+const INBOX_MAX_MSGS = 400;       // per thread
+const INBOX_MAX_THREADS = 400;
+function threadKey(account, sub) { return (account || '?') + '|' + String(sub); }
+function inboxMsgId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function isHumanPaused(sub) {
+  const u = humanPaused.get(String(sub));
+  if (!u) return false;
+  if (Date.now() > u) { humanPaused.delete(String(sub)); saveInbox(); return false; }
+  return true;
+}
+function pausedUntilOf(sub) { const u = humanPaused.get(String(sub)); return (u && Date.now() < u) ? u : 0; }
+function setHumanPause(sub, ms) {
+  humanPaused.set(String(sub), Date.now() + (ms || HUMAN_PAUSE_MS));
+  if (humanPaused.size > 1000) { const f = humanPaused.keys().next().value; humanPaused.delete(f); }
+  inboxRev++; saveInbox();
+}
+function clearHumanPause(sub) { if (humanPaused.delete(String(sub))) { inboxRev++; saveInbox(); } }
+// Append one message to a customer's thread. Best-effort — never throws into the send path.
+function inboxRecord(account, sub, m) {
+  try {
+    if (!sub) return;
+    const text = (m.text == null ? '' : String(m.text)).slice(0, 4000);
+    if (!text) return;
+    const key = threadKey(account, sub);
+    let t = inboxThreads.get(key);
+    if (!t) { t = { account: account || '', sub: String(sub), name: m.name || '', phone: m.phone || '', msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(key, t); }
+    if (m.name && !t.name) t.name = m.name;
+    if (m.phone && !t.phone) t.phone = m.phone;
+    const msg = { id: inboxMsgId(), dir: m.dir, sender: m.sender, text, ts: Date.now() };
+    t.msgs.push(msg);
+    if (t.msgs.length > INBOX_MAX_MSGS) t.msgs.splice(0, t.msgs.length - INBOX_MAX_MSGS);
+    t.lastTs = msg.ts;
+    if (m.dir === 'in') t.unread = (t.unread || 0) + 1; // cleared when Rodney opens the thread or replies
+    inboxSubIndex.set(String(sub), key);
+    if (inboxThreads.size > INBOX_MAX_THREADS) {
+      const oldest = [...inboxThreads.entries()].sort((a, b) => (a[1].lastTs || 0) - (b[1].lastTs || 0))[0];
+      if (oldest) { inboxThreads.delete(oldest[0]); if (inboxSubIndex.get(oldest[1].sub) === oldest[0]) inboxSubIndex.delete(oldest[1].sub); }
+    }
+    inboxRev++; saveInbox();
+  } catch (_) {}
+}
+// Persist the inbox to the /data volume so a redeploy/restart keeps threads + pauses.
+const INBOX_FILE = (() => {
+  try { const fs = require('fs'); for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) if (fs.existsSync(d)) return require('path').join(d, 'inbox.json'); } catch (_) {}
+  return null;
+})();
+try {
+  if (INBOX_FILE && require('fs').existsSync(INBOX_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(INBOX_FILE, 'utf8')) || {};
+    for (const t of (saved.threads || [])) { if (!t || t.sub == null) continue; const key = threadKey(t.account, t.sub); inboxThreads.set(key, t); inboxSubIndex.set(String(t.sub), key); }
+    for (const [k, v] of Object.entries(saved.paused || {})) { if (v > Date.now()) humanPaused.set(k, v); }
+    if (saved.rev) inboxRev = saved.rev;
+    console.log('[inbox] restored', inboxThreads.size, 'threads,', humanPaused.size, 'active pause(s)');
+  }
+} catch (e) { console.log('[inbox] restore failed:', e.message); }
+let inboxSaveT = null;
+function saveInbox() {
+  if (!INBOX_FILE) return;
+  clearTimeout(inboxSaveT);
+  inboxSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(INBOX_FILE, JSON.stringify({ rev: inboxRev, threads: [...inboxThreads.values()], paused: Object.fromEntries(humanPaused) })); } catch (_) {}
+  }, 1500);
+  if (inboxSaveT.unref) inboxSaveT.unref();
+}
+
 // Schedule the "did you see anything you liked?" nudge for 10 min after we send
 // shoes. Resets if called again. Cancelled (clearFollowUp) when the customer
 // messages again — so we only nudge customers who went quiet.
@@ -1947,6 +2040,9 @@ function scheduleNudge(sub, token, text, ms, next) {
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
     followUps.delete(sub);
+    // 🛑 A human took this chat over via the Inbox — drop the queued nudge so Kiki
+    // never talks over them while they're mid-conversation with the customer.
+    if (isHumanPaused(sub)) return;
     // Register the follow-on stage (e.g. the closing message) BEFORE we send/await
     // this one. Sending takes a moment, and the nudge invites a reply — if we waited
     // until after the send to schedule the closer, a customer who replies during that
@@ -2201,6 +2297,32 @@ function expectedFloatNow() {
   } catch (_) { return null; }
 }
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
+  const _isStaffChat = staffNameFor(req);
+  // 📥 INBOX: log the customer's inbound message (skip our own staff/owner coworker
+  // chats) so it appears in the staff Inbox even while Kiki is paused. Strip any
+  // SYSTEM-note decoration so the thread shows what the customer actually said.
+  if (!_isStaffChat) {
+    try {
+      let inTxt = String(userText || '').split('\n\n(SYSTEM NOTE')[0].trim();
+      if (/^\(/.test(inTxt) && /\bsystem\b|customer (just )?sent|can'?t open|re-?delivery/i.test(inTxt)) inTxt = '';
+      if (!inTxt && image) inTxt = '📷 photo';
+      if (inTxt) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name });
+    } catch (_) {}
+  }
+  // 🛑 AUTO-PAUSE KIKI ON A HUMAN REPLY (the critical Inbox feature): if a human is
+  // actively handling this chat from the Inbox, Kiki NEVER auto-responds — she'd talk
+  // over them. The inbound above is still logged so Rodney sees new messages. Resumes
+  // automatically when the window ends, or instantly on "hand back to Kiki".
+  if (!_isStaffChat && isHumanPaused(sub)) {
+    try { record(req, { endpoint: 'kiki-human-paused', sub, until: new Date(pausedUntilOf(sub)).toISOString() }); } catch (_) {}
+    // Keep Kiki's memory in sync while a human handles it: fold the customer's words
+    // into the convo so that when she resumes she has the FULL thread, not a gap.
+    try {
+      const inTxt2 = String(userText || '').split('\n\n(SYSTEM NOTE')[0].trim();
+      if (inTxt2 && !/^\(/.test(inTxt2)) { const h = convos.get(sub) || []; h.push({ role: 'user', content: inTxt2 }); rememberConvo(sub, trimHistory(h)); }
+    } catch (_) {}
+    return;
+  }
   const history = sanitizeHistory(convos.get(sub) || []);
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   // Greet ONLY on the very first message of the chat — decided here in code, not by Kiki —
@@ -3207,6 +3329,255 @@ app.post('/console/send', async (req, res) => {
   } catch (e) {
     res.json({ ok: false, error: String(e).slice(0, 200) });
   }
+});
+
+// ── 📥 UNIFIED INBOX PAGE (served slim; the 242plug PWA links here with ?key=) ──
+const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>📥 Inbox — SNEAKERPLUG242</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0f1115;color:#e7e9ee;overflow:hidden}
+  header{position:sticky;top:0;background:#151924;border-bottom:1px solid #232a38;padding:12px 14px;display:flex;align-items:center;gap:10px;z-index:5}
+  header h1{font-size:17px;margin:0;flex:1}
+  header .sm{font-size:12px;color:#9aa3b2}
+  .icon{background:#212838;border:0;color:#cfe0ff;font-size:15px;padding:8px 12px;border-radius:9px;cursor:pointer}
+  #listView,#threadView{position:absolute;inset:0;display:flex;flex-direction:column}
+  #threadView{display:none;background:#0f1115}
+  .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .row{display:flex;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid #1c2230;cursor:pointer}
+  .row:active{background:#151b27}
+  .row .av{width:40px;height:40px;border-radius:50%;background:#26304a;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .row .mid{flex:1;min-width:0}
+  .row .nm{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .row .lt{font-size:13px;color:#9aa3b2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .rt{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0}
+  .row .tm{font-size:11px;color:#7c8698}
+  .tag{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;letter-spacing:.4px}
+  .tag.TK{background:#12315e;color:#8ec2ff}.tag.OSC{background:#123f2c;color:#7ee0a2}.tag.SB{background:#3a2258;color:#d3aef7}.tag.OTH{background:#333b4d;color:#c3ccdc}
+  .dot{width:9px;height:9px;border-radius:50%;background:#2f8bf6}
+  .pz{font-size:10px;color:#ffcf8f}
+  .msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+  .b{max-width:78%;padding:9px 12px;border-radius:14px;font-size:14.5px;line-height:1.35;white-space:pre-wrap;word-wrap:break-word}
+  .b.in{background:#222c3d;align-self:flex-start;border-bottom-left-radius:4px}
+  .b.kiki{background:#1f3a5c;align-self:flex-end;border-bottom-right-radius:4px}
+  .b.rodney{background:#1f5c3a;align-self:flex-end;border-bottom-right-radius:4px}
+  .b .who{font-size:10.5px;opacity:.7;margin-bottom:2px}
+  .b .tm{font-size:10px;opacity:.55;margin-top:3px;text-align:right}
+  .banner{padding:9px 14px;font-size:12.5px;text-align:center}
+  .banner.paused{background:#3a2f12;color:#ffd79a;border-bottom:1px solid #5b4a1f}
+  .banner.live{background:#12331f;color:#8fe6ac;border-bottom:1px solid #1f5b39}
+  .banner b{cursor:pointer;text-decoration:underline}
+  .composer{display:flex;gap:8px;padding:10px;border-top:1px solid #232a38;background:#151924}
+  .composer textarea{flex:1;resize:none;background:#11151d;border:1px solid #2a3140;color:#e7e9ee;border-radius:12px;padding:10px 12px;font-size:15px;font-family:inherit;max-height:120px}
+  .composer button{background:#2f6df6;border:0;color:#fff;font-weight:600;border-radius:12px;padding:0 16px;font-size:15px;cursor:pointer}
+  .composer button:disabled{opacity:.5}
+  .empty{color:#7c8698;text-align:center;padding:40px 20px;font-size:14px}
+  .toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:#b23b3b;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;z-index:20;display:none;max-width:90%}
+</style></head><body>
+<div id="listView">
+  <header><h1>📥 Inbox</h1><span class="sm" id="rev"></span><button class="icon" id="rf">↻</button></header>
+  <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
+</div>
+<div id="threadView">
+  <header>
+    <button class="icon" id="back">‹</button>
+    <div style="flex:1;min-width:0"><h1 id="tName" style="font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></h1><span class="sm" id="tSub"></span></div>
+    <span class="tag" id="tTag"></span>
+  </header>
+  <div class="banner" id="tBanner" style="display:none"></div>
+  <div class="msgs" id="msgs"></div>
+  <div class="composer">
+    <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
+    <button id="send">Send</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+  var KEY = new URLSearchParams(location.search).get('key') || '';
+  var cur = null, lastRev = -1, threadTimer = null;
+  function $(id){return document.getElementById(id)}
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+  function api(path, opts){ opts=opts||{}; var sep=path.indexOf('?')>-1?'&':'?'; return fetch(path+sep+'key='+encodeURIComponent(KEY), opts).then(function(r){return r.json()}); }
+  function post(path, body){ return api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})}); }
+  function toast(m){ var t=$('toast'); t.textContent=m; t.style.display='block'; setTimeout(function(){t.style.display='none'},3200); }
+  function ago(ts){ if(!ts)return''; var s=Math.floor((Date.now()-ts)/1000); if(s<60)return'now'; if(s<3600)return Math.floor(s/60)+'m'; if(s<86400)return Math.floor(s/3600)+'h'; var d=new Date(ts); return (d.getMonth()+1)+'/'+d.getDate(); }
+  function clock(ts){ var d=new Date(ts); var h=d.getHours(), ap=h>=12?'PM':'AM'; h=h%12||12; return h+':'+String(d.getMinutes()).padStart(2,'0')+' '+ap; }
+  function tagCls(t){ return (t==='TK'||t==='OSC'||t==='SB')?t:'OTH'; }
+  function countdown(until){ var s=Math.max(0,Math.floor((until-Date.now())/1000)); var m=Math.floor(s/60); return m>0?(m+' min'):(s+'s'); }
+
+  function loadThreads(){
+    api('/inbox/threads').then(function(d){
+      if(d && d.error){ $('threads').innerHTML='<div class="empty">'+esc(d.error)+' — check your link key.</div>'; return; }
+      lastRev = d.rev; $('rev').textContent='#'+d.rev;
+      var ts = (d.threads||[]);
+      if(!ts.length){ $('threads').innerHTML='<div class="empty">No conversations yet. When a customer messages TK or OSC, they show up here.</div>'; return; }
+      $('threads').innerHTML = ts.map(function(t){
+        var nm = t.name || ('+'+t.sub);
+        var av = (t.name||'?').trim().charAt(0).toUpperCase()||'#';
+        var pv = t.paused? '<span class="pz">⏸ you\\'re handling this</span>' : ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
+        return '<div class="row" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(nm)+'" data-tag="'+t.tag+'">'
+          +'<div class="av">'+esc(av)+'</div>'
+          +'<div class="mid"><div class="nm">'+esc(nm)+(t.unread?' <span class="dot"></span>':'')+'</div>'+pv+'</div>'
+          +'<div class="rt"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="tm">'+ago(t.lastTs)+'</span></div></div>';
+      }).join('');
+      Array.prototype.forEach.call(document.querySelectorAll('.row'), function(el){
+        el.onclick=function(){ openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag')); };
+      });
+    }).catch(function(){});
+  }
+
+  function openThread(sub, acct, name, tag){
+    cur = {sub:sub, acct:acct, name:name, tag:tag};
+    $('tName').textContent = name; $('tSub').textContent = '+'+sub;
+    $('tTag').textContent = tag; $('tTag').className='tag '+tagCls(tag);
+    $('listView').style.display='none'; $('threadView').style.display='flex';
+    $('msgs').innerHTML=''; loadThread(true);
+  }
+  function closeThread(){ cur=null; $('threadView').style.display='none'; $('listView').style.display='flex'; loadThreads(); }
+
+  function loadThread(scroll){
+    if(!cur) return;
+    api('/inbox/thread?sub='+encodeURIComponent(cur.sub)+'&account='+encodeURIComponent(cur.acct||'')).then(function(d){
+      if(!d || d.error) return;
+      if(d.name){ cur.name=d.name; $('tName').textContent=d.name; }
+      var m = $('msgs');
+      var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
+      m.innerHTML = (d.msgs||[]).map(function(x){
+        var cls = x.dir==='in'?'in':(x.sender==='rodney'?'rodney':'kiki');
+        var who = x.dir==='in'?'':(x.sender==='rodney'?'You':'Kiki 🤖');
+        return '<div class="b '+cls+'">'+(who?'<div class="who">'+who+'</div>':'')+esc(x.text)+'<div class="tm">'+clock(x.ts)+'</div></div>';
+      }).join('') || '<div class="empty">No messages in this thread yet.</div>';
+      if(scroll || atBottom) m.scrollTop = m.scrollHeight;
+      var b=$('tBanner');
+      if(d.paused){ b.style.display='block'; b.className='banner paused'; b.innerHTML='⏸ Kiki is paused (~'+countdown(d.pausedUntil)+' left) — <b id="handback">hand back to Kiki</b>'; $('handback').onclick=handBack; }
+      else { b.style.display='block'; b.className='banner live'; b.innerHTML='🤖 Kiki is answering this chat. Your reply pauses her automatically.'; }
+    }).catch(function(){});
+  }
+
+  function send(){
+    if(!cur) return; var txt=$('text').value.trim(); if(!txt) return;
+    $('send').disabled=true;
+    post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt}).then(function(d){
+      $('send').disabled=false;
+      if(d && d.ok){ $('text').value=''; $('text').style.height='auto'; loadThread(true); }
+      else { toast((d&&d.error)||'Send failed'); }
+    }).catch(function(){ $('send').disabled=false; toast('Send failed — network'); });
+  }
+  function handBack(){ if(!cur) return; post('/inbox/resume',{sub:cur.sub}).then(function(){ loadThread(false); toast('Kiki is back on this chat ✅'); }); }
+
+  $('rf').onclick=loadThreads;
+  $('back').onclick=closeThread;
+  $('send').onclick=send;
+  $('text').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(120,this.scrollHeight)+'px'; });
+  $('text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+
+  // Near-live: poll the open thread every 3s; otherwise cheap-poll rev for the list.
+  threadTimer = setInterval(function(){
+    if(cur){ loadThread(false); }
+    else { api('/inbox/rev').then(function(d){ if(d && d.rev!==lastRev) loadThreads(); }).catch(function(){}); }
+  }, 3000);
+
+  if(!KEY){ $('threads').innerHTML='<div class="empty">Add your inbox key to the link: <br>/inbox?key=YOUR_KEY</div>'; }
+  else loadThreads();
+})();
+</script>
+</body></html>`;
+
+// ── 📥 UNIFIED INBOX API ──────────────────────────────────────────────────────
+// Cheap change-poll (mirrors /shop/rev): the Inbox polls this every few seconds and
+// only reloads the thread list when the number changed.
+app.get('/inbox/rev', (req, res) => { if (!consoleAuth(req, res)) return; res.json({ rev: inboxRev }); });
+
+// Short tag (TK / OSC / SB) for a full account name, for the account chips in the UI.
+function accountTag(account) {
+  const a = String(account || '').toLowerCase();
+  if (a.includes('trendy')) return 'TK';
+  if (a.includes('official') || a.includes('osc')) return 'OSC';
+  if (a.includes('shoe box') || a.includes('shoebox')) return 'SB';
+  return (account || '?').slice(0, 3).toUpperCase();
+}
+
+// Thread list — recent conversations across ALL accounts, newest first.
+app.get('/inbox/threads', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const list = [...inboxThreads.values()].map(t => {
+    const last = t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
+    return {
+      account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '',
+      lastText: last ? (last.sender === 'customer' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + last.text : '',
+      lastTs: t.lastTs, unread: t.unread || 0, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub),
+    };
+  }).sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0)).slice(0, 100);
+  res.json({ rev: inboxRev, threads: list });
+});
+
+// Full thread history + reply state. Opening a thread marks it read.
+app.get('/inbox/thread', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const sub = String(req.query.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  const key = req.query.account ? threadKey(req.query.account, sub) : inboxSubIndex.get(sub);
+  const t = (key && inboxThreads.get(key)) || (inboxSubIndex.get(sub) && inboxThreads.get(inboxSubIndex.get(sub)));
+  if (!t) return res.json({ ok: true, account: req.query.account || '', tag: accountTag(req.query.account), sub, name: '', phone: '', msgs: [], paused: isHumanPaused(sub), pausedUntil: pausedUntilOf(sub) });
+  if (t.unread) { t.unread = 0; inboxRev++; saveInbox(); }
+  res.json({ ok: true, account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', msgs: t.msgs, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub) });
+});
+
+// Send Rodney's reply to the customer on the RIGHT account, and AUTO-PAUSE Kiki.
+app.post('/inbox/send', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  const text = String(b.text || '').trim();
+  if (!sub || !text) return res.status(400).json({ ok: false, error: 'need sub + text' });
+  const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
+  const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
+  // Right account token: the customer's own account first, then env fallbacks. Direct-API
+  // customers (waChannel) route to the Graph API inside sendChunk no matter the token.
+  const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
+    || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
+    || lastToken || process.env.MANYCHAT_TOKEN || null;
+  if (!token && !waChannel.get(sub)) return res.json({ ok: false, error: 'No account token learned for this customer yet — have them message the bot once, then reply.' });
+  // The moment we reply as a human, Kiki pauses for this customer (refreshed each reply)
+  // and any pending nudge is cancelled so she never talks over us.
+  setHumanPause(sub);
+  clearFollowUp(sub);
+  try {
+    const r = await sendChunk(sub, [{ type: 'text', text }], token, { sender: 'rodney', account });
+    // Fold the human turn into Kiki's own convo history so she has context when she resumes.
+    try { const h = convos.get(sub) || []; h.push({ role: 'assistant', content: text }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
+    record(req, { endpoint: 'inbox-send', sub, account, ok: !!(r && r.ok) });
+    if (r && r.ok) return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
+    return res.json({ ok: false, error: 'Send failed: ' + String((r && r.body) || '').slice(0, 160), pausedUntil: pausedUntilOf(sub) });
+  } catch (e) { return res.json({ ok: false, error: String(e).slice(0, 200) }); }
+});
+
+// Pause Kiki without sending (e.g. Rodney is about to handle it) / hand back to Kiki.
+app.post('/inbox/pause', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const sub = String((req.body || {}).sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  const mins = Number((req.body || {}).minutes);
+  setHumanPause(sub, (mins > 0 ? mins : 45) * 60 * 1000);
+  record(req, { endpoint: 'inbox-pause', sub });
+  res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
+});
+app.post('/inbox/resume', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const sub = String((req.body || {}).sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  clearHumanPause(sub);
+  record(req, { endpoint: 'inbox-resume', sub });
+  res.json({ ok: true });
+});
+
+// The Inbox page itself — a slim, mobile-first staff page served straight from the
+// server (so the 242plug PWA stays slim and just links here with ?key=).
+app.get('/inbox', (req, res) => {
+  res.type('html').send(INBOX_HTML);
 });
 
 app.get('/console', (req, res) => {
