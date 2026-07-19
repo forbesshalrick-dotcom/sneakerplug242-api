@@ -758,6 +758,8 @@ async function waSendOne(to, m, phoneNumberId) {
   if (!tok || !phoneNumberId) return { ok: false, status: 0, body: 'wa-not-configured' };
   const body = (m.type === 'image' && m.url)
     ? { messaging_product: 'whatsapp', to, type: 'image', image: { link: m.url } }
+    : (m.type === 'audio' && m.url)
+    ? { messaging_product: 'whatsapp', to, type: 'audio', audio: { link: m.url } }
     : { messaging_product: 'whatsapp', to, type: 'text', text: { preview_url: false, body: String(m.text || '').slice(0, 4096) } };
   const ctl = new AbortController();
   const tm = setTimeout(() => ctl.abort(), 20000);
@@ -797,7 +799,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       const t = sidx ? inboxThreads.get(sidx) : null;
       const account = (logOpts && logOpts.account) || (t && t.account) || '';
       for (const mm of (messages || [])) {
-        const txt = (mm && mm.type === 'image') ? '📷 photo' : (mm && mm.text ? String(mm.text) : '');
+        const txt = (mm && mm.type === 'image') ? '📷 photo' : (mm && mm.type === 'audio') ? '🎙 voice note' : (mm && mm.text ? String(mm.text) : '');
         if (txt) inboxRecord(account, subscriberId, { dir: 'out', sender: (logOpts && logOpts.sender) || 'kiki', text: txt });
       }
     }
@@ -3449,6 +3451,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .composer button{background:#2f6df6;border:0;color:#fff;font-weight:600;border-radius:12px;padding:0 16px;font-size:15px;cursor:pointer}
   .composer button:disabled{opacity:.5}
   .composer .attach{background:#212838;color:#cfe0ff;font-size:19px;padding:0 13px;font-weight:400}
+  .composer .attach.rec{background:#b23b3b;color:#fff;animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
   .replybar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#12233a;border-top:1px solid #223247;font-size:13px}
   .replybar #replyText{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid #2f8bf6;padding-left:8px;color:#9fc2ee}
   .replybar #replyX,.imgprev #imgX{cursor:pointer;color:#8aa0bd;padding:0 6px;font-size:16px}
@@ -3473,8 +3477,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   <div class="msgs" id="msgs"></div>
   <div class="replybar" id="replyBar" style="display:none"><span id="replyText"></span><span id="replyX">✕</span></div>
   <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label">Photo ready to send</span><span id="imgX">✕</span></div>
+  <div class="imgprev" id="audPreview" style="display:none"><span class="ip-label">🎙 Voice note ready to send</span><span id="audX">✕</span></div>
   <div class="composer">
     <button class="attach" id="attach" title="Send a photo">📷</button>
+    <button class="attach" id="mic" title="Record a voice note">🎙</button>
     <input type="file" id="file" accept="image/*" style="display:none">
     <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
     <button id="send">Send</button>
@@ -3563,11 +3569,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 
   function send(){
     if(!cur) return; var txt=$('text').value.trim();
-    if(!txt && !pendingImageUrl){ return; }
+    if(!txt && !pendingImageUrl && !pendingAudioUrl){ return; }
     $('send').disabled=true;
-    post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt, imageUrl:pendingImageUrl||'', quote:quoteText||''}).then(function(d){
+    post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt, imageUrl:pendingImageUrl||'', audioUrl:pendingAudioUrl||'', quote:quoteText||''}).then(function(d){
       $('send').disabled=false;
-      if(d && d.ok){ $('text').value=''; $('text').style.height='auto'; clearImg(); clearQuote(); loadThread(true); }
+      if(d && d.ok){ $('text').value=''; $('text').style.height='auto'; clearImg(); clearAud(); clearQuote(); loadThread(true); }
       else { toast((d&&d.error)||'Send failed'); }
     }).catch(function(){ $('send').disabled=false; toast('Send failed — network'); });
   }
@@ -3597,12 +3603,56 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function setQuote(txt){ quoteText=txt; $('replyText').textContent='↩️ '+txt; $('replyBar').style.display='flex'; $('text').focus(); }
   function clearQuote(){ quoteText=null; $('replyBar').style.display='none'; }
 
+  // ── voice notes: record ogg/opus (WhatsApp's voice-note format) via opus-recorder,
+  // loaded from jsdelivr on first use so the page stays slim. jsdelivr sends CORS
+  // headers, so we pull the encoder worker into a same-origin blob URL (a cross-origin
+  // Worker URL would be blocked). Records → uploads → holds the URL until Send. ──
+  var pendingAudioUrl = null, recorder = null, recording = false, opusReady = false, encoderBlobUrl = null;
+  function loadOpus(cb){
+    if(opusReady){ cb(); return; }
+    var base='https://cdn.jsdelivr.net/npm/opus-recorder@8.0.5/dist/';
+    var s=document.createElement('script'); s.src=base+'recorder.min.js';
+    s.onload=function(){
+      fetch(base+'encoderWorker.min.js').then(function(r){return r.blob();}).then(function(bl){
+        encoderBlobUrl=URL.createObjectURL(bl); opusReady=!!window.Recorder; opusReady?cb():toast('Recorder didn\\'t load');
+      }).catch(function(){ toast('Could not load recorder — check connection'); });
+    };
+    s.onerror=function(){ toast('Could not load recorder — check connection'); };
+    document.head.appendChild(s);
+  }
+  function startRec(){
+    loadOpus(function(){
+      try{
+        recorder = new window.Recorder({ encoderPath: encoderBlobUrl, numberOfChannels:1, encoderSampleRate:16000, streamPages:false });
+        recorder.ondataavailable = function(arr){ onRecorded(arr); };
+        recorder.start().then(function(){ recording=true; $('mic').classList.add('rec'); $('mic').textContent='⏹'; toast('Recording… tap 🎙 again to stop'); })
+          .catch(function(){ toast('Allow microphone access to record'); });
+      }catch(e){ toast('Recorder error'); }
+    });
+  }
+  function stopRec(){ if(recorder && recording){ recording=false; $('mic').classList.remove('rec'); $('mic').textContent='🎙'; try{ recorder.stop(); }catch(e){} } }
+  function onRecorded(arr){
+    try{
+      var blob=new Blob([arr], {type:'audio/ogg'});
+      var rd=new FileReader();
+      rd.onload=function(){ post('/inbox/upload', {image: rd.result}).then(function(d){
+        if(d && d.ok && d.url){ pendingAudioUrl=d.url; $('audPreview').style.display='flex'; toast('Voice note ready — hit Send'); }
+        else toast((d&&d.error)||'Upload failed');
+      }).catch(function(){ toast('Upload failed — network'); }); };
+      rd.readAsDataURL(blob);
+    }catch(e){ toast('Could not save recording'); }
+  }
+  function micTap(){ if(recording) stopRec(); else startRec(); }
+  function clearAud(){ pendingAudioUrl=null; $('audPreview').style.display='none'; if(recording) stopRec(); }
+
   $('rf').onclick=loadThreads;
-  $('back').onclick=function(){ clearImg(); clearQuote(); closeThread(); };
+  $('back').onclick=function(){ clearImg(); clearAud(); clearQuote(); closeThread(); };
   $('send').onclick=send;
   $('attach').onclick=function(){ $('file').click(); };
   $('file').onchange=function(){ if(this.files && this.files[0]) pickPhoto(this.files[0]); };
+  $('mic').onclick=micTap;
   $('imgX').onclick=clearImg;
+  $('audX').onclick=clearAud;
   $('replyX').onclick=clearQuote;
   $('text').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(120,this.scrollHeight)+'px'; });
   $('text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
@@ -3673,8 +3723,8 @@ function pruneInboxMedia() {
 app.post('/inbox/upload', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
-  const m = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(String(b.image || ''));
-  if (!m) return res.status(400).json({ ok: false, error: 'need a base64 image data URL' });
+  const m = /^data:((?:image|audio)\/[a-z0-9.+-]+);base64,(.+)$/i.exec(String(b.image || ''));
+  if (!m) return res.status(400).json({ ok: false, error: 'need a base64 image/audio data URL' });
   let buf;
   try { buf = Buffer.from(m[2], 'base64'); } catch (_) { return res.status(400).json({ ok: false, error: 'bad image' }); }
   if (!buf.length || buf.length > 10 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'image too big (max 10MB)' });
@@ -3700,8 +3750,9 @@ app.post('/inbox/send', async (req, res) => {
   const sub = String(b.sub || '').replace(/[^0-9]/g, '');
   let text = String(b.text || '').trim();
   const imageUrl = String(b.imageUrl || '').trim();
+  const audioUrl = String(b.audioUrl || '').trim();
   const quote = String(b.quote || '').trim();
-  if (!sub || (!text && !imageUrl)) return res.status(400).json({ ok: false, error: 'need sub + text or photo' });
+  if (!sub || (!text && !imageUrl && !audioUrl)) return res.status(400).json({ ok: false, error: 'need sub + text, photo or voice note' });
   // Reply-to-a-specific-message: WhatsApp's native quote isn't available through ManyChat's
   // send API, so we quote the message as context right above the reply (works on every
   // account). The customer sees what you're answering.
@@ -3720,12 +3771,13 @@ app.post('/inbox/send', async (req, res) => {
   clearFollowUp(sub);
   const messages = [];
   if (imageUrl) messages.push({ type: 'image', url: imageUrl });
+  if (audioUrl) messages.push({ type: 'audio', url: audioUrl });
   if (text) messages.push({ type: 'text', text });
   try {
     const r = await sendChunk(sub, messages, token, { sender: 'rodney', account });
     // Fold the human turn into Kiki's own convo history so she has context when she resumes.
-    try { const note = (imageUrl ? '[sent a photo]' : '') + (text ? (imageUrl ? ' ' : '') + text : ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note || '[sent a photo]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
-    record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, ok: !!(r && r.ok) });
+    try { const note = (imageUrl ? '[sent a photo] ' : '') + (audioUrl ? '[sent a voice note] ' : '') + (text || ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note.trim() || '[sent media]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
+    record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, hasAudio: !!audioUrl, ok: !!(r && r.ok) });
     if (r && r.ok) return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
     return res.json({ ok: false, error: 'Send failed: ' + String((r && r.body) || '').slice(0, 160), pausedUntil: pausedUntilOf(sub) });
   } catch (e) { return res.json({ ok: false, error: String(e).slice(0, 200) }); }
