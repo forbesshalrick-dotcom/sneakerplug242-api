@@ -646,14 +646,19 @@ const EXTRA_STAFF = {};
 // 📱 TEST PHONE(S): numbers to treat as a normal CUSTOMER (not staff) so their messages show
 // up in the Inbox for testing — even if they're also a manager line. Rodney's 4324406 is his
 // test phone (Rodney 2026-07-19). Comma-separated, env-overridable.
-const TEST_CUSTOMER_TAILS = new Set((process.env.TEST_CUSTOMER_NUMBERS || '12424324406')
-  .split(',').map(s => String(s).replace(/\D/g, '').slice(-10)).filter(t => t.length === 10));
+const TEST_CUSTOMER_RAW = (process.env.TEST_CUSTOMER_NUMBERS || '12424324406').split(',').map(s => String(s).replace(/\D/g, '')).filter(Boolean);
+const TEST_CUSTOMER_TAILS = new Set(TEST_CUSTOMER_RAW.map(s => s.slice(-10)).filter(t => t.length === 10));
+// Also match on the 7-digit LOCAL part so the test phone is recognised whatever country-code /
+// secondary-app (e.g. Hushed) form it arrives in — otherwise it can look like a manager line and
+// get hidden from the Inbox as "staff" (Rodney 2026-07-19: "I still don't see 4324406").
+const TEST_CUSTOMER_TAILS7 = new Set(TEST_CUSTOMER_RAW.map(s => s.slice(-7)).filter(t => t.length === 7));
 function staffNameFor(req) {
   const p = getPhone(req);
   if (!p) return null;
-  const tail = String(p).replace(/\D/g, '').slice(-10);
+  const digits = String(p).replace(/\D/g, '');
+  const tail = digits.slice(-10);
+  if (TEST_CUSTOMER_TAILS.has(tail) || TEST_CUSTOMER_TAILS7.has(digits.slice(-7))) return null; // test phone → customer, shows in the Inbox
   if (tail.length < 10) return null;
-  if (TEST_CUSTOMER_TAILS.has(tail)) return null; // test phone → treated as a customer, shows in the Inbox
   if (MANAGER_TAIL_NAMES[tail]) return MANAGER_TAIL_NAMES[tail]; // Rodney's own phones → Manager P/TK/OSC
   let emp = {};
   try { emp = require('./shop').getEmployees() || {}; } catch (_) {}
@@ -3706,7 +3711,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     body.hasbg::after{content:'';position:fixed;inset:0;z-index:-2;background:rgba(5,5,10,.55)}
     body #listView,body #threadView{left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:440px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10);box-shadow:0 0 120px rgba(0,0,0,.8)}
   }
-  .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateZ(0);will-change:scroll-position;scroll-behavior:auto}
   .row{display:flex;gap:12px;align-items:center;padding:8px 15px;cursor:pointer;position:relative;transition:.15s;border-bottom:1px solid rgba(255,255,255,.04)}
   .row:active{background:rgba(255,255,255,.04)}
   .row .av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;color:#fff;font-family:'Space Grotesk'}
@@ -3841,6 +3846,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
        box-shadow:0 0 16px rgba(34,197,94,.28);backdrop-filter:blur(6px);white-space:pre-wrap}
   .stm{display:block;margin-top:4px;font-size:10.5px;font-weight:600;color:rgba(234,255,241,.6)}
   .empty{color:var(--dim);text-align:center;padding:52px 24px;font-size:14px;line-height:1.5}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sbtn.spinning svg{animation:spin .6s linear;transform-origin:50% 50%}
   .toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:rgba(15,16,26,.96);border:1px solid var(--line);color:#fff;padding:11px 18px;border-radius:13px;font-size:13px;z-index:30;display:none;max-width:88%;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(10px)}
   /* brief-Kiki modal */
   .modal{position:fixed;inset:0;z-index:40;display:none;align-items:flex-end;justify-content:center;background:rgba(4,5,10,.6);backdrop-filter:blur(4px)}
@@ -3901,7 +3908,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn:active{transform:scale(.92)}
   #threads{padding:4px 2px 14px}
   /* transparent rows over the vivid collage — text carries its own shadow for legibility */
-  #listView .row{gap:10px;padding:4px 11px;margin:5px 7px;border-radius:13px;border:1.4px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 11px var(--rowg,transparent)}
+  #listView .row{gap:10px;padding:4px 11px;margin:5px 7px;border-radius:13px;border:1.4px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 11px var(--rowg,transparent);content-visibility:auto;contain-intrinsic-size:0 66px}
   #listView .row:active{background:rgba(255,255,255,.09)}
   .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
   .row .toprow{display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -4158,6 +4165,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // Escape, then render WhatsApp *bold* as <b> so a bolded label (e.g. "👨‍🦱 *Agent:*") shows
   // bold in the staff inbox too, instead of literal asterisks.
   function escB(s){ return esc(s).replace(/\\*(\\S(?:[^*\\n]*\\S)?)\\*/g,'<b>$1</b>'); }
+  // Strip WhatsApp *bold* markers for tiny dim preview lines (no bold needed there).
+  function unB(s){ return String(s==null?'':s).replace(/\\*(\\S(?:[^*\\n]*\\S)?)\\*/g,'$1'); }
   function api(path, opts){ opts=opts||{}; var sep=path.indexOf('?')>-1?'&':'?'; return fetch(path+sep+'key='+encodeURIComponent(KEY), opts).then(function(r){return r.json()}); }
   function post(path, body){ return api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})}); }
   function toast(m){ var t=$('toast'); t.textContent=m; t.style.display='block'; setTimeout(function(){t.style.display='none'},3200); }
@@ -4266,9 +4275,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         if(t.paused){ pv='<span class="pz">⏸ you\\'re handling this</span>'; }
         else {
           var lns='';
-          if(t.custPrev) lns += '<span class="lt cust"><b class="ctag">Customer:</b> '+esc(t.custPrev)+'</span>';
-          if(t.replyPrev) lns += '<span class="lt rep">'+(t.replyWho?('<b>'+esc(t.replyWho)+':</b> '):'')+esc(t.replyPrev)+'</span>';
-          pv = lns || ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
+          if(t.custPrev) lns += '<span class="lt cust"><b class="ctag">Customer:</b> '+esc(unB(t.custPrev))+'</span>';
+          if(t.replyPrev) lns += '<span class="lt rep">'+(t.replyWho?('<b>'+esc(t.replyWho)+':</b> '):'')+esc(unB(t.replyPrev))+'</span>';
+          pv = lns || ('<span class="lt">'+esc(unB(t.lastText||'…'))+'</span>');
         }
         return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-phone="'+esc(t.phone||'')+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
@@ -4613,7 +4622,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     }).catch(function(){ $('briefSave').disabled=false; toast('Could not save — network'); });
   }
 
-  $('rf').onclick=loadThreads;
+  $('rf').onclick=function(){ var b=$('rf'); b.classList.add('spinning'); loadThreads(); toast('Refreshed ✅'); setTimeout(function(){ b.classList.remove('spinning'); }, 650); };
   var COMPACT_LS='sp242_inbox_compact';
   function applyCompact(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; }catch(e){} $('listView').classList.toggle('compact', on); var b=$('density'); if(b) b.classList.toggle('on', on); }
   $('density').onclick=function(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; localStorage.setItem(COMPACT_LS, on?'0':'1'); }catch(e){} applyCompact(); };
