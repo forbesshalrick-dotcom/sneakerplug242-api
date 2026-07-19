@@ -2113,6 +2113,12 @@ function saveInbox() {
 // messages again — so we only nudge customers who went quiet.
 // Generic "nudge the customer if they go quiet" timer. One pending nudge per
 // customer (a new one replaces the old); cleared the moment they message again.
+// A customer who says they'll circle back should NOT be chased with "just following up"
+// (Rodney 2026-07-19: someone said "Ok thanks I'll get back to you soon" and Kiki still
+// fired "Just following up" then "I guess you didn't find anything"). Checked at the moment
+// the nudge fires (not when scheduled), so it wins even against the race where a slow album
+// schedules the nudge AFTER the customer's reply already tried to cancel it.
+const DEFER_RE = /\b(get(ting)?\s*back\s*to\s*(you|u|ya|yah)|i'?ll?\s*(let|lmk)\s*you?\s*know|let\s*you\s*know\s*(later|soon|when)|think(ing)?\s*about\s*it|need\s*to\s*think|gotta\s*think|maybe\s*(later|next\s*time)|not\s*right\s*now|hold\s*on\b|(give\s*me|gimme)\s*a?\s*(min|sec|moment|minute|second)|i'?ll?\s*be\s*back|talk\s*(to\s*you\s*)?later|i'?ll?\s*check|come\s*back\s*to\s*(you|this|it))\b/i;
 function scheduleNudge(sub, token, text, ms, next) {
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
@@ -2120,6 +2126,8 @@ function scheduleNudge(sub, token, text, ms, next) {
     // 🛑 A human took this chat over via the Inbox — drop the queued nudge so Kiki
     // never talks over them while they're mid-conversation with the customer.
     if (isHumanPaused(sub)) return;
+    // 🙅 They told us they'd get back to us — don't chase them. Kill the whole chain.
+    if (DEFER_RE.test(lastIncomingText.get(sub) || '')) { clearFollowUp(sub); return; }
     // Register the follow-on stage (e.g. the closing message) BEFORE we send/await
     // this one. Sending takes a moment, and the nudge invites a reply — if we waited
     // until after the send to schedule the closer, a customer who replies during that
