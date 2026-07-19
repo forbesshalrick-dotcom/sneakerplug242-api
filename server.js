@@ -132,7 +132,9 @@ app.set('trust proxy', true); // Railway runs behind a proxy → correct https i
 // an unexpected/absent Content-Type. We keep the raw bytes and let every parser
 // try, so extractQuery() below can read whatever actually came through.
 const saveRaw = (req, res, buf) => { if (buf && buf.length) req.rawBody = buf.toString(); };
-app.use(express.json({ strict: false, verify: saveRaw }));
+// 12mb JSON limit so the Inbox can POST a base64 photo to /inbox/upload (customer
+// chat messages are tiny; the client compresses photos well under this first).
+app.use(express.json({ strict: false, limit: '12mb', verify: saveRaw }));
 app.use(express.urlencoded({ extended: true, verify: saveRaw }));
 app.use(express.text({ type: () => true, verify: saveRaw }));
 // If JSON parsing fails (e.g. raw text labelled application/json), don't 500 —
@@ -3446,6 +3448,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .composer textarea{flex:1;resize:none;background:#11151d;border:1px solid #2a3140;color:#e7e9ee;border-radius:12px;padding:10px 12px;font-size:15px;font-family:inherit;max-height:120px}
   .composer button{background:#2f6df6;border:0;color:#fff;font-weight:600;border-radius:12px;padding:0 16px;font-size:15px;cursor:pointer}
   .composer button:disabled{opacity:.5}
+  .composer .attach{background:#212838;color:#cfe0ff;font-size:19px;padding:0 13px;font-weight:400}
+  .replybar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#12233a;border-top:1px solid #223247;font-size:13px}
+  .replybar #replyText{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid #2f8bf6;padding-left:8px;color:#9fc2ee}
+  .replybar #replyX,.imgprev #imgX{cursor:pointer;color:#8aa0bd;padding:0 6px;font-size:16px}
+  .imgprev{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#12233a;border-top:1px solid #223247}
+  .imgprev img{height:52px;width:52px;object-fit:cover;border-radius:8px}
+  .imgprev .ip-label{flex:1;font-size:13px;color:#9fc2ee}
+  .b.tap{cursor:pointer}
   .empty{color:#7c8698;text-align:center;padding:40px 20px;font-size:14px}
   .toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:#b23b3b;color:#fff;padding:9px 16px;border-radius:10px;font-size:13px;z-index:20;display:none;max-width:90%}
 </style></head><body>
@@ -3461,7 +3471,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   </header>
   <div class="banner" id="tBanner" style="display:none"></div>
   <div class="msgs" id="msgs"></div>
+  <div class="replybar" id="replyBar" style="display:none"><span id="replyText"></span><span id="replyX">✕</span></div>
+  <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label">Photo ready to send</span><span id="imgX">✕</span></div>
   <div class="composer">
+    <button class="attach" id="attach" title="Send a photo">📷</button>
+    <input type="file" id="file" accept="image/*" style="display:none">
     <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
     <button id="send">Send</button>
   </div>
@@ -3476,6 +3490,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   if (qkey) { try { localStorage.setItem(LS, qkey); } catch(e){} }
   var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
   var cur = null, lastRev = -1, threadTimer = null;
+  var pendingImageUrl = null, quoteText = null;
   function $(id){return document.getElementById(id)}
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
@@ -3533,8 +3548,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       m.innerHTML = (d.msgs||[]).map(function(x){
         var cls = x.dir==='in'?'in':(x.sender==='rodney'?'rodney':'kiki');
         var who = x.dir==='in'?'':(x.sender==='rodney'?'You':'Kiki 🤖');
-        return '<div class="b '+cls+'">'+(who?'<div class="who">'+who+'</div>':'')+esc(x.text)+'<div class="tm">'+clock(x.ts)+'</div></div>';
+        var tap = x.dir==='in' ? ' tap' : '';
+        var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
+        return '<div class="b '+cls+tap+'"'+dq+'>'+(who?'<div class="who">'+who+'</div>':'')+esc(x.text)+'<div class="tm">'+clock(x.ts)+'</div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
+      // tap a customer message to quote it in your reply
+      Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
       if(scroll || atBottom) m.scrollTop = m.scrollHeight;
       var b=$('tBanner');
       if(d.paused){ b.style.display='block'; b.className='banner paused'; b.innerHTML='⏸ Kiki is paused (~'+countdown(d.pausedUntil)+' left) — <b id="handback">hand back to Kiki</b>'; $('handback').onclick=handBack; }
@@ -3543,19 +3562,48 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   }
 
   function send(){
-    if(!cur) return; var txt=$('text').value.trim(); if(!txt) return;
+    if(!cur) return; var txt=$('text').value.trim();
+    if(!txt && !pendingImageUrl){ return; }
     $('send').disabled=true;
-    post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt}).then(function(d){
+    post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt, imageUrl:pendingImageUrl||'', quote:quoteText||''}).then(function(d){
       $('send').disabled=false;
-      if(d && d.ok){ $('text').value=''; $('text').style.height='auto'; loadThread(true); }
+      if(d && d.ok){ $('text').value=''; $('text').style.height='auto'; clearImg(); clearQuote(); loadThread(true); }
       else { toast((d&&d.error)||'Send failed'); }
     }).catch(function(){ $('send').disabled=false; toast('Send failed — network'); });
   }
   function handBack(){ if(!cur) return; post('/inbox/resume',{sub:cur.sub}).then(function(){ loadThread(false); toast('Kiki is back on this chat ✅'); }); }
 
+  // ── photo attach: shrink + compress in-browser, upload, hold the URL until Send ──
+  function shrink(file, cb){
+    var rd=new FileReader();
+    rd.onload=function(){ var img=new Image(); img.onload=function(){
+      var max=1600, w=img.width, h=img.height;
+      if(w>max||h>max){ if(w>h){ h=Math.round(h*max/w); w=max; } else { w=Math.round(w*max/h); h=max; } }
+      try{ var c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); cb(c.toDataURL('image/jpeg',0.82)); }
+      catch(e){ cb(rd.result); }
+    }; img.onerror=function(){ cb(rd.result); }; img.src=rd.result; };
+    rd.readAsDataURL(file);
+  }
+  function pickPhoto(file){
+    if(!file) return; toast('Uploading photo…');
+    shrink(file, function(dataUrl){
+      post('/inbox/upload', {image:dataUrl}).then(function(d){
+        if(d && d.ok && d.url){ pendingImageUrl=d.url; $('imgThumb').src=dataUrl; $('imgPreview').style.display='flex'; toast('Photo ready — add a caption or hit Send'); }
+        else toast((d&&d.error)||'Upload failed');
+      }).catch(function(){ toast('Upload failed — network'); });
+    });
+  }
+  function clearImg(){ pendingImageUrl=null; $('imgThumb').src=''; $('imgPreview').style.display='none'; $('file').value=''; }
+  function setQuote(txt){ quoteText=txt; $('replyText').textContent='↩️ '+txt; $('replyBar').style.display='flex'; $('text').focus(); }
+  function clearQuote(){ quoteText=null; $('replyBar').style.display='none'; }
+
   $('rf').onclick=loadThreads;
-  $('back').onclick=closeThread;
+  $('back').onclick=function(){ clearImg(); clearQuote(); closeThread(); };
   $('send').onclick=send;
+  $('attach').onclick=function(){ $('file').click(); };
+  $('file').onchange=function(){ if(this.files && this.files[0]) pickPhoto(this.files[0]); };
+  $('imgX').onclick=clearImg;
+  $('replyX').onclick=clearQuote;
   $('text').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(120,this.scrollHeight)+'px'; });
   $('text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
 
@@ -3612,12 +3660,52 @@ app.get('/inbox/thread', (req, res) => {
 });
 
 // Send Rodney's reply to the customer on the RIGHT account, and AUTO-PAUSE Kiki.
+// 📷 Photo upload for the Inbox: the staff page POSTs a base64 photo here, we hold it
+// in memory briefly and hand back a public URL. sendChunk/ManyChat/Graph fetch that URL
+// server-side at send time, so it only needs to live for a minute. Memory (not disk) so
+// it never bloats the /data volume; capped + auto-expired.
+const inboxMedia = new Map(); // id -> { buf, type, ts }
+function pruneInboxMedia() {
+  const now = Date.now();
+  for (const [k, v] of inboxMedia) if (now - v.ts > 60 * 60 * 1000) inboxMedia.delete(k);
+  while (inboxMedia.size > 60) { const f = inboxMedia.keys().next().value; inboxMedia.delete(f); }
+}
+app.post('/inbox/upload', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const m = /^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i.exec(String(b.image || ''));
+  if (!m) return res.status(400).json({ ok: false, error: 'need a base64 image data URL' });
+  let buf;
+  try { buf = Buffer.from(m[2], 'base64'); } catch (_) { return res.status(400).json({ ok: false, error: 'bad image' }); }
+  if (!buf.length || buf.length > 10 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'image too big (max 10MB)' });
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  inboxMedia.set(id, { buf, type: m[1], ts: Date.now() });
+  pruneInboxMedia();
+  const host = req.get('host');
+  const proto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0];
+  res.json({ ok: true, url: proto + '://' + host + '/inbox/media/' + id });
+});
+// Public (not key-gated) so ManyChat / the Graph API can fetch it. The id is random.
+app.get('/inbox/media/:id', (req, res) => {
+  const v = inboxMedia.get(req.params.id);
+  if (!v) return res.status(404).send('not found');
+  res.set('Content-Type', v.type);
+  res.set('Cache-Control', 'public, max-age=86400');
+  res.send(v.buf);
+});
+
 app.post('/inbox/send', async (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
   const sub = String(b.sub || '').replace(/[^0-9]/g, '');
-  const text = String(b.text || '').trim();
-  if (!sub || !text) return res.status(400).json({ ok: false, error: 'need sub + text' });
+  let text = String(b.text || '').trim();
+  const imageUrl = String(b.imageUrl || '').trim();
+  const quote = String(b.quote || '').trim();
+  if (!sub || (!text && !imageUrl)) return res.status(400).json({ ok: false, error: 'need sub + text or photo' });
+  // Reply-to-a-specific-message: WhatsApp's native quote isn't available through ManyChat's
+  // send API, so we quote the message as context right above the reply (works on every
+  // account). The customer sees what you're answering.
+  if (quote) text = '↩️ "' + quote.slice(0, 180) + '"' + (text ? '\n\n' + text : '');
   const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   // Right account token: the customer's own account first, then env fallbacks. Direct-API
@@ -3630,11 +3718,14 @@ app.post('/inbox/send', async (req, res) => {
   // and any pending nudge is cancelled so she never talks over us.
   setHumanPause(sub);
   clearFollowUp(sub);
+  const messages = [];
+  if (imageUrl) messages.push({ type: 'image', url: imageUrl });
+  if (text) messages.push({ type: 'text', text });
   try {
-    const r = await sendChunk(sub, [{ type: 'text', text }], token, { sender: 'rodney', account });
+    const r = await sendChunk(sub, messages, token, { sender: 'rodney', account });
     // Fold the human turn into Kiki's own convo history so she has context when she resumes.
-    try { const h = convos.get(sub) || []; h.push({ role: 'assistant', content: text }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
-    record(req, { endpoint: 'inbox-send', sub, account, ok: !!(r && r.ok) });
+    try { const note = (imageUrl ? '[sent a photo]' : '') + (text ? (imageUrl ? ' ' : '') + text : ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note || '[sent a photo]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
+    record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, ok: !!(r && r.ok) });
     if (r && r.ok) return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
     return res.json({ ok: false, error: 'Send failed: ' + String((r && r.body) || '').slice(0, 160), pausedUntil: pausedUntilOf(sub) });
   } catch (e) { return res.json({ ok: false, error: String(e).slice(0, 200) }); }
