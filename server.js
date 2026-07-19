@@ -630,18 +630,23 @@ function getPhone(req) {
 // Staff recognition: the numbers in the shop's employees list (+ the core numbers
 // below) matched against the whatsapp_phone ManyChat includes on every message.
 // Digits-only, compared on the last 10 digits so +1242 / 1242 / 242 formats all match.
-// Rodney runs ALL the accounts, so EVERY one of his own numbers reports as "Manager"
-// (used to show as Test / Rodney / Manager2 depending which phone texted the report).
-// Add a new personal number here and it's recognised as Manager everywhere.
-const MANAGER_NUMBERS_SELF = ['12424324406', '12428256405', '12428033126'];
-const MANAGER_TAILS = MANAGER_NUMBERS_SELF.map(n => n.replace(/\D/g, '').slice(-10));
+// Rodney runs ALL the accounts, so each of his own phones reports as "Manager", tagged
+// by which line it is (P = personal, TK = Trendy Kicks, OSC = Official Sneaker Crew) —
+// used to show as Test / Rodney / Manager2. Key by number, value is the label.
+const MANAGER_ALIASES = {
+  '12424324406': 'Manager P',   // personal
+  '12428256405': 'Manager TK',  // Trendy Kicks
+  '12428033126': 'Manager OSC', // Official Sneaker Crew
+};
+const MANAGER_TAIL_NAMES = {};
+Object.keys(MANAGER_ALIASES).forEach(function (n) { MANAGER_TAIL_NAMES[n.replace(/\D/g, '').slice(-10)] = MANAGER_ALIASES[n]; });
 const EXTRA_STAFF = {};
 function staffNameFor(req) {
   const p = getPhone(req);
   if (!p) return null;
   const tail = String(p).replace(/\D/g, '').slice(-10);
   if (tail.length < 10) return null;
-  if (MANAGER_TAILS.includes(tail)) return 'Manager'; // all of Rodney's own phones = Manager
+  if (MANAGER_TAIL_NAMES[tail]) return MANAGER_TAIL_NAMES[tail]; // Rodney's own phones → Manager P/TK/OSC
   let emp = {};
   try { emp = require('./shop').getEmployees() || {}; } catch (_) {}
   for (const [nm, num] of Object.entries(Object.assign({}, EXTRA_STAFF, emp))) {
