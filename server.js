@@ -830,6 +830,22 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       }
     }
   } catch (_) {}
+  // 🧠🚫 LEAKED-REASONING BACKSTOP (Rodney 2026-07-19): a customer once received Kiki's whole
+  // thought process ("That's asking about… But wait — I don't have their order yet! Let me back
+  // up…") ahead of the real reply. The prompt now forbids this; this is the safety net. ONLY
+  // fires when the message BEGINS with a known self-talk opener — then it drops the leading
+  // analysis paragraph(s) and keeps the real reply. Conservative on purpose: it never touches a
+  // message that doesn't start with one of these openers, and never blanks the whole thing.
+  try {
+    const THINK_RE = /^\s*(?:but wait\b|that'?s asking about\b|let me back up\b|let me get (?:the )?details\b|they want to know\b|they'?re asking\b|we have(?:n'?t| not) locked\b|i (?:don'?t|do not) have (?:their|your) order\b|so i(?:'ll| will| need to)\b|now i (?:need|have) to\b|ok(?:ay)? so\b)/i;
+    for (const mm of (messages || [])) {
+      if (!(mm && mm.type === 'text' && mm.text)) continue;
+      const paras = String(mm.text).split(/\n\s*\n/);
+      if (paras.length < 2 || !THINK_RE.test(paras[0])) continue; // only when it OPENS with self-talk
+      const kept = paras.filter(p => !THINK_RE.test(p)).join('\n\n').trim();
+      if (kept) mm.text = kept; // never blank the whole message
+    }
+  } catch (_) {}
   // WhatsApp-API customers: route straight to the Graph API, skip ManyChat entirely.
   const waPhoneId = waChannel.get(String(subscriberId));
   if (waPhoneId) return waSendChunk(String(subscriberId), messages, waPhoneId);
@@ -1155,6 +1171,9 @@ ${modelList}
 - CONFIRM A NAMED SHOE WITH ITS PHOTO (IMPORTANT): Whenever you tell the customer about ONE specific shoe — its price, or that we have it (e.g. they ask "how much for the Gamma Blue 11?" and you find it) — do NOT answer in words only. Call send_photos for that shoe so they SEE the exact pair; its name, price and sizes print right under the photo, which confirms you both mean the same one. Put your short confirming line in the send_photos lead_in (e.g. lead_in = "Got it! The Air Jordan 11 (Gamma Blue) is $180 👇"). Showing the pair always beats just describing it — a customer should never have to take your word for which shoe it is.
 - When you DO send photos, always send ALL the matching shoes with send_photos — never just a few.
 - NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Your ONE short lead-in line MUST be passed as the send_photos lead_in argument — NOT typed as a separate message. The system puts it right before the photos so the 👇 points down at them. Do NOT also write any other text on the turn you call send_photos. In the "SHOW OPTIONS AS PHOTOS" case above, that lead_in is your choice-framing line (e.g. "Here's the grey New Balance we've got 👇 Which one you like?"). In every other case the lead_in MUST keep this exact shape (including "rite now"): "This is what we have in {what} rite now 👇 Ready to Order!". Fill {what} with the BEST short description of what the customer actually asked for, using ALL the useful info they gave — colour, brand or model, and/or size. Pick the most meaningful descriptor, don't just default to the size: if they asked for "grey" and the matches are all their one size, say "This is what we have in grey rite now 👇 Ready to Order!"; if they only gave a size, use that, e.g. "This is what we have in 7.5 rite now 👇 Ready to Order!"; you can combine them when it reads naturally, e.g. "grey size 8". If the customer gave NO useful descriptor (general browsing), drop the "in {what}" part: "This is what we have rite now 👇 Ready to Order!".
+- 🧠🚫 NEVER SEND YOUR THINKING — REPLY IS WORD-FOR-WORD (Rodney 2026-07-19, a customer got Kiki's whole thought process): whatever you type is delivered to the customer EXACTLY as written — so it must contain ONLY the words a customer should read, never your analysis, planning, or self-talk about what they meant or what you should do next. Work all of that out SILENTLY in your head, then send just the one short final reply. ⛔ NEVER write lines like "That's asking about…", "But wait", "Let me back up", "Let me get the details", "they want to know", "they're asking", "we haven't locked in", "I don't have their order yet", "so I'll…", "now I need to…" — those are THOUGHTS, not messages. If you catch yourself explaining the situation to yourself, delete all of it and keep only the friendly line you'd actually say.
+  ❌ WRONG (this really went out): "That's asking about delivery arrival timing — they want to know when the driver is coming. But wait — I don't have their order yet! Let me back up and get the details: What size you need in that Air Max 97? 👟 And where should we meet you? 📍"
+  ✅ RIGHT (send only this): "What size you need in that Air Max 97? 👟 And where should we meet you? 📍"
 - If nothing matches, say so kindly and offer to show something similar we DO have (same brand, colour or size).
 - ⚠️ NAMED COLORWAYS — DON'T FALSELY SAY "NOT IN STOCK" (this loses sales): Customers name shoes by their colorway NICKNAME — "Toro Bravo", "Bred", "Chicago", "Royal", "Thunder", "Cool Grey", "Cactus Jack", "Cherry", "Pizza", "Panda", "Oreo", etc. Our catalog often lists that SAME shoe under a plain name (e.g. just "Air Jordan 4 Retro"), so a search for the nickname can come back EMPTY even when we HAVE the shoe. So NEVER flatly tell a customer "we don't have that" based on a name search. If a named-colorway search returns nothing, DO NOT declare it out of stock — instead SILENTLY search the MODEL alone (e.g. "Jordan 4", "Jordan 1", "Air Max") in their size and send_photos of those, so the customer can SPOT the exact pair in the pics (the colours are right there). A nickname like "Toro Bravo" = a red/black Air Jordan 4 — so show the Jordan 4s. Only say we're genuinely out if the whole MODEL is empty in their size. And NEVER repeat "we don't have the [shoe]" more than once — if you'd say it again, show the model's photos or get a team member instead.
 
@@ -2452,6 +2471,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       else if (inTxt || inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name, img: inImg });
       if (!ctx.wa) ensureCustomerAvatar(ctx.store, sub, token); // fire-and-forget: fetch their photo once
     } catch (_) {}
+  } else {
+    // 🔎 Trace a message HIDDEN as staff — so /last shows exactly which number/name was skipped
+    // (used to diagnose "my test phone 4324406 doesn't show in the Inbox").
+    try { record(req, { endpoint: 'inbox-skip-staff', sub, account: ctx.store || '', dbgPhone: getPhone(req), staff: _isStaffChat }); } catch (_) {}
   }
   // 🛑 AUTO-PAUSE KIKI ON A HUMAN REPLY (the critical Inbox feature): if a human is
   // actively handling this chat from the Inbox, Kiki NEVER auto-responds — she'd talk
