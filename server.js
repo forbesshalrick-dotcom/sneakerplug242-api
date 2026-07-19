@@ -3522,6 +3522,24 @@ app.post('/console/send', async (req, res) => {
   }
 });
 
+// Catalog options for the one-tap "send everything in this size / brand" picker.
+// Only sizes/brands that actually have live stock right now, so no dead chips.
+app.get('/inbox/catalog-meta', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  try {
+    const live = Object.values(liveShoeMap());
+    const sizeSet = new Set(), brandMap = new Map();
+    for (const s of live) {
+      (s.sizesRaw || []).forEach(x => { const n = parseFloat(x); if (!isNaN(n)) sizeSet.add(n); });
+      const bn = String(s.brand || '').trim();
+      if (bn) { const k = bn.toLowerCase(); if (!brandMap.has(k)) brandMap.set(k, bn); } // first casing wins, dedupe Asics/ASICS
+    }
+    const sizes = [...sizeSet].sort((a, b) => a - b);
+    const brands = [...brandMap.values()].sort((a, b) => a.localeCompare(b));
+    res.json({ ok: true, sizes, brands });
+  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 160) }); }
+});
+
 // ── 📥 UNIFIED INBOX PAGE (served slim; the 242plug PWA links here with ?key=) ──
 const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -3543,7 +3561,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   body{font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased;
     background:#05050a}
   /* luxury backdrop — swap CHAT_BG_URL for the collage image; falls back to a rich glow */
-  #listView::before,#threadView::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+  #listView::before,#threadView::before{content:'';position:absolute;inset:0;z-index:-3;pointer-events:none;
     background:
       radial-gradient(600px 400px at 12% 6%, rgba(198,92,255,.18), transparent 60%),
       radial-gradient(600px 460px at 88% 22%, rgba(34,211,238,.14), transparent 60%),
@@ -3551,8 +3569,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       linear-gradient(180deg,#0a0812,#05050a);
     background-size:cover;background-position:center}
   body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center}
-  body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.42),rgba(6,5,12,.52))}
-  body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.80),rgba(6,5,12,.88))}
+  body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.22),rgba(6,5,12,.34))}
+  body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.50),rgba(6,5,12,.60))}
+  /* haunted-luxury FX over the collage: a green halo that fades in/out (the "glowing
+     eyes" green ambiance across all the ladies) + twinkling sparkles for jewelry glisten.
+     Sits above the darkened photo (z-index:-1) but below all the text/rows. */
+  .fxlayer{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .fxlayer .glow{position:absolute;inset:0;mix-blend-mode:screen;background:radial-gradient(78% 68% at 50% 42%, transparent 42%, rgba(46,224,138,.14) 74%, rgba(46,224,138,.34) 100%);animation:hauntglow 3.8s ease-in-out infinite}
+  @keyframes hauntglow{0%,100%{opacity:.22}50%{opacity:.9}}
+  .fxlayer .spark{position:absolute;width:7px;height:7px;border-radius:50%;background:radial-gradient(circle,#eafff4 0%,rgba(120,255,190,.6) 40%,transparent 72%);opacity:0;animation:twinkle 2.6s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(120,255,190,.8))}
+  @keyframes twinkle{0%,100%{opacity:0;transform:scale(.3)}50%{opacity:1;transform:scale(1.15)}}
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
   header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
@@ -3604,7 +3630,13 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   /* neon glowing bubbles — Kiki = purple, customer = cyan, You = account colour */
   .b{padding:11px 14px;border-radius:20px;font-size:14.5px;line-height:1.4;white-space:pre-wrap;word-wrap:break-word;
-    background:rgba(10,9,20,.66);backdrop-filter:blur(7px);border:1.6px solid rgba(255,255,255,.15);position:relative}
+    background:rgba(10,9,20,.66);backdrop-filter:blur(7px);border:1.6px solid rgba(255,255,255,.15);position:relative;overflow:hidden}
+  /* luxury-lifestyle texture behind each text bubble — a random slice of the collage,
+     under a dark scrim so the message stays readable. Image bubbles keep the photo. */
+  body.hasbg .b:not(.hasimg){background-image:var(--chatbg);background-size:560px;background-position:var(--bp,50% 50%);background-repeat:no-repeat}
+  body.hasbg .b:not(.hasimg)::before{content:'';position:absolute;inset:0;border-radius:inherit;background:linear-gradient(150deg,rgba(9,7,17,.72),rgba(8,7,16,.9));z-index:0}
+  body.hasbg .b:not(.hasimg){text-shadow:0 1px 5px rgba(0,0,0,.95),0 0 3px rgba(0,0,0,.9)}
+  .b>*{position:relative;z-index:1}
   .b.in{border-color:#22d3ee;box-shadow:0 0 15px rgba(34,211,238,.45),inset 0 0 12px rgba(34,211,238,.10);border-bottom-left-radius:6px}
   .b.kiki{border-color:#c65cff;box-shadow:0 0 17px rgba(198,92,255,.5),inset 0 0 12px rgba(198,92,255,.12);border-bottom-right-radius:6px}
   .b.rodney{border-color:var(--acc2);box-shadow:0 0 17px var(--accglow),inset 0 0 12px rgba(255,255,255,.06);border-bottom-right-radius:6px}
@@ -3662,6 +3694,13 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sheet{width:100%;max-width:560px;background:linear-gradient(180deg,#171a2b,#12131f);border:1px solid var(--line);border-bottom:0;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -20px 60px rgba(0,0,0,.6);animation:rise .25s ease}
   .sheet h2{font-size:18px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
   .sheet p{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.5}
+  .picklabel{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin:2px 0 7px}
+  .chiprow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px;max-height:118px;overflow-y:auto}
+  .chip{padding:8px 14px;border-radius:20px;font-size:14px;font-weight:700;font-family:'Space Grotesk';background:rgba(124,92,255,.14);border:1.5px solid rgba(124,92,255,.5);color:#e8dcff;cursor:pointer;white-space:nowrap;transition:.12s}
+  .chip.brandchip{background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.45);color:#c8f4fb}
+  .chip:active{transform:scale(.92)}
+  .chip.sending{opacity:.5;pointer-events:none}
+  .chipmini{font-size:12px;color:var(--dim)}
   .sheet textarea{width:100%;min-height:96px;resize:vertical;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit}
   .sheet textarea:focus{outline:none;border-color:var(--acc)}
   .sheet .btns{display:flex;gap:10px;margin-top:14px}
@@ -3732,6 +3771,18 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 </style></head><body>
 <input type="file" id="avFile" accept="image/*" style="display:none">
 <div id="listView">
+  <div class="fxlayer"><div class="glow"></div>
+    <span class="spark" style="top:16%;left:22%;animation-delay:0s"></span>
+    <span class="spark" style="top:9%;left:64%;animation-delay:.5s"></span>
+    <span class="spark" style="top:31%;left:81%;animation-delay:1.1s"></span>
+    <span class="spark" style="top:44%;left:12%;animation-delay:1.7s"></span>
+    <span class="spark" style="top:58%;left:48%;animation-delay:.3s"></span>
+    <span class="spark" style="top:67%;left:78%;animation-delay:2.1s"></span>
+    <span class="spark" style="top:73%;left:28%;animation-delay:1.4s"></span>
+    <span class="spark" style="top:86%;left:60%;animation-delay:.8s"></span>
+    <span class="spark" style="top:24%;left:44%;animation-delay:2.4s"></span>
+    <span class="spark" style="top:52%;left:90%;animation-delay:1.9s"></span>
+  </div>
   <div class="hero">
     <div class="heroTop">
       <svg class="crown" viewBox="0 0 100 80"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dffb0"/><stop offset="1" stop-color="#12b866"/></linearGradient></defs><path d="M8 70 L2 22 L28 44 L50 8 L72 44 L98 22 L92 70 Z" fill="url(#cg)" stroke="#2fe08a" stroke-width="3" stroke-linejoin="round"/><circle cx="2" cy="18" r="6" fill="#7dffb0"/><circle cx="50" cy="6" r="6" fill="#7dffb0"/><circle cx="98" cy="18" r="6" fill="#7dffb0"/></svg>
@@ -3784,7 +3835,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   </div>
   <div class="quickrow">
     <button class="qbtn q-pay" id="q-pay">💰 Payments</button>
-    <button class="qbtn q-shoes" id="q-shoes">👟 Shoes</button>
+    <button class="qbtn q-shoes" id="q-shoes">📸 Pics</button>
     <button class="qbtn q-money" id="q-money">💵 Money</button>
     <button class="qbtn q-orders" id="q-orders">🛍️ Orders<span class="ordbadge" id="ordBadge" style="display:none">0</span></button>
   </div>
@@ -3804,8 +3855,13 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 </div>
 <div class="modal" id="shoeModal">
   <div class="sheet">
-    <h2>👟 Send a shoe</h2>
-    <p>Search the catalog and send the matching shoes straight to this customer — pauses Kiki automatically.</p>
+    <h2>📸 Send pictures</h2>
+    <p>Tap a size to send the customer <b>everything in that size</b>, or a brand to send <b>everything from that brand</b> — photos + info, straight to them. Pauses Kiki automatically.</p>
+    <div class="picklabel">By size</div>
+    <div class="chiprow" id="sizeChips"><span class="chipmini">Loading…</span></div>
+    <div class="picklabel">By brand</div>
+    <div class="chiprow" id="brandChips"><span class="chipmini">Loading…</span></div>
+    <div class="picklabel">Or search manually</div>
     <div style="display:flex;gap:8px">
       <input id="shSize" inputmode="decimal" placeholder="Size (e.g. 10)" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
       <input id="shColor" placeholder="Colour" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
@@ -3981,7 +4037,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var tap = x.dir==='in' ? ' tap' : '';
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
         var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : esc(x.text);
-        return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
+        var bp = x.img ? '' : ' style="--bp:'+(5+Math.floor(Math.random()*90))+'% '+(5+Math.floor(Math.random()*90))+'%"';
+        return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bp+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
       // tap a customer message to quote it in your reply
       Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
@@ -4128,8 +4185,31 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     }).catch(function(){ $('newStart').disabled=false; toast('Failed — network'); });
   }
   // ── 👟 Shoes quick-action: search the catalog and send matches to this customer ──
-  function openShoe(){ if(!cur) return; ['shSize','shColor','shBrand','shQuery'].forEach(function(id){$(id).value='';}); $('shoeModal').classList.add('open'); setTimeout(function(){$('shSize').focus();},60); }
+  function openShoe(){ if(!cur) return; ['shSize','shColor','shBrand','shQuery'].forEach(function(id){$(id).value='';}); $('shoeModal').classList.add('open'); loadPickChips(); }
   function closeShoe(){ $('shoeModal').classList.remove('open'); }
+  var pickMeta=null;
+  function loadPickChips(){
+    var render=function(){
+      var sc=$('sizeChips'), bc=$('brandChips');
+      if(!pickMeta){ return; }
+      sc.innerHTML = (pickMeta.sizes||[]).map(function(s){ return '<span class="chip sizechip" data-size="'+s+'">'+s+'</span>'; }).join('') || '<span class="chipmini">No sizes in stock</span>';
+      bc.innerHTML = (pickMeta.brands||[]).map(function(b){ return '<span class="chip brandchip" data-brand="'+esc(b)+'">'+esc(b)+'</span>'; }).join('') || '<span class="chipmini">No brands in stock</span>';
+      Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ bulkSend(el, {size:el.getAttribute('data-size')}, 'size '+el.getAttribute('data-size')); }; });
+      Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ bulkSend(el, {brand:el.getAttribute('data-brand')}, el.getAttribute('data-brand')); }; });
+    };
+    if(pickMeta){ render(); return; }
+    api('/inbox/catalog-meta').then(function(d){ if(d&&d.ok){ pickMeta=d; render(); } else { $('sizeChips').innerHTML='<span class="chipmini">Could not load</span>'; $('brandChips').innerHTML=''; } }).catch(function(){});
+  }
+  function bulkSend(el, filter, label){
+    if(!cur) return;
+    el.classList.add('sending');
+    var body=Object.assign({sub:cur.sub,account:cur.acct}, filter);
+    post('/inbox/send-shoe', body).then(function(d){
+      el.classList.remove('sending');
+      if(d&&d.ok){ closeShoe(); toast('Sent '+d.sent+' in '+label+' 👟'); loadThread(true); }
+      else toast((d&&d.error)||'Nothing in '+label);
+    }).catch(function(){ el.classList.remove('sending'); toast('Failed — network'); });
+  }
   function sendShoe(){
     if(!cur) return;
     var body={sub:cur.sub,account:cur.acct,size:$('shSize').value.trim(),color:$('shColor').value.trim(),brand:$('shBrand').value.trim(),query:$('shQuery').value.trim()};
