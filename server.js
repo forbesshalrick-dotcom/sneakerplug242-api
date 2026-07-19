@@ -3467,7 +3467,7 @@ app.post('/console/send', async (req, res) => {
 
 // ── 📥 UNIFIED INBOX PAGE (served slim; the 242plug PWA links here with ?key=) ──
 const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0a0812">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3478,7 +3478,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <style>
   :root{--acc:#7c5cff;--acc2:#22d3ee;--ink:#eef1fb;--dim:#98a0b8;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.08)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100vh;height:100dvh;overflow:hidden}
+  /* Pin the whole app to the real device viewport. position:fixed;inset:0 fills the
+     stable layout viewport (avoids the 100dvh-too-small shrink that left black below
+     the nav), and locks the page so one finger can't drag the whole UI around. */
+  html{background:#0a0812}
+  html,body{margin:0;overflow:hidden;overscroll-behavior:none}
+  body{position:fixed;inset:0;touch-action:pan-y}
   body{font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased;
     background:#05050a}
   /* luxury backdrop — swap CHAT_BG_URL for the collage image; falls back to a rich glow */
@@ -3612,7 +3617,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   /* ── OUTER UI: graffiti hero, search, spray rows, bottom nav ── */
   .hero{padding:22px 16px 6px;position:relative;flex-shrink:0}
   .heroTop{display:flex;align-items:flex-start;gap:2px}
-  .crown{width:46px;height:46px;margin:-6px 0 -2px -4px;filter:drop-shadow(0 0 10px rgba(255,92,180,.7))}
+  .crown{width:46px;height:46px;margin:-6px 0 -2px -4px;filter:drop-shadow(0 0 10px rgba(46,224,138,.75))}
   .wordmark{font-family:'Permanent Marker',cursive;font-size:52px;line-height:.86;margin:0;color:#fff;letter-spacing:1px;transform:skew(-5deg);text-shadow:0 3px 14px rgba(0,0,0,.7),0 0 2px #000,3px 3px 0 rgba(0,0,0,.35)}
   .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:3px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
   .searchbar{display:flex;gap:9px;padding:8px 14px 10px;align-items:center;flex-shrink:0}
@@ -3657,7 +3662,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <div id="listView">
   <div class="hero">
     <div class="heroTop">
-      <svg class="crown" viewBox="0 0 100 80"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff8ad4"/><stop offset="1" stop-color="#c65cff"/></linearGradient></defs><path d="M8 70 L2 22 L28 44 L50 8 L72 44 L98 22 L92 70 Z" fill="url(#cg)" stroke="#ff5cb4" stroke-width="3" stroke-linejoin="round"/><circle cx="2" cy="18" r="6" fill="#ff8ad4"/><circle cx="50" cy="6" r="6" fill="#ff8ad4"/><circle cx="98" cy="18" r="6" fill="#ff8ad4"/></svg>
+      <svg class="crown" viewBox="0 0 100 80"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dffb0"/><stop offset="1" stop-color="#12b866"/></linearGradient></defs><path d="M8 70 L2 22 L28 44 L50 8 L72 44 L98 22 L92 70 Z" fill="url(#cg)" stroke="#2fe08a" stroke-width="3" stroke-linejoin="round"/><circle cx="2" cy="18" r="6" fill="#7dffb0"/><circle cx="50" cy="6" r="6" fill="#7dffb0"/><circle cx="98" cy="18" r="6" fill="#7dffb0"/></svg>
       <h1 class="wordmark">INBOX</h1>
     </div>
     <div class="tagline">STAY CONNECTED</div>
@@ -3779,6 +3784,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   window.__imgFail=function(el){ try{ var s=document.createElement('span'); s.textContent='📷 photo'; el.replaceWith(s); }catch(e){} };
   window.__avFail=function(el){ try{ el.style.display='none'; var s=el.parentNode.querySelector('.avini'); if(s) s.style.display='flex'; }catch(e){} };
   function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
+  // Give every customer their OWN colour, generated from their number — so regulars
+  // are recognisable at a glance with zero work. Same number → same colour, every day.
+  function custColors(seed){ var s=String(seed||''); var h=2166136261; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=(h*16777619)>>>0; } var h1=h%360; var h2=(h1+ (46+(h>>>9)%80))%360; return ['hsl('+h1+',72%,58%)','hsl('+h2+',68%,42%)']; }
+  // Up to two initials (first + last word) for a fuller monogram.
+  function initials(nm){ var p=String(nm||'').trim().split(/\\s+/).filter(Boolean); if(!p.length) return '#'; var a=(p[0].match(/[a-zA-Z0-9]/)||['#'])[0]; if(p.length<2) return a.toUpperCase(); var b=(p[p.length-1].match(/[a-zA-Z0-9]/)||[''])[0]; return (a+b).toUpperCase(); }
+  // Local number (last 7 digits) + the "Name-8033126" label so the name AND the number
+  // are both visible at a glance.
+  function localNum(x){ var n=String(x||'').replace(/\\D/g,''); return n.length>7?n.slice(-7):n; }
+  function custLabel(name, num){ var nm=String(name||'').trim(); var loc=localNum(num); return nm ? (nm+(loc?'-'+loc:'')) : ('+'+String(num||'').replace(/\\D/g,'')); }
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
       +'<br><br><input id="pk" placeholder="Inbox key" autocomplete="off" style="width:82%;max-width:290px;padding:11px;border-radius:9px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:14px">'
@@ -3829,18 +3843,20 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       var totalUnread = 0;
       $('threads').innerHTML = ts.map(function(t){
         totalUnread += (t.unread||0);
-        var nm = t.name || ('+'+t.sub);
-        var av = (nm.replace(/[^a-zA-Z0-9]/g,'').charAt(0)||'#').toUpperCase();
-        var c = accCols(t.tag);
-        var avStyle = '--rc:'+c[0]+';--rg:'+c[0]+'aa;background:linear-gradient(135deg,'+c[0]+','+c[1]+')';
+        var rawName = (t.name||'').trim();
+        var label = custLabel(rawName, t.phone||t.sub);   // "Jero-8033126" — name + number
+        var av = initials(rawName) || '#';
+        var c = accCols(t.tag);        // account colour → avatar ring (still shows TK/OSC)
+        var pc = custColors(t.sub);    // per-customer colour → the face, unique to them
+        var avStyle = '--rc:'+c[0]+';--rg:'+c[0]+'aa;background:linear-gradient(135deg,'+pc[0]+','+pc[1]+')';
         var avInner = t.avatar
           ? '<img src="'+esc(t.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(av)+'</span>'
           : '<span class="avini">'+esc(av)+'</span>';
         var pv = t.paused? '<span class="pz">⏸ you\\'re handling this</span>' : ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
-        return '<div class="row'+(t.unread?' unread':'')+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(nm)+'" data-tag="'+t.tag+'">'
+        return '<div class="row'+(t.unread?' unread':'')+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
-            +'<div class="toprow"><div class="nm"><span class="nmtext">'+esc(nm)+'</span><span class="vbadge" style="background:'+c[0]+'">✓</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
+            +'<div class="toprow"><div class="nm"><span class="nmtext">'+esc(label)+'</span><span class="vbadge" style="background:'+c[0]+'">✓</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
               +'<div class="meta"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
             +pv
           +'</div></div>';
@@ -3858,11 +3874,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 
   function openThread(sub, acct, name, tag){
     cur = {sub:sub, acct:acct, name:name, tag:tag};
-    $('tName').textContent = name; $('tSub').textContent = '+'+sub;
+    $('tName').textContent = custLabel(name, sub); $('tSub').textContent = '+'+sub;
     $('tTag').textContent = tag; $('tTag').className='tag '+tagCls(tag);
-    var c = accCols(tag);
-    $('tAv').textContent = ((name||'').replace(/[^a-zA-Z0-9]/g,'').charAt(0)||'#').toUpperCase();
-    $('tAv').style.background = 'linear-gradient(135deg,'+c[0]+','+c[1]+')';
+    var c = accCols(tag), pc = custColors(sub);
+    $('tAv').textContent = initials(name) || '#';
+    $('tAv').style.background = 'linear-gradient(135deg,'+pc[0]+','+pc[1]+')';
+    $('tAv').style.setProperty('--rc', c[0]);
     $('threadView').className = 'acc-'+tagCls(tag); // colour bubbles + accents by account
     $('listView').style.display='none'; $('threadView').style.display='flex';
     $('msgs').innerHTML=''; loadThread(true); refreshOrderBadge();
