@@ -4055,7 +4055,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       if(scroll || atBottom) m.scrollTop = m.scrollHeight;
       var b=$('tBanner');
       if(d.paused){ b.style.display='block'; b.className='banner paused'; b.innerHTML='⏸ Kiki is paused (~'+countdown(d.pausedUntil)+' left) — <b id="handback">hand back to Kiki</b>'; $('handback').onclick=handBack; }
-      else { b.style.display='block'; b.className='banner live'; b.innerHTML=kiki(16)+' <span style="vertical-align:middle">Kiki is answering this chat — your reply pauses her automatically.</span>'; }
+      else { b.style.display='none'; b.innerHTML=''; }  // no "Kiki is answering" banner — the header badge already shows her status
       // Kiki on/off badge on the header tag — same tap-to-toggle as the list
       var tk=$('tKiki');
       if(tk && cur){ var koff=!!d.paused; tk.style.display='flex'; tk.className='kiki '+(koff?'koff':'kon'); tk.textContent=koff?'✕':'✓'; tk.style.background=koff?'#ff3b5c':accCols(cur.tag)[0]; tk.title=koff?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her';
