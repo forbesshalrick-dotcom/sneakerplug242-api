@@ -3586,10 +3586,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
      eyes" green ambiance across all the ladies) + twinkling sparkles for jewelry glisten.
      Sits above the darkened photo (z-index:-1) but below all the text/rows. */
   .fxlayer{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
-  .fxlayer .glow{position:absolute;inset:0;mix-blend-mode:screen;background:radial-gradient(78% 68% at 50% 42%, transparent 42%, rgba(46,224,138,.14) 74%, rgba(46,224,138,.34) 100%);animation:hauntglow 3.8s ease-in-out infinite}
-  @keyframes hauntglow{0%,100%{opacity:.22}50%{opacity:.9}}
-  .fxlayer .spark{position:absolute;width:7px;height:7px;border-radius:50%;background:radial-gradient(circle,#eafff4 0%,rgba(120,255,190,.6) 40%,transparent 72%);opacity:0;animation:twinkle 2.6s ease-in-out infinite;filter:drop-shadow(0 0 4px rgba(120,255,190,.8))}
-  @keyframes twinkle{0%,100%{opacity:0;transform:scale(.3)}50%{opacity:1;transform:scale(1.15)}}
+  .fxlayer .glow{position:absolute;inset:0;mix-blend-mode:screen;background:radial-gradient(80% 70% at 50% 42%, rgba(46,224,138,.05) 30%, rgba(46,224,138,.16) 72%, rgba(46,224,138,.42) 100%);animation:hauntglow 3.4s ease-in-out infinite}
+  @keyframes hauntglow{0%,100%{opacity:.28}50%{opacity:1}}
+  /* jewelry-glisten star glints scattered over the collage, twinkling green/white */
+  .fxlayer .spark{position:absolute;color:#f2fff8;line-height:1;opacity:0;transform:scale(.3);animation:twinkle 2.4s ease-in-out infinite;text-shadow:0 0 5px rgba(180,255,214,.95),0 0 11px rgba(46,224,138,.85),0 0 18px rgba(46,224,138,.5);pointer-events:none;will-change:opacity,transform}
+  @keyframes twinkle{0%,100%{opacity:0;transform:scale(.25) rotate(0deg)}45%{opacity:1;transform:scale(1) rotate(90deg)}55%{opacity:.9;transform:scale(1.05) rotate(110deg)}}
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
   header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
@@ -3786,18 +3787,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 </style></head><body>
 <input type="file" id="avFile" accept="image/*" style="display:none">
 <div id="listView">
-  <div class="fxlayer"><div class="glow"></div>
-    <span class="spark" style="top:16%;left:22%;animation-delay:0s"></span>
-    <span class="spark" style="top:9%;left:64%;animation-delay:.5s"></span>
-    <span class="spark" style="top:31%;left:81%;animation-delay:1.1s"></span>
-    <span class="spark" style="top:44%;left:12%;animation-delay:1.7s"></span>
-    <span class="spark" style="top:58%;left:48%;animation-delay:.3s"></span>
-    <span class="spark" style="top:67%;left:78%;animation-delay:2.1s"></span>
-    <span class="spark" style="top:73%;left:28%;animation-delay:1.4s"></span>
-    <span class="spark" style="top:86%;left:60%;animation-delay:.8s"></span>
-    <span class="spark" style="top:24%;left:44%;animation-delay:2.4s"></span>
-    <span class="spark" style="top:52%;left:90%;animation-delay:1.9s"></span>
-  </div>
+  <div class="fxlayer" id="fxList"><div class="glow"></div></div>
   <div class="hero">
     <div class="heroTop">
       <svg class="crown" viewBox="0 0 100 80"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dffb0"/><stop offset="1" stop-color="#12b866"/></linearGradient></defs><path d="M8 70 L2 22 L28 44 L50 8 L72 44 L98 22 L92 70 Z" fill="url(#cg)" stroke="#2fe08a" stroke-width="3" stroke-linejoin="round"/><circle cx="2" cy="18" r="6" fill="#7dffb0"/><circle cx="50" cy="6" r="6" fill="#7dffb0"/><circle cx="98" cy="18" r="6" fill="#7dffb0"/></svg>
@@ -3826,6 +3816,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   </nav>
 </div>
 <div id="threadView">
+  <div class="fxlayer" id="fxThread"><div class="glow"></div></div>
   <header class="thead">
     <button class="icon" id="back">‹</button>
     <span class="av" id="tAv"></span>
@@ -4277,6 +4268,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function applyCompact(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; }catch(e){} $('listView').classList.toggle('compact', on); var b=$('density'); if(b) b.classList.toggle('on', on); }
   $('density').onclick=function(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; localStorage.setItem(COMPACT_LS, on?'0':'1'); }catch(e){} applyCompact(); };
   applyCompact();
+  // scatter twinkling jewelry-glint sparkles across the collage on both screens
+  function seedSparkles(id, n){ var el=$(id); if(!el) return; var f=document.createDocumentFragment(); for(var i=0;i<n;i++){ var s=document.createElement('span'); s.className='spark'; s.textContent='✦'; s.style.top=(2+Math.random()*94)+'%'; s.style.left=(2+Math.random()*94)+'%'; s.style.fontSize=(9+Math.random()*15).toFixed(0)+'px'; s.style.animationDelay=(Math.random()*3).toFixed(2)+'s'; s.style.animationDuration=(1.9+Math.random()*1.8).toFixed(2)+'s'; f.appendChild(s); } el.appendChild(f); }
+  seedSparkles('fxList', 24); seedSparkles('fxThread', 20);
   $('back').onclick=function(){ clearImg(); clearAud(); clearQuote(); closeThread(); };
   $('send').onclick=send;
   $('attach').onclick=function(){ $('file').click(); };
