@@ -3658,6 +3658,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .heroTop{display:flex;align-items:flex-start;gap:2px}
   .crown{width:46px;height:46px;margin:-6px 0 -2px -4px;filter:drop-shadow(0 0 10px rgba(46,224,138,.75))}
   .wordmark{font-family:'Permanent Marker',cursive;font-size:52px;line-height:.86;margin:0;color:#fff;letter-spacing:1px;transform:skew(-5deg);text-shadow:0 3px 14px rgba(0,0,0,.7),0 0 2px #000,3px 3px 0 rgba(0,0,0,.35)}
+  .wabrand{font-family:'Permanent Marker',cursive;font-size:22px;line-height:1;color:#25D366;margin:2px 0 1px 5px;transform:skew(-5deg);text-shadow:0 0 12px rgba(37,211,102,.6),0 2px 6px rgba(0,0,0,.7)}
   .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:3px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
   .searchbar{display:flex;gap:9px;padding:8px 14px 10px;align-items:center;flex-shrink:0}
   .searchbar .sbox{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
@@ -3692,10 +3693,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   /* Kiki on/off badge sitting on the corner of the TK/OSC tag — green ✓ = Kiki answering,
      red ✕ = Kiki paused (you're handling it), so you can spot it from the list. */
   .row .tagbox{position:relative;display:inline-flex;align-items:center}
-  .row .kiki{position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;border:2px solid #0a0812;box-shadow:0 1px 4px rgba(0,0,0,.6);font-family:'Space Grotesk';cursor:pointer;z-index:2}
-  .row .kiki:active{transform:scale(.82)}
-  .row .kiki.kon{background:#12b866;color:#04120b}
-  .row .kiki.koff{background:#ff3b5c;color:#fff}
+  .row .kiki,.thead .kiki{position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;border:2px solid #0a0812;box-shadow:0 1px 4px rgba(0,0,0,.6);font-family:'Space Grotesk';cursor:pointer;z-index:2;color:#fff}
+  .row .kiki:active,.thead .kiki:active{transform:scale(.82)}
+  .thead .tagbox{position:relative;display:inline-flex;align-items:center}
+  .thead .kiki{border-color:#12131f;z-index:3}
   /* compact mode — smaller icons + a narrower name font so the full Name-number fits */
   #listView.compact .row{padding:8px 10px;gap:10px}
   #listView.compact .row .av{width:40px;height:40px;font-size:15px;border-width:2px}
@@ -3719,6 +3720,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       <svg class="crown" viewBox="0 0 100 80"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7dffb0"/><stop offset="1" stop-color="#12b866"/></linearGradient></defs><path d="M8 70 L2 22 L28 44 L50 8 L72 44 L98 22 L92 70 Z" fill="url(#cg)" stroke="#2fe08a" stroke-width="3" stroke-linejoin="round"/><circle cx="2" cy="18" r="6" fill="#7dffb0"/><circle cx="50" cy="6" r="6" fill="#7dffb0"/><circle cx="98" cy="18" r="6" fill="#7dffb0"/></svg>
       <h1 class="wordmark">INBOX</h1>
     </div>
+    <div class="wabrand">WhatsApp</div>
     <div class="tagline">STAY CONNECTED</div>
   </div>
   <div class="searchbar">
@@ -3746,7 +3748,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <span class="av" id="tAv"></span>
     <div class="who-wrap"><h1 id="tName"></h1><span class="sm" id="tSub"></span></div>
     <button class="icon" id="brief" title="Brief Kiki on this chat">🧠</button>
-    <span class="tag" id="tTag"></span>
+    <span class="tagbox"><span class="tag" id="tTag"></span><span class="kiki" id="tKiki" style="display:none"></span></span>
   </header>
   <div class="banner" id="tBanner" style="display:none"></div>
   <div class="msgs" id="msgs"></div>
@@ -3908,7 +3910,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
             +'<div class="toprow"><div class="nm"><span class="nmtext">'+esc(label)+'</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
-              +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="kiki '+(t.paused?'koff':'kon')+'" data-sub="'+t.sub+'" title="'+(t.paused?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her')+'">'+(t.paused?'✕':'✓')+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
+              +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="kiki '+(t.paused?'koff':'kon')+'" data-sub="'+t.sub+'" style="background:'+(t.paused?'#ff3b5c':c[0])+'" title="'+(t.paused?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her')+'">'+(t.paused?'✕':'✓')+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
             +pv
           +'</div></div>';
       }).join('');
@@ -3970,6 +3972,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       var b=$('tBanner');
       if(d.paused){ b.style.display='block'; b.className='banner paused'; b.innerHTML='⏸ Kiki is paused (~'+countdown(d.pausedUntil)+' left) — <b id="handback">hand back to Kiki</b>'; $('handback').onclick=handBack; }
       else { b.style.display='block'; b.className='banner live'; b.innerHTML=kiki(16)+' <span style="vertical-align:middle">Kiki is answering this chat — your reply pauses her automatically.</span>'; }
+      // Kiki on/off badge on the header tag — same tap-to-toggle as the list
+      var tk=$('tKiki');
+      if(tk && cur){ var koff=!!d.paused; tk.style.display='flex'; tk.className='kiki '+(koff?'koff':'kon'); tk.textContent=koff?'✕':'✓'; tk.style.background=koff?'#ff3b5c':accCols(cur.tag)[0]; tk.title=koff?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her';
+        tk.onclick=function(ev){ ev.stopPropagation(); tk.style.opacity='.4'; post(koff?'/inbox/resume':'/inbox/pause',{sub:cur.sub}).then(function(r){ if(r&&r.ok){ toast(koff?'Kiki is back ON ✅':'Kiki paused — you\\'re handling this 👨‍🦱'); loadThread(false); } else { tk.style.opacity=''; toast((r&&r.error)||'Could not change Kiki'); } }).catch(function(){ tk.style.opacity=''; toast('Could not change Kiki'); }); };
+      }
     }).catch(function(){});
   }
 
