@@ -1307,6 +1307,13 @@ const AI_TOOLS = [
     },
   },
   {
+    name: 'attach_payment_proof',
+    description: "STAFF ONLY — pin the customer's payment / money-confirmation screenshot to a sale you JUST recorded, so the owner can see proof of payment on that sale in the app. Call this ONLY when BOTH are true: (1) you recorded a sale earlier in THIS conversation and have its sale_id (record_sale returned it), and (2) the staff member has NOW sent a PHOTO in this very message that is a payment / bank-transfer / SunCash / Cash App / cash-received screenshot. Do NOT call it for a shoe photo, a float/cash-pile photo, or a gas receipt. If the staffer says the sale was cash or has no screenshot, do NOT call it — that's fine, just move on.",
+    input_schema: { type: 'object', required: ['sale_id'], properties: {
+      sale_id: { type: 'string', description: "The exact saleId that record_sale returned for this sale, earlier in THIS conversation." },
+    } },
+  },
+  {
     name: 'record_restock',
     description: "STAFF ONLY — add pairs of a size to live stock (new stock arrived, a return came back, or undoing a mistaken removal). Same photo-confirm-first rule as record_sale: confirm the exact shoe with its picture in THIS conversation before calling. Updates the website and every phone instantly and posts a restock note.",
     input_schema: {
@@ -2860,10 +2867,33 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (result && result.ok) {
               const remain = (result.remaining_sizes && result.remaining_sizes.length) ? result.remaining_sizes.join(', ') : 'NONE — sold out';
               try { await waSendManager(`🧾 SOLD (reported by ${staffName} via Kiki): ${displayName(s2)} — size ${inp.size} — $${s2.price}\nRemaining sizes: ${remain}`, token); } catch (_) {}
+              // PAYMENT PROOF (Rodney 2026-07-18): after logging the sale, Kiki asks the
+              // staffer for the customer's payment screenshot and pins it to THIS sale so the
+              // owner can see proof of payment in the app. Cash / no-screenshot is fine — don't nag.
+              result.next_step = 'After you give them the ✅ remaining-sizes confirmation, ask them to send the PAYMENT screenshot for this sale (the customer\'s bank-transfer / SunCash / Cash App proof) — e.g. "📸 send me the payment confirmation for this one and I\'ll pin it to the sale." When they send that photo, call attach_payment_proof with sale_id="' + result.saleId + '". If they say it was cash or they have no screenshot, that\'s fine — just say no worries and move on, do NOT nag.';
             }
           }
         }
         record(req, { endpoint: 'staff-sale', sub, by: staffName, params: tu.input, out: result && (result.ok ? 'ok' : result.error) });
+      }
+      else if (tu.name === 'attach_payment_proof') {
+        const inp = tu.input || {};
+        if (!staffName) { result = { error: 'REFUSED — staff numbers only.' }; }
+        else if (!image) { result = { error: 'NO IMAGE in this message — ask them to send the payment screenshot, and call this only once it actually arrives in the chat.' }; }
+        else {
+          try {
+            // image is a URL string (ManyChat) OR a {data, media_type} base64 object (WhatsApp
+            // Cloud API). Normalise to base64 bytes so the proof survives after the link expires.
+            let img = (image && typeof image === 'object' && image.data) ? image : null;
+            if (!img && typeof image === 'string') img = await fetchImageBase64(image);
+            if (!img || !img.data) { result = { error: "couldn't read that image — ask them for a clearer screenshot." }; }
+            else {
+              result = require('./shop').attachSaleProof(inp.sale_id, img, staffName);
+              if (result && result.ok) result.note = 'Payment proof pinned to the sale — tell them warmly it\'s saved (e.g. "✅ got it, payment proof pinned to that sale 🙏"). Do NOT re-ask for anything.';
+            }
+          } catch (e) { result = { error: 'proof save failed: ' + String(e).slice(0, 80) }; }
+        }
+        record(req, { endpoint: 'sale-proof', sub, by: staffName, params: tu.input, out: result && (result.ok ? 'ok' : result.error) });
       }
       else if (tu.name === 'record_restock') {
         const inp = tu.input || {};

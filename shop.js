@@ -63,6 +63,7 @@ const state = {
   accounts: loadFile('accounts.json', {}),  // { name: "passwordOrEmpty" } login accounts
   roles: loadFile('roles.json', {}),        // { name: "supervisor"|"line_staff" }
   deletedStaff: loadFile('deletedStaff.json', []), // names permanently removed — devices must never re-add these
+  proofs: loadFile('proofs.json', {}),      // saleId -> {media_type, data(base64), by, at} — payment screenshots pinned to a sale (kept OUT of /shop/state so the poll payload stays small)
   subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
   rev: loadFile('rev.json', { n: 1 }),
 };
@@ -199,6 +200,22 @@ function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
   addLogEntry('Sale (via Kiki)', (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : ''), 'sales', shoeId, by || 'staff');
   return { ok: true, saleId: uid, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes), sold_out: !!shoe.sold };
 }
+
+// Pin a payment-proof screenshot to an existing sale (Rodney 2026-07-18: after a sale,
+// staff send the customer's money-confirmation pic). The bytes live in a SEPARATE proofs
+// map so the frequently-polled /shop/state payload stays small; the sale just gets a tiny
+// hasProof=true flag so the website can show a 📎. Served on demand via /shop/proof/:id.
+function attachSaleProof(saleId, img, by) {
+  if (!saleId || !img || !img.data) return { error: 'no image' };
+  const sale = state.sales.find(x => x && String(x.id) === String(saleId));
+  if (!sale) return { error: 'unknown sale ' + saleId + ' — proof not saved' };
+  state.proofs[String(saleId)] = { media_type: img.media_type || 'image/jpeg', data: img.data, by: by || sale.by || '', at: new Date().toISOString() };
+  sale.hasProof = true;
+  persist('proofs.json'); persist('sales.json'); bump();
+  addLogEntry('Payment proof pinned', (sale.shoeLabel || sale.name || sale.shoeId) + ' — size ' + sale.size, 'sales', sale.shoeId, by || 'staff');
+  return { ok: true, saleId: String(saleId), shoe: sale.shoeLabel || sale.name || sale.shoeId };
+}
+function getProof(saleId) { return state.proofs[String(saleId)] || null; }
 
 // Staff restock via Kiki — the inverse of recordStaffSale: add pairs of a size.
 // No sale record (nothing sold); a task note + rev bump so every phone syncs.
@@ -507,8 +524,24 @@ function mount(app) {
     if (id == null) return res.status(400).json({ error: 'no id' });
     const before = state.sales.length;
     state.sales = state.sales.filter(x => String(x.id) !== String(id));
+    // Drop any pinned payment proof for a voided sale so it doesn't orphan on disk.
+    if (state.proofs && state.proofs[String(id)]) { delete state.proofs[String(id)]; persist('proofs.json'); }
     if (state.sales.length !== before) { persist('sales.json'); bump(); }
     res.json({ ok: true, removed: before - state.sales.length, count: state.sales.length });
+  });
+
+  // Serve a sale's pinned payment-proof screenshot. Auth is via ?key= so a plain
+  // <img> tag on the website can load it. Returns the raw image bytes, or 404 if none.
+  app.get('/shop/proof/:saleId', (req, res) => {
+    if (!auth(req, res)) return;
+    const p = state.proofs[String(req.params.saleId)];
+    if (!p || !p.data) return res.status(404).json({ error: 'no proof for this sale' });
+    try {
+      const buf = Buffer.from(p.data, 'base64');
+      res.set('Content-Type', p.media_type || 'image/jpeg');
+      res.set('Cache-Control', 'private, max-age=86400');
+      res.send(buf);
+    } catch (e) { res.status(500).json({ error: 'decode failed' }); }
   });
 
   // ---- Activity log (append; id dedupe) ----
@@ -669,4 +702,4 @@ function mount(app) {
 function getShoes() { return Array.isArray(state.shoes) ? state.shoes : []; }
 function getDeleted() { return Array.isArray(state.deleted) ? state.deleted : []; }
 
-module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []) };
+module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []) };
