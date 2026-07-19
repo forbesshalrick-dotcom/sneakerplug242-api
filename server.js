@@ -3748,8 +3748,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .row .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
   .row .nm{flex:1;min-width:0;display:flex;align-items:center;gap:6px;text-shadow:0 2px 7px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.9)}
   .row .nmtext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-  .cn-name{color:#ff5cb4}
-  .cn-num{color:#2fe08a}
+  .cn-num{color:#ff5cb4}
   .row .meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
   .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
   .row .tm{text-shadow:0 1px 5px rgba(0,0,0,.95)}
@@ -3927,9 +3926,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // are both visible at a glance.
   function localNum(x){ var n=String(x||'').replace(/\\D/g,''); return n.length>7?n.slice(-7):n; }
   function custLabel(name, num){ var nm=String(name||'').trim(); var loc=localNum(num); return nm ? (nm+(loc?'-'+loc:'')) : ('+'+String(num||'').replace(/\\D/g,'')); }
-  // Same label but colour-split: name in pink, number in the account colour (TK blue, OSC green).
-  function numColor(tag){ return tag==='TK'?'#38bdf8':(tag==='SB'?'#c6a6ff':'#2fe08a'); }
-  function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=numColor(tag); if(!nm) return '<span class="cn-num" style="color:'+col+'">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'; return '<span class="cn-name">'+esc(nm)+'</span>'+(loc?'<span class="cn-num" style="color:'+col+'">-'+esc(loc)+'</span>':''); }
+  // Colour-split: NAME in the account colour (TK blue, OSC green — matches the avatar
+  // icon), NUMBER always pink for a uniform look.
+  function accTextColor(tag){ return tag==='TK'?'#38bdf8':(tag==='SB'?'#c6a6ff':'#2fe08a'); }
+  function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=accTextColor(tag); if(!nm) return '<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'; return '<span class="cn-name" style="color:'+col+'">'+esc(nm)+'</span>'+(loc?'<span class="cn-num">-'+esc(loc)+'</span>':''); }
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
       +'<br><br><input id="pk" placeholder="Inbox key" autocomplete="off" style="width:82%;max-width:290px;padding:11px;border-radius:9px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:14px">'
@@ -4269,8 +4269,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('density').onclick=function(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; localStorage.setItem(COMPACT_LS, on?'0':'1'); }catch(e){} applyCompact(); };
   applyCompact();
   // scatter twinkling jewelry-glint sparkles across the collage on both screens
-  function seedSparkles(id, n){ var el=$(id); if(!el) return; var f=document.createDocumentFragment(); for(var i=0;i<n;i++){ var s=document.createElement('span'); s.className='spark'; s.textContent='✦'; s.style.top=(2+Math.random()*94)+'%'; s.style.left=(2+Math.random()*94)+'%'; s.style.fontSize=(9+Math.random()*15).toFixed(0)+'px'; s.style.animationDelay=(Math.random()*3).toFixed(2)+'s'; s.style.animationDuration=(1.9+Math.random()*1.8).toFixed(2)+'s'; f.appendChild(s); } el.appendChild(f); }
-  seedSparkles('fxList', 24); seedSparkles('fxThread', 20);
+  function seedSparkles(id, n){ var el=$(id); if(!el) return; var f=document.createDocumentFragment(); for(var i=0;i<n;i++){ var s=document.createElement('span'); s.className='spark'; s.textContent='✦'; s.style.top=(6+Math.random()*84)+'%'; s.style.left=(6+Math.random()*84)+'%'; s.style.fontSize=(7+Math.random()*8).toFixed(0)+'px'; s.style.animationDelay=(Math.random()*4).toFixed(2)+'s'; s.style.animationDuration=(2.4+Math.random()*2).toFixed(2)+'s'; f.appendChild(s); } el.appendChild(f); }
+  seedSparkles('fxList', 7); seedSparkles('fxThread', 5);
   $('back').onclick=function(){ clearImg(); clearAud(); clearQuote(); closeThread(); };
   $('send').onclick=send;
   $('attach').onclick=function(){ $('file').click(); };
