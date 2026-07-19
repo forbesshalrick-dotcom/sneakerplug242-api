@@ -3742,7 +3742,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn:active{transform:scale(.92)}
   #threads{padding:4px 2px 14px}
   /* transparent rows over the vivid collage — text carries its own shadow for legibility */
-  #listView .row{gap:12px;padding:11px 12px;margin:7px 8px;border-radius:16px;border:1.6px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 13px var(--rowg,transparent)}
+  #listView .row{gap:10px;padding:7px 11px;margin:5px 7px;border-radius:14px;border:1.4px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 11px var(--rowg,transparent)}
   #listView .row:active{background:rgba(255,255,255,.09)}
   .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   .row .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
@@ -3753,10 +3753,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
   .row .tm{text-shadow:0 1px 5px rgba(0,0,0,.95)}
   .row .pz{text-shadow:0 1px 5px rgba(0,0,0,.95)}
-  .row .av{width:56px;height:56px;border:3px solid var(--rc,#7c5cff);box-shadow:0 0 16px var(--rg,rgba(124,92,255,.7)),inset 0 0 10px rgba(0,0,0,.4);font-size:20px}
+  .row .av{width:46px;height:46px;border:2.5px solid var(--rc,#7c5cff);box-shadow:0 0 13px var(--rg,rgba(124,92,255,.7)),inset 0 0 9px rgba(0,0,0,.4);font-size:16px}
   .row .av::after{content:'';position:absolute;left:22%;bottom:-5px;width:5px;height:9px;border-radius:0 0 3px 3px;background:var(--rc,#7c5cff);box-shadow:9px -2px 0 -1px var(--rc,#7c5cff),18px 1px 0 -1px var(--rc,#7c5cff),0 0 8px var(--rg,rgba(124,92,255,.7))}
   .row .av{position:relative;overflow:visible}
-  .row .nm{font-family:'Permanent Marker',cursive;font-size:20px;font-weight:400;letter-spacing:.5px;gap:6px}
+  .row .nm{font-family:'Permanent Marker',cursive;font-size:17px;font-weight:400;letter-spacing:.5px;gap:6px}
   .row .lt{font-family:'Inter';font-size:13px}
   .av .avimg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
   .av .avini{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
