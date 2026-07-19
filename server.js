@@ -3467,7 +3467,10 @@ app.post('/console/send', async (req, res) => {
 
 // ── 📥 UNIFIED INBOX PAGE (served slim; the 242plug PWA links here with ?key=) ──
 const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0812">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Inbox — SNEAKERPLUG242</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3475,7 +3478,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <style>
   :root{--acc:#7c5cff;--acc2:#22d3ee;--ink:#eef1fb;--dim:#98a0b8;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.08)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%}
+  html,body{margin:0;height:100vh;height:100dvh;overflow:hidden}
   body{font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased;
     background:#05050a}
   /* luxury backdrop — swap CHAT_BG_URL for the collage image; falls back to a rich glow */
@@ -3487,7 +3490,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       linear-gradient(180deg,#0a0812,#05050a);
     background-size:cover;background-position:center}
   body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center}
-  body.hasbg #listView::after,body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.80),rgba(6,5,12,.88))}
+  body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.42),rgba(6,5,12,.52))}
+  body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.80),rgba(6,5,12,.88))}
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
   header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
@@ -3500,6 +3504,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .avatar{border-radius:50%;flex-shrink:0;overflow:hidden;background:linear-gradient(135deg,var(--acc),var(--acc2));display:block}
   #listView,#threadView{position:absolute;inset:0;display:flex;flex-direction:column}
   #threadView{display:none}
+  /* laptop / desktop: centre a phone-width column, fill the gutters with the collage
+     so it reads like the app running on a big screen instead of a strip over black.
+     The body-prefixed selector beats the plain id inset:0 rule regardless of order. */
+  @media (min-width:820px){
+    body{background:#08070e}
+    body.hasbg::before{content:'';position:fixed;inset:0;z-index:-3;background-image:var(--chatbg);background-size:cover;background-position:center;filter:blur(26px) brightness(.5) saturate(1.1);transform:scale(1.08)}
+    body.hasbg::after{content:'';position:fixed;inset:0;z-index:-2;background:rgba(5,5,10,.55)}
+    body #listView,body #threadView{left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:440px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10);box-shadow:0 0 120px rgba(0,0,0,.8)}
+  }
   .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
   .row{display:flex;gap:12px;align-items:center;padding:13px 15px;cursor:pointer;position:relative;transition:.15s;border-bottom:1px solid rgba(255,255,255,.04)}
   .row:active{background:rgba(255,255,255,.04)}
@@ -3611,12 +3624,19 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn svg{width:22px;height:22px}
   .sbtn.compose{color:#ff5cb4;border-color:rgba(255,92,180,.55);box-shadow:0 0 12px rgba(255,92,180,.35)}
   .sbtn:active{transform:scale(.92)}
-  #threads{padding:4px 12px 14px}
-  /* glass rows over the collage */
-  #listView .row{gap:13px;padding:13px 14px;margin-bottom:11px;border-radius:18px;border:1px solid rgba(255,255,255,.10);background:rgba(9,8,17,.82);backdrop-filter:blur(11px);border-bottom:1px solid rgba(255,255,255,.10)}
-  #listView .row:active{background:rgba(22,19,36,.88)}
-  #listView .row.unread{background:rgba(13,11,24,.85)}
-  .row .rt{position:static}
+  #threads{padding:4px 10px 14px}
+  /* transparent rows over the vivid collage — text carries its own shadow for legibility */
+  #listView .row{gap:12px;padding:11px 8px;margin:0;border-radius:14px;border:0;background:transparent;backdrop-filter:none;align-items:center}
+  #listView .row:active{background:rgba(255,255,255,.06)}
+  #listView .row+.row{border-top:1px solid rgba(255,255,255,.06)}
+  .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .row .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .row .nm{flex:1;min-width:0;display:flex;align-items:center;gap:6px;text-shadow:0 2px 7px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.9)}
+  .row .nmtext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .row .meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+  .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
+  .row .tm{text-shadow:0 1px 5px rgba(0,0,0,.95)}
+  .row .pz{text-shadow:0 1px 5px rgba(0,0,0,.95)}
   .row .av{width:56px;height:56px;border:3px solid var(--rc,#7c5cff);box-shadow:0 0 16px var(--rg,rgba(124,92,255,.7)),inset 0 0 10px rgba(0,0,0,.4);font-size:20px}
   .row .av::after{content:'';position:absolute;left:22%;bottom:-5px;width:5px;height:9px;border-radius:0 0 3px 3px;background:var(--rc,#7c5cff);box-shadow:9px -2px 0 -1px var(--rc,#7c5cff),18px 1px 0 -1px var(--rc,#7c5cff),0 0 8px var(--rg,rgba(124,92,255,.7))}
   .row .av{position:relative;overflow:visible}
@@ -3633,6 +3653,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .navbtn:active{transform:scale(.9)}
   .navbadge{position:absolute;top:-3px;right:2px;width:16px;height:16px;border-radius:50%;background:#ff2e6e;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(255,46,110,.7)}
 </style></head><body>
+<input type="file" id="avFile" accept="image/*" style="display:none">
 <div id="listView">
   <div class="hero">
     <div class="heroTop">
@@ -3769,6 +3790,31 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function api(path, opts){ opts=opts||{}; var sep=path.indexOf('?')>-1?'&':'?'; return fetch(path+sep+'key='+encodeURIComponent(KEY), opts).then(function(r){return r.json()}); }
   function post(path, body){ return api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})}); }
   function toast(m){ var t=$('toast'); t.textContent=m; t.style.display='block'; setTimeout(function(){t.style.display='none'},3200); }
+  var pendingAv=null;
+  function shrinkSquare(file, size, cb){
+    var img=new Image();
+    img.onload=function(){
+      try{
+        var s=Math.min(img.width,img.height), sx=(img.width-s)/2, sy=(img.height-s)/2;
+        var cv=document.createElement('canvas'); cv.width=size; cv.height=size;
+        var g=cv.getContext('2d'); g.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+        cb(cv.toDataURL('image/jpeg', 0.82));
+      }catch(e){ cb(null); }
+    };
+    img.onerror=function(){ cb(null); };
+    var fr=new FileReader(); fr.onload=function(){ img.src=fr.result; }; fr.readAsDataURL(file);
+  }
+  function setAvatarFromFile(pa, file){
+    if(!pa || !file) return;
+    toast('Saving photo…');
+    shrinkSquare(file, 256, function(data){
+      if(!data){ toast('Could not read that image'); return; }
+      post('/inbox/set-avatar', {sub:pa.sub, account:pa.account, image:data}).then(function(r){
+        if(r && r.ok){ toast('Photo saved'); loadThreads(); if(cur && cur.sub===pa.sub){ var c=accCols(cur.tag); $('tAv').innerHTML='<img src="'+esc(r.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(($('tName').textContent||'?').charAt(0).toUpperCase())+'</span>'; } }
+        else toast((r&&r.error)||'Could not save photo');
+      }).catch(function(){ toast('Could not save photo'); });
+    });
+  }
   function ago(ts){ if(!ts)return''; var s=Math.floor((Date.now()-ts)/1000); if(s<60)return'now'; if(s<3600)return Math.floor(s/60)+'m'; if(s<86400)return Math.floor(s/3600)+'h'; var d=new Date(ts); return (d.getMonth()+1)+'/'+d.getDate(); }
   function clock(ts){ var d=new Date(ts); var h=d.getHours(), ap=h>=12?'PM':'AM'; h=h%12||12; return h+':'+String(d.getMinutes()).padStart(2,'0')+' '+ap; }
   function tagCls(t){ return (t==='TK'||t==='OSC'||t==='SB')?t:'OTH'; }
@@ -3792,14 +3838,20 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
           : '<span class="avini">'+esc(av)+'</span>';
         var pv = t.paused? '<span class="pz">⏸ you\\'re handling this</span>' : ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
         return '<div class="row'+(t.unread?' unread':'')+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(nm)+'" data-tag="'+t.tag+'">'
-          +'<div class="av" style="'+avStyle+'">'+avInner+'</div>'
-          +'<div class="mid"><div class="nm">'+esc(nm)+' <span class="vbadge" style="background:'+c[0]+'">✓</span>'+(t.unread?' <span class="dot"></span>':'')+'</div>'+pv+'</div>'
-          +'<div class="rt"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="tm">'+ago(t.lastTs)+'</span></div></div>';
+          +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
+          +'<div class="body">'
+            +'<div class="toprow"><div class="nm"><span class="nmtext">'+esc(nm)+'</span><span class="vbadge" style="background:'+c[0]+'">✓</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
+              +'<div class="meta"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
+            +pv
+          +'</div></div>';
       }).join('');
       var nb=$('navChatBadge'); if(nb){ if(totalUnread>0){ nb.textContent=totalUnread>99?'99':totalUnread; nb.style.display='flex'; } else nb.style.display='none'; }
       if($('search') && $('search').value) $('search').oninput();
       Array.prototype.forEach.call(document.querySelectorAll('.row'), function(el){
         el.onclick=function(){ openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag')); };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('.av.setav'), function(el){
+        el.onclick=function(ev){ ev.stopPropagation(); pendingAv={sub:el.getAttribute('data-sub'), account:el.getAttribute('data-acct')}; var f=$('avFile'); f.value=''; f.click(); };
       });
     }).catch(function(){});
   }
@@ -4024,6 +4076,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('send').onclick=send;
   $('attach').onclick=function(){ $('file').click(); };
   $('file').onchange=function(){ if(this.files && this.files[0]) pickPhoto(this.files[0]); };
+  $('avFile').onchange=function(){ if(this.files && this.files[0] && pendingAv){ setAvatarFromFile(pendingAv, this.files[0]); pendingAv=null; } };
   $('mic').onclick=micTap;
   $('imgX').onclick=clearImg;
   $('audX').onclick=clearAud;
@@ -4260,6 +4313,34 @@ app.post('/inbox/note', (req, res) => {
   ownerNotes.set(sub, arr.slice(-8));
   record(req, { endpoint: 'inbox-brief-kiki', sub, note: note.slice(0, 80) });
   res.json({ ok: true });
+});
+
+// 📸 SET A CUSTOMER'S PHOTO — WhatsApp won't reliably hand out profile pics, so Rodney
+// can tap a customer and assign one ("that's how I remember customers"). Stored on the
+// /data volume and served back, so it persists across restarts.
+const AVATAR_DIR = (() => {
+  try { const fs = require('fs'); for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) { if (fs.existsSync(d)) { const p = require('path').join(d, 'inbox-avatars'); fs.mkdirSync(p, { recursive: true }); return p; } } } catch (_) {}
+  return null;
+})();
+app.post('/inbox/set-avatar', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  const m = /^data:image\/[a-z0-9.+-]+;base64,(.+)$/i.exec(String(b.image || ''));
+  if (!sub || !m) return res.status(400).json({ ok: false, error: 'need sub + image' });
+  const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || inboxThreads.get(threadKey(b.account || '', sub));
+  if (!t) return res.json({ ok: false, error: 'no thread for this customer' });
+  let url = '';
+  if (AVATAR_DIR) { try { require('fs').writeFileSync(require('path').join(AVATAR_DIR, sub + '.jpg'), Buffer.from(m[1], 'base64')); url = '/inbox/avatar/' + sub + '?v=' + Date.now(); } catch (_) {} }
+  if (!url) url = String(b.image); // fallback: store the data URI itself
+  t.avatar = url.slice(0, 300000); inboxRev++; saveInbox();
+  res.json({ ok: true, avatar: url });
+});
+app.get('/inbox/avatar/:sub', (req, res) => {
+  if (!AVATAR_DIR) return res.status(404).end();
+  const sub = String(req.params.sub).replace(/[^0-9]/g, '');
+  try { const p = require('path').join(AVATAR_DIR, sub + '.jpg'); if (require('fs').existsSync(p)) { res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'public, max-age=600'); return res.send(require('fs').readFileSync(p)); } } catch (_) {}
+  res.status(404).end();
 });
 
 // 🛍️ TODAY'S DELIVERY ORDERS — the order/delivery-ready alerts posted to the shared
