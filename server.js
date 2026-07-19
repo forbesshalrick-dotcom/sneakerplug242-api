@@ -4476,7 +4476,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     if(!txt && !pendingImages.length && !pendingAudioUrl){ return; }
     $('send').disabled=true; $('imgSend').disabled=true;
     var imgs=pendingImages.slice();
-    var done=function(ok, err){ $('send').disabled=false; $('imgSend').disabled=false; if(ok){ $('text').value=''; $('text').style.height='auto'; clearImg(); clearAud(); clearQuote(); loadThread(true); } else { toast(err||'Send failed'); } };
+    // Optimistic: empty the text box the instant Send is pressed so it feels instant instead of
+    // lingering until the server replies. Restore the text if the send actually fails.
+    $('text').value=''; $('text').style.height='auto';
+    var done=function(ok, err){ $('send').disabled=false; $('imgSend').disabled=false; if(ok){ clearImg(); clearAud(); clearQuote(); loadThread(true); } else { if(txt){ $('text').value=txt; } toast(err||'Send failed'); } };
     if(imgs.length){
       // send each photo — the first carries the caption/voice-note, the rest go on their own
       var i=0, bad=false;
@@ -4717,7 +4720,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     }).catch(function(){ $('briefSave').disabled=false; toast('Could not save — network'); });
   }
 
-  $('rf').onclick=function(){ var b=$('rf'); b.classList.add('spinning'); loadThreads(); toast('Refreshed ✅'); setTimeout(function(){ b.classList.remove('spinning'); }, 650); };
+  // Full PAGE reload — re-fetches the (no-cache) HTML so this device picks up the LATEST version
+  // of the app, not just newer chat data. Fixes "this phone always shows the old site".
+  $('rf').onclick=function(){ var b=$('rf'); b.classList.add('spinning'); toast('Loading the latest version…'); setTimeout(function(){ try{ location.reload(); }catch(e){ loadThreads(); b.classList.remove('spinning'); } }, 180); };
   var COMPACT_LS='sp242_inbox_compact';
   function applyCompact(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; }catch(e){} $('listView').classList.toggle('compact', on); var b=$('density'); if(b) b.classList.toggle('on', on); }
   $('density').onclick=function(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; localStorage.setItem(COMPACT_LS, on?'0':'1'); }catch(e){} applyCompact(); };
