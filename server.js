@@ -1606,8 +1606,15 @@ function clusterShoesByModel(arr) {
     return 5;
   };
   const modelKey = (s) => String(s.name || s.model || s.brand || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  // The FIRST shoe is Kiki's exact/named match (e.g. the customer asked for the "Black Cat") — keep
+  // it and its same-model colours LEADING the album, so the named pair is never buried below a
+  // generic look-alike the alphabetical sort would otherwise float up (Rodney 2026-07-19).
+  const leadModel = (arr && arr.length) ? modelKey(arr[0]) : null;
   return (arr || []).map((s, i) => ({ s, i }))
     .sort((a, b) => {
+      const la = (leadModel && modelKey(a.s) === leadModel) ? 0 : 1;
+      const lb = (leadModel && modelKey(b.s) === leadModel) ? 0 : 1;
+      if (la !== lb) return la - lb; // the exact/named match leads
       const ra = brandRank(a.s), rb = brandRank(b.s);
       if (ra !== rb) return ra - rb;
       const ma = modelKey(a.s), mb = modelKey(b.s);
