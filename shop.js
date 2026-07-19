@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // ── web push ─────────────────────────────────────────────────────────────────
 // Lets us notify the installed staff PWA about a new delivery/task even when the
@@ -65,6 +66,7 @@ const state = {
   deletedStaff: loadFile('deletedStaff.json', []), // names permanently removed — devices must never re-add these
   proofs: loadFile('proofs.json', {}),      // saleId -> {media_type, data(base64), by, at} — payment screenshots pinned to a sale (kept OUT of /shop/state so the poll payload stays small)
   subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
+  logins: loadFile('logins.json', {}),      // SERVER-side login patterns: { name: {hash, salt} } — hashed, never plaintext
   rev: loadFile('rev.json', { n: 1 }),
 };
 
@@ -491,6 +493,53 @@ function mount(app) {
     mergeInto(state.employees, b.numbers);
     persist('accounts.json'); persist('roles.json'); persist('employees.json'); bump();
     res.json({ accounts: state.accounts, roles: state.roles, employees: state.employees });
+  });
+
+  // ── 🔐 SERVER-VERIFIED STAFF LOGIN ────────────────────────────────────────────
+  // The website used to keep the login pattern ONLY in the browser's localStorage, so it
+  // asked "set your pattern (first time)" on every new device/address and ANYONE could set
+  // one and walk in. Now the pattern is verified HERE (hashed + salted, never plaintext) so
+  // it's the same on every device and can't be reset by opening a fresh browser.
+  function hashPattern(pattern, salt) {
+    return crypto.createHash('sha256').update(String(salt) + '|' + String(pattern)).digest('hex');
+  }
+  const loginFails = new Map(); // name -> { n, until } — simple brute-force throttle
+  const MASTER_PIN = process.env.STAFF_MASTER_PIN || ''; // optional owner recovery pattern (set in Railway)
+  app.post('/shop/login', (req, res) => {
+    const b = req.body || {};
+    const name = String(b.name || '').trim();
+    const pattern = String(b.pattern || '');
+    if (!name || !pattern) return res.json({ ok: false, error: 'name and pattern required' });
+    // throttle: 6 wrong tries → locked 60s
+    const f = loginFails.get(name);
+    if (f && f.until > Date.now()) return res.json({ ok: false, locked: true, error: 'Too many tries — wait a minute.' });
+    // owner recovery: a master PIN set in Railway always works (and never gets stored/created here)
+    if (MASTER_PIN && pattern === MASTER_PIN) { loginFails.delete(name); return res.json({ ok: true, master: true }); }
+    const rec = state.logins[name];
+    if (!rec || !rec.hash) {
+      // No pattern on file for this name yet.
+      if (b.set === true) {
+        const salt = crypto.randomBytes(8).toString('hex');
+        state.logins[name] = { hash: hashPattern(pattern, salt), salt, setAt: new Date().toISOString() };
+        persist('logins.json');
+        loginFails.delete(name);
+        return res.json({ ok: true, firstTime: true });
+      }
+      return res.json({ ok: false, needSetup: true }); // tell the site to run its "draw twice" setup
+    }
+    const good = hashPattern(pattern, rec.salt) === rec.hash;
+    if (good) { loginFails.delete(name); return res.json({ ok: true }); }
+    const n = ((f && f.n) || 0) + 1;
+    loginFails.set(name, { n, until: n >= 6 ? Date.now() + 60000 : 0 });
+    return res.json({ ok: false });
+  });
+  // Manager reset: clear a staffer's pattern so they can set a fresh one (needs the shop key).
+  app.post('/shop/login/clear', (req, res) => {
+    if (!auth(req, res)) return;
+    const name = String((req.body && req.body.name) || '').trim();
+    if (name && state.logins[name]) { delete state.logins[name]; persist('logins.json'); }
+    loginFails.delete(name);
+    res.json({ ok: true });
   });
 
   // ---- Remove a staff member entirely (name → gone from accounts/roles/employees) ----
