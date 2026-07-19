@@ -676,6 +676,25 @@ function staffNameFor(req) {
   }
   return null;
 }
+// The owner's own manager/staff name IGNORING the test-customer override — so a number set as a
+// test customer (e.g. 4324406, used to preview the customer experience) is still recognised as
+// staff when it reports a SALE/RESTOCK/FLOAT. Used only to elevate those specific actions.
+function managerNameForNumber(req) {
+  const p = getPhone(req);
+  if (!p) return null;
+  const tail = String(p).replace(/\D/g, '').slice(-10);
+  if (tail.length < 10) return null;
+  if (MANAGER_TAIL_NAMES[tail]) return MANAGER_TAIL_NAMES[tail];
+  let emp = {};
+  try { emp = require('./shop').getEmployees() || {}; } catch (_) {}
+  for (const [nm, num] of Object.entries(Object.assign({}, EXTRA_STAFF, emp))) {
+    if (String(num || '').replace(/\D/g, '').slice(-10) === tail) return nm;
+  }
+  return null;
+}
+// A message that is clearly a STAFF stock action (a sale, restock, float count, expense/gas) —
+// used to flip the owner's own line into staff mode even when it's set as a test customer.
+const STAFF_ACTION_RE = /\bsold\b|\bre-?stock|\bwe got \d|\bgot \d+ more\b|\bput .{0,20}\bback\b|\bfloat\b|\bcount(?:ed|ing)?\b|\bgas\b|\bexpense|\bpaid out\b|\bcash(?:ed)? out\b|\bwhat sold\b|\bsales today\b/i;
 
 // Every http(s) URL ManyChat sent, with its (lowercased) field name. Used to tell
 // a voice note from a photo from any other attachment.
@@ -2465,7 +2484,14 @@ function expectedFloatNow() {
   } catch (_) { return null; }
 }
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
-  const _isStaffChat = staffNameFor(req);
+  let _isStaffChat = staffNameFor(req);
+  // A SALE/RESTOCK/FLOAT report from the owner's OWN line counts as a staff action even if that
+  // number is set as a test customer — so "black/blue tn sold in 8.5" records the sale instead of
+  // being answered like a customer buying (Rodney 2026-07-19). Only the owner's own numbers qualify.
+  if (!_isStaffChat && STAFF_ACTION_RE.test(String(userText || ''))) {
+    const mgr = managerNameForNumber(req);
+    if (mgr) _isStaffChat = mgr;
+  }
   // 📥 INBOX: log the customer's inbound message (skip our own staff/owner coworker
   // chats) so it appears in the staff Inbox even while Kiki is paused. Strip any
   // SYSTEM-note decoration so the thread shows what the customer actually said.
@@ -2535,7 +2561,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   } catch (_) {}
   // 🎽 STAFF CHAT — recognized by WhatsApp number. Kiki switches to coworker mode and
   // gains the sale-reporting flow (photo-confirm first, then record_sale).
-  const staffName = staffNameFor(req);
+  const staffName = _isStaffChat;
   if (staffName) rememberStaffSub(staffName, sub, ctx.store);
   // 🔒 HARD OVERRIDE (2026-07-17): even with staff detected AND the staff rules present,
   // the model kept running the CUSTOMER photo script on a staff cash/receipt photo —
