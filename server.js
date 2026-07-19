@@ -3850,10 +3850,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     -webkit-mask-image:linear-gradient(90deg,#000 84%,transparent);mask-image:linear-gradient(90deg,#000 84%,transparent)}
   .iconstrip.dragging{cursor:grabbing}
   .iconstrip::-webkit-scrollbar{display:none}
-  .compinner{flex:1;display:flex;gap:5px;align-items:flex-end;padding:5px;border-radius:26px;border:1.7px solid transparent;
+  .compinner{flex:1;min-width:0;display:flex;gap:5px;align-items:center;padding:5px;border-radius:26px;border:1.7px solid transparent;
     background:linear-gradient(rgba(9,8,18,.9),rgba(9,8,18,.9)) padding-box, linear-gradient(90deg,#ff5cb4,#c65cff,#22d3ee) border-box;
     box-shadow:0 0 18px rgba(198,92,255,.32)}
-  .compinner textarea{flex:1;resize:none;background:transparent;border:0;color:var(--ink);padding:10px 6px;font-size:15px;font-family:inherit;max-height:120px}
+  .compinner textarea{flex:1;min-width:0;resize:none;background:transparent;border:0;color:var(--ink);padding:10px 6px;font-size:15px;font-family:inherit;max-height:120px}
   .compinner textarea:focus{outline:none}
   .sendbtn{background:linear-gradient(135deg,#c65cff,#22d3ee);border:0;color:#05050a;font-weight:800;border-radius:50%;width:40px;height:40px;padding:0;font-size:17px;cursor:pointer;transition:.15s;flex-shrink:0;box-shadow:0 0 14px rgba(198,92,255,.5);display:flex;align-items:center;justify-content:center}
   .sendbtn:active{transform:scale(.9)} .sendbtn:disabled{opacity:.5}
