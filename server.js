@@ -3737,7 +3737,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="242 Inbox">
 <link rel="manifest" href="/inbox/app.webmanifest">
-<link rel="apple-touch-icon" href="/inbox/kiki.png">
+<link rel="apple-touch-icon" href="/inbox/icon-192.png">
 <title>Inbox — SNEAKERPLUG242</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4864,6 +4864,11 @@ function serveInboxAsset(res, file, type) {
 app.get('/inbox/kiki.png', (req, res) => serveInboxAsset(res, 'inbox-kiki.jpg', 'image/jpeg'));
 app.get('/inbox/rodney.png', (req, res) => serveInboxAsset(res, 'inbox-rodney.jpg', 'image/jpeg'));
 app.get('/inbox/bg.jpg', (req, res) => serveInboxAsset(res, 'inbox-bg.jpg', 'image/jpeg'));
+// PWA home-screen icons (real PNGs at proper sizes) so "Add to Home Screen" installs a true
+// standalone app (no browser bar), not a plain shortcut.
+app.get('/inbox/icon-192.png', (req, res) => serveInboxAsset(res, 'inbox-icon-192.png', 'image/png'));
+app.get('/inbox/icon-512.png', (req, res) => serveInboxAsset(res, 'inbox-icon-512.png', 'image/png'));
+app.get('/inbox/icon-maskable.png', (req, res) => serveInboxAsset(res, 'inbox-icon-maskable.png', 'image/png'));
 // PWA manifest → "Add to Home Screen" launches the Inbox standalone (no browser bar), for
 // the full top-to-bottom app look. start_url has no key; the staff key lives in localStorage
 // from the first ?key= visit and persists for the installed app.
@@ -4873,8 +4878,9 @@ app.get('/inbox/app.webmanifest', (req, res) => {
     start_url: '/inbox', scope: '/inbox', display: 'standalone', orientation: 'portrait',
     background_color: '#05050a', theme_color: '#0a0812',
     icons: [
-      { src: '/inbox/kiki.png', sizes: '192x192', type: 'image/jpeg', purpose: 'any' },
-      { src: '/inbox/kiki.png', sizes: '512x512', type: 'image/jpeg', purpose: 'any' },
+      { src: '/inbox/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/inbox/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/inbox/icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }));
 });
