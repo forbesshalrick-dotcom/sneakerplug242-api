@@ -2001,7 +2001,7 @@ function inboxRecord(account, sub, m) {
   try {
     if (!sub) return;
     const text = (m.text == null ? '' : String(m.text)).slice(0, 4000);
-    const img = m.img ? String(m.img).slice(0, 600) : '';
+    const img = m.img ? String(m.img).slice(0, 1500) : '';
     if (!text && !img) return;
     const key = threadKey(account, sub);
     let t = inboxThreads.get(key);
@@ -2320,8 +2320,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     try {
       let inTxt = String(userText || '').split('\n\n(SYSTEM NOTE')[0].trim();
       if (/^\(/.test(inTxt) && /\bsystem\b|customer (just )?sent|can'?t open|re-?delivery/i.test(inTxt)) inTxt = '';
-      if (!inTxt && image) inTxt = '📷 photo';
-      if (inTxt) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name });
+      const inImg = ctx.inPhotoUrl || (image && typeof image === 'string' ? image : '');
+      if (!inTxt && !inImg && image) inTxt = '📷 photo';
+      if (inTxt || inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name, img: inImg });
     } catch (_) {}
   }
   // 🛑 AUTO-PAUSE KIKI ON A HUMAN REPLY (the critical Inbox feature): if a human is
@@ -2994,6 +2995,7 @@ function handleChat(req, res) {
   let userText = extractQuery(req);
   let audioUrl = getAudioUrl(req);
   let imageUrl = getImageUrl(req);
+  const inboxPhotoUrl = imageUrl || ''; // keep the customer's photo URL for the Inbox even when PHOTO_VISION blanks it for the AI
   // A message that is JUST a bare link (no other words) and isn't audio is almost
   // always the customer's photo arriving via Last Text Input. Catch it even if the
   // link's host/extension wasn't recognised above, so Kiki looks at the picture
@@ -3232,7 +3234,7 @@ function handleChat(req, res) {
     }
     let chatUrl = null;
     try { chatUrl = (req.body && typeof req.body === 'object' && req.body.live_chat_url) ? String(req.body.live_chat_url) : null; } catch (_) {}
-    return runChat(req, sub, text, token, { store, name, turnAt, chatUrl }, photo);
+    return runChat(req, sub, text, token, { store, name, turnAt, chatUrl, inPhotoUrl: inboxPhotoUrl }, photo);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
@@ -3323,8 +3325,11 @@ app.post('/wa-webhook', async (req, res) => {
     const turnAt = Date.now();
     lastIncoming.set(from, turnAt);
     lastIncomingText.set(from, text || '');
+    // Re-host the customer's photo (arrives as base64) so the Inbox has a URL to show it.
+    let inPhotoUrl = '';
+    if (imageObj && imageObj.data) { try { const id = stashInboxMedia(Buffer.from(imageObj.data, 'base64'), imageObj.media_type); if (id) inPhotoUrl = 'https://' + (req.get('host') || '') + '/inbox/media/' + id; } catch (_) {} }
     // Kiki thinks + replies; waChannel routing sends everything to the Graph API.
-    await runChat(shimReq, from, text, waToken(), { store: 'Shoe Box', name: profileName, turnAt, chatUrl: null, wa: true, phoneNumberId }, imageObj || null);
+    await runChat(shimReq, from, text, waToken(), { store: 'Shoe Box', name: profileName, turnAt, chatUrl: null, wa: true, phoneNumberId, inPhotoUrl }, imageObj || null);
   } catch (e) {
     try { record({ method: 'POST', path: '/wa-webhook', headers: {}, query: {}, body: {} }, { endpoint: 'wa-webhook-error', error: String(e).slice(0, 200) }); } catch (_) {}
   }
@@ -3614,6 +3619,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   var pendingImageUrl = null, quoteText = null, agentLabel = true;
   function $(id){return document.getElementById(id)}
   function kiki(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(124,92,255,.55),0 3px 12px rgba(124,92,255,.3);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👩🏽‍💼</span>'; }
+  window.__imgFail=function(el){ try{ var s=document.createElement('span'); s.textContent='📷 photo'; el.replaceWith(s); }catch(e){} };
   function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
@@ -3679,7 +3685,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var who = x.dir==='in'?'':(x.sender==='rodney'?'You':(kiki(15)+' Kiki'));
         var tap = x.dir==='in' ? ' tap' : '';
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
-        var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="this.remove()">' : esc(x.text);
+        var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : esc(x.text);
         return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
       // tap a customer message to quote it in your reply
@@ -3925,6 +3931,11 @@ function pruneInboxMedia() {
   const now = Date.now();
   for (const [k, v] of inboxMedia) if (now - v.ts > 60 * 60 * 1000) inboxMedia.delete(k);
   while (inboxMedia.size > 60) { const f = inboxMedia.keys().next().value; inboxMedia.delete(f); }
+}
+// Stash a raw buffer (e.g. a direct-API customer's photo, which arrives as base64) so the
+// Inbox has a URL to render it. Short-lived like all inbox media; falls back to a placeholder.
+function stashInboxMedia(buf, type) {
+  try { const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); inboxMedia.set(id, { buf, type: type || 'image/jpeg', ts: Date.now() }); pruneInboxMedia(); return id; } catch (_) { return ''; }
 }
 app.post('/inbox/upload', (req, res) => {
   if (!consoleAuth(req, res)) return;
