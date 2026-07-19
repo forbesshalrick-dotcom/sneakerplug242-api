@@ -1434,7 +1434,7 @@ function liveCatalog() {
   return Object.keys(m).map(id => ({ s: m[id], id: +id }));
 }
 
-function searchInventory({ size, sizes, size_match, brand, color, query, womens, max_price, min_price } = {}) {
+function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price } = {}) {
   let rows = liveCatalog();
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
   // range "9.5 to 10" or matching "9 and 7"). Normalise each to a clean number
@@ -1475,11 +1475,13 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
       rows = rows.filter(({ s }) => sizeList.some(w => has(s, w)));
     }
   }
-  if (brand && brand.trim()) {
-    const b = brand.toLowerCase();
+  const brandList = Array.isArray(brands) ? brands.map(x => String(x || '').trim()).filter(Boolean) : (brand && brand.trim() ? [brand] : []);
+  if (brandList.length) {
+    // Match ANY of the selected brands (multi-brand send). Empty list = all brands (no filter).
+    const bs = brandList.map(x => x.toLowerCase());
     rows = rows.filter(({ s }) => {
       const sb = s.brand.toLowerCase();
-      return sb.includes(b) || b.includes(sb) || aliasTokens(s).includes(b);  // "NB"/"TN"/"AJ" as a brand param still match
+      return bs.some(b => sb.includes(b) || b.includes(sb) || aliasTokens(s).includes(b));  // "NB"/"TN"/"AJ" still match
     });
   }
   if (color && color.trim()) {
@@ -1553,7 +1555,11 @@ function clusterShoesByModel(arr) {
     .map(x => x.s);
 }
 
+// Subs whose in-progress photo album the OWNER hit STOP on (manual halt from the chat) —
+// so a malfunctioning "sends all stock" dump can be cut off mid-album by hand.
+const sendAbort = new Set();
 async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false, requestAt = 0) {
+  sendAbort.delete(sub); // fresh send — clear any stale stop flag so it isn't halted before it starts
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
   // clumping the photos into one album, so each pic shows with its label beneath.
@@ -1592,7 +1598,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // album anyway (Rodney 2026-07-15: "even if they write before jess, she still sends
   // all pics"). Anything they say after the triggering message now counts.
   const startedAt = requestAt || Date.now();
-  let interrupted = false;
+  let interrupted = false, manualStopped = false;
   // CHANGED-THEIR-MIND detector (Rodney 2026-07-15: "she needs to stop and give new
   // request"): a correction phrase or a different shoe/brand named mid-album halts the
   // pictures — the new message already has its own chat turn queued right behind this
@@ -1690,6 +1696,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       }
       for (const s of chosen) {
         await answerMidAlbum();
+        if (sendAbort.has(sub)) { sendAbort.delete(sub); interrupted = true; manualStopped = true; break outer; }
         if (customerSpoke()) { interrupted = true; break outer; }
         await sendShoe(s);
       }
@@ -1702,6 +1709,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     requested = (ids || []).length;
     for (const s of chosen) {
       await answerMidAlbum();
+      if (sendAbort.has(sub)) { sendAbort.delete(sub); interrupted = true; manualStopped = true; break; }
       if (customerSpoke()) { interrupted = true; break; }
       await sendShoe(s);
     }
@@ -1715,7 +1723,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // (Deashinique 2026-07-14).
   // Halted because they changed the request (not a plain "stop"): say so, so the
   // customer knows the switch registered — their new request is answered right after.
-  if (interrupted) {
+  if (interrupted && !manualStopped) {
     const txt = lastIncomingText.get(sub) || '';
     if (REDIRECT.test(txt) && !STOPPISH.test(txt)) {
       try { await sendChunk(sub, [{ type: 'text', text: `Say less — switching to that now 👌` }], token); } catch (e) { /* non-fatal */ }
@@ -3735,15 +3743,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     filter:saturate(1.65) contrast(1.14) brightness(1.05)}
   .b>*{position:relative;z-index:1}
   .b.in{border-color:#22d3ee;box-shadow:0 0 15px rgba(34,211,238,.45),inset 0 0 12px rgba(34,211,238,.10);border-bottom-left-radius:6px}
-  .b.kiki{border-color:#c65cff;box-shadow:0 0 17px rgba(198,92,255,.5),inset 0 0 12px rgba(198,92,255,.12);border-bottom-right-radius:6px}
-  .b.rodney{border-color:var(--acc2);box-shadow:0 0 17px var(--accglow),inset 0 0 12px rgba(255,255,255,.06);border-bottom-right-radius:6px}
+  .b.kiki{border-color:#ff5cb4;box-shadow:0 0 17px rgba(255,92,180,.55),inset 0 0 12px rgba(255,92,180,.12);border-bottom-right-radius:6px}
+  .b.rodney{border-color:#9dff5c;box-shadow:0 0 17px rgba(157,255,92,.5),inset 0 0 12px rgba(157,255,92,.10);border-bottom-right-radius:6px}
   .acc-TK{--acc:#2f6df6;--acc2:#38bdf8;--accglow:rgba(56,189,248,.5)}
   .acc-OSC{--acc:#12b866;--acc2:#4ef0a0;--accglow:rgba(78,240,160,.5)}
   .acc-SB{--acc:#9a5cff;--acc2:#c6a6ff;--accglow:rgba(198,166,255,.5)}
   .acc-OTH{--acc:#7c5cff;--acc2:#22d3ee;--accglow:rgba(34,211,238,.5)}
   .b .who{font-size:11px;font-weight:800;margin-bottom:3px;display:flex;align-items:center;gap:6px;letter-spacing:.3px;
-    background:linear-gradient(90deg,#c6a6ff,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .b.rodney .who{background:linear-gradient(90deg,#eafff5,var(--acc2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    background:linear-gradient(90deg,#ff8ad4,#ff5cb4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .b.rodney .who{background:linear-gradient(90deg,#e4ffcf,#9dff5c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .b .tm{font-size:9.5px;opacity:.5;margin-top:4px;text-align:right}
   .mini{width:17px;height:17px;border-radius:50%;vertical-align:middle}
   .banner{padding:10px 14px;font-size:12.5px;text-align:center;font-weight:500}
@@ -3767,6 +3775,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .attach{background:rgba(255,255,255,.05);border:1.4px solid rgba(198,92,255,.4);color:#e8dcff;font-size:17px;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 8px rgba(198,92,255,.22)}
   .attach:active{transform:scale(.88)}
   .attach.rec{background:#e23b5a;color:#fff;border-color:#e23b5a;box-shadow:0 0 14px rgba(226,59,90,.6);animation:pulse 1s infinite}
+  /* ✋ manual STOP — always visible, red, halts an in-progress photo send to this customer */
+  .attach.stopsend{background:linear-gradient(135deg,#ff3b5c,#ff5c8a);border-color:#ff3b5c;color:#fff;box-shadow:0 0 12px rgba(255,59,92,.55);margin-left:2px}
+  .attach.stopsend:active{transform:scale(.88)}
   /* neon quick-action row */
   .quickrow{display:flex;gap:8px;padding:2px 11px calc(10px + env(safe-area-inset-bottom));overflow-x:auto}
   .quickrow::-webkit-scrollbar{display:none}
@@ -4004,6 +4015,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         <button class="attach q-pay" id="q-pay" title="Payments">💰</button>
         <button class="attach q-money" id="q-money" title="Money">💵</button>
       </div>
+      <button class="attach stopsend" id="stopSend" title="STOP sending photos to this customer">✋</button>
       <input type="file" id="file" accept="image/*" multiple style="display:none">
       <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
       <button class="sendbtn" id="send" title="Send">➤</button>
@@ -4043,10 +4055,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <input id="shQuery" placeholder="🔎 Type a shoe — e.g. Air Max Plus pink" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.5);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit;margin-bottom:12px">
     <div class="picklabel">Sizes — tap one or more <button class="matchtog" id="matchTog" style="display:none" title="Only shoes that come in ALL the sizes you picked (a matching pair)">🔗 Matching</button></div>
     <div class="chiprow" id="sizeChips"><span class="chipmini">Loading…</span></div>
-    <div class="picklabel">Brand — tap one</div>
+    <div class="picklabel">Brands — tap one or more <span style="margin-left:auto;font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">none = all brands</span></div>
     <div class="chiprow" id="brandChips"><span class="chipmini">Loading…</span></div>
     <div class="picklabel">Colour (optional)</div>
     <input id="shColor" placeholder="e.g. black, pink, grey" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+    <div class="picklabel" style="margin-top:12px">Add a message (optional)</div>
+    <input id="shNote" placeholder="✍️ e.g. Fresh drops just for you 🔥" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
     <div class="btns"><button class="cancel" id="shCancel">Cancel</button><button class="save" id="shSend">Send</button></div>
   </div>
 </div>
@@ -4097,6 +4111,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     return window.__kikiEmoji(sz);
   }
   window.__kikiEmoji=function(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(198,92,255,.6),0 0 12px rgba(198,92,255,.4);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👩🏽‍💼</span>'; };
+  // Rodney's avatar on his own ("You") replies — mirrors Kiki, with a lime-green ring.
+  var RODNEY_AVATAR = '';  // set at init if /inbox/rodney.png exists (else a person emoji)
+  function rodney(sz){
+    var ring='box-shadow:0 0 0 2px rgba(157,255,92,.65),0 0 12px rgba(157,255,92,.45)';
+    if(RODNEY_AVATAR){ return '<img src="'+RODNEY_AVATAR+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover;'+ring+';flex-shrink:0;vertical-align:middle" onerror="this.outerHTML=window.__rodneyEmoji('+sz+')">'; }
+    return window.__rodneyEmoji(sz);
+  }
+  window.__rodneyEmoji=function(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(157,255,92,.65),0 0 12px rgba(157,255,92,.45);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👨🏾</span>'; };
   window.__imgFail=function(el){ try{ var s=document.createElement('span'); s.textContent='📷 photo'; el.replaceWith(s); }catch(e){} };
   window.__avFail=function(el){ try{ el.style.display='none'; var s=el.parentNode.querySelector('.avini'); if(s) s.style.display='flex'; }catch(e){} };
   function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
@@ -4149,38 +4171,26 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function closeCtx(){ $('ctxModal').classList.remove('open'); }
   function setLabel(l){ if(!ctxTarget) return; post('/inbox/label',{sub:ctxTarget.sub,account:ctxTarget.account,text:l?l.text:'',color:l?l.color:''}).then(function(r){ if(r&&r.ok){ toast(l?('🏷️ '+l.text):'Label removed'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not label'); }); }
   function openPickerMulti(){ var arr=Object.keys(selected).map(function(k){return selected[k];}); if(!arr.length){ toast('Press & hold a contact to pick who to send to 📸'); return; } pickTargets=arr; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=arr.length>1?(' · '+arr.length+' contacts'):(' · '+arr[0].name); $('shoeModal').classList.add('open'); loadPickChips(); }
-  function resetPicker(){ pickSizes=[]; pickBrand=null; pickMatch=false; $('shColor').value=''; $('shQuery').value=''; }
+  function resetPicker(){ pickSizes=[]; pickBrands=[]; pickMatch=false; $('shColor').value=''; $('shQuery').value=''; if($('shNote')) $('shNote').value=''; }
   // Send one filter to every pickTarget — but FIRST a 4-second STOP window so a mistake
   // can be aborted before anything actually goes out.
   var pickBusy=false, sendTimer=null;
   function sendToTargets(filter, label, btn){
-    if(pickBusy) return;                                  // block the frantic triple-tap
-    var targets=pickTargets||[]; if(!targets.length){ toast('Press & hold a contact to pick who to send to 📸'); return; }
-    pickBusy=true; $('shoeModal').classList.add('busy'); if(btn) btn.classList.add('sending');
-    var n=4, sb=$('stopBar');
+    var targets=(pickTargets||[]).slice(); if(!targets.length){ toast('Press & hold a contact to pick who to send to 📸'); return; }
     var who=targets.length+' contact'+(targets.length==1?'':'s');
-    var showN=function(){ $('stopMsg').textContent='Sending '+label+' to '+who+' in '+n+'s…'; };
-    showN(); sb.style.display='flex';
-    var tick=function(){ n--; if(n>0){ showN(); sendTimer=setTimeout(tick,1000); } else { sb.style.display='none'; dispatch(); } };
-    sendTimer=setTimeout(tick,1000);
-    $('stopBtn').onclick=function(){ if(sendTimer){clearTimeout(sendTimer);sendTimer=null;} sb.style.display='none'; pickBusy=false; $('shoeModal').classList.remove('busy'); if(btn) btn.classList.remove('sending'); toast('✋ Stopped — nothing was sent'); };
-    // done/sent/ok/lastErr live in the sendToTargets scope so finish() can read them —
-    // they used to be trapped inside dispatch(), so finish() threw a ReferenceError and
-    // NEITHER the success toast NOR the error toast ever fired (the "countdown then nothing"
-    // + "no error when a size is out" bug). Now both paths report.
+    // Close the picker RIGHT AWAY and send in the background — no countdown, no waiting on it.
+    closeShoe(); clearSel();
+    toast('📤 Sending '+label+' to '+who+'… (hit ✋ in the chat to stop)');
     var done=0, sent=0, ok=0, lastErr='';
-    function dispatch(){
-      targets.forEach(function(tg){
-        post('/inbox/send-shoe', Object.assign({sub:tg.sub, account:tg.account}, filter)).then(function(d){
-          done++; if(d&&d.ok){ sent+=(d.sent||0); ok++; } else if(d&&d.error){ lastErr=d.error; } if(done===targets.length) finish();
-        }).catch(function(){ done++; if(done===targets.length) finish(); });
-      });
-    }
     function finish(){
-      pickBusy=false; $('shoeModal').classList.remove('busy'); if(btn) btn.classList.remove('sending');
-      if(ok>0 && sent>0){ closeShoe(); toast('✅ Sent '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' 👟'); clearSel(); if(cur) loadThread(true); }
+      if(ok>0 && sent>0){ toast('✅ Sent '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' 👟'); if(cur) loadThread(true); }
       else toast('⚠️ '+(lastErr||('No '+label+' in stock right now — nothing sent')));
     }
+    targets.forEach(function(tg){
+      post('/inbox/send-shoe', Object.assign({sub:tg.sub, account:tg.account}, filter)).then(function(d){
+        done++; if(d&&d.ok){ sent+=(d.sent||0); ok++; } else if(d&&d.error){ lastErr=d.error; } if(done===targets.length) finish();
+      }).catch(function(){ done++; if(done===targets.length) finish(); });
+    });
   }
   function shrinkSquare(file, size, cb){
     var img=new Image();
@@ -4316,7 +4326,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         if(x.sender==='system'){ return '<div class="srow"><div class="sys">'+esc(x.text).replace(/\\n/g,'<br>')+'<span class="stm">'+clock(x.ts)+'</span></div></div>'; }
         var cls = x.dir==='in'?'in':(x.sender==='rodney'?'rodney':'kiki');
         var row = x.dir==='in' ? 'inb' : 'out';
-        var who = x.dir==='in'?'':(x.sender==='rodney'?'You':(kiki(15)+' Kiki'));
+        var who = x.dir==='in'?'':(x.sender==='rodney'?(rodney(15)+' You'):(kiki(15)+' Kiki'));
         var tap = x.dir==='in' ? ' tap' : '';
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
         // 📍 A shared location pin: tappable, opens Google Maps. Otherwise photo, else text.
@@ -4487,10 +4497,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   var pickMeta=null;
   // Chips SELECT (not send). You build your combo — a size, a brand, a colour, words —
   // then press Send once. Nothing goes out until you do. Tapping a chip again clears it.
-  var pickSizes=[], pickBrand=null, pickMatch=false;
+  var pickSizes=[], pickBrands=[], pickMatch=false;
   function paintChips(){
     Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.classList.toggle('on', pickSizes.indexOf(el.getAttribute('data-size'))>-1); });
-    Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.classList.toggle('on', el.getAttribute('data-brand')===pickBrand); });
+    Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.classList.toggle('on', pickBrands.indexOf(el.getAttribute('data-brand'))>-1); });
     var mt=$('matchTog'); if(mt){ mt.classList.toggle('on', pickMatch); mt.style.display = pickSizes.length>1 ? '' : 'none'; }
   }
   function loadPickChips(){
@@ -4500,7 +4510,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       sc.innerHTML = (pickMeta.sizes||[]).map(function(s){ return '<span class="chip sizechip" data-size="'+s+'">'+s+'</span>'; }).join('') || '<span class="chipmini">No sizes in stock</span>';
       bc.innerHTML = (pickMeta.brands||[]).map(function(b){ return '<span class="chip brandchip" data-brand="'+esc(b)+'">'+esc(b)+'</span>'; }).join('') || '<span class="chipmini">No brands in stock</span>';
       Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ var s=el.getAttribute('data-size'); var i=pickSizes.indexOf(s); if(i>-1) pickSizes.splice(i,1); else pickSizes.push(s); if(pickSizes.length<2) pickMatch=false; paintChips(); }; });
-      Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ pickBrand = (pickBrand===el.getAttribute('data-brand'))?null:el.getAttribute('data-brand'); paintChips(); }; });
+      Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ var br=el.getAttribute('data-brand'); var i=pickBrands.indexOf(br); if(i>-1) pickBrands.splice(i,1); else pickBrands.push(br); paintChips(); }; });
       paintChips();
     };
     if(pickMeta){ render(); return; }
@@ -4510,12 +4520,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     var f={};
     if(pickSizes.length===1){ f.size=pickSizes[0]; }
     else if(pickSizes.length>1){ f.sizes=pickSizes.slice(); f.size_match = pickMatch?'all':'any'; }
-    if(pickBrand) f.brand=pickBrand;
-    var col=$('shColor').value.trim(), q=$('shQuery').value.trim();
-    if(col) f.color=col; if(q) f.query=q;
-    if(!Object.keys(f).length){ toast('Pick a size, brand, colour, or type a shoe first'); return; }
+    if(pickBrands.length) f.brands=pickBrands.slice();
+    var col=$('shColor').value.trim(), q=$('shQuery').value.trim(), note=$('shNote')?$('shNote').value.trim():'';
+    if(col) f.color=col; if(q) f.query=q; if(note) f.note=note;
+    // Need at least a size, brand, colour, or typed shoe — a bare message alone isn't a filter.
+    if(!(pickSizes.length||pickBrands.length||col||q)){ toast('Pick a size, brand, colour, or type a shoe first'); return; }
     var sizeLbl = pickSizes.length ? ((pickMatch?'matching ':'')+'size'+(pickSizes.length>1?'s':'')+' '+pickSizes.join(' & ')) : '';
-    var lbl=[f.query,f.color,f.brand,sizeLbl].filter(Boolean).join(' ');
+    var brandLbl = pickBrands.length ? pickBrands.join('/') : '';
+    var lbl=[q,col,brandLbl,sizeLbl].filter(Boolean).join(' ');
     sendToTargets(f, lbl||'that', $('shSend'));
   }
   // ── 🛍️ Orders: today's delivery orders ready, with a live count badge ──
@@ -4610,6 +4622,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('ctxPin').onclick=function(){ if(!ctxTarget) return; post('/inbox/pin',{sub:ctxTarget.sub,account:ctxTarget.account}).then(function(r){ if(r&&r.ok){ toast(r.pinned?'📌 Pinned to top':'Unpinned'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not pin'); }); };
   $('ctxMulti').onclick=function(){ if(!ctxTarget) return; var t=ctxTarget; closeCtx(); selMode=true; selected[t.sub]=t; refreshSel(); };
   $('q-shoes').onclick=openShoe;
+  // ✋ STOP: halt an in-progress photo album to THIS customer (a picker send or a Kiki dump).
+  $('stopSend').onclick=function(){ if(!cur){ toast('Open a chat first'); return; } post('/inbox/stop-send',{sub:cur.sub}).then(function(r){ toast(r&&r.ok?'✋ Stopping photos to this chat':'Could not stop'); }).catch(function(){ toast('Could not stop'); }); };
   $('shCancel').onclick=closeShoe;
   $('shSend').onclick=sendShoe;
   $('matchTog').onclick=function(){ pickMatch=!pickMatch; paintChips(); toast(pickMatch?'🔗 Matching ON — only pairs that come in ALL your sizes':'Matching off — any of your sizes'); };
@@ -4623,7 +4637,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // (else the emoji avatar + designed glow background show — no broken images)
   (function(){
     var bg=new Image(); bg.onload=function(){ document.body.style.setProperty('--chatbg','url(/inbox/bg.jpg)'); document.body.classList.add('hasbg'); }; bg.src='/inbox/bg.jpg';
-    var av=new Image(); av.onload=function(){ KIKI_AVATAR='/inbox/kiki.png'; if($('briefAv')) $('briefAv').innerHTML=kiki(24); if(cur) loadThread(false); }; av.src='/inbox/kiki.png';
+    var av=new Image(); av.onload=function(){ KIKI_AVATAR='/inbox/kiki.png'; if($('briefAv')) $('briefAv').innerHTML=kiki(24); lastThreadSig=''; if(cur) loadThread(false); }; av.src='/inbox/kiki.png';
+    var rv=new Image(); rv.onload=function(){ RODNEY_AVATAR='/inbox/rodney.png'; lastThreadSig=''; if(cur) loadThread(false); }; rv.src='/inbox/rodney.png';
   })();
   $('text').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(120,this.scrollHeight)+'px'; });
   $('text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
@@ -4701,6 +4716,7 @@ function serveInboxAsset(res, file, type) {
   res.status(404).end();
 }
 app.get('/inbox/kiki.png', (req, res) => serveInboxAsset(res, 'inbox-kiki.jpg', 'image/jpeg'));
+app.get('/inbox/rodney.png', (req, res) => serveInboxAsset(res, 'inbox-rodney.jpg', 'image/jpeg'));
 app.get('/inbox/bg.jpg', (req, res) => serveInboxAsset(res, 'inbox-bg.jpg', 'image/jpeg'));
 // PWA manifest → "Add to Home Screen" launches the Inbox standalone (no browser bar), for
 // the full top-to-bottom app look. start_url has no key; the staff key lives in localStorage
@@ -4995,6 +5011,18 @@ app.post('/inbox/start', async (req, res) => {
   } catch (e) { res.json({ ok: false, error: String(e).slice(0, 150) }); }
 });
 
+// ✋ MANUAL STOP — halt an in-progress photo album to this customer (owner hit STOP in the
+// chat because it's dumping too many / all stock). sendShoePhotos checks this flag between
+// shoes, so the very next photo won't go out. Also covers a Kiki send_photos that malfunctions.
+app.post('/inbox/stop-send', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const sub = String((req.body && req.body.sub) || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  sendAbort.add(sub);
+  record(req, { endpoint: 'inbox-stop-send', sub });
+  res.json({ ok: true });
+});
+
 // 👟 SEND A SHOE from the Inbox — search the catalog and send the matches to this
 // customer on their account (reuses searchInventory + sendShoePhotos), and pause Kiki.
 app.post('/inbox/send-shoe', async (req, res) => {
@@ -5010,16 +5038,21 @@ app.post('/inbox/send-shoe', async (req, res) => {
   // Multi-size: the picker can send `sizes` (array) + `size_match` ("any" range, or "all"
   // for a matching pair that must come in every selected size). Falls back to single `size`.
   const sizes = Array.isArray(b.sizes) ? b.sizes.map(String).filter(Boolean) : null;
-  const results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, color: b.color, query: b.query });
+  // Multi-brand: send across several brands at once (empty = all brands).
+  const brands = Array.isArray(b.brands) ? b.brands.map(String).filter(Boolean) : null;
+  const results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query });
   if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing sent.', found: 0 });
   const pieces = [];
   if (b.color) pieces.push(String(b.color).trim());
-  if (b.brand) pieces.push(String(b.brand).trim());
+  if (brands && brands.length) pieces.push(brands.join('/'));
+  else if (b.brand) pieces.push(String(b.brand).trim());
   if (b.query) pieces.push(String(b.query).trim());
   if (sizes && sizes.length) pieces.push((String(b.size_match).toLowerCase() === 'all' ? 'matching sizes ' : 'sizes ') + sizes.join(' & '));
   else if (b.size) pieces.push('size ' + String(b.size).trim());
   const what = pieces.join(' ').trim();
-  const leadIn = what ? ('This is what we have in ' + what + ' rite now 👇 Ready to Order!') : 'This is what we have rite now 👇 Ready to Order!';
+  // Quick message typed by the owner overrides the auto lead-in and rides in with the photos.
+  const note = String(b.note || '').trim().slice(0, 300);
+  const leadIn = note || (what ? ('This is what we have in ' + what + ' rite now 👇 Ready to Order!') : 'This is what we have rite now 👇 Ready to Order!');
   setHumanPause(sub); clearFollowUp(sub);
   try {
     const r = await sendShoePhotos(sub, results.map(x => x.id), token, true, null, leadIn);
