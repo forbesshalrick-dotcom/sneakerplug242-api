@@ -3548,7 +3548,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .q-pay{border-color:#ffb547;box-shadow:0 0 12px rgba(255,181,71,.4);color:#ffd79a}
   .q-shoes{border-color:#cfd8e6;box-shadow:0 0 12px rgba(207,216,230,.35);color:#eef3fb}
   .q-money{border-color:#4ef0a0;box-shadow:0 0 12px rgba(78,240,160,.4);color:#8ff5c4}
-  .q-orders{border-color:#ff5cb4;box-shadow:0 0 12px rgba(255,92,180,.4);color:#ffb0dc}
+  .q-orders{border-color:#ff5cb4;box-shadow:0 0 12px rgba(255,92,180,.4);color:#ffb0dc;position:relative}
+  .ordbadge{position:absolute;top:-8px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:11px;background:linear-gradient(135deg,#ff2e6e,#ff5cb4);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(255,46,110,.7);border:1.5px solid #1a0a12}
+  .ordrow{padding:12px 13px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);margin-bottom:9px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;color:#eef1fb}
+  .ordrow a{color:#7fe0ff;font-weight:700}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
   .replybar{display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(124,92,255,.1);border-top:1px solid var(--line);font-size:13px}
   .replybar #replyText{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--acc);padding-left:9px;color:#c8d2ee}
@@ -3613,7 +3616,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <button class="qbtn q-pay" id="q-pay">💰 Payments</button>
     <button class="qbtn q-shoes" id="q-shoes">👟 Shoes</button>
     <button class="qbtn q-money" id="q-money">💵 Money</button>
-    <button class="qbtn q-orders" id="q-orders">🛍️ Orders</button>
+    <button class="qbtn q-orders" id="q-orders">🛍️ Orders<span class="ordbadge" id="ordBadge" style="display:none">0</span></button>
   </div>
 </div>
 <div class="modal" id="newModal">
@@ -3642,6 +3645,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       <input id="shQuery" placeholder="Search words" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
     </div>
     <div class="btns"><button class="cancel" id="shCancel">Cancel</button><button class="save" id="shSend">Send shoes</button></div>
+  </div>
+</div>
+<div class="modal" id="ordModal">
+  <div class="sheet">
+    <h2>🛍️ Today's orders <span id="ordCount" style="font-size:14px;color:var(--dim);font-weight:600"></span></h2>
+    <p>Delivery orders marked ready today. Tap a number to open the customer's WhatsApp.</p>
+    <div id="ordList" style="max-height:52vh;overflow-y:auto">Loading…</div>
+    <div class="btns"><button class="cancel" id="ordClose">Close</button></div>
   </div>
 </div>
 <div class="modal" id="briefModal">
@@ -3723,7 +3734,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     $('tAv').style.background = 'linear-gradient(135deg,'+c[0]+','+c[1]+')';
     $('threadView').className = 'acc-'+tagCls(tag); // colour bubbles + accents by account
     $('listView').style.display='none'; $('threadView').style.display='flex';
-    $('msgs').innerHTML=''; loadThread(true);
+    $('msgs').innerHTML=''; loadThread(true); refreshOrderBadge();
   }
   function closeThread(){ cur=null; $('threadView').style.display='none'; $('listView').style.display='flex'; loadThreads(); }
 
@@ -3896,6 +3907,22 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       else toast((d&&d.error)||'Nothing sent');
     }).catch(function(){ $('shSend').disabled=false; toast('Failed — network'); });
   }
+  // ── 🛍️ Orders: today's delivery orders ready, with a live count badge ──
+  function renderOrder(o){
+    var t = esc(o.text).replace(/wa\\.me\\/(\\d{7,})/g, '<a href="https://wa.me/$1" target="_blank">wa.me/$1</a>');
+    return '<div class="ordrow">'+t+'</div>';
+  }
+  function applyBadge(x){ var b=$('ordBadge'); if(x&&x.count>0){ b.textContent=x.count; b.style.display='flex'; } else { b.style.display='none'; } }
+  function refreshOrderBadge(){ api('/inbox/orders').then(applyBadge).catch(function(){}); }
+  function openOrders(){
+    $('ordList').innerHTML='Loading…'; $('ordModal').classList.add('open');
+    api('/inbox/orders').then(function(d){
+      if(!d||!d.ok){ $('ordList').innerHTML='<div class="empty">Could not load orders.</div>'; return; }
+      $('ordCount').textContent = d.count? ('· '+d.count+' ready') : '';
+      $('ordList').innerHTML = (d.orders&&d.orders.length) ? d.orders.map(renderOrder).join('') : '<div class="empty">No delivery orders yet today.</div>';
+      applyBadge(d);
+    }).catch(function(){ $('ordList').innerHTML='<div class="empty">Network error.</div>'; });
+  }
 
   // ── Brief Kiki: privately tell her the truth of this chat so she stops re-asking ──
   function openBrief(){ if(!cur) return; $('briefText').value=''; $('agToggle').checked=agentLabel; $('briefModal').classList.add('open'); setTimeout(function(){ $('briefText').focus(); }, 60); }
@@ -3937,7 +3964,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('shoeModal').onclick=function(e){ if(e.target===this) closeShoe(); };
   $('q-pay').onclick=function(){ toast("Payments — tell me what you want here and I'll wire it 💰"); };
   $('q-money').onclick=function(){ toast("Money — tell me what you want here and I'll wire it 💵"); };
-  $('q-orders').onclick=function(){ toast("Orders — tell me what you want here and I'll wire it 🛍️"); };
+  $('q-orders').onclick=openOrders;
+  $('ordClose').onclick=function(){ $('ordModal').classList.remove('open'); };
+  $('ordModal').onclick=function(e){ if(e.target===this) $('ordModal').classList.remove('open'); };
   // load the custom Kiki avatar + collage background if they've been uploaded
   // (else the emoji avatar + designed glow background show — no broken images)
   (function(){
@@ -3956,6 +3985,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     if(cur){ loadThread(false); }
     else { api('/inbox/rev').then(function(d){ if(d && d.rev!==lastRev) loadThreads(); }).catch(function(){}); }
   }, 3000);
+  // keep the Orders count badge fresh while a thread is open
+  setInterval(function(){ if(cur) refreshOrderBadge(); }, 20000);
 
   if(!KEY){ promptKey(); }
   else loadThreads();
@@ -3977,7 +4008,7 @@ function serveInboxAsset(res, file, type) {
   try { const p = require('path').join(__dirname, file); if (require('fs').existsSync(p)) { res.set('Content-Type', type).set('Cache-Control', 'public, max-age=86400'); return res.send(require('fs').readFileSync(p)); } } catch (_) {}
   res.status(404).end();
 }
-app.get('/inbox/kiki.png', (req, res) => serveInboxAsset(res, 'inbox-kiki.png', 'image/png'));
+app.get('/inbox/kiki.png', (req, res) => serveInboxAsset(res, 'inbox-kiki.jpg', 'image/jpeg'));
 app.get('/inbox/bg.jpg', (req, res) => serveInboxAsset(res, 'inbox-bg.jpg', 'image/jpeg'));
 
 // Short tag (TK / OSC / SB) for a full account name, for the account chips in the UI.
@@ -4135,6 +4166,20 @@ app.post('/inbox/note', (req, res) => {
   ownerNotes.set(sub, arr.slice(-8));
   record(req, { endpoint: 'inbox-brief-kiki', sub, note: note.slice(0, 80) });
   res.json({ ok: true });
+});
+
+// 🛍️ TODAY'S DELIVERY ORDERS — the order/delivery-ready alerts posted to the shared
+// board today (from Kiki's notify_manager). Powers the Orders button + its count badge.
+app.get('/inbox/orders', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  let notes = [];
+  try { notes = require('./shop').getNotes() || []; } catch (_) {}
+  const bahDay = (ts) => { try { return new Date(new Date(ts).getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10); } catch (_) { return ''; } };
+  const today = bahDay(Date.now());
+  const orders = notes
+    .filter(n => n && /NEW ORDER|DELIVERY READY|🛵/.test(n.text || '') && bahDay(n.createdAt) === today)
+    .map(n => ({ id: n.id, text: n.text, by: n.by, done: !!n.done, at: n.createdAt }));
+  res.json({ ok: true, count: orders.filter(o => !o.done).length, total: orders.length, orders });
 });
 
 // 🔎 START A NEW CHAT BY NUMBER — resolve a typed phone number to a subscriber on the
