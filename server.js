@@ -4152,6 +4152,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     $('pkg').onclick=go; $('pk').addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
   }
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+  // Escape, then render WhatsApp *bold* as <b> so a bolded label (e.g. "👨‍🦱 *Agent:*") shows
+  // bold in the staff inbox too, instead of literal asterisks.
+  function escB(s){ return esc(s).replace(/\\*(\\S(?:[^*\\n]*\\S)?)\\*/g,'<b>$1</b>'); }
   function api(path, opts){ opts=opts||{}; var sep=path.indexOf('?')>-1?'&':'?'; return fetch(path+sep+'key='+encodeURIComponent(KEY), opts).then(function(r){return r.json()}); }
   function post(path, body){ return api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})}); }
   function toast(m){ var t=$('toast'); t.textContent=m; t.style.display='block'; setTimeout(function(){t.style.display='none'},3200); }
@@ -4343,7 +4346,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
         // 📍 A shared location pin: tappable, opens Google Maps. Otherwise photo, else text.
         var body = x.loc ? '<a class="locpin" href="'+esc(x.loc)+'" target="_blank" rel="noopener"><span class="locbig">📍</span><span class="loctx">'+esc(x.text||'Location')+'<span class="locgo">Open in Maps ›</span></span></a>'
-                 : (x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : '<span class="btext">'+esc(x.text)+'</span>');
+                 : (x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : '<span class="btext">'+escB(x.text)+'</span>');
         var bimg = '';
         if(!x.img && LUX_COUNT>0){ var seed=String(x.id||x.ts||''); var h=2166136261; for(var si=0;si<seed.length;si++){ h^=seed.charCodeAt(si); h=(h*16777619)>>>0; } bimg=' style="--bimg:url(/inbox/lux/'+((h%LUX_COUNT)+1)+')"'; }
         return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
@@ -4854,7 +4857,7 @@ app.post('/inbox/send', async (req, res) => {
   // the toggle is on (Rodney 2026-07-19: it must be consistent, not just the first line).
   // Default on; the client can switch it off per-send with agent:false.
   if (quote) text = '↩️ "' + quote.slice(0, 180) + '"' + (text ? '\n\n' + text : '');
-  if (b.agent !== false && text) text = '👨‍🦱 Agent: ' + text;
+  if (b.agent !== false && text) text = '👨‍🦱 *Agent:* ' + text; // *…* → WhatsApp renders "Agent:" in bold
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   // Right account token: the customer's own account first, then env fallbacks. Direct-API
   // customers (waChannel) route to the Graph API inside sendChunk no matter the token.
