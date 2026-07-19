@@ -481,8 +481,17 @@ app.get(['/feed.csv', '/catalog-feed.csv'], (req, res) => {
 });
 
 // Diagnostic: see the last requests ManyChat sent.
+// ?q=<digits/text> filters to entries mentioning it (e.g. ?q=4324406) and returns a SMALL,
+// phone-readable summary of each — easy to eyeball on a phone. Omit q for the full raw dump.
 app.get('/last', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const q = String(req.query.q || '').trim();
+  if (q) {
+    const hits = recent
+      .filter(r => { try { return JSON.stringify(r).includes(q); } catch (_) { return false; } })
+      .map(r => ({ at: r.at, endpoint: r.endpoint || null, path: r.path, sub: r.sub || null, account: r.account || r.store || null, dbgPhone: r.dbgPhone || null, dbgStaff: (r.dbgStaff != null ? r.dbgStaff : (r.staff != null ? r.staff : null)), q: r.extractedQuery || r.q || null }));
+    return res.json({ q, matches: hits.length, of: recent.length, hits });
+  }
   res.json({ count: recent.length, requests: recent });
 });
 
