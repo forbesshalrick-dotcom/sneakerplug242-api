@@ -2150,12 +2150,18 @@ async function ensureCustomerAvatar(account, sub, token) {
   try {
     if (!token || !sub || avatarTried.has(String(sub))) return;
     const t = inboxThreads.get(threadKey(account, sub)) || inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
-    if (!t || t.avatar) return;
+    // One ManyChat getInfo call backfills BOTH the profile pic AND the real phone number
+    // (the `sub` is a subscriber_id, not a phone). Run while EITHER is still missing.
+    if (!t || (t.avatar && t.phone)) return;
     avatarTried.add(String(sub));
     const r = await fetch('https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=' + encodeURIComponent(String(sub)), { headers: { Authorization: 'Bearer ' + token } });
     const j = await r.json(); const d = j && j.data;
+    let changed = false;
     const pic = d && (d.profile_pic || d.avatar_url || d.profile_picture_url || d.profile_pic_url);
-    if (pic) { t.avatar = String(pic).slice(0, 600); inboxRev++; saveInbox(); }
+    if (pic && !t.avatar) { t.avatar = String(pic).slice(0, 600); changed = true; }
+    const ph = d && (d.whatsapp_phone || d.phone || (d.whatsapp_id ? String(d.whatsapp_id) : ''));
+    if (ph && !t.phone) { t.phone = String(ph).replace(/[^0-9]/g, '').slice(0, 20); changed = true; }
+    if (changed) { inboxRev++; saveInbox(); }
   } catch (_) {}
 }
 // Persist the inbox to the /data volume so a redeploy/restart keeps threads + pauses.
@@ -2475,10 +2481,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (/^\(/.test(inTxt) && /\bsystem\b|customer (just )?sent|can'?t open|re-?delivery/i.test(inTxt)) inTxt = '';
       const inImg = ctx.inPhotoUrl || (image && typeof image === 'string' ? image : '');
       if (!inTxt && !inImg && image) inTxt = '📷 photo';
-      if (locM) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: '📍 Shared a location', loc: locM[1].replace(/\)+$/, ''), name: ctx.name });
-      else if (isReplay && !inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: '📎 Sent a pin or photo — open WhatsApp to view', name: ctx.name });
-      else if (inTxt || inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name, img: inImg });
-      if (!ctx.wa) ensureCustomerAvatar(ctx.store, sub, token); // fire-and-forget: fetch their photo once
+      // Capture the customer's REAL phone (ManyChat `sub` is a subscriber_id, NOT a phone).
+      // If the webhook carried it, store it now; otherwise ensureCustomerAvatar backfills it.
+      const inPhone = getPhone(req) || '';
+      if (locM) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: '📍 Shared a location', loc: locM[1].replace(/\)+$/, ''), name: ctx.name, phone: inPhone });
+      else if (isReplay && !inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: '📎 Sent a pin or photo — open WhatsApp to view', name: ctx.name, phone: inPhone });
+      else if (inTxt || inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name, img: inImg, phone: inPhone });
+      if (!ctx.wa) ensureCustomerAvatar(ctx.store, sub, token); // fire-and-forget: fetch their photo + phone once
     } catch (_) {}
   } else {
     // 🔎 Trace a message HIDDEN as staff — so /last shows exactly which number/name was skipped
@@ -4176,11 +4185,13 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // Local number (last 7 digits) + the "Name-8033126" label so the name AND the number
   // are both visible at a glance.
   function localNum(x){ var n=String(x||'').replace(/\\D/g,''); return n.length>7?n.slice(-7):n; }
-  function custLabel(name, num){ var nm=String(name||'').trim(); var loc=localNum(num); return nm ? (nm+(loc?'-'+loc:'')) : ('+'+String(num||'').replace(/\\D/g,'')); }
+  // num is the REAL phone (server sends empty when unknown) — never a subscriber id. With no
+  // number we show the name alone, or "Customer" when there's no name either.
+  function custLabel(name, num){ var nm=String(name||'').trim(); var loc=localNum(num); return nm ? (nm+(loc?'-'+loc:'')) : (loc?('+'+String(num||'').replace(/\\D/g,'')):'Customer'); }
   // Colour-split: NAME in the account colour (TK blue, OSC green — matches the avatar
   // icon), NUMBER always pink for a uniform look.
   function accTextColor(tag){ return tag==='TK'?'#38bdf8':(tag==='SB'?'#c6a6ff':'#2fe08a'); }
-  function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=accTextColor(tag); if(!nm) return '<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'; return '<span class="cn-name" style="color:'+col+'">'+esc(nm)+'</span>'+(loc?'<span class="cn-num">-'+esc(loc)+'</span>':''); }
+  function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=accTextColor(tag); if(!nm) return loc?('<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'):('<span class="cn-name" style="color:'+col+'">Customer</span>'); return '<span class="cn-name" style="color:'+col+'">'+esc(nm)+'</span>'+(loc?'<span class="cn-num">-'+esc(loc)+'</span>':''); }
   // Header: NAME only (no number). The full number lives once, in the call link below it.
   function custNameHTML(name, tag){ var nm=String(name||'').trim(); var col=accTextColor(tag); return '<span class="cn-name" style="color:'+col+'">'+esc(nm||'Customer')+'</span>'; }
   // Call link opens WhatsApp (wa.me) with the customer, NOT the phone dialer — so tapping it
@@ -4294,7 +4305,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       $('threads').innerHTML = ts.map(function(t){
         totalUnread += (t.unread||0);
         var rawName = (t.name||'').trim();
-        var label = custLabel(rawName, t.phone||t.sub);   // "Jero-8033126" — name + number
+        var label = custLabel(rawName, t.phone);   // real phone only (server '' when unknown) — never the subscriber id
         var av = initials(rawName) || '#';
         var c = accCols(t.tag);        // account colour: TK = blue, OSC = green, SB = purple
         var avStyle = '--rc:'+c[0]+';--rg:'+c[0]+'aa;background:linear-gradient(135deg,'+c[0]+','+c[1]+')';
@@ -4314,7 +4325,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-phone="'+esc(t.phone||'')+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
-            +'<div class="toprow"><div class="nm">'+pinHtml+'<span class="nmtext">'+custLabelHTML(rawName, t.phone||t.sub, t.tag)+'</span>'+lblHtml+(t.unread?'<span class="dot"></span>':'')+'</div>'
+            +'<div class="toprow"><div class="nm">'+pinHtml+'<span class="nmtext">'+custLabelHTML(rawName, t.phone, t.tag)+'</span>'+lblHtml+(t.unread?'<span class="dot"></span>':'')+'</div>'
               +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="kiki '+(t.paused?'koff':'kon')+'" data-sub="'+t.sub+'" style="background:'+(t.paused?'#ff3b5c':c[0])+'" title="'+(t.paused?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her')+'">'+(t.paused?'✕':'✓')+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
             +pv
           +'</div></div>';
@@ -4323,7 +4334,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       if($('search') && $('search').value) $('search').oninput();
       Array.prototype.forEach.call(document.querySelectorAll('.row'), function(el){
         var timer=null, longed=false;
-        el.onclick=function(){ if(longed){ longed=false; return; } if(selMode){ toggleSel(el); return; } openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag')); };
+        el.onclick=function(){ if(longed){ longed=false; return; } if(selMode){ toggleSel(el); return; } openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag'), el.getAttribute('data-phone')); };
         var start=function(){ longed=false; timer=setTimeout(function(){ longed=true; if(navigator.vibrate) try{navigator.vibrate(15);}catch(e){} if(selMode) toggleSel(el); else openCtx(el); }, 420); };
         var cancel=function(){ if(timer){ clearTimeout(timer); timer=null; } };
         el.addEventListener('touchstart', start, {passive:true});
@@ -4347,11 +4358,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     }).catch(function(){});
   }
 
-  function openThread(sub, acct, name, tag){
-    cur = {sub:sub, acct:acct, name:name, tag:tag};
+  function openThread(sub, acct, name, tag, phone){
+    cur = {sub:sub, acct:acct, name:name, tag:tag, phone:phone||''};
     $('tName').innerHTML = custNameHTML(name, tag);   // name — number sits inline beside it
-    // The number lives ONCE here, inline beside the name, as the WhatsApp-call link (📞 + full number).
-    $('tSub').innerHTML = callLinkHTML(sub);
+    // The number is the REAL phone only (never the ManyChat subscriber id). Shown as a WhatsApp
+    // call link; empty until loadThread confirms/ backfills the real number, so no fake number flashes.
+    $('tSub').innerHTML = phone ? callLinkHTML(phone) : '';
     $('tTag').textContent = tag; $('tTag').className='tag '+tagCls(tag);
     var c = accCols(tag);
     $('tAv').textContent = initials(name) || '#';
@@ -4372,11 +4384,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       // actually changed (new/removed message, pause toggled, name/avatar) — or on a forced
       // open/scroll. Otherwise leave the DOM (and the scroll position) exactly as it is.
       var lm = (d.msgs && d.msgs.length) ? d.msgs[d.msgs.length-1] : null;
-      var sig = (cur.sub||'')+'|'+((d.msgs&&d.msgs.length)||0)+'|'+(lm?(lm.id+':'+lm.ts):'')+'|'+(d.paused?1:0)+'|'+(d.name||'')+'|'+(d.avatar||'');
+      var sig = (cur.sub||'')+'|'+((d.msgs&&d.msgs.length)||0)+'|'+(lm?(lm.id+':'+lm.ts):'')+'|'+(d.paused?1:0)+'|'+(d.name||'')+'|'+(d.avatar||'')+'|'+(d.phone||'');
       if(!scroll && sig===lastThreadSig) return; // nothing changed — don't touch the page
       lastThreadSig = sig;
       if(d.name){ cur.name=d.name; $('tName').innerHTML=custNameHTML(d.name, cur.tag); }
-      $('tSub').innerHTML = callLinkHTML(d.phone || cur.sub); // WhatsApp-call the real number when we have it
+      cur.phone = d.phone || ''; // real phone only — never the subscriber id
+      $('tSub').innerHTML = d.phone ? callLinkHTML(d.phone) : ''; // no number shown until we have the real one
       if(d.avatar){ var c=accCols(cur.tag); $('tAv').innerHTML='<img src="'+esc(d.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(($('tName').textContent||'?').charAt(0).toUpperCase())+'</span>'; }
       var m = $('msgs');
       var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
@@ -4550,7 +4563,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       $('newStart').disabled=false;
       if(d&&d.ok){
         closeNew();
-        if(d.messageable){ toast(name?('Saved '+name+' ✅'):'Chat opened'); openThread(d.sub, d.account, d.name||('+'+phone), d.tag); }
+        if(d.messageable){ toast(name?('Saved '+name+' ✅'):'Chat opened'); openThread(d.sub, d.account, d.name||('+'+phone), d.tag, phone); }
         else { toast(d.note||('Saved '+(name||('+'+phone))+' ✅')); loadThreads(); } // saved as contact; not textable until they message first
       }
       else toast((d&&d.error)||'Could not save that number');
@@ -4826,7 +4839,9 @@ app.get('/inbox/threads', (req, res) => {
       if (custPrev && replyPrev) break;
     }
     return {
-      account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', avatar: t.avatar || '',
+      // `phone` is the REAL number only: t.phone for ManyChat; for direct-API Shoe Box the sub IS
+      // the phone. Never expose a ManyChat subscriber_id as a phone (it's not callable/real).
+      account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || (accountTag(t.account) === 'SB' ? t.sub : '') || '', avatar: t.avatar || '',
       lastText: last ? (last.sender === 'customer' || last.sender === 'system' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + (last.loc ? '📍 Location' : (last.text || '')) : '',
       custPrev, replyPrev, replyWho,
       lastTs: t.lastTs, unread: t.unread || 0, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub),
@@ -4846,7 +4861,7 @@ app.get('/inbox/thread', (req, res) => {
   const t = (key && inboxThreads.get(key)) || (inboxSubIndex.get(sub) && inboxThreads.get(inboxSubIndex.get(sub)));
   if (!t) return res.json({ ok: true, account: req.query.account || '', tag: accountTag(req.query.account), sub, name: '', phone: '', msgs: [], paused: isHumanPaused(sub), pausedUntil: pausedUntilOf(sub) });
   if (t.unread) { t.unread = 0; inboxRev++; saveInbox(); }
-  res.json({ ok: true, account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', avatar: t.avatar || '', msgs: t.msgs, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub) });
+  res.json({ ok: true, account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || (accountTag(t.account) === 'SB' ? t.sub : '') || '', avatar: t.avatar || '', msgs: t.msgs, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub) });
 });
 
 // Send Rodney's reply to the customer on the RIGHT account, and AUTO-PAUSE Kiki.
@@ -4928,7 +4943,13 @@ app.post('/inbox/send', async (req, res) => {
     try { const note = (imageUrl ? '[sent a photo] ' : '') + (audioUrl ? '[sent a voice note] ' : '') + (text || ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note.trim() || '[sent media]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
     record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, hasAudio: !!audioUrl, ok: !!(r && r.ok) });
     if (r && r.ok) return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
-    return res.json({ ok: false, error: 'Send failed: ' + String((r && r.body) || '').slice(0, 160), pausedUntil: pausedUntilOf(sub) });
+    const body = String((r && r.body) || '');
+    // ManyChat rejects a send to a number that never messaged us (no subscriber exists yet).
+    // Show WHY in plain English instead of the raw "Subscriber does not exist" JSON.
+    if (/subscriber (does not|doesn'?t) exist|subscriber not found/i.test(body)) {
+      return res.json({ ok: false, error: "Can't text this number yet — WhatsApp only lets us reply after the customer messages your business first. They'll show up here automatically once they do.", pausedUntil: pausedUntilOf(sub) });
+    }
+    return res.json({ ok: false, error: 'Send failed: ' + body.slice(0, 160), pausedUntil: pausedUntilOf(sub) });
   } catch (e) { return res.json({ ok: false, error: String(e).slice(0, 200) }); }
 });
 
