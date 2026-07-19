@@ -827,12 +827,28 @@
   "color": "All Grey",
   "price": 180,
   "sizes": [
+   "7",
+   "7",
+   "7",
+   "7",
+   "8",
+   "9",
+   "9",
    "10.5",
-   "13"
+   "11",
+   "11"
   ],
   "sizesRaw": [
+   "7",
+   "7",
+   "7",
+   "7",
+   "8",
+   "9",
+   "9",
    "10.5",
-   "13"
+   "11",
+   "11"
   ],
   "nickname": "Wolf Grey",
   "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5grey001-thumb.jpg"
