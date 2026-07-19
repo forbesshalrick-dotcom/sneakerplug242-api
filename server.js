@@ -3735,6 +3735,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .chip:active{transform:scale(.92)}
   /* selected chip = solid, obvious pick */
   .chip.on{background:linear-gradient(135deg,#ff5cb4,#c65cff)!important;border-color:#ff8ad4!important;color:#fff!important;box-shadow:0 0 14px rgba(255,92,180,.6)!important;font-weight:800}
+  .lblchip{font-weight:800}
+  /* pin marker + colour-coded customer label on a row */
+  .row .pin{font-size:13px;margin-right:2px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.8))}
+  .row .lbl{flex-shrink:0;font-size:10px;font-weight:900;letter-spacing:.3px;padding:2px 7px;border-radius:7px;color:#0a0812;white-space:nowrap;box-shadow:0 0 8px rgba(0,0,0,.4);text-shadow:none}
+  #listView .row.pinned{background:rgba(255,210,74,.10)}
+  /* long-press menu buttons */
+  .ctxrow{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .ctxbtn{flex:1;min-width:96px;padding:13px 10px;border-radius:14px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.4);color:#fff;font-weight:700;font-size:13.5px;font-family:'Space Grotesk';cursor:pointer}
+  .ctxbtn:active{transform:scale(.95)}
   .chip.sending{background:#12b866;border-color:#2fe08a;color:#04120b;opacity:1}
   .modal.busy .sheet{pointer-events:none}
   .modal.busy .sheet::after{content:'Sending… ⏳';position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#7dffb0;font-weight:800;font-size:14px}
@@ -3770,7 +3779,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   .row .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
   .row .nm{flex:1;min-width:0;display:flex;align-items:center;gap:6px;text-shadow:0 2px 7px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.9)}
-  .row .nmtext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .row .nmtext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
   .cn-num{color:#ff5cb4}
   .row .meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
   .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
@@ -3806,7 +3815,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn.dens{font-family:'Space Grotesk'}
   .sbtn.dens.on{color:#7dffb0;border-color:rgba(46,224,138,.6);box-shadow:0 0 12px rgba(46,224,138,.35)}
   /* bottom nav */
-  .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:5px 6px calc(4px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(6,6,14,.12),rgba(6,6,14,.34));backdrop-filter:blur(9px);border-top:1px solid rgba(255,255,255,.06);flex-shrink:0}
+  .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:5px 6px calc(4px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(6,6,14,.02),rgba(6,6,14,.16));backdrop-filter:blur(6px);border-top:1px solid rgba(255,255,255,.05);flex-shrink:0}
   .navbtn{background:none;border:0;color:#c3c8d6;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px;text-shadow:0 1px 4px rgba(0,0,0,.9)}
   .navbtn svg{width:19px;height:19px}
   .navbtn.active{color:#ff5cb4;filter:drop-shadow(0 0 8px rgba(255,92,180,.6))}
@@ -3905,6 +3914,19 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <div class="btns"><button class="cancel" id="newCancel">Cancel</button><button class="save" id="newStart">Open chat</button></div>
   </div>
 </div>
+<div class="modal" id="ctxModal">
+  <div class="sheet">
+    <h2 id="ctxName">Contact</h2>
+    <div class="ctxrow">
+      <button class="ctxbtn" id="ctxPics">📸 Send pics</button>
+      <button class="ctxbtn" id="ctxPin">📌 Pin to top</button>
+      <button class="ctxbtn" id="ctxMulti">☑️ Select many</button>
+    </div>
+    <div class="picklabel">Label this customer</div>
+    <div class="chiprow" id="ctxLabels"></div>
+    <div class="btns"><button class="cancel" id="ctxClose">Close</button></div>
+  </div>
+</div>
 <div class="modal" id="shoeModal">
   <div class="sheet">
     <h2>📸 Send pictures<span id="shCount" style="font-size:13px;color:#ff8ad4;font-weight:700"></span></h2>
@@ -3995,6 +4017,20 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function enterSel(el){ selMode=true; selected[el.getAttribute('data-sub')]=targetFromRow(el); refreshSel(); }
   function toggleSel(el){ var k=el.getAttribute('data-sub'); if(selected[k]) delete selected[k]; else selected[k]=targetFromRow(el); if(!Object.keys(selected).length) selMode=false; refreshSel(); }
   function clearSel(){ selMode=false; selected={}; refreshSel(); }
+  // ── Long-press menu: Pics / Pin / Label / Select-multiple for one contact ──
+  var LABELS=[{text:'BIG Spender',color:'#ffd24a'},{text:'Good Customer',color:'#12e08a'},{text:'Talkative',color:'#ff9f2e'},{text:'Time Waster',color:'#ff3b5c'},{text:'Complainer',color:'#29c7ff'},{text:'ASS',color:'#b45cff'}];
+  var ctxTarget=null;
+  function openCtx(el){
+    ctxTarget=targetFromRow(el);
+    $('ctxName').textContent=ctxTarget.name||('+'+ctxTarget.sub);
+    var pinned=el.classList.contains('pinned');
+    $('ctxPin').textContent=pinned?'📌 Unpin from top':'📌 Pin to top';
+    $('ctxLabels').innerHTML=LABELS.map(function(l,i){ return '<span class="chip lblchip" data-i="'+i+'" style="background:'+l.color+';border-color:'+l.color+';color:#0a0812">'+esc(l.text)+'</span>'; }).join('')+'<span class="chip lblchip" data-i="-1">✕ No label</span>';
+    Array.prototype.forEach.call(document.querySelectorAll('#ctxLabels .chip'), function(c){ c.onclick=function(){ var i=+c.getAttribute('data-i'); setLabel(i>=0?LABELS[i]:null); }; });
+    $('ctxModal').classList.add('open');
+  }
+  function closeCtx(){ $('ctxModal').classList.remove('open'); }
+  function setLabel(l){ if(!ctxTarget) return; post('/inbox/label',{sub:ctxTarget.sub,account:ctxTarget.account,text:l?l.text:'',color:l?l.color:''}).then(function(r){ if(r&&r.ok){ toast(l?('🏷️ '+l.text):'Label removed'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not label'); }); }
   function openPickerMulti(){ var arr=Object.keys(selected).map(function(k){return selected[k];}); if(!arr.length){ toast('Press & hold a contact to pick who to send to 📸'); return; } pickTargets=arr; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=arr.length>1?(' · '+arr.length+' contacts'):(' · '+arr[0].name); $('shoeModal').classList.add('open'); loadPickChips(); }
   function resetPicker(){ pickSize=null; pickBrand=null; $('shColor').value=''; $('shQuery').value=''; }
   // Send one filter to every pickTarget — but FIRST a 4-second STOP window so a mistake
@@ -4071,11 +4107,13 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var avInner = t.avatar
           ? '<img src="'+esc(t.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(av)+'</span>'
           : '<span class="avini">'+esc(av)+'</span>';
+        var lblHtml = (t.label && t.label.text) ? '<span class="lbl" style="background:'+esc(t.label.color||'#ff3b5c')+'">'+esc(t.label.text)+'</span>' : '';
+        var pinHtml = t.pinned ? '<span class="pin">📌</span>' : '';
         var pv = t.paused? '<span class="pz">⏸ you\\'re handling this</span>' : ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
-        return '<div class="row'+(t.unread?' unread':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-tag="'+t.tag+'">'
+        return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
-            +'<div class="toprow"><div class="nm"><span class="nmtext">'+custLabelHTML(rawName, t.phone||t.sub, t.tag)+'</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
+            +'<div class="toprow"><div class="nm">'+pinHtml+'<span class="nmtext">'+custLabelHTML(rawName, t.phone||t.sub, t.tag)+'</span>'+lblHtml+(t.unread?'<span class="dot"></span>':'')+'</div>'
               +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="kiki '+(t.paused?'koff':'kon')+'" data-sub="'+t.sub+'" style="background:'+(t.paused?'#ff3b5c':c[0])+'" title="'+(t.paused?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her')+'">'+(t.paused?'✕':'✓')+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
             +pv
           +'</div></div>';
@@ -4085,7 +4123,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       Array.prototype.forEach.call(document.querySelectorAll('.row'), function(el){
         var timer=null, longed=false;
         el.onclick=function(){ if(longed){ longed=false; return; } if(selMode){ toggleSel(el); return; } openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag')); };
-        var start=function(){ longed=false; timer=setTimeout(function(){ longed=true; enterSel(el); if(navigator.vibrate) try{navigator.vibrate(15);}catch(e){} }, 420); };
+        var start=function(){ longed=false; timer=setTimeout(function(){ longed=true; if(navigator.vibrate) try{navigator.vibrate(15);}catch(e){} if(selMode) toggleSel(el); else openCtx(el); }, 420); };
         var cancel=function(){ if(timer){ clearTimeout(timer); timer=null; } };
         el.addEventListener('touchstart', start, {passive:true});
         el.addEventListener('touchend', cancel); el.addEventListener('touchmove', cancel);
@@ -4390,6 +4428,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('newCancel').onclick=closeNew;
   $('newStart').onclick=startNew;
   $('newModal').onclick=function(e){ if(e.target===this) closeNew(); };
+  $('ctxClose').onclick=closeCtx;
+  $('ctxModal').onclick=function(e){ if(e.target===this) closeCtx(); };
+  $('ctxPics').onclick=function(){ if(!ctxTarget) return; pickTargets=[ctxTarget]; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=' · '+(ctxTarget.name||('+'+ctxTarget.sub)); closeCtx(); $('shoeModal').classList.add('open'); loadPickChips(); };
+  $('ctxPin').onclick=function(){ if(!ctxTarget) return; post('/inbox/pin',{sub:ctxTarget.sub,account:ctxTarget.account}).then(function(r){ if(r&&r.ok){ toast(r.pinned?'📌 Pinned to top':'Unpinned'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not pin'); }); };
+  $('ctxMulti').onclick=function(){ if(!ctxTarget) return; var t=ctxTarget; closeCtx(); selMode=true; selected[t.sub]=t; refreshSel(); };
   $('q-shoes').onclick=openShoe;
   $('shCancel').onclick=closeShoe;
   $('shSend').onclick=sendShoe;
@@ -4477,8 +4520,10 @@ app.get('/inbox/threads', (req, res) => {
       account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', avatar: t.avatar || '',
       lastText: last ? (last.sender === 'customer' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + last.text : '',
       lastTs: t.lastTs, unread: t.unread || 0, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub),
+      pinned: !!t.pinned, label: t.label || '',
     };
-  }).sort((a, b) => (b.lastTs || 0) - (a.lastTs || 0)).slice(0, 100);
+    // pinned chats float to the top no matter how old, then newest-first
+  }).sort((a, b) => (b.pinned - a.pinned) || ((b.lastTs || 0) - (a.lastTs || 0))).slice(0, 100);
   res.json({ rev: inboxRev, threads: list });
 });
 
@@ -4596,6 +4641,31 @@ app.post('/inbox/resume', (req, res) => {
   clearHumanPause(sub);
   record(req, { endpoint: 'inbox-resume', sub });
   res.json({ ok: true });
+});
+// 📌 Pin a chat to the top / 🏷️ label a customer (Time Waster, Big Spender, …).
+function inboxThreadOf(sub, account) {
+  return inboxThreads.get(inboxSubIndex.get(String(sub)) || '') || inboxThreads.get(threadKey(account || '', sub)) || null;
+}
+app.post('/inbox/pin', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = req.body || {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  const t = inboxThreadOf(sub, b.account);
+  if (!t) return res.json({ ok: false, error: 'no thread' });
+  t.pinned = (b.pinned == null) ? !t.pinned : !!b.pinned;
+  inboxRev++; saveInbox();
+  res.json({ ok: true, pinned: !!t.pinned });
+});
+app.post('/inbox/label', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = req.body || {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  const t = inboxThreadOf(sub, b.account);
+  if (!t) return res.json({ ok: false, error: 'no thread' });
+  if (b.text) t.label = { text: String(b.text).slice(0, 24), color: String(b.color || '#ff3b5c').slice(0, 12) };
+  else t.label = ''; // clear
+  inboxRev++; saveInbox();
+  res.json({ ok: true, label: t.label });
 });
 
 // 🧠 BRIEF KIKI — Rodney privately tells Kiki the truth of this chat (the shoe/size the
