@@ -2441,6 +2441,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
   let forcedPhotosOnce = false; // guard so the force above can only fire once per turn (never loops)
+  // 🎯 SIZE-ALBUM COMPLETENESS tracking (Rodney 2026-07-19: "what you got in 10.5 11" showed
+  // only Jordan 4s + New Balance — all 19 Nikes in an 11 were missing). If she sends a GENERIC
+  // size batch (lead-in names only a size, no brand/model/colour) but leaves brands out, we
+  // top it up with the rest. Only pure size (±brand) searches count; a colour/query/price
+  // search means the customer wanted something specific, so we never widen those.
+  const turnSentIds = new Set();        // shoe ids actually sent this turn
+  const turnSizeSearchSizes = [];       // sizes from pure size (±brand only) searches this turn
+  let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
+  let turnGenericSizeAlbum = false;     // an album went out with a size-only lead-in (no brand/model/colour)
   // 🔒 STAFF PHOTO = float/receipt, NEVER a shoe (2026-07-17): the photo→shoe machinery is so
   // strong the model kept SEARCHING a staff member's cash photo. Remove the shoe tools entirely
   // for a staff photo turn — now it CAN'T search or send shoes; only count cash / log a receipt.
@@ -2557,12 +2566,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     for (const tu of toolUses) {
       let result;
       if (tu.name === 'search_inventory') {
-        const found = searchInventory(tu.input || {});
+        const p = tu.input || {};
+        const found = searchInventory(p);
         lastSearchCount = found.length;
         result = { shoes: found };
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
-        record(req, { endpoint: 'search', sub, params: tu.input, found: found.length });
+        record(req, { endpoint: 'search', sub, params: p, found: found.length });
+        // Completeness tracking: a PURE size search (size ± brand only) is a size-batch
+        // request; a colour/query/price/womens search means the customer wanted something
+        // specific and must NOT be widened to the whole size.
+        const hasSize = p.size != null || (Array.isArray(p.sizes) && p.sizes.length);
+        const restrictive = !!(p.color || p.query || p.max_price != null || p.min_price != null || p.womens);
+        if (restrictive) turnHadRestrictiveSearch = true;
+        if (hasSize && !restrictive) {
+          [].concat(Array.isArray(p.sizes) ? p.sizes : (p.sizes != null ? [p.sizes] : []))
+            .concat(p.size != null ? [p.size] : [])
+            .forEach(x => { const n = parseFloat(x); if (!isNaN(n)) turnSizeSearchSizes.push(String(n)); });
+        }
       }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
@@ -2596,6 +2617,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        // Completeness tracking: record which ids actually went out, and whether THIS album's
+        // lead-in is a GENERIC size batch (mentions no brand, model or colour) — the case where
+        // it must show every brand in the size. A lead-in naming a brand/model/colour (e.g.
+        // "Here's our Jordan 4s") is a specific request and is left exactly as she sent it.
+        try {
+          const outIds = (Array.isArray(inp.groups) && inp.groups.length) ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
+          outIds.forEach(id => turnSentIds.add(String(id)));
+          if (!/\b(jordan|nike|air ?max|air ?force|af1|dunk|vapor|scorpion|shox|huarache|new ?balance|\bnb\b|9060|1906|990|550|yeezy|adidas|asics|crocs|puma|reebok|slipper|mule|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i.test(String(leadIn || ''))) {
+            turnGenericSizeAlbum = true;
+          }
+        } catch (_) {}
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName, ctx.turnAt || 0);
         if (droppedWrongSize.length) {
           record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
@@ -2873,6 +2905,27 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   }
   } catch (e) {
     record(req, { endpoint: 'chat-loop-error', sub, error: String(e && e.stack || e).slice(0, 300) });
+  }
+  // 🎯 SIZE-ALBUM COMPLETENESS TOP-UP (Rodney 2026-07-19: "what you got in 10.5 11" showed
+  // only Jordan 4s + New Balance — all 19 Nikes in an 11 were missing, plus Yeezy/Crocs and
+  // every non-Jordan-4). When she sends a GENERIC size batch (lead-in names only a size, no
+  // brand/model/colour) off a pure size search, the album must show EVERY brand in that size.
+  // If she narrowed it, send the REST so no sale is lost. Never fires on a colour/query/price
+  // search or a brand/model-specific album — those keep exactly what she chose. A newer
+  // customer message cancels the top-up (sendShoePhotos checks requestAt), so it can't dump
+  // photos on someone who has already moved on.
+  if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && turnSizeSearchSizes.length) {
+    try {
+      const wantSizes = [...new Set(turnSizeSearchSizes)];
+      const full = searchInventory({ sizes: wantSizes, size_match: 'any' });
+      const missing = full.filter(r => !turnSentIds.has(String(r.id))).map(r => r.id);
+      if (missing.length) {
+        record(req, { endpoint: 'size-album-topup', sub, sizes: wantSizes, alreadySent: turnSentIds.size, missing: missing.length });
+        const label = wantSizes.join(' and ');
+        const r = await sendShoePhotos(sub, missing, token, true, null, "And here's the rest we've got in " + label + ' 👇', false, false, false, ctx.turnAt || 0).catch(() => null);
+        if (r && r.sent > 0) sentToCustomer = true;
+      }
+    } catch (e) { record(req, { endpoint: 'size-topup-error', sub, error: String(e).slice(0, 120) }); }
   }
   // SAFETY NET: never leave the customer hanging. If the whole turn produced no
   // message to them (model fumbled, every send failed, or it errored mid-loop),
