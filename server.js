@@ -3713,8 +3713,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       linear-gradient(180deg,#0a0812,#05050a);
     background-size:cover;background-position:center}
   body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center;filter:saturate(1.45) contrast(1.08) brightness(1.05)}
-  body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.10),rgba(6,5,12,.22))}
-  body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.20),rgba(6,5,12,.32))}
+  body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.06),rgba(6,5,12,.14))}
+  body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.08),rgba(6,5,12,.16))}
   /* haunted-luxury FX over the collage: a green halo that fades in/out (the "glowing
      eyes" green ambiance across all the ladies) + twinkling sparkles for jewelry glisten.
      Sits above the darkened photo (z-index:-1) but below all the text/rows. */
@@ -3788,14 +3788,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   /* neon glowing bubbles — Kiki = purple, customer = cyan, You = account colour */
   .b{padding:11px 14px;border-radius:20px;font-size:14.5px;line-height:1.4;white-space:pre-wrap;word-wrap:break-word;
-    background:rgba(10,9,20,.66);backdrop-filter:blur(7px);border:1.6px solid rgba(255,255,255,.15);position:relative;overflow:hidden}
+    background:rgba(10,9,20,.48);backdrop-filter:blur(7px);border:1.6px solid rgba(255,255,255,.15);position:relative;overflow:hidden}
   /* luxury-lifestyle texture behind each text bubble — a random slice of the collage,
      under a dark scrim so the message stays readable. Image bubbles keep the photo. */
   body.hasbg .b:not(.hasimg){text-shadow:0 0 2px rgba(0,0,0,.98),0 1px 4px #000,0 0 9px rgba(0,0,0,.9),0 0 16px rgba(0,0,0,.7)}
   body.hasbg .b:not(.hasimg)::before{content:'';position:absolute;inset:0;border-radius:inherit;z-index:0;
-    background:linear-gradient(150deg,rgba(7,5,13,.5),rgba(6,5,12,.66)), var(--bimg,var(--chatbg));
+    background:linear-gradient(150deg,rgba(7,5,13,.24),rgba(6,5,12,.40)), var(--bimg,var(--chatbg));
     background-size:cover;background-position:center;background-repeat:no-repeat;
-    filter:saturate(1.65) contrast(1.14) brightness(1.05)}
+    filter:saturate(1.65) contrast(1.14) brightness(1.1)}
   .b>*{position:relative;z-index:1}
   .b.in{border-color:#22d3ee;box-shadow:0 0 15px rgba(34,211,238,.45),inset 0 0 12px rgba(34,211,238,.10);border-bottom-left-radius:6px}
   .b.kiki{border-color:#ff5cb4;box-shadow:0 0 17px rgba(255,92,180,.55),inset 0 0 12px rgba(255,92,180,.12);border-bottom-right-radius:6px}
