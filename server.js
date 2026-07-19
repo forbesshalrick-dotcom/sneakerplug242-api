@@ -3458,9 +3458,18 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   :root{--acc:#7c5cff;--acc2:#22d3ee;--ink:#eef1fb;--dim:#98a0b8;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.08)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%}
-  body{font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;
-    background:radial-gradient(1100px 720px at 50% -12%, #1a1c33 0%, #0b0c15 52%, #06060c 100%) fixed;
-    -webkit-font-smoothing:antialiased}
+  body{font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased;
+    background:#05050a}
+  /* luxury backdrop — swap CHAT_BG_URL for the collage image; falls back to a rich glow */
+  #listView::before,#threadView::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(600px 400px at 12% 6%, rgba(198,92,255,.18), transparent 60%),
+      radial-gradient(600px 460px at 88% 22%, rgba(34,211,238,.14), transparent 60%),
+      radial-gradient(700px 520px at 50% 108%, rgba(255,92,180,.16), transparent 60%),
+      linear-gradient(180deg,#0a0812,#05050a);
+    background-size:cover;background-position:center}
+  body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center}
+  body.hasbg #listView::after,body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.72),rgba(5,5,10,.82))}
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
   header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
@@ -3468,8 +3477,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   header .brandname{font-size:18px;font-weight:700;margin:0;flex:1;letter-spacing:.2px;line-height:1.05}
   header .brandsub{display:block;font-size:10.5px;font-weight:600;color:var(--dim);letter-spacing:2px;font-family:'Inter'}
   header .sm{font-size:11px;color:var(--dim);font-weight:600}
-  .icon{background:var(--card);border:1px solid var(--line);color:#cfe0ff;font-size:16px;width:38px;height:38px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
-  .icon:active{transform:scale(.9)}
+  .icon{background:rgba(9,8,18,.55);border:1.5px solid rgba(198,92,255,.5);color:#e8dcff;font-size:16px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 10px rgba(198,92,255,.28)}
+  .icon:active{transform:scale(.88)}
   .avatar{border-radius:50%;flex-shrink:0;overflow:hidden;background:linear-gradient(135deg,var(--acc),var(--acc2));display:block}
   #listView,#threadView{position:absolute;inset:0;display:flex;flex-direction:column}
   #threadView{display:none}
@@ -3501,30 +3510,45 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .brow.out{align-self:flex-end;flex-direction:row-reverse}
   .brow.inb{align-self:flex-start}
   @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .b{padding:10px 13px;border-radius:17px;font-size:14.5px;line-height:1.38;white-space:pre-wrap;word-wrap:break-word;box-shadow:0 2px 10px rgba(0,0,0,.22)}
-  .b.in{background:#20242f;border-bottom-left-radius:5px}
-  .b.kiki{border-bottom-right-radius:5px;background:rgba(124,92,255,.14);border:1px solid rgba(124,92,255,.35)}
-  .b.rodney{border-bottom-right-radius:5px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0b12;font-weight:500}
-  .acc-TK{--acc:#2f6df6;--acc2:#38bdf8}
-  .acc-OSC{--acc:#12b866;--acc2:#5fe0a0}
-  .acc-SB{--acc:#9a5cff;--acc2:#c6a6ff}
-  .acc-OTH{--acc:#7c5cff;--acc2:#22d3ee}
-  .b .who{font-size:10.5px;font-weight:700;opacity:.85;margin-bottom:3px;display:flex;align-items:center;gap:5px;letter-spacing:.3px}
-  .b.rodney .who{opacity:.75}
+  /* neon glowing bubbles — Kiki = purple, customer = cyan, You = account colour */
+  .b{padding:11px 14px;border-radius:20px;font-size:14.5px;line-height:1.4;white-space:pre-wrap;word-wrap:break-word;
+    background:rgba(10,9,20,.66);backdrop-filter:blur(7px);border:1.6px solid rgba(255,255,255,.15);position:relative}
+  .b.in{border-color:#22d3ee;box-shadow:0 0 15px rgba(34,211,238,.45),inset 0 0 12px rgba(34,211,238,.10);border-bottom-left-radius:6px}
+  .b.kiki{border-color:#c65cff;box-shadow:0 0 17px rgba(198,92,255,.5),inset 0 0 12px rgba(198,92,255,.12);border-bottom-right-radius:6px}
+  .b.rodney{border-color:var(--acc2);box-shadow:0 0 17px var(--accglow),inset 0 0 12px rgba(255,255,255,.06);border-bottom-right-radius:6px}
+  .acc-TK{--acc:#2f6df6;--acc2:#38bdf8;--accglow:rgba(56,189,248,.5)}
+  .acc-OSC{--acc:#12b866;--acc2:#4ef0a0;--accglow:rgba(78,240,160,.5)}
+  .acc-SB{--acc:#9a5cff;--acc2:#c6a6ff;--accglow:rgba(198,166,255,.5)}
+  .acc-OTH{--acc:#7c5cff;--acc2:#22d3ee;--accglow:rgba(34,211,238,.5)}
+  .b .who{font-size:11px;font-weight:800;margin-bottom:3px;display:flex;align-items:center;gap:6px;letter-spacing:.3px;
+    background:linear-gradient(90deg,#c6a6ff,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .b.rodney .who{background:linear-gradient(90deg,#eafff5,var(--acc2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .b .tm{font-size:9.5px;opacity:.5;margin-top:4px;text-align:right}
   .mini{width:17px;height:17px;border-radius:50%;vertical-align:middle}
   .banner{padding:10px 14px;font-size:12.5px;text-align:center;font-weight:500}
   .banner.paused{background:linear-gradient(90deg,rgba(255,183,77,.13),rgba(255,183,77,.05));color:#ffcf8f;border-bottom:1px solid rgba(255,183,77,.25)}
   .banner.live{background:linear-gradient(90deg,rgba(18,184,102,.13),rgba(18,184,102,.04));color:#7fe6ab;border-bottom:1px solid rgba(18,184,102,.22)}
   .banner b{cursor:pointer;text-decoration:underline;font-weight:700}
-  .composer{display:flex;gap:9px;padding:11px;align-items:flex-end;background:linear-gradient(0deg,rgba(20,22,38,.95),rgba(20,22,38,.75));backdrop-filter:blur(18px);border-top:1px solid var(--line)}
-  .composer textarea{flex:1;resize:none;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:15px;padding:11px 14px;font-size:15px;font-family:inherit;max-height:120px;transition:.15s}
-  .composer textarea:focus{outline:none;border-color:var(--acc)}
-  .sendbtn{background:linear-gradient(135deg,var(--acc),var(--acc2));border:0;color:#0a0b12;font-weight:700;border-radius:15px;padding:0 18px;height:44px;font-size:15px;cursor:pointer;transition:.15s;flex-shrink:0}
-  .sendbtn:active{transform:scale(.94)} .sendbtn:disabled{opacity:.5}
-  .attach{background:rgba(255,255,255,.06);border:1px solid var(--line);color:#cfe0ff;font-size:19px;width:44px;height:44px;border-radius:15px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s}
-  .attach:active{transform:scale(.9)}
-  .attach.rec{background:#e23b5a;color:#fff;border-color:#e23b5a;animation:pulse 1s infinite}
+  .composer{display:flex;padding:9px 11px 6px;align-items:flex-end;background:transparent}
+  .compinner{flex:1;display:flex;gap:5px;align-items:flex-end;padding:5px;border-radius:26px;border:1.7px solid transparent;
+    background:linear-gradient(rgba(9,8,18,.9),rgba(9,8,18,.9)) padding-box, linear-gradient(90deg,#ff5cb4,#c65cff,#22d3ee) border-box;
+    box-shadow:0 0 18px rgba(198,92,255,.32)}
+  .compinner textarea{flex:1;resize:none;background:transparent;border:0;color:var(--ink);padding:10px 6px;font-size:15px;font-family:inherit;max-height:120px}
+  .compinner textarea:focus{outline:none}
+  .sendbtn{background:linear-gradient(135deg,#c65cff,#22d3ee);border:0;color:#05050a;font-weight:800;border-radius:50%;width:40px;height:40px;padding:0;font-size:17px;cursor:pointer;transition:.15s;flex-shrink:0;box-shadow:0 0 14px rgba(198,92,255,.5);display:flex;align-items:center;justify-content:center}
+  .sendbtn:active{transform:scale(.9)} .sendbtn:disabled{opacity:.5}
+  .attach{background:rgba(255,255,255,.05);border:1.4px solid rgba(198,92,255,.4);color:#e8dcff;font-size:17px;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 8px rgba(198,92,255,.22)}
+  .attach:active{transform:scale(.88)}
+  .attach.rec{background:#e23b5a;color:#fff;border-color:#e23b5a;box-shadow:0 0 14px rgba(226,59,90,.6);animation:pulse 1s infinite}
+  /* neon quick-action row */
+  .quickrow{display:flex;gap:8px;padding:2px 11px calc(10px + env(safe-area-inset-bottom));overflow-x:auto}
+  .quickrow::-webkit-scrollbar{display:none}
+  .qbtn{flex:0 0 auto;padding:9px 15px;border-radius:20px;font-size:13px;font-weight:700;font-family:'Space Grotesk';background:rgba(9,8,18,.75);border:1.5px solid;cursor:pointer;white-space:nowrap;color:#fff;transition:.15s}
+  .qbtn:active{transform:scale(.94)}
+  .q-pay{border-color:#ffb547;box-shadow:0 0 12px rgba(255,181,71,.4);color:#ffd79a}
+  .q-shoes{border-color:#cfd8e6;box-shadow:0 0 12px rgba(207,216,230,.35);color:#eef3fb}
+  .q-money{border-color:#4ef0a0;box-shadow:0 0 12px rgba(78,240,160,.4);color:#8ff5c4}
+  .q-orders{border-color:#ff5cb4;box-shadow:0 0 12px rgba(255,92,180,.4);color:#ffb0dc}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
   .replybar{display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(124,92,255,.1);border-top:1px solid var(--line);font-size:13px}
   .replybar #replyText{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--acc);padding-left:9px;color:#c8d2ee}
@@ -3576,12 +3600,20 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label">Photo ready to send</span><span id="imgX">✕</span></div>
   <div class="imgprev" id="audPreview" style="display:none"><span class="ip-label">🎙 Voice note ready to send</span><span id="audX">✕</span></div>
   <div class="composer">
-    <button class="attach" id="attach" title="Send a photo">📷</button>
-    <button class="attach" id="mic" title="Record a voice note">🎙</button>
-    <button class="attach" id="dictate" title="Speak to type">🗣️</button>
-    <input type="file" id="file" accept="image/*" style="display:none">
-    <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
-    <button class="sendbtn" id="send">Send</button>
+    <div class="compinner">
+      <button class="attach" id="attach" title="Send a photo">📷</button>
+      <button class="attach" id="mic" title="Record a voice note">🎙</button>
+      <button class="attach" id="dictate" title="Speak to type">🗣️</button>
+      <input type="file" id="file" accept="image/*" style="display:none">
+      <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
+      <button class="sendbtn" id="send" title="Send">➤</button>
+    </div>
+  </div>
+  <div class="quickrow">
+    <button class="qbtn q-pay" id="q-pay">💰 Payments</button>
+    <button class="qbtn q-shoes" id="q-shoes">👟 Shoes</button>
+    <button class="qbtn q-money" id="q-money">💵 Money</button>
+    <button class="qbtn q-orders" id="q-orders">🛍️ Orders</button>
   </div>
 </div>
 <div class="modal" id="newModal">
@@ -3595,6 +3627,21 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       <option value="Shoe Box">Shoe Box (direct)</option>
     </select>
     <div class="btns"><button class="cancel" id="newCancel">Cancel</button><button class="save" id="newStart">Open chat</button></div>
+  </div>
+</div>
+<div class="modal" id="shoeModal">
+  <div class="sheet">
+    <h2>👟 Send a shoe</h2>
+    <p>Search the catalog and send the matching shoes straight to this customer — pauses Kiki automatically.</p>
+    <div style="display:flex;gap:8px">
+      <input id="shSize" inputmode="decimal" placeholder="Size (e.g. 10)" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+      <input id="shColor" placeholder="Colour" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:9px">
+      <input id="shBrand" placeholder="Brand" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+      <input id="shQuery" placeholder="Search words" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+    </div>
+    <div class="btns"><button class="cancel" id="shCancel">Cancel</button><button class="save" id="shSend">Send shoes</button></div>
   </div>
 </div>
 <div class="modal" id="briefModal">
@@ -3618,7 +3665,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   var cur = null, lastRev = -1, threadTimer = null;
   var pendingImageUrl = null, quoteText = null, agentLabel = true;
   function $(id){return document.getElementById(id)}
-  function kiki(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(124,92,255,.55),0 3px 12px rgba(124,92,255,.3);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👩🏽‍💼</span>'; }
+  // Kiki's avatar — set KIKI_AVATAR to a served image URL to use the custom illustration;
+  // until then it shows the professional-woman emoji. One-line swap when the file lands.
+  var KIKI_AVATAR = '';  // set once at init if /inbox/kiki.png exists (else emoji)
+  function kiki(sz){
+    var ring='box-shadow:0 0 0 2px rgba(198,92,255,.6),0 0 12px rgba(198,92,255,.4)';
+    if(KIKI_AVATAR){ return '<img src="'+KIKI_AVATAR+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover;'+ring+';flex-shrink:0;vertical-align:middle" onerror="this.outerHTML=window.__kikiEmoji('+sz+')">'; }
+    return window.__kikiEmoji(sz);
+  }
+  window.__kikiEmoji=function(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(198,92,255,.6),0 0 12px rgba(198,92,255,.4);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👩🏽‍💼</span>'; };
   window.__imgFail=function(el){ try{ var s=document.createElement('span'); s.textContent='📷 photo'; el.replaceWith(s); }catch(e){} };
   function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
   function promptKey(msg){
@@ -3827,6 +3882,20 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       else toast((d&&d.error)||'Could not find that number');
     }).catch(function(){ $('newStart').disabled=false; toast('Failed — network'); });
   }
+  // ── 👟 Shoes quick-action: search the catalog and send matches to this customer ──
+  function openShoe(){ if(!cur) return; ['shSize','shColor','shBrand','shQuery'].forEach(function(id){$(id).value='';}); $('shoeModal').classList.add('open'); setTimeout(function(){$('shSize').focus();},60); }
+  function closeShoe(){ $('shoeModal').classList.remove('open'); }
+  function sendShoe(){
+    if(!cur) return;
+    var body={sub:cur.sub,account:cur.acct,size:$('shSize').value.trim(),color:$('shColor').value.trim(),brand:$('shBrand').value.trim(),query:$('shQuery').value.trim()};
+    if(!body.size&&!body.color&&!body.brand&&!body.query){ toast('Add a size, colour, brand or search words'); return; }
+    $('shSend').disabled=true;
+    post('/inbox/send-shoe', body).then(function(d){
+      $('shSend').disabled=false;
+      if(d&&d.ok){ closeShoe(); toast('Sent '+d.sent+' shoe'+(d.sent==1?'':'s')+' 👟'); loadThread(true); }
+      else toast((d&&d.error)||'Nothing sent');
+    }).catch(function(){ $('shSend').disabled=false; toast('Failed — network'); });
+  }
 
   // ── Brief Kiki: privately tell her the truth of this chat so she stops re-asking ──
   function openBrief(){ if(!cur) return; $('briefText').value=''; $('agToggle').checked=agentLabel; $('briefModal').classList.add('open'); setTimeout(function(){ $('briefText').focus(); }, 60); }
@@ -3862,6 +3931,19 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('newCancel').onclick=closeNew;
   $('newStart').onclick=startNew;
   $('newModal').onclick=function(e){ if(e.target===this) closeNew(); };
+  $('q-shoes').onclick=openShoe;
+  $('shCancel').onclick=closeShoe;
+  $('shSend').onclick=sendShoe;
+  $('shoeModal').onclick=function(e){ if(e.target===this) closeShoe(); };
+  $('q-pay').onclick=function(){ toast("Payments — tell me what you want here and I'll wire it 💰"); };
+  $('q-money').onclick=function(){ toast("Money — tell me what you want here and I'll wire it 💵"); };
+  $('q-orders').onclick=function(){ toast("Orders — tell me what you want here and I'll wire it 🛍️"); };
+  // load the custom Kiki avatar + collage background if they've been uploaded
+  // (else the emoji avatar + designed glow background show — no broken images)
+  (function(){
+    var bg=new Image(); bg.onload=function(){ document.body.style.setProperty('--chatbg','url(/inbox/bg.jpg)'); document.body.classList.add('hasbg'); }; bg.src='/inbox/bg.jpg';
+    var av=new Image(); av.onload=function(){ KIKI_AVATAR='/inbox/kiki.png'; $('brandAv').innerHTML=kiki(38); $('briefAv').innerHTML=kiki(24); if(cur) loadThread(false); }; av.src='/inbox/kiki.png';
+  })();
   $('text').addEventListener('input', function(){ this.style.height='auto'; this.style.height=Math.min(120,this.scrollHeight)+'px'; });
   $('text').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
 
@@ -3885,6 +3967,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 // Cheap change-poll (mirrors /shop/rev): the Inbox polls this every few seconds and
 // only reloads the thread list when the number changed.
 app.get('/inbox/rev', (req, res) => { if (!consoleAuth(req, res)) return; res.json({ rev: inboxRev }); });
+
+// Custom Inbox assets — Kiki's avatar + the chat backdrop. Filled in from the images
+// Rodney sends (base64). Empty = 404, and the page falls back to the emoji avatar +
+// designed glow background, so nothing breaks before the files land.
+const KIKI_PNG_B64 = '';   // paste base64 of kiki.png here
+const CHAT_BG_B64 = '';    // paste base64 of the collage here
+app.get('/inbox/kiki.png', (req, res) => { if (!KIKI_PNG_B64) return res.status(404).end(); res.set('Content-Type', 'image/png').set('Cache-Control', 'public, max-age=86400').send(Buffer.from(KIKI_PNG_B64, 'base64')); });
+app.get('/inbox/bg.jpg', (req, res) => { if (!CHAT_BG_B64) return res.status(404).end(); res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'public, max-age=86400').send(Buffer.from(CHAT_BG_B64, 'base64')); });
 
 // Short tag (TK / OSC / SB) for a full account name, for the account chips in the UI.
 function accountTag(account) {
@@ -4062,6 +4152,35 @@ app.post('/inbox/start', async (req, res) => {
     record(req, { endpoint: 'inbox-start', phone, account });
     res.json({ ok: true, sub: String(sub), account, tag: accountTag(account) });
   } catch (e) { res.json({ ok: false, error: String(e).slice(0, 150) }); }
+});
+
+// 👟 SEND A SHOE from the Inbox — search the catalog and send the matches to this
+// customer on their account (reuses searchInventory + sendShoePhotos), and pause Kiki.
+app.post('/inbox/send-shoe', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
+  const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
+  const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
+    || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store)) || lastToken || process.env.MANYCHAT_TOKEN || null;
+  if (!token && !waChannel.get(sub)) return res.json({ ok: false, error: 'No account token for this customer yet.' });
+  const results = searchInventory({ size: b.size, brand: b.brand, color: b.color, query: b.query });
+  if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing sent.', found: 0 });
+  const pieces = [];
+  if (b.color) pieces.push(String(b.color).trim());
+  if (b.brand) pieces.push(String(b.brand).trim());
+  if (b.query) pieces.push(String(b.query).trim());
+  if (b.size) pieces.push('size ' + String(b.size).trim());
+  const what = pieces.join(' ').trim();
+  const leadIn = what ? ('This is what we have in ' + what + ' rite now 👇 Ready to Order!') : 'This is what we have rite now 👇 Ready to Order!';
+  setHumanPause(sub); clearFollowUp(sub);
+  try {
+    const r = await sendShoePhotos(sub, results.map(x => x.id), token, true, null, leadIn);
+    record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: results.length, sent: r.sent });
+    res.json({ ok: r.sent > 0, found: results.length, sent: r.sent, error: r.sent > 0 ? undefined : ('Found ' + results.length + ' but none went out') });
+  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 160) }); }
 });
 
 // 🗣 SPEAK-TO-TYPE fallback — transcribe a recorded clip with Whisper (same engine that
