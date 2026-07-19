@@ -3603,7 +3603,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   @keyframes twinkle{0%,100%{opacity:0;transform:scale(.25) rotate(0deg)}45%{opacity:1;transform:scale(1) rotate(90deg)}55%{opacity:.9;transform:scale(1.05) rotate(110deg)}}
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
-  header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
+  header{position:sticky;top:0;z-index:5;padding:6px 14px 5px;display:flex;align-items:center;gap:11px;
     background:transparent;border-bottom:0}
   .thead h1,.thead .sm{text-shadow:0 1px 6px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.7)}
   #tSub{color:#ff5cb4}
@@ -3650,7 +3650,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .thead .av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff;font-family:'Space Grotesk';flex-shrink:0}
   .thead .who-wrap{flex:1;min-width:0}
   .thead h1{font-size:16.5px;margin:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .msgs{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:9px}
+  .msgs{flex:1;overflow-y:auto;padding:6px 12px 4px;display:flex;flex-direction:column;gap:8px}
   .brow{display:flex;align-items:flex-end;gap:7px;max-width:82%;animation:rise .22s ease}
   .brow.out{align-self:flex-end;flex-direction:row-reverse}
   .brow.inb{align-self:flex-start}
@@ -3682,7 +3682,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .banner.paused{background:linear-gradient(90deg,rgba(255,183,77,.13),rgba(255,183,77,.05));color:#ffcf8f;border-bottom:1px solid rgba(255,183,77,.25)}
   .banner.live{background:linear-gradient(90deg,rgba(18,184,102,.13),rgba(18,184,102,.04));color:#7fe6ab;border-bottom:1px solid rgba(18,184,102,.22)}
   .banner b{cursor:pointer;text-decoration:underline;font-weight:700}
-  .composer{display:flex;padding:9px 11px 6px;align-items:flex-end;background:transparent}
+  .composer{display:flex;padding:4px 10px calc(4px + env(safe-area-inset-bottom));align-items:flex-end;background:transparent}
+  /* scrollable icon strip inside the composer: camera/mic/dictate + pics/orders/pay/money */
+  .iconstrip{display:flex;gap:5px;align-items:center;overflow-x:auto;flex:0 1 auto;max-width:46%;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px}
+  .iconstrip::-webkit-scrollbar{display:none}
   .compinner{flex:1;display:flex;gap:5px;align-items:flex-end;padding:5px;border-radius:26px;border:1.7px solid transparent;
     background:linear-gradient(rgba(9,8,18,.9),rgba(9,8,18,.9)) padding-box, linear-gradient(90deg,#ff5cb4,#c65cff,#22d3ee) border-box;
     box-shadow:0 0 18px rgba(198,92,255,.32)}
@@ -3698,10 +3701,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .quickrow::-webkit-scrollbar{display:none}
   .qbtn{flex:0 0 auto;padding:9px 15px;border-radius:20px;font-size:13px;font-weight:700;font-family:'Space Grotesk';background:rgba(9,8,18,.75);border:1.5px solid;cursor:pointer;white-space:nowrap;color:#fff;transition:.15s}
   .qbtn:active{transform:scale(.94)}
-  .q-pay{border-color:#ffb547;box-shadow:0 0 12px rgba(255,181,71,.4);color:#ffd79a}
-  .q-shoes{border-color:#cfd8e6;box-shadow:0 0 12px rgba(207,216,230,.35);color:#eef3fb}
-  .q-money{border-color:#4ef0a0;box-shadow:0 0 12px rgba(78,240,160,.4);color:#8ff5c4}
-  .q-orders{border-color:#ff5cb4;box-shadow:0 0 12px rgba(255,92,180,.4);color:#ffb0dc;position:relative}
+  .attach.q-pay{border-color:#ffb547;box-shadow:0 0 9px rgba(255,181,71,.45)}
+  .attach.q-shoes{border-color:#cfd8e6;box-shadow:0 0 9px rgba(207,216,230,.4)}
+  .attach.q-money{border-color:#4ef0a0;box-shadow:0 0 9px rgba(78,240,160,.45)}
+  .attach.q-orders{border-color:#ff5cb4;box-shadow:0 0 9px rgba(255,92,180,.45);position:relative}
   .ordbadge{position:absolute;top:-8px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:11px;background:linear-gradient(135deg,#ff2e6e,#ff5cb4);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(255,46,110,.7);border:1.5px solid #1a0a12}
   .ordrow{padding:12px 13px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);margin-bottom:9px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;color:#eef1fb}
   .ordrow a{color:#7fe0ff;font-weight:700}
@@ -3711,7 +3714,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .replybar #replyX,.imgprev #imgX,.imgprev #audX{cursor:pointer;color:#98a0b8;padding:0 6px;font-size:17px}
   .imgprev{display:flex;align-items:center;gap:11px;padding:9px 13px;background:rgba(124,92,255,.1);border-top:1px solid var(--line)}
   .imgprev img{height:54px;width:54px;object-fit:cover;border-radius:10px}
-  .imgprev .ip-label{flex:1;font-size:13px;color:#c8d2ee;font-weight:500}
+  .imgprev .ip-label{flex:1;font-size:13px;color:#c8d2ee;font-weight:600}
+  .imgprev .ipsend{background:linear-gradient(135deg,#c65cff,#22d3ee);border:0;color:#05050a;font-weight:800;font-size:14px;padding:9px 16px;border-radius:12px;cursor:pointer;font-family:'Space Grotesk';box-shadow:0 0 12px rgba(198,92,255,.5);flex-shrink:0}
+  .imgprev .ipsend:active{transform:scale(.94)}
   .b.tap{cursor:pointer}
   .b.hasimg{padding:5px}
   .msgimg{max-width:210px;max-height:260px;border-radius:12px;display:block;object-fit:cover;filter:saturate(1.25) contrast(1.05)}
@@ -3728,7 +3733,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .chip{padding:8px 14px;border-radius:20px;font-size:14px;font-weight:700;font-family:'Space Grotesk';background:rgba(124,92,255,.14);border:1.5px solid rgba(124,92,255,.5);color:#e8dcff;cursor:pointer;white-space:nowrap;transition:.12s}
   .chip.brandchip{background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.45);color:#c8f4fb}
   .chip:active{transform:scale(.92)}
-  .chip.sending{opacity:.5;pointer-events:none}
+  /* selected chip = solid, obvious pick */
+  .chip.on{background:linear-gradient(135deg,#ff5cb4,#c65cff)!important;border-color:#ff8ad4!important;color:#fff!important;box-shadow:0 0 14px rgba(255,92,180,.6)!important;font-weight:800}
+  .chip.sending{background:#12b866;border-color:#2fe08a;color:#04120b;opacity:1}
+  .modal.busy .sheet{pointer-events:none}
+  .modal.busy .sheet::after{content:'Sending… ⏳';position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#7dffb0;font-weight:800;font-size:14px}
   .chipmini{font-size:12px;color:var(--dim)}
   .sheet textarea{width:100%;min-height:96px;resize:vertical;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit}
   .sheet textarea:focus{outline:none;border-color:var(--acc)}
@@ -3767,16 +3776,13 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
   .row .tm{text-shadow:0 1px 5px rgba(0,0,0,.95)}
   .row .pz{text-shadow:0 1px 5px rgba(0,0,0,.95)}
-  .row .av{width:43px;height:43px;border:2.5px solid var(--rc,#7c5cff);box-shadow:0 0 13px var(--rg,rgba(124,92,255,.7)),inset 0 0 9px rgba(0,0,0,.4);font-size:15px}
-  /* dripping-slime paint running off the avatar ring, in the account colour */
-  .row .av::after{content:'';position:absolute;left:16%;bottom:-13px;width:5.5px;height:16px;border-radius:0 0 60% 60% / 0 0 100% 100%;background:var(--rc,#7c5cff);
-    box-shadow:
-      8px 5px 0 -0.5px var(--rc,#7c5cff),
-      16px -3px 0 -1px var(--rc,#7c5cff),
-      24px 3px 0 -1.5px var(--rc,#7c5cff),
-      -5px -1px 0 -1px var(--rc,#7c5cff),
-      31px -2px 0 -2px var(--rc,#7c5cff),
-      0 0 12px 1px var(--rg,rgba(124,92,255,.7))}
+  .row .av{width:40px;height:40px;border:2.5px solid var(--rc,#7c5cff);box-shadow:0 0 12px var(--rg,rgba(124,92,255,.7)),inset 0 0 8px rgba(0,0,0,.4);font-size:14px}
+  /* clean dripping-slime paint hanging off the bottom of the ring, in the account colour
+     (SVG-masked shape so it's actual attached drips, not scattered blobs) */
+  .row .av::after{content:'';position:absolute;left:50%;transform:translateX(-50%);bottom:-18px;width:112%;height:26px;background:var(--rc,#7c5cff);pointer-events:none;
+    -webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2048%2030'%3E%3Cg%20fill='%23000'%3E%3Crect%20x='0'%20y='0'%20width='48'%20height='5'%20rx='2'/%3E%3Crect%20x='2'%20y='3'%20width='3.6'%20height='11'%20rx='1.8'/%3E%3Ccircle%20cx='3.8'%20cy='14'%20r='2.8'/%3E%3Crect%20x='9'%20y='3'%20width='4'%20height='17'%20rx='2'/%3E%3Ccircle%20cx='11'%20cy='20'%20r='3.2'/%3E%3Crect%20x='16'%20y='3'%20width='3.4'%20height='9'%20rx='1.7'/%3E%3Ccircle%20cx='17.7'%20cy='12'%20r='2.7'/%3E%3Crect%20x='22.5'%20y='3'%20width='4.4'%20height='21'%20rx='2.2'/%3E%3Ccircle%20cx='24.7'%20cy='24'%20r='3.6'/%3E%3Crect%20x='30'%20y='3'%20width='3.6'%20height='11'%20rx='1.8'/%3E%3Ccircle%20cx='31.8'%20cy='14'%20r='2.9'/%3E%3Crect%20x='36.5'%20y='3'%20width='4'%20height='18'%20rx='2'/%3E%3Ccircle%20cx='38.5'%20cy='21'%20r='3.2'/%3E%3Crect%20x='43'%20y='3'%20width='3.4'%20height='13'%20rx='1.7'/%3E%3Ccircle%20cx='44.7'%20cy='16'%20r='2.7'/%3E%3C/g%3E%3C/svg%3E") no-repeat center/100% 100%;
+    mask:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2048%2030'%3E%3Cg%20fill='%23000'%3E%3Crect%20x='0'%20y='0'%20width='48'%20height='5'%20rx='2'/%3E%3Crect%20x='2'%20y='3'%20width='3.6'%20height='11'%20rx='1.8'/%3E%3Ccircle%20cx='3.8'%20cy='14'%20r='2.8'/%3E%3Crect%20x='9'%20y='3'%20width='4'%20height='17'%20rx='2'/%3E%3Ccircle%20cx='11'%20cy='20'%20r='3.2'/%3E%3Crect%20x='16'%20y='3'%20width='3.4'%20height='9'%20rx='1.7'/%3E%3Ccircle%20cx='17.7'%20cy='12'%20r='2.7'/%3E%3Crect%20x='22.5'%20y='3'%20width='4.4'%20height='21'%20rx='2.2'/%3E%3Ccircle%20cx='24.7'%20cy='24'%20r='3.6'/%3E%3Crect%20x='30'%20y='3'%20width='3.6'%20height='11'%20rx='1.8'/%3E%3Ccircle%20cx='31.8'%20cy='14'%20r='2.9'/%3E%3Crect%20x='36.5'%20y='3'%20width='4'%20height='18'%20rx='2'/%3E%3Ccircle%20cx='38.5'%20cy='21'%20r='3.2'/%3E%3Crect%20x='43'%20y='3'%20width='3.4'%20height='13'%20rx='1.7'/%3E%3Ccircle%20cx='44.7'%20cy='16'%20r='2.7'/%3E%3C/g%3E%3C/svg%3E") no-repeat center/100% 100%;
+    filter:drop-shadow(0 1px 4px var(--rg,rgba(124,92,255,.6)))}
   .row .av{position:relative;overflow:visible}
   .row .nm{font-family:'Permanent Marker',cursive;font-size:19px;font-weight:400;letter-spacing:.6px;gap:6px}
   .row .lt{font-family:'Inter';font-size:13px}
@@ -3791,10 +3797,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .thead .tagbox{position:relative;display:inline-flex;align-items:center}
   .thead .kiki{border-color:#12131f;z-index:3}
   /* compact mode — smaller icons + a narrower name font so the full Name-number fits */
-  #listView.compact .row{padding:8px 10px;gap:10px}
-  #listView.compact .row .av{width:40px;height:40px;font-size:15px;border-width:2px}
-  #listView.compact .row .av::after{display:none}
-  #listView.compact .row .nm{font-family:'Space Grotesk';font-size:15px;font-weight:800;letter-spacing:0}
+  #listView.compact .row{padding:3px 10px;gap:9px}
+  #listView.compact .row .av{width:33px;height:33px;font-size:13px;border-width:2px}
+  #listView.compact .row .av::after{bottom:-12px;height:18px;width:82%}
+  #listView.compact .row .nm{font-size:16px}
+  #listView.compact .row .lt{font-size:12px}
   #listView.compact .row .lt{font-size:12px}
   .sbtn.dens{font-family:'Space Grotesk'}
   .sbtn.dens.on{color:#7dffb0;border-color:rgba(46,224,138,.6);box-shadow:0 0 12px rgba(46,224,138,.35)}
@@ -3814,10 +3821,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   #selBar .selx{background:rgba(255,255,255,.08);border:1px solid var(--line);color:#e7e9ee;font-size:15px;width:42px;height:42px;border-radius:12px;cursor:pointer}
   #selBar .selbtn:active,#selBar .selx:active{transform:scale(.94)}
   body.selmode .bottomnav{display:none}
+  /* STOP bar — a few-second window to abort a send before it goes out */
+  #stopBar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:12px;padding:14px 16px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(20,6,10,.9),rgba(20,6,10,.98));border-top:2px solid #ff3b5c}
+  #stopBar #stopMsg{flex:1;color:#fff;font-size:14px;font-weight:700}
+  #stopBar #stopBtn{background:#ff3b5c;border:0;color:#fff;font-weight:900;font-size:15px;padding:12px 22px;border-radius:13px;cursor:pointer;font-family:'Space Grotesk';box-shadow:0 0 16px rgba(255,59,92,.6)}
+  #stopBar #stopBtn:active{transform:scale(.94)}
   .navbtn:active{transform:scale(.9)}
   .navbadge{position:absolute;top:-3px;right:2px;width:16px;height:16px;border-radius:50%;background:#ff2e6e;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(255,46,110,.7)}
 </style></head><body>
 <input type="file" id="avFile" accept="image/*" style="display:none">
+<div id="stopBar" style="display:none"><span id="stopMsg"></span><button id="stopBtn">✋ STOP</button></div>
 <div id="listView">
   <div class="fxlayer" id="fxList"><div class="glow"></div></div>
   <div class="hero">
@@ -3860,23 +3873,23 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   <div class="banner" id="tBanner" style="display:none"></div>
   <div class="msgs" id="msgs"></div>
   <div class="replybar" id="replyBar" style="display:none"><span id="replyText"></span><span id="replyX">✕</span></div>
-  <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label">Photo ready to send</span><span id="imgX">✕</span></div>
+  <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label" id="imgLabel">Photo ready to send</span><button id="imgSend" class="ipsend">Send ➤</button><span id="imgX">✕</span></div>
   <div class="imgprev" id="audPreview" style="display:none"><span class="ip-label">🎙 Voice note ready to send</span><span id="audX">✕</span></div>
   <div class="composer">
     <div class="compinner">
-      <button class="attach" id="attach" title="Send a photo">📷</button>
-      <button class="attach" id="mic" title="Record a voice note">🎙</button>
-      <button class="attach" id="dictate" title="Speak to type">🗣️</button>
-      <input type="file" id="file" accept="image/*" style="display:none">
+      <div class="iconstrip" id="iconStrip">
+        <button class="attach" id="attach" title="Send a photo">📷</button>
+        <button class="attach" id="mic" title="Record a voice note">🎙</button>
+        <button class="attach" id="dictate" title="Speak to type">🗣️</button>
+        <button class="attach q-shoes" id="q-shoes" title="Send pics by size / brand">📸</button>
+        <button class="attach q-orders" id="q-orders" title="Today's orders">🛍️<span class="ordbadge" id="ordBadge" style="display:none">0</span></button>
+        <button class="attach q-pay" id="q-pay" title="Payments">💰</button>
+        <button class="attach q-money" id="q-money" title="Money">💵</button>
+      </div>
+      <input type="file" id="file" accept="image/*" multiple style="display:none">
       <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
       <button class="sendbtn" id="send" title="Send">➤</button>
     </div>
-  </div>
-  <div class="quickrow">
-    <button class="qbtn q-pay" id="q-pay">💰 Payments</button>
-    <button class="qbtn q-shoes" id="q-shoes">📸 Pics</button>
-    <button class="qbtn q-money" id="q-money">💵 Money</button>
-    <button class="qbtn q-orders" id="q-orders">🛍️ Orders<span class="ordbadge" id="ordBadge" style="display:none">0</span></button>
   </div>
 </div>
 <div class="modal" id="newModal">
@@ -3895,18 +3908,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <div class="modal" id="shoeModal">
   <div class="sheet">
     <h2>📸 Send pictures<span id="shCount" style="font-size:13px;color:#ff8ad4;font-weight:700"></span></h2>
-    <p>Type a shoe (e.g. <b>Air Max Plus size 11</b>) and send — or tap a size / brand below to blast <b>everything</b> in it. Combine a colour or brand with a size for an exact set. Pauses Kiki automatically.</p>
+    <p>Tap a <b>size</b>, a <b>brand</b>, and/or a <b>colour</b> — combine them for an exact set — then press <b>Send</b>. Nothing goes out until you hit Send. Or just type a shoe below. Pauses Kiki automatically.</p>
     <input id="shQuery" placeholder="🔎 Type a shoe — e.g. Air Max Plus pink" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.5);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit;margin-bottom:12px">
-    <div class="picklabel">By size</div>
+    <div class="picklabel">Size — tap one</div>
     <div class="chiprow" id="sizeChips"><span class="chipmini">Loading…</span></div>
-    <div class="picklabel">By brand</div>
+    <div class="picklabel">Brand — tap one</div>
     <div class="chiprow" id="brandChips"><span class="chipmini">Loading…</span></div>
-    <div class="picklabel">Refine (optional — combine with a chip or the search)</div>
-    <div style="display:flex;gap:8px">
-      <input id="shSize" inputmode="decimal" placeholder="Size (e.g. 10)" style="flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
-      <input id="shColor" placeholder="Colour" style="flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
-      <input id="shBrand" placeholder="Brand" style="flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
-    </div>
+    <div class="picklabel">Colour (optional)</div>
+    <input id="shColor" placeholder="e.g. black, pink, grey" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
     <div class="btns"><button class="cancel" id="shCancel">Cancel</button><button class="save" id="shSend">Send</button></div>
   </div>
 </div>
@@ -3938,7 +3947,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   if (qkey) { try { localStorage.setItem(LS, qkey); } catch(e){} }
   var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
   var cur = null, lastRev = -1, threadTimer = null;
-  var pendingImageUrl = null, quoteText = null, agentLabel = true;
+  var pendingImages = [], quoteText = null, agentLabel = true;
   function $(id){return document.getElementById(id)}
   // Kiki's avatar — set KIKI_AVATAR to a served image URL to use the custom illustration;
   // until then it shows the professional-woman emoji. One-line swap when the file lands.
@@ -3986,22 +3995,34 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function enterSel(el){ selMode=true; selected[el.getAttribute('data-sub')]=targetFromRow(el); refreshSel(); }
   function toggleSel(el){ var k=el.getAttribute('data-sub'); if(selected[k]) delete selected[k]; else selected[k]=targetFromRow(el); if(!Object.keys(selected).length) selMode=false; refreshSel(); }
   function clearSel(){ selMode=false; selected={}; refreshSel(); }
-  function openPickerMulti(){ var arr=Object.keys(selected).map(function(k){return selected[k];}); if(!arr.length){ toast('Press & hold a contact to pick who to send to 📸'); return; } pickTargets=arr; ['shSize','shColor','shBrand','shQuery'].forEach(function(id){$(id).value='';}); var tc=$('shCount'); if(tc) tc.textContent=arr.length>1?(' · '+arr.length+' contacts'):''; $('shoeModal').classList.add('open'); loadPickChips(); }
-  // Send one filter (size/brand/colour/query) to every pickTarget; aggregate the result.
+  function openPickerMulti(){ var arr=Object.keys(selected).map(function(k){return selected[k];}); if(!arr.length){ toast('Press & hold a contact to pick who to send to 📸'); return; } pickTargets=arr; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=arr.length>1?(' · '+arr.length+' contacts'):(' · '+arr[0].name); $('shoeModal').classList.add('open'); loadPickChips(); }
+  function resetPicker(){ pickSize=null; pickBrand=null; $('shColor').value=''; $('shQuery').value=''; }
+  // Send one filter to every pickTarget — but FIRST a 4-second STOP window so a mistake
+  // can be aborted before anything actually goes out.
+  var pickBusy=false, sendTimer=null;
   function sendToTargets(filter, label, btn){
-    var targets=pickTargets||[]; if(!targets.length){ toast('No contact selected'); return; }
-    if(btn) btn.classList.add('sending');
-    var done=0, sent=0, ok=0;
-    targets.forEach(function(tg){
-      post('/inbox/send-shoe', Object.assign({sub:tg.sub, account:tg.account}, filter)).then(function(d){
-        done++; if(d&&d.ok){ sent+=(d.sent||0); ok++; }
-        if(done===targets.length) finish();
-      }).catch(function(){ done++; if(done===targets.length) finish(); });
-    });
+    if(pickBusy) return;                                  // block the frantic triple-tap
+    var targets=pickTargets||[]; if(!targets.length){ toast('Press & hold a contact to pick who to send to 📸'); return; }
+    pickBusy=true; $('shoeModal').classList.add('busy'); if(btn) btn.classList.add('sending');
+    var n=4, sb=$('stopBar');
+    var who=targets.length+' contact'+(targets.length==1?'':'s');
+    var showN=function(){ $('stopMsg').textContent='Sending '+label+' to '+who+' in '+n+'s…'; };
+    showN(); sb.style.display='flex';
+    var tick=function(){ n--; if(n>0){ showN(); sendTimer=setTimeout(tick,1000); } else { sb.style.display='none'; dispatch(); } };
+    sendTimer=setTimeout(tick,1000);
+    $('stopBtn').onclick=function(){ if(sendTimer){clearTimeout(sendTimer);sendTimer=null;} sb.style.display='none'; pickBusy=false; $('shoeModal').classList.remove('busy'); if(btn) btn.classList.remove('sending'); toast('✋ Stopped — nothing was sent'); };
+    function dispatch(){
+      var done=0, sent=0, ok=0;
+      targets.forEach(function(tg){
+        post('/inbox/send-shoe', Object.assign({sub:tg.sub, account:tg.account}, filter)).then(function(d){
+          done++; if(d&&d.ok){ sent+=(d.sent||0); ok++; } if(done===targets.length) finish();
+        }).catch(function(){ done++; if(done===targets.length) finish(); });
+      });
+    }
     function finish(){
-      if(btn) btn.classList.remove('sending');
-      if(ok>0){ closeShoe(); toast('Sent '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' 👟'); clearSel(); if(cur) loadThread(true); }
-      else toast('Nothing in '+label+' — nothing sent');
+      pickBusy=false; $('shoeModal').classList.remove('busy'); if(btn) btn.classList.remove('sending');
+      if(ok>0 && sent>0){ closeShoe(); toast('✅ Sent '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' 👟'); clearSel(); if(cur) loadThread(true); }
+      else toast('⚠️ Nothing matched '+label+' — nothing was sent');
     }
   }
   function shrinkSquare(file, size, cb){
@@ -4123,9 +4144,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       // tap a customer message to quote it in your reply
       Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
       if(scroll || atBottom) m.scrollTop = m.scrollHeight;
-      var b=$('tBanner');
-      if(d.paused){ b.style.display='block'; b.className='banner paused'; b.innerHTML='⏸ Kiki is paused (~'+countdown(d.pausedUntil)+' left) — <b id="handback">hand back to Kiki</b>'; $('handback').onclick=handBack; }
-      else { b.style.display='none'; b.innerHTML=''; }  // no "Kiki is answering" banner — the header badge already shows her status
+      var b=$('tBanner'); b.style.display='none'; b.innerHTML='';  // no banner at all — the header ✓/✕ badge shows Kiki's status and toggles her
       // Kiki on/off badge on the header tag — same tap-to-toggle as the list
       var tk=$('tKiki');
       if(tk && cur){ var koff=!!d.paused; tk.style.display='flex'; tk.className='kiki '+(koff?'koff':'kon'); tk.textContent=koff?'✕':'✓'; tk.style.background=koff?'#ff3b5c':accCols(cur.tag)[0]; tk.title=koff?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her';
@@ -4136,13 +4155,24 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 
   function send(){
     if(!cur) return; var txt=$('text').value.trim();
-    if(!txt && !pendingImageUrl && !pendingAudioUrl){ return; }
-    $('send').disabled=true;
-    post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt, imageUrl:pendingImageUrl||'', audioUrl:pendingAudioUrl||'', quote:quoteText||'', agent:agentLabel}).then(function(d){
-      $('send').disabled=false;
-      if(d && d.ok){ $('text').value=''; $('text').style.height='auto'; clearImg(); clearAud(); clearQuote(); loadThread(true); }
-      else { toast((d&&d.error)||'Send failed'); }
-    }).catch(function(){ $('send').disabled=false; toast('Send failed — network'); });
+    if(!txt && !pendingImages.length && !pendingAudioUrl){ return; }
+    $('send').disabled=true; $('imgSend').disabled=true;
+    var imgs=pendingImages.slice();
+    var done=function(ok, err){ $('send').disabled=false; $('imgSend').disabled=false; if(ok){ $('text').value=''; $('text').style.height='auto'; clearImg(); clearAud(); clearQuote(); loadThread(true); } else { toast(err||'Send failed'); } };
+    if(imgs.length){
+      // send each photo — the first carries the caption/voice-note, the rest go on their own
+      var i=0, bad=false;
+      var next=function(){
+        if(i>=imgs.length){ done(!bad, 'Some photos failed'); return; }
+        var first=(i===0);
+        post('/inbox/send', {sub:cur.sub, account:cur.acct, text:first?txt:'', imageUrl:imgs[i], audioUrl:first?(pendingAudioUrl||''):'', quote:first?(quoteText||''):'', agent:agentLabel})
+          .then(function(d){ if(!(d&&d.ok)) bad=true; i++; next(); }).catch(function(){ bad=true; i++; next(); });
+      };
+      toast('Sending '+imgs.length+' photo'+(imgs.length==1?'':'s')+'…'); next();
+    } else {
+      post('/inbox/send', {sub:cur.sub, account:cur.acct, text:txt, imageUrl:'', audioUrl:pendingAudioUrl||'', quote:quoteText||'', agent:agentLabel})
+        .then(function(d){ done(d&&d.ok, d&&d.error); }).catch(function(){ done(false,'Send failed — network'); });
+    }
   }
   function handBack(){ if(!cur) return; post('/inbox/resume',{sub:cur.sub}).then(function(){ loadThread(false); toast('Kiki is back on this chat ✅'); }); }
 
@@ -4158,15 +4188,17 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     rd.readAsDataURL(file);
   }
   function pickPhoto(file){
-    if(!file) return; toast('Uploading photo…');
+    if(!file) return;
     shrink(file, function(dataUrl){
       post('/inbox/upload', {image:dataUrl}).then(function(d){
-        if(d && d.ok && d.url){ pendingImageUrl=d.url; $('imgThumb').src=dataUrl; $('imgPreview').style.display='flex'; toast('Photo ready — add a caption or hit Send'); }
+        if(d && d.ok && d.url){ pendingImages.push(d.url); $('imgThumb').src=dataUrl; $('imgPreview').style.display='flex';
+          $('imgLabel').textContent = pendingImages.length+' photo'+(pendingImages.length==1?'':'s')+' ready — hit Send ➤';
+          toast(pendingImages.length+' photo'+(pendingImages.length==1?'':'s')+' ready'); }
         else toast((d&&d.error)||'Upload failed');
       }).catch(function(){ toast('Upload failed — network'); });
     });
   }
-  function clearImg(){ pendingImageUrl=null; $('imgThumb').src=''; $('imgPreview').style.display='none'; $('file').value=''; }
+  function clearImg(){ pendingImages=[]; $('imgThumb').src=''; $('imgLabel').textContent='Photo ready to send'; $('imgPreview').style.display='none'; $('file').value=''; }
   function setQuote(txt){ quoteText=txt; $('replyText').textContent='↩️ '+txt; $('replyBar').style.display='flex'; $('text').focus(); }
   function clearQuote(){ quoteText=null; $('replyBar').style.display='none'; }
 
@@ -4265,29 +4297,36 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     }).catch(function(){ $('newStart').disabled=false; toast('Failed — network'); });
   }
   // ── 👟 Shoes quick-action: search the catalog and send matches to this customer ──
-  function openShoe(){ if(!cur) return; pickTargets=[{sub:cur.sub,account:cur.acct,tag:cur.tag,name:cur.name}]; var tc=$('shCount'); if(tc) tc.textContent=''; ['shSize','shColor','shBrand','shQuery'].forEach(function(id){$(id).value='';}); $('shoeModal').classList.add('open'); loadPickChips(); }
+  function openShoe(){ if(!cur) return; pickTargets=[{sub:cur.sub,account:cur.acct,tag:cur.tag,name:cur.name}]; var tc=$('shCount'); if(tc) tc.textContent=''; resetPicker(); $('shoeModal').classList.add('open'); loadPickChips(); }
   function closeShoe(){ $('shoeModal').classList.remove('open'); }
   var pickMeta=null;
-  // read whatever's typed in the manual fields, so a chip tap can combine (e.g. type a
-  // colour + tap a size chip = that colour in that size; type a size + tap a brand = brand+size)
-  function chipExtras(){ var e={}; var c=$('shColor').value.trim(), b=$('shBrand').value.trim(), s=$('shSize').value.trim(), q=$('shQuery').value.trim(); if(c)e.color=c; if(b)e.brand=b; if(s)e.size=s; if(q)e.query=q; return e; }
-  function extraLabel(e){ var p=[]; if(e.color)p.push(e.color); if(e.brand)p.push(e.brand); if(e.query)p.push(e.query); return p.length?(' + '+p.join(' ')):''; }
+  // Chips SELECT (not send). You build your combo — a size, a brand, a colour, words —
+  // then press Send once. Nothing goes out until you do. Tapping a chip again clears it.
+  var pickSize=null, pickBrand=null;
+  function paintChips(){
+    Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.classList.toggle('on', el.getAttribute('data-size')===pickSize); });
+    Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.classList.toggle('on', el.getAttribute('data-brand')===pickBrand); });
+  }
   function loadPickChips(){
     var render=function(){
       var sc=$('sizeChips'), bc=$('brandChips');
       if(!pickMeta){ return; }
       sc.innerHTML = (pickMeta.sizes||[]).map(function(s){ return '<span class="chip sizechip" data-size="'+s+'">'+s+'</span>'; }).join('') || '<span class="chipmini">No sizes in stock</span>';
       bc.innerHTML = (pickMeta.brands||[]).map(function(b){ return '<span class="chip brandchip" data-brand="'+esc(b)+'">'+esc(b)+'</span>'; }).join('') || '<span class="chipmini">No brands in stock</span>';
-      Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ var extra=chipExtras(); sendToTargets(Object.assign({size:el.getAttribute('data-size')}, extra), 'size '+el.getAttribute('data-size')+extraLabel(extra), el); }; });
-      Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ var extra=chipExtras(); sendToTargets(Object.assign({brand:el.getAttribute('data-brand')}, extra), el.getAttribute('data-brand')+extraLabel(extra), el); }; });
+      Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ pickSize = (pickSize===el.getAttribute('data-size'))?null:el.getAttribute('data-size'); paintChips(); }; });
+      Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ pickBrand = (pickBrand===el.getAttribute('data-brand'))?null:el.getAttribute('data-brand'); paintChips(); }; });
+      paintChips();
     };
     if(pickMeta){ render(); return; }
     api('/inbox/catalog-meta').then(function(d){ if(d&&d.ok){ pickMeta=d; render(); } else { $('sizeChips').innerHTML='<span class="chipmini">Could not load</span>'; $('brandChips').innerHTML=''; } }).catch(function(){});
   }
   function sendShoe(){
-    var f={size:$('shSize').value.trim(),color:$('shColor').value.trim(),brand:$('shBrand').value.trim(),query:$('shQuery').value.trim()};
-    Object.keys(f).forEach(function(k){ if(!f[k]) delete f[k]; });
-    if(!Object.keys(f).length){ toast('Add a size, colour, brand or search words'); return; }
+    var f={};
+    if(pickSize) f.size=pickSize;
+    if(pickBrand) f.brand=pickBrand;
+    var col=$('shColor').value.trim(), q=$('shQuery').value.trim();
+    if(col) f.color=col; if(q) f.query=q;
+    if(!Object.keys(f).length){ toast('Pick a size, brand, colour, or type a shoe first'); return; }
     var lbl=[f.query,f.color,f.brand,(f.size?'size '+f.size:'')].filter(Boolean).join(' ');
     sendToTargets(f, lbl||'that', $('shSend'));
   }
@@ -4334,7 +4373,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('back').onclick=function(){ clearImg(); clearAud(); clearQuote(); closeThread(); };
   $('send').onclick=send;
   $('attach').onclick=function(){ $('file').click(); };
-  $('file').onchange=function(){ if(this.files && this.files[0]) pickPhoto(this.files[0]); };
+  $('file').onchange=function(){ if(this.files){ Array.prototype.forEach.call(this.files, function(f){ pickPhoto(f); }); } };
+  $('imgSend').onclick=send;
   $('avFile').onchange=function(){ if(this.files && this.files[0] && pendingAv){ setAvatarFromFile(pendingAv, this.files[0]); pendingAv=null; } };
   $('mic').onclick=micTap;
   $('imgX').onclick=clearImg;
@@ -4683,6 +4723,7 @@ app.post('/inbox/transcribe', async (req, res) => {
 // The Inbox page itself — a slim, mobile-first staff page served straight from the
 // server (so the 242plug PWA stays slim and just links here with ?key=).
 app.get('/inbox', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); // always serve the latest UI, never a stale cached page
   res.type('html').send(INBOX_HTML);
 });
 
