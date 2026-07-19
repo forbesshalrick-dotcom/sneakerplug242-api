@@ -3623,7 +3623,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   @keyframes twinkle{0%,100%{opacity:0;transform:scale(.25) rotate(0deg)}45%{opacity:1;transform:scale(1) rotate(90deg)}55%{opacity:.9;transform:scale(1.05) rotate(110deg)}}
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
-  header{position:sticky;top:0;z-index:5;padding:6px 14px 5px;display:flex;align-items:center;gap:11px;
+  header{position:sticky;top:0;z-index:5;padding:calc(env(safe-area-inset-top) + 5px) 14px 5px;display:flex;align-items:center;gap:11px;
     background:transparent;border-bottom:0}
   .thead h1,.thead .sm{text-shadow:0 1px 6px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.7)}
   #tSub{color:#ff5cb4}
@@ -3806,7 +3806,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .agtoggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;user-select:none;font-weight:600}
   .agtoggle input{accent-color:var(--acc);width:15px;height:15px}
   /* ── OUTER UI: graffiti hero, search, spray rows, bottom nav ── */
-  .hero{padding:22px 16px 6px;position:relative;flex-shrink:0}
+  .hero{padding:calc(env(safe-area-inset-top) + 9px) 16px 6px;position:relative;flex-shrink:0}
   .heroTop{display:flex;align-items:flex-start;gap:2px}
   .crown{width:46px;height:46px;margin:-6px 0 -2px -4px;filter:drop-shadow(0 0 10px rgba(46,224,138,.75))}
   .wordmark{font-family:'Permanent Marker',cursive;font-size:52px;line-height:.86;margin:0;color:#fff;letter-spacing:1px;transform:skew(-5deg);text-shadow:0 3px 14px rgba(0,0,0,.7),0 0 2px #000,3px 3px 0 rgba(0,0,0,.35)}
