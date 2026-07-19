@@ -643,11 +643,17 @@ const MANAGER_ALIASES = {
 const MANAGER_TAIL_NAMES = {};
 Object.keys(MANAGER_ALIASES).forEach(function (n) { MANAGER_TAIL_NAMES[n.replace(/\D/g, '').slice(-10)] = MANAGER_ALIASES[n]; });
 const EXTRA_STAFF = {};
+// 📱 TEST PHONE(S): numbers to treat as a normal CUSTOMER (not staff) so their messages show
+// up in the Inbox for testing — even if they're also a manager line. Rodney's 4324406 is his
+// test phone (Rodney 2026-07-19). Comma-separated, env-overridable.
+const TEST_CUSTOMER_TAILS = new Set((process.env.TEST_CUSTOMER_NUMBERS || '12424324406')
+  .split(',').map(s => String(s).replace(/\D/g, '').slice(-10)).filter(t => t.length === 10));
 function staffNameFor(req) {
   const p = getPhone(req);
   if (!p) return null;
   const tail = String(p).replace(/\D/g, '').slice(-10);
   if (tail.length < 10) return null;
+  if (TEST_CUSTOMER_TAILS.has(tail)) return null; // test phone → treated as a customer, shows in the Inbox
   if (MANAGER_TAIL_NAMES[tail]) return MANAGER_TAIL_NAMES[tail]; // Rodney's own phones → Manager P/TK/OSC
   let emp = {};
   try { emp = require('./shop').getEmployees() || {}; } catch (_) {}
@@ -3764,7 +3770,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   /* scrollable icon strip inside the composer: camera/mic/dictate + pics/orders/pay/money */
   /* show only 3 icons (photo, send-pics, voice note); the rest are a swipe away. The mask
      fades the right edge so it's clear more icons hide off-screen. */
-  .iconstrip{display:flex;gap:5px;align-items:center;overflow-x:auto;flex:0 0 auto;width:132px;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px;
+  .iconstrip{display:flex;gap:4px;align-items:center;overflow-x:auto;flex:0 0 auto;width:96px;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px;
     -webkit-mask-image:linear-gradient(90deg,#000 84%,transparent);mask-image:linear-gradient(90deg,#000 84%,transparent)}
   .iconstrip::-webkit-scrollbar{display:none}
   .compinner{flex:1;display:flex;gap:5px;align-items:flex-end;padding:5px;border-radius:26px;border:1.7px solid transparent;
@@ -3774,7 +3780,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .compinner textarea:focus{outline:none}
   .sendbtn{background:linear-gradient(135deg,#c65cff,#22d3ee);border:0;color:#05050a;font-weight:800;border-radius:50%;width:40px;height:40px;padding:0;font-size:17px;cursor:pointer;transition:.15s;flex-shrink:0;box-shadow:0 0 14px rgba(198,92,255,.5);display:flex;align-items:center;justify-content:center}
   .sendbtn:active{transform:scale(.9)} .sendbtn:disabled{opacity:.5}
-  .attach{background:rgba(255,255,255,.05);border:1.4px solid rgba(198,92,255,.4);color:#e8dcff;font-size:17px;width:38px;height:38px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 8px rgba(198,92,255,.22)}
+  .attach{background:rgba(255,255,255,.05);border:1.2px solid rgba(198,92,255,.4);color:#e8dcff;font-size:14px;width:28px;height:28px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 6px rgba(198,92,255,.2)}
   .attach:active{transform:scale(.88)}
   .attach.rec{background:#e23b5a;color:#fff;border-color:#e23b5a;box-shadow:0 0 14px rgba(226,59,90,.6);animation:pulse 1s infinite}
   /* ✋ manual STOP — always visible, red, halts an in-progress photo send to this customer */
@@ -4841,13 +4847,11 @@ app.post('/inbox/send', async (req, res) => {
   // send API, so we quote the message as context right above the reply (works on every
   // account). The customer sees what you're answering.
   const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
-  // 👨‍🦱 Agent label so the customer knows a HUMAN took over — only on the FIRST human
-  // reply of a takeover (not every line, which would read spammy). Default on; the client
-  // can switch it off per-send with agent:false.
-  const lastMsg = t && t.msgs && t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
-  const firstHuman = !lastMsg || lastMsg.sender !== 'rodney';
+  // 👨‍🦱 Agent label so the customer knows a HUMAN is replying — on EVERY human reply while
+  // the toggle is on (Rodney 2026-07-19: it must be consistent, not just the first line).
+  // Default on; the client can switch it off per-send with agent:false.
   if (quote) text = '↩️ "' + quote.slice(0, 180) + '"' + (text ? '\n\n' + text : '');
-  if (b.agent !== false && firstHuman && text) text = '👨‍🦱 Agent: ' + text;
+  if (b.agent !== false && text) text = '👨‍🦱 Agent: ' + text;
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   // Right account token: the customer's own account first, then env fallbacks. Direct-API
   // customers (waChannel) route to the Graph API inside sendChunk no matter the token.
