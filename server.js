@@ -1494,6 +1494,32 @@ function searchInventory({ size, sizes, size_match, brand, color, query, womens,
   return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
 }
 
+// Cluster an album so every shoe of the SAME model sits together, in a sensible brand
+// order (Jordans → Nike/Air Max → New Balance → Yeezy/Adidas → ASICS → the rest) — Rodney
+// 2026-07-19: a "what you got in a 10" browse showed "2 Jordans then mixed brands", he wants
+// all the Jordans grouped like it used to be. Stable WITHIN a model so Kiki's order is kept.
+function clusterShoesByModel(arr) {
+  const brandRank = (s) => {
+    const t = ((s.brand || '') + ' ' + (s.name || '') + ' ' + (s.model || '') + ' ' + (s.nickname || '')).toLowerCase();
+    if (/jordan|retro|\baj ?\d/.test(t)) return 0;
+    if (/air ?max|vapor|\bnike\b|air ?force|af1|dunk|shox|huarache|scorpion/.test(t)) return 1;
+    if (/new ?balance|\bnb\b|9060|1906|990|550/.test(t)) return 2;
+    if (/yeezy|adidas/.test(t)) return 3;
+    if (/asics/.test(t)) return 4;
+    return 5;
+  };
+  const modelKey = (s) => String(s.name || s.model || s.brand || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  return (arr || []).map((s, i) => ({ s, i }))
+    .sort((a, b) => {
+      const ra = brandRank(a.s), rb = brandRank(b.s);
+      if (ra !== rb) return ra - rb;
+      const ma = modelKey(a.s), mb = modelKey(b.s);
+      if (ma !== mb) return ma < mb ? -1 : 1;
+      return a.i - b.i; // stable within a model → keeps Kiki's colour order
+    })
+    .map(x => x.s);
+}
+
 async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false, requestAt = 0) {
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
@@ -1636,8 +1662,10 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       }
     }
   } else {
-    // Flat list (single size, range, or matching).
-    const chosen = dedupe(ids);
+    // Flat list (single size, range, or matching). Cluster by model so all the Jordans go
+    // out together, then Air Max, then New Balance… instead of a mixed-up jumble (Rodney
+    // 2026-07-19). Also clusters the size-album completeness top-up, which uses this path.
+    const chosen = clusterShoesByModel(dedupe(ids));
     requested = (ids || []).length;
     for (const s of chosen) {
       await answerMidAlbum();
