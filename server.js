@@ -833,12 +833,29 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // ManyChat can fail with an error HTTP status OR a 200 carrying {"status":"error"}.
   // Either way, LOG it — silent send failures made Kiki look like she ignored a
   // customer (2026-07-14: two voice questions got no reply and nothing was recorded).
-  const ok = false;
-  if (!ok) {
-    saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
-    if (recent.length > 120) recent.length = 120;
+  saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
+  if (recent.length > 120) recent.length = 120;
+  // 📸➡️📝 IMAGE-SEND FALLBACK (Rodney 2026-07-19: a whole size-9 album got NO reply — every
+  // IMAGE send to ManyChat timed out at 20s while TEXT sends were fine). If a failed bundle
+  // carried a text label (photoWithLabel sends [image, "🟢 L3 · Jordan 4 … $180 📏 sizes"]),
+  // send that TEXT alone so the customer still gets the shoe's name, price, sizes and order
+  // code instead of silence — they can reply with the code or see the pic on the website.
+  const hadImage = (messages || []).some(m => m && m.type === 'image');
+  const textParts = (messages || []).filter(m => m && m.type === 'text' && m.text && String(m.text).trim());
+  if (hadImage && textParts.length) {
+    const tk2 = subTokenFix.get(String(subscriberId)) || token || lastToken || process.env.MANYCHAT_TOKEN;
+    if (tk2) {
+      try {
+        const fb = await sendChunkRaw(subscriberId, textParts, tk2);
+        if (fb.ok) {
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fallback-text', sub: subscriberId, note: 'image timed out — sent text label instead', tried: textParts.map(m => String(m.text).slice(0, 80)).join(' | ').slice(0, 200) });
+          if (recent.length > 120) recent.length = 120;
+          return { ok: true, status: fb.status, body: 'image failed; text fallback sent', fallback: true };
+        }
+      } catch (_) { /* fall through to the failure return below */ }
+    }
   }
-  return { ok, status: r.status, body: body.slice(0, 300) };
+  return { ok: false, status: r.status, body: body.slice(0, 300) };
 }
 
 async function handleSendPhotos(req, res) {
