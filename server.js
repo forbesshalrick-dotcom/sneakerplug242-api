@@ -2048,7 +2048,8 @@ function inboxRecord(account, sub, m) {
     if (!sub) return;
     const text = (m.text == null ? '' : String(m.text)).slice(0, 4000);
     const img = m.img ? String(m.img).slice(0, 1500) : '';
-    if (!text && !img) return;
+    const loc = m.loc ? String(m.loc).slice(0, 500) : '';
+    if (!text && !img && !loc) return;
     const key = threadKey(account, sub);
     let t = inboxThreads.get(key);
     if (!t) { t = { account: account || '', sub: String(sub), name: m.name || '', phone: m.phone || '', msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(key, t); }
@@ -2056,6 +2057,7 @@ function inboxRecord(account, sub, m) {
     if (m.phone && !t.phone) t.phone = m.phone;
     const msg = { id: inboxMsgId(), dir: m.dir, sender: m.sender, text, ts: Date.now() };
     if (img) msg.img = img;
+    if (loc) msg.loc = loc;
     t.msgs.push(msg);
     if (t.msgs.length > INBOX_MAX_MSGS) t.msgs.splice(0, t.msgs.length - INBOX_MAX_MSGS);
     t.lastTs = msg.ts;
@@ -2389,11 +2391,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // SYSTEM-note decoration so the thread shows what the customer actually said.
   if (!_isStaffChat) {
     try {
-      let inTxt = String(userText || '').split('\n\n(SYSTEM NOTE')[0].trim();
+      const raw = String(userText || '');
+      // 📍 A dropped LOCATION PIN reaches us as a (SYSTEM: … LOCATION PIN — lat,lng … maps: URL)
+      // note. Don't blank it like other system notes — customers dropping their delivery pin
+      // is exactly what the unified Inbox must show. Surface it as a tappable 📍 message.
+      const locM = /LOCATION PIN[^]*?maps:\s*(\S+?)\)?\s*$/i.exec(raw) || /LOCATION PIN[^]*?maps:\s*(https?:\/\/\S+)/i.exec(raw);
+      let inTxt = raw.split('\n\n(SYSTEM NOTE')[0].trim();
       if (/^\(/.test(inTxt) && /\bsystem\b|customer (just )?sent|can'?t open|re-?delivery/i.test(inTxt)) inTxt = '';
       const inImg = ctx.inPhotoUrl || (image && typeof image === 'string' ? image : '');
       if (!inTxt && !inImg && image) inTxt = '📷 photo';
-      if (inTxt || inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name, img: inImg });
+      if (locM) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: '📍 Shared a location', loc: locM[1].replace(/\)+$/, ''), name: ctx.name });
+      else if (inTxt || inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name, img: inImg });
       if (!ctx.wa) ensureCustomerAvatar(ctx.store, sub, token); // fire-and-forget: fetch their photo once
     } catch (_) {}
   }
@@ -2786,6 +2794,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         let waOk = false;
         try { waOk = await waSendManager(lines, token, alertImg); } catch (_) {}
         try { require('./shop').addAlert(lines, 'Kiki 🤖'); } catch (_) {} // shows on the website Tasks board
+        // 📥 Drop the order/delivery straight into the customer's Inbox thread too, so the
+        // unified Inbox shows deliveries (not just WhatsApp + the Tasks board). dir:'in' so it
+        // raises an unread badge and Rodney is notified right in the chat where it belongs.
+        try {
+          const inboxLine = [
+            earlyStage ? '🆕 NEW ORDER — buying now (location still coming)' : '🛵 DELIVERY READY',
+            inp.shoe ? `👟 ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : (inp.size ? `👟 size ${inp.size}` : ''),
+            (inp.price || inp.payment) ? `💰 ${inp.price || ''}${inp.payment ? ` (${inp.payment})` : ''}`.trim() : '',
+            `📍 ${inp.location || '(no location given)'}`,
+          ].filter(Boolean).join('\n');
+          inboxRecord(ctx.store, sub, { dir: 'in', sender: 'system', text: inboxLine, name: inp.customer_name || '' });
+        } catch (_) {}
         // WhatsApp alert bounced (usually the 24h window closed — "Subscriber is not
         // active", 2026-07-14: two order alerts silently never reached Rodney): flag it
         // loudly on the task board so the app push still wakes someone.
@@ -3720,6 +3740,17 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .b.tap{cursor:pointer}
   .b.hasimg{padding:5px}
   .msgimg{max-width:210px;max-height:260px;border-radius:12px;display:block;object-fit:cover;filter:saturate(1.25) contrast(1.05)}
+  /* 📍 shared-location pin bubble */
+  .locpin{display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit}
+  .locbig{font-size:26px;line-height:1;filter:drop-shadow(0 0 6px rgba(34,211,238,.7))}
+  .loctx{display:flex;flex-direction:column;font-weight:800;letter-spacing:.2px}
+  .locgo{font-size:11.5px;font-weight:700;color:#22d3ee;opacity:.92;margin-top:2px}
+  /* system event pill (deliveries / new orders) */
+  .srow{align-self:center;max-width:90%;animation:rise .22s ease;margin:2px 0}
+  .sys{background:linear-gradient(180deg,rgba(34,197,94,.16),rgba(16,17,27,.82));border:1px solid rgba(74,222,128,.55);color:#eafff1;
+       padding:9px 14px;border-radius:14px;font-size:13px;line-height:1.45;font-weight:700;text-align:center;
+       box-shadow:0 0 16px rgba(34,197,94,.28);backdrop-filter:blur(6px);white-space:pre-wrap}
+  .stm{display:block;margin-top:4px;font-size:10.5px;font-weight:600;color:rgba(234,255,241,.6)}
   .empty{color:var(--dim);text-align:center;padding:52px 24px;font-size:14px;line-height:1.5}
   .toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%);background:rgba(15,16,26,.96);border:1px solid var(--line);color:#fff;padding:11px 18px;border-radius:13px;font-size:13px;z-index:30;display:none;max-width:88%;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(10px)}
   /* brief-Kiki modal */
@@ -4169,12 +4200,17 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       var m = $('msgs');
       var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
       m.innerHTML = (d.msgs||[]).map(function(x){
+        // System events (deliveries / new orders from Kiki's notify_manager) render as a
+        // centred pill, not a chat bubble — they're not something the customer or you "said".
+        if(x.sender==='system'){ return '<div class="srow"><div class="sys">'+esc(x.text).replace(/\\n/g,'<br>')+'<span class="stm">'+clock(x.ts)+'</span></div></div>'; }
         var cls = x.dir==='in'?'in':(x.sender==='rodney'?'rodney':'kiki');
         var row = x.dir==='in' ? 'inb' : 'out';
         var who = x.dir==='in'?'':(x.sender==='rodney'?'You':(kiki(15)+' Kiki'));
         var tap = x.dir==='in' ? ' tap' : '';
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
-        var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : '<span class="btext">'+esc(x.text)+'</span>';
+        // 📍 A shared location pin: tappable, opens Google Maps. Otherwise photo, else text.
+        var body = x.loc ? '<a class="locpin" href="'+esc(x.loc)+'" target="_blank" rel="noopener"><span class="locbig">📍</span><span class="loctx">'+esc(x.text||'Location')+'<span class="locgo">Open in Maps ›</span></span></a>'
+                 : (x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : '<span class="btext">'+esc(x.text)+'</span>');
         var bimg = '';
         if(!x.img && LUX_COUNT>0){ var seed=String(x.id||x.ts||''); var h=2166136261; for(var si=0;si<seed.length;si++){ h^=seed.charCodeAt(si); h=(h*16777619)>>>0; } bimg=' style="--bimg:url(/inbox/lux/'+((h%LUX_COUNT)+1)+')"'; }
         return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
@@ -4518,7 +4554,7 @@ app.get('/inbox/threads', (req, res) => {
     const last = t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
     return {
       account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || '', avatar: t.avatar || '',
-      lastText: last ? (last.sender === 'customer' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + last.text : '',
+      lastText: last ? (last.sender === 'customer' || last.sender === 'system' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + (last.loc ? '📍 Location' : (last.text || '')) : '',
       lastTs: t.lastTs, unread: t.unread || 0, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub),
       pinned: !!t.pinned, label: t.label || '',
     };
