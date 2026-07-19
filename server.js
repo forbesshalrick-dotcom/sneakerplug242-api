@@ -3983,7 +3983,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <div class="sbox">
       <svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
       <input id="search" inputmode="search" placeholder="Search name or number…">
-      <span class="sm" id="rev" style="font-size:10px;color:var(--dim)"></span>
+      <span class="sm" id="rev" style="display:none"></span>
     </div>
     <button class="sbtn dens" id="density" title="Smaller rows — fit the full name & number"><span style="font-weight:800;line-height:1">A<span style="font-size:11px">a</span></span></button>
     <button class="sbtn" id="rf" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg></button>
@@ -4033,8 +4033,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 </div>
 <div class="modal" id="newModal">
   <div class="sheet">
-    <h2>✏️ Text a number</h2>
-    <p>Start a chat with any customer by their WhatsApp number — even if they're not in the list yet. Pick the account they're on.</p>
+    <h2>✏️ New contact / text a number</h2>
+    <p>Start a chat with any customer by their WhatsApp number — even if they're not in the list yet. Add a name to save them as a contact so the chat shows their name, not just the number. Pick the account they're on.</p>
+    <input id="newName" placeholder="Name (optional — saves this contact)" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:16px;font-family:inherit;margin-bottom:10px">
     <input id="newPhone" inputmode="numeric" placeholder="Number with country code, e.g. 12428154887" style="width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:16px;font-family:inherit;margin-bottom:10px">
     <select id="newAcct" style="width:100%;background:#11131f;border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit">
       <option value="Trendy Kicks">Trendy Kicks (TK)</option>
@@ -4490,15 +4491,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     rd.readAsDataURL(blob);
   }
   // ── text a number: open a chat with any customer by number ──
-  function openNew(){ $('newPhone').value=''; $('newModal').classList.add('open'); setTimeout(function(){$('newPhone').focus();},60); }
+  function openNew(){ var nm=$('newName'); if(nm) nm.value=''; $('newPhone').value=''; $('newModal').classList.add('open'); setTimeout(function(){$('newPhone').focus();},60); }
   function closeNew(){ $('newModal').classList.remove('open'); }
   function startNew(){
     var phone=$('newPhone').value.replace(/[^0-9]/g,''); var acct=$('newAcct').value;
+    var nm=$('newName'); var name=nm?nm.value.trim():'';
     if(!phone){ toast('Enter a number with country code'); return; }
     $('newStart').disabled=true;
-    post('/inbox/start',{phone:phone,account:acct}).then(function(d){
+    post('/inbox/start',{phone:phone,account:acct,name:name}).then(function(d){
       $('newStart').disabled=false;
-      if(d&&d.ok){ closeNew(); openThread(d.sub, d.account, '+'+phone, d.tag); }
+      if(d&&d.ok){ closeNew(); toast(name?('Saved '+name+' ✅'):'Chat opened'); openThread(d.sub, d.account, d.name||('+'+phone), d.tag); }
       else toast((d&&d.error)||'Could not find that number');
     }).catch(function(){ $('newStart').disabled=false; toast('Failed — network'); });
   }
@@ -5007,16 +5009,32 @@ app.post('/inbox/start', async (req, res) => {
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
   const phone = String(b.phone || '').replace(/[^0-9]/g, '');
   const account = b.account || '';
+  const name = String(b.name || '').trim().slice(0, 80);
   if (!phone) return res.status(400).json({ ok: false, error: 'Enter a number with country code (e.g. 1242…).' });
+  // Save the number as a contact right away: create/refresh its thread (even with no messages
+  // yet) so it shows in the list with the name the owner typed — not just "Unknown"/a number.
+  const saveContact = (acct, sub) => {
+    try {
+      const key = threadKey(acct, sub);
+      let t = inboxThreads.get(key);
+      if (!t) { t = { account: acct || '', sub: String(sub), name: '', phone: phone, msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(key, t); }
+      if (name) t.name = name;                 // an explicit New-contact name always wins
+      if (phone && !t.phone) t.phone = phone;
+      if (!t.lastTs) t.lastTs = Date.now();     // float a brand-new contact to the top of the list
+      inboxSubIndex.set(String(sub), key);
+      inboxRev++; saveInbox();
+    } catch (_) {}
+  };
   // Direct-API numbers we've already spoken to: the wa-id IS the number → open it straight.
-  if (waChannel.get(phone)) return res.json({ ok: true, sub: phone, account: account || 'Shoe Box', tag: accountTag(account || 'Shoe Box') });
+  if (waChannel.get(phone)) { saveContact(account || 'Shoe Box', phone); return res.json({ ok: true, sub: phone, account: account || 'Shoe Box', tag: accountTag(account || 'Shoe Box'), name }); }
   const token = (account && storeTokens.get(account)) || lastToken || process.env.MANYCHAT_TOKEN || null;
   if (!token) return res.json({ ok: false, error: 'No token learned for that account yet — a customer has to message it once first.' });
   try {
     const sub = await findSubscriberByPhone(phone, token);
     if (!sub) return res.json({ ok: false, error: 'No customer found for that number on ' + (account || 'this account') + '. They may need to message the WhatsApp first, or try the other account.' });
+    saveContact(account, String(sub));
     record(req, { endpoint: 'inbox-start', phone, account });
-    res.json({ ok: true, sub: String(sub), account, tag: accountTag(account) });
+    res.json({ ok: true, sub: String(sub), account, tag: accountTag(account), name });
   } catch (e) { res.json({ ok: false, error: String(e).slice(0, 150) }); }
 });
 
