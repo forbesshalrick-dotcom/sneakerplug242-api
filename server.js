@@ -2974,7 +2974,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // search or a brand/model-specific album — those keep exactly what she chose. A newer
   // customer message cancels the top-up (sendShoePhotos checks requestAt), so it can't dump
   // photos on someone who has already moved on.
-  if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && turnSizeSearchSizes.length) {
+  // 🚫 DON'T WIDEN A BRAND/MODEL/COLOUR REQUEST (Rodney 2026-07-19: a customer asked for
+  // JORDANS in a 10 and this top-up dumped Air Max + every other brand on them, so he had to
+  // re-ask for Jordans, and the album looked all mixed up). The lead-in check can be fooled
+  // when Kiki does a bare size search and writes a generic lead-in for a request that was
+  // actually brand-specific — so ALSO look at the CUSTOMER'S own recent words: if they named a
+  // brand/model/colour, keep her album exactly as-is and never flood the whole size.
+  const _recentCust = [String(userText || '')].concat(
+    (history || []).filter(m => m && m.role === 'user').slice(-2).map(m =>
+      typeof m.content === 'string' ? m.content
+        : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text || '').join(' ') : ''))
+  ).join(' ');
+  const customerNamedSpecific = /\b(jordan|nike|air ?max|air ?force|af1|dunk|vapor|scorpion|shox|huarache|new ?balance|\bnb\b|9060|1906|990|550|yeezy|adidas|asics|crocs|puma|reebok|slipper|mule|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i.test(_recentCust);
+  if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !customerNamedSpecific && turnSizeSearchSizes.length) {
     try {
       const wantSizes = [...new Set(turnSizeSearchSizes)];
       const full = searchInventory({ sizes: wantSizes, size_match: 'any' });
