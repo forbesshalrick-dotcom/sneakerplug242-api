@@ -630,12 +630,18 @@ function getPhone(req) {
 // Staff recognition: the numbers in the shop's employees list (+ the core numbers
 // below) matched against the whatsapp_phone ManyChat includes on every message.
 // Digits-only, compared on the last 10 digits so +1242 / 1242 / 242 formats all match.
-const EXTRA_STAFF = { Test: '12424324406', Rodney: '12428256405', Manager2: '12428033126' };
+// Rodney runs ALL the accounts, so EVERY one of his own numbers reports as "Manager"
+// (used to show as Test / Rodney / Manager2 depending which phone texted the report).
+// Add a new personal number here and it's recognised as Manager everywhere.
+const MANAGER_NUMBERS_SELF = ['12424324406', '12428256405', '12428033126'];
+const MANAGER_TAILS = MANAGER_NUMBERS_SELF.map(n => n.replace(/\D/g, '').slice(-10));
+const EXTRA_STAFF = {};
 function staffNameFor(req) {
   const p = getPhone(req);
   if (!p) return null;
   const tail = String(p).replace(/\D/g, '').slice(-10);
   if (tail.length < 10) return null;
+  if (MANAGER_TAILS.includes(tail)) return 'Manager'; // all of Rodney's own phones = Manager
   let emp = {};
   try { emp = require('./shop').getEmployees() || {}; } catch (_) {}
   for (const [nm, num] of Object.entries(Object.assign({}, EXTRA_STAFF, emp))) {
