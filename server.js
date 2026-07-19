@@ -2439,6 +2439,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
+  let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
+  let forcedPhotosOnce = false; // guard so the force above can only fire once per turn (never loops)
   // 🔒 STAFF PHOTO = float/receipt, NEVER a shoe (2026-07-17): the photo→shoe machinery is so
   // strong the model kept SEARCHING a staff member's cash photo. Remove the shoe tools entirely
   // for a staff photo turn — now it CAN'T search or send shoes; only count cash / log a receipt.
@@ -2459,9 +2461,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // can't stall on "what size?". If she DIDN'T search (a receipt), we never force photos.
     const forceTool = (image && !photosSentRun && didSearch && step >= 1 && lastSearchCount > 0) ? { type: 'tool', name: 'send_photos' }
       : (image && !photosSentRun && didSearch && step === 1 && lastSearchCount === 0) ? { type: 'tool', name: 'search_inventory' }
+      : forcePhotosNext ? { type: 'tool', name: 'send_photos' }
       : forceSearchNext ? { type: 'tool', name: 'search_inventory' }
       : undefined;
     if (forceSearchNext) forceSearchNext = false;
+    if (forcePhotosNext) forcePhotosNext = false;
     const { ok, status, data } = await callClaude(history, system, staffPhotoTools ? undefined : forceTool, staffPhotoTools);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
@@ -2531,6 +2535,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (willForceStockSearch) {
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: that was a STOCK question and you answered WITHOUT searching. Old results in this conversation are STALE — stock changes all day. You MUST call search_inventory NOW for exactly what they asked (remember: "navy" also means "navy blue", and search the MODEL too), and answer from THOSE results only.)' });
         forceSearchNext = true;
+        continue;
+      }
+      // 📸 SHOE DESCRIBED IN WORDS, NO PICTURE (Rodney 2026-07-19: a customer named the
+      // "Blue 1906 New Balance", Kiki texted the price + sizes and asked "what size?" — so
+      // the customer had to ask "any pic"). If she SEARCHED, found the shoe, and answered
+      // with a PRICE in words but never sent the photo, force the picture out now. The pic —
+      // with its name/price/sizes label — IS the answer; a customer should never beg for it.
+      // Tightly scoped: not staff, no photo sent yet this turn, a real search hit, a price in
+      // her words, and it can only fire once (never loops).
+      if (!staffName && !photosSentRun && lastSearchCount > 0 && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
+        record(req, { endpoint: 'force-photo-after-text', sub, q: (turnText || '').slice(0, 60) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just described a specific shoe with its price/sizes in WORDS but never sent its picture, so the customer is left having to ask for a pic. Call send_photos NOW for that exact shoe you just found (include_sizes = true, a short lead_in like "Here it is 👇"). The photo, with its name/price/sizes label, IS the answer — never make them ask to see it.)' });
+        forcePhotosNext = true; forcedPhotosOnce = true;
         continue;
       }
       break;
