@@ -3469,7 +3469,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       linear-gradient(180deg,#0a0812,#05050a);
     background-size:cover;background-position:center}
   body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center}
-  body.hasbg #listView::after,body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.72),rgba(5,5,10,.82))}
+  body.hasbg #listView::after,body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.80),rgba(6,5,12,.88))}
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
   header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
@@ -3971,10 +3971,14 @@ app.get('/inbox/rev', (req, res) => { if (!consoleAuth(req, res)) return; res.js
 // Custom Inbox assets — Kiki's avatar + the chat backdrop. Filled in from the images
 // Rodney sends (base64). Empty = 404, and the page falls back to the emoji avatar +
 // designed glow background, so nothing breaks before the files land.
-const KIKI_PNG_B64 = '';   // paste base64 of kiki.png here
-const CHAT_BG_B64 = '';    // paste base64 of the collage here
-app.get('/inbox/kiki.png', (req, res) => { if (!KIKI_PNG_B64) return res.status(404).end(); res.set('Content-Type', 'image/png').set('Cache-Control', 'public, max-age=86400').send(Buffer.from(KIKI_PNG_B64, 'base64')); });
-app.get('/inbox/bg.jpg', (req, res) => { if (!CHAT_BG_B64) return res.status(404).end(); res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'public, max-age=86400').send(Buffer.from(CHAT_BG_B64, 'base64')); });
+// Served from committed files if present (inbox-kiki.png / inbox-bg.jpg), else 404 →
+// the page falls back to the emoji avatar + designed glow, so nothing breaks.
+function serveInboxAsset(res, file, type) {
+  try { const p = require('path').join(__dirname, file); if (require('fs').existsSync(p)) { res.set('Content-Type', type).set('Cache-Control', 'public, max-age=86400'); return res.send(require('fs').readFileSync(p)); } } catch (_) {}
+  res.status(404).end();
+}
+app.get('/inbox/kiki.png', (req, res) => serveInboxAsset(res, 'inbox-kiki.png', 'image/png'));
+app.get('/inbox/bg.jpg', (req, res) => serveInboxAsset(res, 'inbox-bg.jpg', 'image/jpeg'));
 
 // Short tag (TK / OSC / SB) for a full account name, for the account chips in the UI.
 function accountTag(account) {
