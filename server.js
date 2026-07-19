@@ -3766,7 +3766,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
   .row .tm{text-shadow:0 1px 5px rgba(0,0,0,.95)}
   .row .pz{text-shadow:0 1px 5px rgba(0,0,0,.95)}
-  .row .av{width:46px;height:46px;border:2.5px solid var(--rc,#7c5cff);box-shadow:0 0 13px var(--rg,rgba(124,92,255,.7)),inset 0 0 9px rgba(0,0,0,.4);font-size:16px}
+  .row .av{width:43px;height:43px;border:2.5px solid var(--rc,#7c5cff);box-shadow:0 0 13px var(--rg,rgba(124,92,255,.7)),inset 0 0 9px rgba(0,0,0,.4);font-size:15px}
   /* dripping-slime paint running off the avatar ring, in the account colour */
   .row .av::after{content:'';position:absolute;left:16%;bottom:-13px;width:5.5px;height:16px;border-radius:0 0 60% 60% / 0 0 100% 100%;background:var(--rc,#7c5cff);
     box-shadow:
@@ -3802,6 +3802,17 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .navbtn{background:none;border:0;color:#c3c8d6;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px;text-shadow:0 1px 4px rgba(0,0,0,.9)}
   .navbtn svg{width:19px;height:19px}
   .navbtn.active{color:#ff5cb4;filter:drop-shadow(0 0 8px rgba(255,92,180,.6))}
+  /* multi-select: highlighted rows + the send bar */
+  #listView .row.selected{border-color:#ff5cb4;box-shadow:0 0 16px rgba(255,92,180,.5);background:rgba(255,92,180,.14)}
+  #listView .row.selected::before{content:'✓';position:absolute;top:6px;right:8px;width:19px;height:19px;border-radius:50%;background:#ff5cb4;color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(255,92,180,.7)}
+  #listView .row{position:relative}
+  #selBar{position:sticky;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(10,8,20,.7),rgba(10,8,20,.92));backdrop-filter:blur(14px);border-top:1px solid rgba(255,92,180,.4)}
+  #selBar .selinfo{color:#fff;font-size:13px;font-weight:700}
+  #selBar .selinfo b{color:#ff5cb4;font-size:15px}
+  #selBar .selbtn{flex:1;background:linear-gradient(135deg,#ff5cb4,#c65cff);border:0;color:#fff;font-weight:800;font-size:14px;padding:11px;border-radius:13px;cursor:pointer;font-family:'Space Grotesk';box-shadow:0 0 14px rgba(255,92,180,.5)}
+  #selBar .selx{background:rgba(255,255,255,.08);border:1px solid var(--line);color:#e7e9ee;font-size:15px;width:42px;height:42px;border-radius:12px;cursor:pointer}
+  #selBar .selbtn:active,#selBar .selx:active{transform:scale(.94)}
+  body.selmode .bottomnav{display:none}
   .navbtn:active{transform:scale(.9)}
   .navbadge{position:absolute;top:-3px;right:2px;width:16px;height:16px;border-radius:50%;background:#ff2e6e;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(255,46,110,.7)}
 </style></head><body>
@@ -3827,8 +3838,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <button class="sbtn" id="rf" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg></button>
   </div>
   <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
+  <div id="selBar" style="display:none"><span class="selinfo"><b id="selCount">0</b> selected</span><button id="selSend" class="selbtn">📸 Send pics</button><button id="selCancel" class="selx">✕</button></div>
   <nav class="bottomnav">
-    <button class="navbtn active" id="nav-inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Inbox</span></button>
+    <button class="navbtn active" id="nav-inbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="2.5"/><circle cx="12" cy="13" r="3.4"/><path d="M8 6l1.5-2h5L16 6"/></svg><span>Pics</span></button>
     <button class="navbtn" id="nav-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg><span>Search</span></button>
     <button class="navbtn" id="nav-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>New</span></button>
     <button class="navbtn" id="nav-chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/></svg><span id="navChatBadge" class="navbadge" style="display:none">0</span><span>Chats</span></button>
@@ -3881,22 +3893,20 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 </div>
 <div class="modal" id="shoeModal">
   <div class="sheet">
-    <h2>📸 Send pictures</h2>
-    <p>Tap a size to send the customer <b>everything in that size</b>, or a brand to send <b>everything from that brand</b> — photos + info, straight to them. Pauses Kiki automatically.</p>
+    <h2>📸 Send pictures<span id="shCount" style="font-size:13px;color:#ff8ad4;font-weight:700"></span></h2>
+    <p>Type a shoe (e.g. <b>Air Max Plus size 11</b>) and send — or tap a size / brand below to blast <b>everything</b> in it. Combine a colour or brand with a size for an exact set. Pauses Kiki automatically.</p>
+    <input id="shQuery" placeholder="🔎 Type a shoe — e.g. Air Max Plus pink" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.5);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit;margin-bottom:12px">
     <div class="picklabel">By size</div>
     <div class="chiprow" id="sizeChips"><span class="chipmini">Loading…</span></div>
     <div class="picklabel">By brand</div>
     <div class="chiprow" id="brandChips"><span class="chipmini">Loading…</span></div>
-    <div class="picklabel">Or search manually</div>
+    <div class="picklabel">Refine (optional — combine with a chip or the search)</div>
     <div style="display:flex;gap:8px">
-      <input id="shSize" inputmode="decimal" placeholder="Size (e.g. 10)" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
-      <input id="shColor" placeholder="Colour" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+      <input id="shSize" inputmode="decimal" placeholder="Size (e.g. 10)" style="flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+      <input id="shColor" placeholder="Colour" style="flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+      <input id="shBrand" placeholder="Brand" style="flex:1;min-width:0;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
     </div>
-    <div style="display:flex;gap:8px;margin-top:9px">
-      <input id="shBrand" placeholder="Brand" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
-      <input id="shQuery" placeholder="Search words" style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
-    </div>
-    <div class="btns"><button class="cancel" id="shCancel">Cancel</button><button class="save" id="shSend">Send shoes</button></div>
+    <div class="btns"><button class="cancel" id="shCancel">Cancel</button><button class="save" id="shSend">Send</button></div>
   </div>
 </div>
 <div class="modal" id="ordModal">
@@ -3963,6 +3973,36 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function post(path, body){ return api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})}); }
   function toast(m){ var t=$('toast'); t.textContent=m; t.style.display='block'; setTimeout(function(){t.style.display='none'},3200); }
   var pendingAv=null;
+  // ── Multi-select: long-press contacts, then send a whole size/brand/colour to all of them ──
+  var selMode=false, selected={}, pickTargets=null;
+  function targetFromRow(el){ return {sub:el.getAttribute('data-sub'), account:el.getAttribute('data-acct'), tag:el.getAttribute('data-tag'), name:el.getAttribute('data-name')}; }
+  function refreshSel(){
+    Array.prototype.forEach.call(document.querySelectorAll('.row'), function(r){ r.classList.toggle('selected', !!selected[r.getAttribute('data-sub')]); });
+    var n=Object.keys(selected).length, bar=$('selBar');
+    document.body.classList.toggle('selmode', selMode);
+    if(bar){ if(selMode && n>0){ bar.style.display='flex'; $('selCount').textContent=n; } else bar.style.display='none'; }
+  }
+  function enterSel(el){ selMode=true; selected[el.getAttribute('data-sub')]=targetFromRow(el); refreshSel(); }
+  function toggleSel(el){ var k=el.getAttribute('data-sub'); if(selected[k]) delete selected[k]; else selected[k]=targetFromRow(el); if(!Object.keys(selected).length) selMode=false; refreshSel(); }
+  function clearSel(){ selMode=false; selected={}; refreshSel(); }
+  function openPickerMulti(){ var arr=Object.keys(selected).map(function(k){return selected[k];}); if(!arr.length){ toast('Press & hold a contact to pick who to send to 📸'); return; } pickTargets=arr; ['shSize','shColor','shBrand','shQuery'].forEach(function(id){$(id).value='';}); var tc=$('shCount'); if(tc) tc.textContent=arr.length>1?(' · '+arr.length+' contacts'):''; $('shoeModal').classList.add('open'); loadPickChips(); }
+  // Send one filter (size/brand/colour/query) to every pickTarget; aggregate the result.
+  function sendToTargets(filter, label, btn){
+    var targets=pickTargets||[]; if(!targets.length){ toast('No contact selected'); return; }
+    if(btn) btn.classList.add('sending');
+    var done=0, sent=0, ok=0;
+    targets.forEach(function(tg){
+      post('/inbox/send-shoe', Object.assign({sub:tg.sub, account:tg.account}, filter)).then(function(d){
+        done++; if(d&&d.ok){ sent+=(d.sent||0); ok++; }
+        if(done===targets.length) finish();
+      }).catch(function(){ done++; if(done===targets.length) finish(); });
+    });
+    function finish(){
+      if(btn) btn.classList.remove('sending');
+      if(ok>0){ closeShoe(); toast('Sent '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' 👟'); clearSel(); if(cur) loadThread(true); }
+      else toast('Nothing in '+label+' — nothing sent');
+    }
+  }
   function shrinkSquare(file, size, cb){
     var img=new Image();
     img.onload=function(){
@@ -4021,8 +4061,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       var nb=$('navChatBadge'); if(nb){ if(totalUnread>0){ nb.textContent=totalUnread>99?'99':totalUnread; nb.style.display='flex'; } else nb.style.display='none'; }
       if($('search') && $('search').value) $('search').oninput();
       Array.prototype.forEach.call(document.querySelectorAll('.row'), function(el){
-        el.onclick=function(){ openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag')); };
+        var timer=null, longed=false;
+        el.onclick=function(){ if(longed){ longed=false; return; } if(selMode){ toggleSel(el); return; } openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag')); };
+        var start=function(){ longed=false; timer=setTimeout(function(){ longed=true; enterSel(el); if(navigator.vibrate) try{navigator.vibrate(15);}catch(e){} }, 420); };
+        var cancel=function(){ if(timer){ clearTimeout(timer); timer=null; } };
+        el.addEventListener('touchstart', start, {passive:true});
+        el.addEventListener('touchend', cancel); el.addEventListener('touchmove', cancel);
+        el.addEventListener('mousedown', start); el.addEventListener('mouseup', cancel); el.addEventListener('mouseleave', cancel);
       });
+      refreshSel();
       Array.prototype.forEach.call(document.querySelectorAll('.av.setav'), function(el){
         el.onclick=function(ev){ ev.stopPropagation(); pendingAv={sub:el.getAttribute('data-sub'), account:el.getAttribute('data-acct')}; var f=$('avFile'); f.value=''; f.click(); };
       });
@@ -4217,41 +4264,31 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     }).catch(function(){ $('newStart').disabled=false; toast('Failed — network'); });
   }
   // ── 👟 Shoes quick-action: search the catalog and send matches to this customer ──
-  function openShoe(){ if(!cur) return; ['shSize','shColor','shBrand','shQuery'].forEach(function(id){$(id).value='';}); $('shoeModal').classList.add('open'); loadPickChips(); }
+  function openShoe(){ if(!cur) return; pickTargets=[{sub:cur.sub,account:cur.acct,tag:cur.tag,name:cur.name}]; var tc=$('shCount'); if(tc) tc.textContent=''; ['shSize','shColor','shBrand','shQuery'].forEach(function(id){$(id).value='';}); $('shoeModal').classList.add('open'); loadPickChips(); }
   function closeShoe(){ $('shoeModal').classList.remove('open'); }
   var pickMeta=null;
+  // read whatever's typed in the manual fields, so a chip tap can combine (e.g. type a
+  // colour + tap a size chip = that colour in that size; type a size + tap a brand = brand+size)
+  function chipExtras(){ var e={}; var c=$('shColor').value.trim(), b=$('shBrand').value.trim(), s=$('shSize').value.trim(), q=$('shQuery').value.trim(); if(c)e.color=c; if(b)e.brand=b; if(s)e.size=s; if(q)e.query=q; return e; }
+  function extraLabel(e){ var p=[]; if(e.color)p.push(e.color); if(e.brand)p.push(e.brand); if(e.query)p.push(e.query); return p.length?(' + '+p.join(' ')):''; }
   function loadPickChips(){
     var render=function(){
       var sc=$('sizeChips'), bc=$('brandChips');
       if(!pickMeta){ return; }
       sc.innerHTML = (pickMeta.sizes||[]).map(function(s){ return '<span class="chip sizechip" data-size="'+s+'">'+s+'</span>'; }).join('') || '<span class="chipmini">No sizes in stock</span>';
       bc.innerHTML = (pickMeta.brands||[]).map(function(b){ return '<span class="chip brandchip" data-brand="'+esc(b)+'">'+esc(b)+'</span>'; }).join('') || '<span class="chipmini">No brands in stock</span>';
-      Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ bulkSend(el, {size:el.getAttribute('data-size')}, 'size '+el.getAttribute('data-size')); }; });
-      Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ bulkSend(el, {brand:el.getAttribute('data-brand')}, el.getAttribute('data-brand')); }; });
+      Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ var extra=chipExtras(); sendToTargets(Object.assign({size:el.getAttribute('data-size')}, extra), 'size '+el.getAttribute('data-size')+extraLabel(extra), el); }; });
+      Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ var extra=chipExtras(); sendToTargets(Object.assign({brand:el.getAttribute('data-brand')}, extra), el.getAttribute('data-brand')+extraLabel(extra), el); }; });
     };
     if(pickMeta){ render(); return; }
     api('/inbox/catalog-meta').then(function(d){ if(d&&d.ok){ pickMeta=d; render(); } else { $('sizeChips').innerHTML='<span class="chipmini">Could not load</span>'; $('brandChips').innerHTML=''; } }).catch(function(){});
   }
-  function bulkSend(el, filter, label){
-    if(!cur) return;
-    el.classList.add('sending');
-    var body=Object.assign({sub:cur.sub,account:cur.acct}, filter);
-    post('/inbox/send-shoe', body).then(function(d){
-      el.classList.remove('sending');
-      if(d&&d.ok){ closeShoe(); toast('Sent '+d.sent+' in '+label+' 👟'); loadThread(true); }
-      else toast((d&&d.error)||'Nothing in '+label);
-    }).catch(function(){ el.classList.remove('sending'); toast('Failed — network'); });
-  }
   function sendShoe(){
-    if(!cur) return;
-    var body={sub:cur.sub,account:cur.acct,size:$('shSize').value.trim(),color:$('shColor').value.trim(),brand:$('shBrand').value.trim(),query:$('shQuery').value.trim()};
-    if(!body.size&&!body.color&&!body.brand&&!body.query){ toast('Add a size, colour, brand or search words'); return; }
-    $('shSend').disabled=true;
-    post('/inbox/send-shoe', body).then(function(d){
-      $('shSend').disabled=false;
-      if(d&&d.ok){ closeShoe(); toast('Sent '+d.sent+' shoe'+(d.sent==1?'':'s')+' 👟'); loadThread(true); }
-      else toast((d&&d.error)||'Nothing sent');
-    }).catch(function(){ $('shSend').disabled=false; toast('Failed — network'); });
+    var f={size:$('shSize').value.trim(),color:$('shColor').value.trim(),brand:$('shBrand').value.trim(),query:$('shQuery').value.trim()};
+    Object.keys(f).forEach(function(k){ if(!f[k]) delete f[k]; });
+    if(!Object.keys(f).length){ toast('Add a size, colour, brand or search words'); return; }
+    var lbl=[f.query,f.color,f.brand,(f.size?'size '+f.size:'')].filter(Boolean).join(' ');
+    sendToTargets(f, lbl||'that', $('shSend'));
   }
   // ── 🛍️ Orders: today's delivery orders ready, with a live count badge ──
   function renderOrder(o){
@@ -4342,8 +4379,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   };
   // bottom nav
   function setNav(id){ Array.prototype.forEach.call(document.querySelectorAll('.navbtn'), function(b){ b.classList.toggle('active', b.id===id); }); }
-  $('nav-inbox').onclick=function(){ setNav('nav-inbox'); if(cur) closeThread(); $('threads').scrollTop=0; };
-  $('nav-chats').onclick=function(){ setNav('nav-inbox'); if(cur) closeThread(); };
+  $('nav-inbox').onclick=function(){ if(cur) closeThread(); openPickerMulti(); };  // Pics: send by size/brand/colour to selected contacts
+  $('selSend').onclick=openPickerMulti;
+  $('selCancel').onclick=clearSel;
+  $('nav-chats').onclick=function(){ setNav('nav-chats'); if(cur) closeThread(); clearSel(); $('threads').scrollTop=0; };
   $('nav-search').onclick=function(){ if(cur) closeThread(); $('search').focus(); };
   $('nav-new').onclick=function(){ if(cur) closeThread(); openNew(); };
   $('nav-profile').onclick=function(){ toast('Profile — coming soon 👑'); };
