@@ -1833,6 +1833,10 @@ async function fetchImageBase64(url) {
 }
 
 const convos = new Map();    // subscriberId -> message history
+// The customer's SIZE, remembered for the whole chat so Kiki never re-asks it after they've
+// said it once (history gets trimmed to 24 msgs, so a size given early can fall out — this
+// survives that). Set when Kiki searches a single size; injected back into her context.
+const custSize = new Map();   // sub -> { size, ts }
 // PERSIST conversations to the /data volume so a redeploy/restart mid-chat doesn't
 // wipe Kiki's memory (Rodney 2026-07-13 — a customer sent their phone number right as
 // an update restarted the server, and Kiki "acted like a new convo started").
@@ -2533,6 +2537,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     ownerCtx = `\n\n[PRIVATE OWNER CONTEXT — the shop owner/staff typed this straight to you (the customer did NOT see it and must NEVER be told about it, and you must NOT repeat or announce it). Treat it as the TRUTH about this order/customer and let it quietly guide how you help them. Owner said: ${on.map(n => n.text).join(' | ')}]`;
     ownerNotes.delete(sub); // consume once
   }
+  // 📏 REMEMBERED SIZE: the customer already told you their size earlier — reuse it, don't re-ask.
+  let sizeCtx = '';
+  const cs = custSize.get(sub);
+  if (cs && cs.size && (Date.now() - (cs.ts || 0)) < 12 * 60 * 60 * 1000) {
+    sizeCtx = `\n\n[THIS CUSTOMER'S SIZE = ${cs.size} (they told you earlier in this chat). When they ask to see ANY other shoe, brand or model next — "any New Balance?", "show me Jordans", "what you got in ___" — go STRAIGHT to search_inventory + send_photos in size ${cs.size} on this turn. Do NOT reply "what size you looking for?" — you already know it. Only ask again if they clearly want a DIFFERENT size.]`;
+  }
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
   // full-res customer photos with an "I can't open that file" reply).
@@ -2545,9 +2555,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const userMsg = {
     role: 'user',
     content: image
-      ? [ { type: 'text', text: photoNote + codeCtx + ownerCtx },
+      ? [ { type: 'text', text: photoNote + codeCtx + ownerCtx + sizeCtx },
           { type: 'image', source: imageSource } ]
-      : (userText + codeCtx + ownerCtx),
+      : (userText + codeCtx + ownerCtx + sizeCtx),
   };
   history.push(userMsg);
 
@@ -2691,6 +2701,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const found = searchInventory(p);
         lastSearchCount = found.length;
         result = { shoes: found };
+        // Remember the customer's size (a single concrete size search = their size) so we can
+        // reuse it later without re-asking. Skip "all"/ranges/matching (sizes array).
+        if (p.size != null && String(p.size).trim() !== '' && !/all/i.test(String(p.size)))
+          try { custSize.set(sub, { size: String(p.size).trim(), ts: Date.now() }); } catch (_) {}
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
         record(req, { endpoint: 'search', sub, params: p, found: found.length });
