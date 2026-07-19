@@ -2037,6 +2037,10 @@ function rememberCustomer(sub, name, store, text, token) {
 // This is the longer, Inbox-triggered sibling of the existing 20s chatMuted typing-pause.
 const inboxThreads = new Map();   // `${account}|${sub}` -> {account, sub, name, phone, msgs:[{id,dir,sender,text,ts}], lastTs, unread}
 const inboxSubIndex = new Map();  // sub -> threadKey (so an outbound send finds its thread without the account)
+// Shoe Box (SB, the direct Meta line) is hidden from the Inbox until it's verified with Meta.
+// Threads/locations are still recorded in the background; this just hides them from the list +
+// the New-chat picker. Flip on with SHOW_SHOE_BOX=1 in Railway (or change the default) once verified.
+const SHOW_SHOE_BOX = /^(1|true|yes|on)$/i.test(process.env.SHOW_SHOE_BOX || '');
 const humanPaused = new Map();    // sub -> pauseUntil ts: a human is handling this chat; Kiki stays SILENT
 let inboxRev = 1;                 // bumped on every change — cheap /inbox/rev polling (mirrors /shop/rev)
 const HUMAN_PAUSE_MS = 45 * 60 * 1000; // default hand-off window; refreshed on each human reply
@@ -4000,7 +4004,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <select id="newAcct" style="width:100%;background:#11131f;border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit">
       <option value="Trendy Kicks">Trendy Kicks (TK)</option>
       <option value="Official Sneaker Crew">Official Sneaker Crew (OSC)</option>
-      <option value="Shoe Box">Shoe Box (direct)</option>
+      ${SHOW_SHOE_BOX ? '<option value="Shoe Box">Shoe Box (direct)</option>' : ''}
     </select>
     <div class="btns"><button class="cancel" id="newCancel">Cancel</button><button class="save" id="newStart">Open chat</button></div>
   </div>
@@ -4711,7 +4715,9 @@ function accountTag(account) {
 // Thread list — recent conversations across ALL accounts, newest first.
 app.get('/inbox/threads', (req, res) => {
   if (!consoleAuth(req, res)) return;
-  const list = [...inboxThreads.values()].map(t => {
+  const list = [...inboxThreads.values()]
+    .filter(t => SHOW_SHOE_BOX || accountTag(t.account) !== 'SB') // hide Shoe Box until it's verified
+    .map(t => {
     const last = t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
     // TWO-LINE PREVIEW (max 2 messages): the customer's last message + the last reply
     // (Kiki OR Rodney — whichever answered last). Never all three.
