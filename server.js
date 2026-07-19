@@ -3507,7 +3507,7 @@ app.post('/console/send', async (req, res) => {
 
 // ── 📥 UNIFIED INBOX PAGE (served slim; the 242plug PWA links here with ?key=) ──
 const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0a0812">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3518,12 +3518,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <style>
   :root{--acc:#7c5cff;--acc2:#22d3ee;--ink:#eef1fb;--dim:#98a0b8;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.08)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  /* Pin the whole app to the real device viewport. position:fixed;inset:0 fills the
-     stable layout viewport (avoids the 100dvh-too-small shrink that left black below
-     the nav), and locks the page so one finger can't drag the whole UI around. */
-  html{background:#0a0812}
-  html,body{margin:0;overflow:hidden;overscroll-behavior:none}
-  body{position:fixed;inset:0;touch-action:pan-y}
+  /* App-shell lock: html+body fill the screen exactly and never scroll; the message
+     list is the only thing that scrolls. This stops one finger dragging the whole UI
+     into black, while two-finger pinch-zoom still works (viewport allows it). */
+  html{height:100%;background:#0a0812}
+  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
   body{font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased;
     background:#05050a}
   /* luxury backdrop — swap CHAT_BG_URL for the collage image; falls back to a rich glow */
@@ -3547,7 +3546,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .icon{background:rgba(9,8,18,.55);border:1.5px solid rgba(198,92,255,.5);color:#e8dcff;font-size:16px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 10px rgba(198,92,255,.28)}
   .icon:active{transform:scale(.88)}
   .avatar{border-radius:50%;flex-shrink:0;overflow:hidden;background:linear-gradient(135deg,var(--acc),var(--acc2));display:block}
-  #listView,#threadView{position:absolute;inset:0;display:flex;flex-direction:column}
+  #listView,#threadView{position:fixed;inset:0;display:flex;flex-direction:column}
   #threadView{display:none}
   /* laptop / desktop: centre a phone-width column, fill the gutters with the collage
      so it reads like the app running on a big screen instead of a strip over black.
@@ -3669,9 +3668,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn svg{width:22px;height:22px}
   .sbtn.compose{color:#ff5cb4;border-color:rgba(255,92,180,.55);box-shadow:0 0 12px rgba(255,92,180,.35)}
   .sbtn:active{transform:scale(.92)}
-  #threads{padding:4px 10px 14px}
+  #threads{padding:4px 2px 14px}
   /* transparent rows over the vivid collage — text carries its own shadow for legibility */
-  #listView .row{gap:12px;padding:11px 8px;margin:0;border-radius:14px;border:0;background:transparent;backdrop-filter:none;align-items:center}
+  #listView .row{gap:12px;padding:11px 10px;margin:0;border-radius:14px;border:0;background:transparent;backdrop-filter:none;align-items:center}
   #listView .row:active{background:rgba(255,255,255,.06)}
   #listView .row+.row{border-top:1px solid rgba(255,255,255,.06)}
   .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -3824,9 +3823,6 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   window.__imgFail=function(el){ try{ var s=document.createElement('span'); s.textContent='📷 photo'; el.replaceWith(s); }catch(e){} };
   window.__avFail=function(el){ try{ el.style.display='none'; var s=el.parentNode.querySelector('.avini'); if(s) s.style.display='flex'; }catch(e){} };
   function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
-  // Give every customer their OWN colour, generated from their number — so regulars
-  // are recognisable at a glance with zero work. Same number → same colour, every day.
-  function custColors(seed){ var s=String(seed||''); var h=2166136261; for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=(h*16777619)>>>0; } var h1=h%360; var h2=(h1+ (46+(h>>>9)%80))%360; return ['hsl('+h1+',72%,58%)','hsl('+h2+',68%,42%)']; }
   // Up to two initials (first + last word) for a fuller monogram.
   function initials(nm){ var p=String(nm||'').trim().split(/\\s+/).filter(Boolean); if(!p.length) return '#'; var a=(p[0].match(/[a-zA-Z0-9]/)||['#'])[0]; if(p.length<2) return a.toUpperCase(); var b=(p[p.length-1].match(/[a-zA-Z0-9]/)||[''])[0]; return (a+b).toUpperCase(); }
   // Local number (last 7 digits) + the "Name-8033126" label so the name AND the number
@@ -3886,9 +3882,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var rawName = (t.name||'').trim();
         var label = custLabel(rawName, t.phone||t.sub);   // "Jero-8033126" — name + number
         var av = initials(rawName) || '#';
-        var c = accCols(t.tag);        // account colour → avatar ring (still shows TK/OSC)
-        var pc = custColors(t.sub);    // per-customer colour → the face, unique to them
-        var avStyle = '--rc:'+c[0]+';--rg:'+c[0]+'aa;background:linear-gradient(135deg,'+pc[0]+','+pc[1]+')';
+        var c = accCols(t.tag);        // account colour: TK = blue, OSC = green, SB = purple
+        var avStyle = '--rc:'+c[0]+';--rg:'+c[0]+'aa;background:linear-gradient(135deg,'+c[0]+','+c[1]+')';
         var avInner = t.avatar
           ? '<img src="'+esc(t.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(av)+'</span>'
           : '<span class="avini">'+esc(av)+'</span>';
@@ -3916,9 +3911,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     cur = {sub:sub, acct:acct, name:name, tag:tag};
     $('tName').textContent = custLabel(name, sub); $('tSub').textContent = '+'+sub;
     $('tTag').textContent = tag; $('tTag').className='tag '+tagCls(tag);
-    var c = accCols(tag), pc = custColors(sub);
+    var c = accCols(tag);
     $('tAv').textContent = initials(name) || '#';
-    $('tAv').style.background = 'linear-gradient(135deg,'+pc[0]+','+pc[1]+')';
+    $('tAv').style.background = 'linear-gradient(135deg,'+c[0]+','+c[1]+')';
     $('tAv').style.setProperty('--rc', c[0]);
     $('threadView').className = 'acc-'+tagCls(tag); // colour bubbles + accents by account
     $('listView').style.display='none'; $('threadView').style.display='flex';
