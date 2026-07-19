@@ -3396,9 +3396,21 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <div class="toast" id="toast"></div>
 <script>
 (function(){
-  var KEY = new URLSearchParams(location.search).get('key') || '';
+  // Key handling: accept ?key= (once), otherwise remember it per-device in
+  // localStorage — so the staff key is NOT baked into the public 242plug source.
+  var LS = 'sp242_inbox_key';
+  var qkey = new URLSearchParams(location.search).get('key') || '';
+  if (qkey) { try { localStorage.setItem(LS, qkey); } catch(e){} }
+  var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
   var cur = null, lastRev = -1, threadTimer = null;
   function $(id){return document.getElementById(id)}
+  function promptKey(msg){
+    $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
+      +'<br><br><input id="pk" placeholder="Inbox key" autocomplete="off" style="width:82%;max-width:290px;padding:11px;border-radius:9px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:14px">'
+      +'<br><br><button id="pkg" style="background:#2f6df6;border:0;color:#fff;padding:10px 24px;border-radius:9px;font-size:14px;cursor:pointer">Open Inbox</button></div>';
+    var go=function(){ var v=$('pk').value.trim(); if(!v) return; try{ localStorage.setItem(LS,v); }catch(e){} KEY=v; loadThreads(); };
+    $('pkg').onclick=go; $('pk').addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
+  }
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
   function api(path, opts){ opts=opts||{}; var sep=path.indexOf('?')>-1?'&':'?'; return fetch(path+sep+'key='+encodeURIComponent(KEY), opts).then(function(r){return r.json()}); }
   function post(path, body){ return api(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body||{})}); }
@@ -3410,7 +3422,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 
   function loadThreads(){
     api('/inbox/threads').then(function(d){
-      if(d && d.error){ $('threads').innerHTML='<div class="empty">'+esc(d.error)+' — check your link key.</div>'; return; }
+      if(d && d.error){ try{ localStorage.removeItem(LS); }catch(e){} promptKey("That key didn't work — check it and try again."); return; }
       lastRev = d.rev; $('rev').textContent='#'+d.rev;
       var ts = (d.threads||[]);
       if(!ts.length){ $('threads').innerHTML='<div class="empty">No conversations yet. When a customer messages TK or OSC, they show up here.</div>'; return; }
@@ -3480,7 +3492,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     else { api('/inbox/rev').then(function(d){ if(d && d.rev!==lastRev) loadThreads(); }).catch(function(){}); }
   }, 3000);
 
-  if(!KEY){ $('threads').innerHTML='<div class="empty">Add your inbox key to the link: <br>/inbox?key=YOUR_KEY</div>'; }
+  if(!KEY){ promptKey(); }
   else loadThreads();
 })();
 </script>
