@@ -3660,11 +3660,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .wordmark{font-family:'Permanent Marker',cursive;font-size:52px;line-height:.86;margin:0;color:#fff;letter-spacing:1px;transform:skew(-5deg);text-shadow:0 3px 14px rgba(0,0,0,.7),0 0 2px #000,3px 3px 0 rgba(0,0,0,.35)}
   .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:3px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
   .searchbar{display:flex;gap:9px;padding:8px 14px 10px;align-items:center;flex-shrink:0}
-  .searchbar .sbox{flex:1;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
+  .searchbar .sbox{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:16px;padding:12px 14px}
   .searchbar .sbox svg{width:18px;height:18px;flex-shrink:0;opacity:.7}
-  .searchbar input{flex:1;background:transparent;border:0;color:var(--ink);font-size:15px;font-family:'Space Grotesk'}
+  .searchbar input{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font-size:15px;font-family:'Space Grotesk'}
   .searchbar input:focus{outline:none}
-  .sbtn{width:52px;height:48px;border-radius:15px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:#e8dcff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+  .sbtn{width:46px;height:48px;border-radius:15px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:#e8dcff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
   .sbtn svg{width:22px;height:22px}
   .sbtn.compose{color:#ff5cb4;border-color:rgba(255,92,180,.55);box-shadow:0 0 12px rgba(255,92,180,.35)}
   .sbtn:active{transform:scale(.92)}
@@ -3689,6 +3689,20 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .av .avimg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
   .av .avini{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
   .vbadge{width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-family:'Space Grotesk';font-weight:800;flex-shrink:0}
+  /* Kiki on/off badge sitting on the corner of the TK/OSC tag — green ✓ = Kiki answering,
+     red ✕ = Kiki paused (you're handling it), so you can spot it from the list. */
+  .row .tagbox{position:relative;display:inline-flex;align-items:center}
+  .row .kiki{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;line-height:1;border:2px solid #0a0812;box-shadow:0 1px 4px rgba(0,0,0,.6);font-family:'Space Grotesk'}
+  .row .kiki.kon{background:#12b866;color:#04120b}
+  .row .kiki.koff{background:#ff3b5c;color:#fff}
+  /* compact mode — smaller icons + a narrower name font so the full Name-number fits */
+  #listView.compact .row{padding:8px 10px;gap:10px}
+  #listView.compact .row .av{width:40px;height:40px;font-size:15px;border-width:2px}
+  #listView.compact .row .av::after{display:none}
+  #listView.compact .row .nm{font-family:'Space Grotesk';font-size:15px;font-weight:800;letter-spacing:0}
+  #listView.compact .row .lt{font-size:12px}
+  .sbtn.dens{font-family:'Space Grotesk'}
+  .sbtn.dens.on{color:#7dffb0;border-color:rgba(46,224,138,.6);box-shadow:0 0 12px rgba(46,224,138,.35)}
   /* bottom nav */
   .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:9px 6px calc(7px + env(safe-area-inset-bottom));background:rgba(6,6,14,.82);backdrop-filter:blur(20px);border-top:1px solid var(--line);flex-shrink:0}
   .navbtn{background:none;border:0;color:#8a90a6;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10.5px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px}
@@ -3712,6 +3726,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       <input id="search" placeholder="Search messages…">
       <span class="sm" id="rev" style="font-size:10px;color:var(--dim)"></span>
     </div>
+    <button class="sbtn dens" id="density" title="Smaller rows — fit the full name & number"><span style="font-weight:800;line-height:1">A<span style="font-size:11px">a</span></span></button>
     <button class="sbtn compose" id="newmsg" title="Text a number"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
     <button class="sbtn" id="rf" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg></button>
   </div>
@@ -3891,8 +3906,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         return '<div class="row'+(t.unread?' unread':'')+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
-            +'<div class="toprow"><div class="nm"><span class="nmtext">'+esc(label)+'</span><span class="vbadge" style="background:'+c[0]+'">✓</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
-              +'<div class="meta"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
+            +'<div class="toprow"><div class="nm"><span class="nmtext">'+esc(label)+'</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
+              +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="kiki '+(t.paused?'koff':'kon')+'" title="'+(t.paused?'Kiki is OFF — you\\'re handling this':'Kiki is ON')+'">'+(t.paused?'✕':'✓')+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
             +pv
           +'</div></div>';
       }).join('');
@@ -4124,6 +4139,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   }
 
   $('rf').onclick=loadThreads;
+  var COMPACT_LS='sp242_inbox_compact';
+  function applyCompact(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; }catch(e){} $('listView').classList.toggle('compact', on); var b=$('density'); if(b) b.classList.toggle('on', on); }
+  $('density').onclick=function(){ var on=false; try{ on=localStorage.getItem(COMPACT_LS)==='1'; localStorage.setItem(COMPACT_LS, on?'0':'1'); }catch(e){} applyCompact(); };
+  applyCompact();
   $('back').onclick=function(){ clearImg(); clearAud(); clearQuote(); closeThread(); };
   $('send').onclick=send;
   $('attach').onclick=function(){ $('file').click(); };
