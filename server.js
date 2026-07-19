@@ -3692,7 +3692,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   /* Kiki on/off badge sitting on the corner of the TK/OSC tag — green ✓ = Kiki answering,
      red ✕ = Kiki paused (you're handling it), so you can spot it from the list. */
   .row .tagbox{position:relative;display:inline-flex;align-items:center}
-  .row .kiki{position:absolute;top:-8px;right:-8px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;line-height:1;border:2px solid #0a0812;box-shadow:0 1px 4px rgba(0,0,0,.6);font-family:'Space Grotesk'}
+  .row .kiki{position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;border:2px solid #0a0812;box-shadow:0 1px 4px rgba(0,0,0,.6);font-family:'Space Grotesk';cursor:pointer;z-index:2}
+  .row .kiki:active{transform:scale(.82)}
   .row .kiki.kon{background:#12b866;color:#04120b}
   .row .kiki.koff{background:#ff3b5c;color:#fff}
   /* compact mode — smaller icons + a narrower name font so the full Name-number fits */
@@ -3907,7 +3908,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
             +'<div class="toprow"><div class="nm"><span class="nmtext">'+esc(label)+'</span>'+(t.unread?'<span class="dot"></span>':'')+'</div>'
-              +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="kiki '+(t.paused?'koff':'kon')+'" title="'+(t.paused?'Kiki is OFF — you\\'re handling this':'Kiki is ON')+'">'+(t.paused?'✕':'✓')+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
+              +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="kiki '+(t.paused?'koff':'kon')+'" data-sub="'+t.sub+'" title="'+(t.paused?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her')+'">'+(t.paused?'✕':'✓')+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
             +pv
           +'</div></div>';
       }).join('');
@@ -3918,6 +3919,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       });
       Array.prototype.forEach.call(document.querySelectorAll('.av.setav'), function(el){
         el.onclick=function(ev){ ev.stopPropagation(); pendingAv={sub:el.getAttribute('data-sub'), account:el.getAttribute('data-acct')}; var f=$('avFile'); f.value=''; f.click(); };
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('.row .kiki'), function(el){
+        el.onclick=function(ev){ ev.stopPropagation();
+          var sub=el.getAttribute('data-sub'), off=el.classList.contains('koff');
+          el.style.opacity='.4';
+          post(off?'/inbox/resume':'/inbox/pause',{sub:sub}).then(function(r){
+            if(r&&r.ok){ toast(off?'Kiki is back ON for this chat ✅':'Kiki paused — you\\'re handling this 👨‍🦱'); loadThreads(); }
+            else { el.style.opacity=''; toast((r&&r.error)||'Could not change Kiki'); }
+          }).catch(function(){ el.style.opacity=''; toast('Could not change Kiki'); });
+        };
       });
     }).catch(function(){});
   }
