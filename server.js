@@ -3866,11 +3866,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   #listView .row{gap:10px;padding:4px 11px;margin:5px 7px;border-radius:13px;border:1.4px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 11px var(--rowg,transparent)}
   #listView .row:active{background:rgba(255,255,255,.09)}
   .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
-  .row .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .row .toprow{display:flex;justify-content:space-between;align-items:center;gap:10px}
   .row .nm{flex:1;min-width:0;display:flex;align-items:center;gap:6px;text-shadow:0 2px 7px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.9)}
   .row .nmtext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
   .cn-num{color:#ff5cb4}
-  .row .meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
+  .row .meta{display:flex;flex-direction:row;align-items:center;gap:7px;flex-shrink:0}
   .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
   .row .tm{text-shadow:0 1px 5px rgba(0,0,0,.95)}
   .row .pz{text-shadow:0 1px 5px rgba(0,0,0,.95)}
