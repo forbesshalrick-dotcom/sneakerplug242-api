@@ -4047,7 +4047,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         var tap = x.dir==='in' ? ' tap' : '';
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
         var body = x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : '<span class="btext">'+esc(x.text)+'</span>';
-        var bimg = x.img ? '' : (LUX_COUNT>0 ? ' style="--bimg:url(/inbox/lux/'+(1+Math.floor(Math.random()*LUX_COUNT))+')"' : '');
+        var bimg = '';
+        if(!x.img && LUX_COUNT>0){ var seed=String(x.id||x.ts||''); var h=2166136261; for(var si=0;si<seed.length;si++){ h^=seed.charCodeAt(si); h=(h*16777619)>>>0; } bimg=' style="--bimg:url(/inbox/lux/'+((h%LUX_COUNT)+1)+')"'; }
         return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
       // tap a customer message to quote it in your reply
