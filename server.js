@@ -4144,6 +4144,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=accTextColor(tag); if(!nm) return '<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'; return '<span class="cn-name" style="color:'+col+'">'+esc(nm)+'</span>'+(loc?'<span class="cn-num">-'+esc(loc)+'</span>':''); }
   // Header: NAME only (no number). The full number lives once, in the call link below it.
   function custNameHTML(name, tag){ var nm=String(name||'').trim(); var col=accTextColor(tag); return '<span class="cn-name" style="color:'+col+'">'+esc(nm||'Customer')+'</span>'; }
+  // Call link opens WhatsApp (wa.me) with the customer, NOT the phone dialer — so tapping it
+  // rings/messages them on WhatsApp instead of a cellular call (Rodney 2026-07-19).
+  function callLinkHTML(num){ var d=String(num||'').replace(/[^0-9]/g,''); return '<a class="callnum" href="https://wa.me/'+esc(d)+'" target="_blank" rel="noopener">📞 +'+esc(d)+'</a>'; }
   function promptKey(msg){
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
       +'<br><br><input id="pk" placeholder="Inbox key" autocomplete="off" style="width:82%;max-width:290px;padding:11px;border-radius:9px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:14px">'
@@ -4306,8 +4309,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function openThread(sub, acct, name, tag){
     cur = {sub:sub, acct:acct, name:name, tag:tag};
     $('tName').innerHTML = custNameHTML(name, tag);   // name — number sits inline beside it
-    // The number lives ONCE here, inline beside the name, as the tap-to-call link (📞 + full number).
-    $('tSub').innerHTML = '<a class="callnum" href="tel:+'+esc(sub)+'">📞 +'+esc(sub)+'</a>';
+    // The number lives ONCE here, inline beside the name, as the WhatsApp-call link (📞 + full number).
+    $('tSub').innerHTML = callLinkHTML(sub);
     $('tTag').textContent = tag; $('tTag').className='tag '+tagCls(tag);
     var c = accCols(tag);
     $('tAv').textContent = initials(name) || '#';
@@ -4332,6 +4335,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       if(!scroll && sig===lastThreadSig) return; // nothing changed — don't touch the page
       lastThreadSig = sig;
       if(d.name){ cur.name=d.name; $('tName').innerHTML=custNameHTML(d.name, cur.tag); }
+      $('tSub').innerHTML = callLinkHTML(d.phone || cur.sub); // WhatsApp-call the real number when we have it
       if(d.avatar){ var c=accCols(cur.tag); $('tAv').innerHTML='<img src="'+esc(d.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(($('tName').textContent||'?').charAt(0).toUpperCase())+'</span>'; }
       var m = $('msgs');
       var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
@@ -4503,8 +4507,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     $('newStart').disabled=true;
     post('/inbox/start',{phone:phone,account:acct,name:name}).then(function(d){
       $('newStart').disabled=false;
-      if(d&&d.ok){ closeNew(); toast(name?('Saved '+name+' ✅'):'Chat opened'); openThread(d.sub, d.account, d.name||('+'+phone), d.tag); }
-      else toast((d&&d.error)||'Could not find that number');
+      if(d&&d.ok){
+        closeNew();
+        if(d.messageable){ toast(name?('Saved '+name+' ✅'):'Chat opened'); openThread(d.sub, d.account, d.name||('+'+phone), d.tag); }
+        else { toast(d.note||('Saved '+(name||('+'+phone))+' ✅')); loadThreads(); } // saved as contact; not textable until they message first
+      }
+      else toast((d&&d.error)||'Could not save that number');
     }).catch(function(){ $('newStart').disabled=false; toast('Failed — network'); });
   }
   // ── 👟 Shoes quick-action: search the catalog and send matches to this customer ──
@@ -5014,31 +5022,57 @@ app.post('/inbox/start', async (req, res) => {
   const account = b.account || '';
   const name = String(b.name || '').trim().slice(0, 80);
   if (!phone) return res.status(400).json({ ok: false, error: 'Enter a number with country code (e.g. 1242…).' });
-  // Save the number as a contact right away: create/refresh its thread (even with no messages
-  // yet) so it shows in the list with the name the owner typed — not just "Unknown"/a number.
-  const saveContact = (acct, sub) => {
-    try {
-      const key = threadKey(acct, sub);
-      let t = inboxThreads.get(key);
-      if (!t) { t = { account: acct || '', sub: String(sub), name: '', phone: phone, msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(key, t); }
-      if (name) t.name = name;                 // an explicit New-contact name always wins
-      if (phone && !t.phone) t.phone = phone;
-      if (!t.lastTs) t.lastTs = Date.now();     // float a brand-new contact to the top of the list
-      inboxSubIndex.set(String(sub), key);
-      inboxRev++; saveInbox();
-    } catch (_) {}
+  const digitsOf = (s) => String(s || '').replace(/[^0-9]/g, '');
+  const tail = phone.length >= 7 ? phone.slice(-7) : phone; // local (last-7) match — unique within a country
+  // Find an EXISTING thread for this number so we rename it instead of spawning a duplicate:
+  // by subscriber-id, by sub==number, or by a stored phone — preferring the picked account.
+  const findExisting = (sub) => {
+    if (sub) { const t = inboxThreads.get(inboxSubIndex.get(String(sub)) || '') || inboxThreads.get(threadKey(account, sub)); if (t) return t; }
+    let cross = null;
+    for (const t of inboxThreads.values()) {
+      const p = digitsOf(t.phone), s = digitsOf(t.sub);
+      const hit = (p && (p.endsWith(tail) || phone.endsWith(p.slice(-7)))) || s === phone || s.endsWith(tail);
+      if (!hit) continue;
+      if (!account || t.account === account) return t; // same-account wins
+      if (!cross) cross = t;
+    }
+    return cross;
   };
-  // Direct-API numbers we've already spoken to: the wa-id IS the number → open it straight.
-  if (waChannel.get(phone)) { saveContact(account || 'Shoe Box', phone); return res.json({ ok: true, sub: phone, account: account || 'Shoe Box', tag: accountTag(account || 'Shoe Box'), name }); }
+  // Save/rename the contact: name always wins, keep it floated near the top, index it.
+  const applyName = (t) => {
+    if (name) t.name = name;
+    if (phone && !digitsOf(t.phone)) t.phone = phone;
+    if (!t.lastTs) t.lastTs = Date.now();
+    inboxSubIndex.set(String(t.sub), threadKey(t.account, t.sub));
+    inboxRev++; saveInbox();
+    return t;
+  };
+  const upsert = (acct, sub) => {
+    let t = findExisting(sub && String(sub) !== phone ? String(sub) : null);
+    if (!t) { t = { account: acct || '', sub: String(sub), name: '', phone, msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(threadKey(t.account, t.sub), t); }
+    return applyName(t);
+  };
+  // 1) Direct-API number we've already spoken to: the wa-id IS the number → messageable now.
+  if (waChannel.get(phone)) {
+    const t = upsert(account || 'Shoe Box', phone);
+    return res.json({ ok: true, sub: t.sub, account: t.account, tag: accountTag(t.account), name: t.name, messageable: true });
+  }
+  // 2) Resolve a live ManyChat subscriber → messageable + rename the real thread.
   const token = (account && storeTokens.get(account)) || lastToken || process.env.MANYCHAT_TOKEN || null;
-  if (!token) return res.json({ ok: false, error: 'No token learned for that account yet — a customer has to message it once first.' });
-  try {
-    const sub = await findSubscriberByPhone(phone, token);
-    if (!sub) return res.json({ ok: false, error: 'No customer found for that number on ' + (account || 'this account') + '. They may need to message the WhatsApp first, or try the other account.' });
-    saveContact(account, String(sub));
+  let sub = null;
+  if (token) { try { sub = await findSubscriberByPhone(phone, token); } catch (_) {} }
+  if (sub) {
+    const t = upsert(account, String(sub));
     record(req, { endpoint: 'inbox-start', phone, account });
-    res.json({ ok: true, sub: String(sub), account, tag: accountTag(account), name });
-  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 150) }); }
+    return res.json({ ok: true, sub: t.sub, account: t.account, tag: accountTag(t.account), name: t.name, messageable: true });
+  }
+  // 3) Not a known WhatsApp customer yet — STILL save the contact locally so the name is
+  //    remembered and shows in the list. Meta only lets us message after THEY text first.
+  const t = upsert(account, phone);
+  return res.json({
+    ok: true, sub: t.sub, account: t.account, tag: accountTag(t.account), name: t.name, messageable: false,
+    note: 'Saved ' + (name || ('+' + phone)) + ' as a contact ✅  You can message them once they text your WhatsApp.'
+  });
 });
 
 // ✋ MANUAL STOP — halt an in-progress photo album to this customer (owner hit STOP in the
