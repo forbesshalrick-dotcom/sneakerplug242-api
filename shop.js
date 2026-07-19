@@ -62,6 +62,7 @@ const state = {
   employees: loadFile('employees.json', {}), // { name: "+1242..." } WhatsApp numbers
   accounts: loadFile('accounts.json', {}),  // { name: "passwordOrEmpty" } login accounts
   roles: loadFile('roles.json', {}),        // { name: "supervisor"|"line_staff" }
+  deletedStaff: loadFile('deletedStaff.json', []), // names permanently removed — devices must never re-add these
   subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
   rev: loadFile('rev.json', { n: 1 }),
 };
@@ -319,6 +320,7 @@ function mount(app) {
       employees: state.employees,
       accounts: state.accounts,
       roles: state.roles,
+      deletedStaff: state.deletedStaff,
     });
   });
 
@@ -440,6 +442,7 @@ function mount(app) {
     if (b.numbers && typeof b.numbers === 'object') {
       // merge: union of names, a non-empty incoming number replaces a blank one
       Object.keys(b.numbers).forEach(function (n) {
+        if (state.deletedStaff.includes(n)) return; // never re-add a removed staffer
         if (b.numbers[n] || !state.employees[n]) state.employees[n] = b.numbers[n];
       });
       persist('employees.json'); bump();
@@ -455,6 +458,7 @@ function mount(app) {
     function mergeInto(target, src) {
       if (!src || typeof src !== 'object') return;
       Object.keys(src).forEach(function (k) {
+        if (state.deletedStaff.includes(k)) return; // never re-add a removed staffer
         if (src[k] || !target[k]) target[k] = src[k];
       });
     }
@@ -477,9 +481,10 @@ function mount(app) {
       delete state.accounts[n];
       delete state.roles[n];
       delete state.employees[n];
+      if (!state.deletedStaff.includes(n)) state.deletedStaff.push(n); // tombstone so no device re-adds it
     });
-    if (names.length) { persist('accounts.json'); persist('roles.json'); persist('employees.json'); bump(); }
-    res.json({ ok: true, removed: names, accounts: state.accounts, roles: state.roles, employees: state.employees });
+    if (names.length) { persist('accounts.json'); persist('roles.json'); persist('employees.json'); persist('deletedStaff.json'); bump(); }
+    res.json({ ok: true, removed: names, deletedStaff: state.deletedStaff, accounts: state.accounts, roles: state.roles, employees: state.employees });
   });
 
   // ---- Sales (append; deviceId+id dedupe) ----
