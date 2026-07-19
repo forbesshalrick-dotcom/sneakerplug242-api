@@ -3594,8 +3594,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
   header{position:sticky;top:0;z-index:5;padding:13px 15px;display:flex;align-items:center;gap:11px;
-    background:linear-gradient(180deg, rgba(8,6,16,.42), rgba(8,6,16,.16));backdrop-filter:blur(6px);border-bottom:1px solid rgba(255,255,255,.08)}
-  .thead h1,.thead .sm{text-shadow:0 1px 6px rgba(0,0,0,.9),0 0 4px rgba(0,0,0,.85)}
+    background:transparent;border-bottom:0}
+  .thead h1,.thead .sm{text-shadow:0 1px 6px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.7)}
+  #tSub{color:#ff5cb4}
+  /* plain back arrow, no circle */
+  #back{background:none;border:0;box-shadow:none;width:auto;height:auto;font-size:32px;color:#fff;padding:0 4px;text-shadow:0 1px 6px rgba(0,0,0,.9)}
+  #back:active{transform:scale(.85)}
   header .brandname{font-size:18px;font-weight:700;margin:0;flex:1;letter-spacing:.2px;line-height:1.05}
   header .brandsub{display:block;font-size:10.5px;font-weight:600;color:var(--dim);letter-spacing:2px;font-family:'Inter'}
   header .sm{font-size:11px;color:var(--dim);font-weight:600}
@@ -3621,7 +3625,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .row .mid{flex:1;min-width:0}
   .row .nm{font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.2px}
   .row.unread .nm{color:#fff}
-  .row .lt{font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .row .lt{font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0}
   .row .rt{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}
   .row .tm{font-size:11px;color:#727a92;font-weight:500}
   .tag{font-size:10px;font-weight:800;padding:3px 8px;border-radius:7px;letter-spacing:.8px;border:1px solid transparent}
@@ -3742,14 +3746,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sbtn:active{transform:scale(.92)}
   #threads{padding:4px 2px 14px}
   /* transparent rows over the vivid collage — text carries its own shadow for legibility */
-  #listView .row{gap:10px;padding:7px 11px;margin:5px 7px;border-radius:14px;border:1.4px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 11px var(--rowg,transparent)}
+  #listView .row{gap:10px;padding:4px 11px;margin:5px 7px;border-radius:13px;border:1.4px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 11px var(--rowg,transparent)}
   #listView .row:active{background:rgba(255,255,255,.09)}
   .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   .row .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
   .row .nm{flex:1;min-width:0;display:flex;align-items:center;gap:6px;text-shadow:0 2px 7px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.9)}
   .row .nmtext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .cn-num{color:#ff5cb4}
-  .row .meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+  .row .meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
   .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
   .row .tm{text-shadow:0 1px 5px rgba(0,0,0,.95)}
   .row .pz{text-shadow:0 1px 5px rgba(0,0,0,.95)}
@@ -4044,7 +4048,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     if(!cur) return;
     api('/inbox/thread?sub='+encodeURIComponent(cur.sub)+'&account='+encodeURIComponent(cur.acct||'')).then(function(d){
       if(!d || d.error) return;
-      if(d.name){ cur.name=d.name; $('tName').textContent=d.name; }
+      if(d.name){ cur.name=d.name; $('tName').innerHTML=custLabelHTML(d.name, cur.sub, cur.tag); }
       if(d.avatar){ var c=accCols(cur.tag); $('tAv').innerHTML='<img src="'+esc(d.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(($('tName').textContent||'?').charAt(0).toUpperCase())+'</span>'; }
       var m = $('msgs');
       var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
