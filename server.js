@@ -2499,6 +2499,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const mgr = managerNameForNumber(req);
     if (mgr) _isStaffChat = mgr;
   }
+  // 🔒 STICKY STAFF: reporting a sale takes several turns (report → confirm the photo → "yes",
+  // then the next sale). Once this SUB was recognised as a staff member, keep it in staff mode for
+  // a while so follow-ups (a bare "yes", "A4", "size 11") don't drop back to the customer script —
+  // that drop-out is what made Kiki demand a typed "team phone" mid-sale (Rodney 2026-07-19).
+  if (!_isStaffChat) {
+    try {
+      for (const [nm, v] of Object.entries(staffSubs)) {
+        if (v && String(v.sub) === String(sub) && (Date.now() - (v.at || 0)) < 2 * 3600 * 1000) { _isStaffChat = nm; break; }
+      }
+    } catch (_) {}
+  }
   // 📥 INBOX: log the customer's inbound message (skip our own staff/owner coworker
   // chats) so it appears in the staff Inbox even while Kiki is paused. Strip any
   // SYSTEM-note decoration so the thread shows what the customer actually said.
@@ -2588,6 +2599,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   }
   if (staffName) {
     system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
+- 🚫 NEVER ASK THEM TO "VERIFY" OR TYPE A STAFF/TEAM PHONE NUMBER (Rodney 2026-07-19, CRITICAL — Kiki demanded Rodney "confirm your team phone for this sale", he typed his number and she said "system doesn't recognize that number", dead-ending the sale): the system already knows who they are from the WhatsApp number they're texting FROM — a number TYPED into the chat proves nothing and can't be checked, so asking for one is always wrong and always fails. NEVER say "confirm your team phone", "verify you're on a staff number", "message from your official team phone", or treat a typed number as verification. You are ALREADY in staff mode with ${staffName} — just help them: record the sale/restock/float directly (with the normal photo-confirm step). If a tool ever refuses, follow the tool's instructions (send the photo, get a YES, call it again) — do NOT invent a phone-verification step.
 - 🎙 VOICE-NOTE TRAP — "ASICS" NOBODY SAID (Deashinique 2026-07-14: voice-noted "sold the pink Air Max Plus in a SIZE 10", the transcript rendered "ASICS 10", and Kiki invented a second ASICS shoe — staff replied "I never said ASICS"): transcripts routinely turn "a size [number]" / "in a size [number]" into "ASICS [number]" or "a six [number]". When a voice message names ANOTHER shoe and ASICS appears right before a number with no colour or model of its own, read it as "a size [number]" of the shoe they named — do NOT treat it as a second shoe. Only take ASICS as the brand when typed, or clearly its own ask with its own colour/size.
 - STAFF SALE REPORTING: when they say a shoe SOLD ("sold the pink Air Max Plus in a 10", "the D3 gone in a 9", "just sold the grey 9060 size 8"), your job is to remove that pair from stock — with ONE unskippable safety step:
   (1) search_inventory for the shoe they described.
