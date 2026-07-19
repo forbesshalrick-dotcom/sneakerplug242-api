@@ -3674,15 +3674,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     body #listView,body #threadView{left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:440px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10);box-shadow:0 0 120px rgba(0,0,0,.8)}
   }
   .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-  .row{display:flex;gap:12px;align-items:center;padding:13px 15px;cursor:pointer;position:relative;transition:.15s;border-bottom:1px solid rgba(255,255,255,.04)}
+  .row{display:flex;gap:12px;align-items:center;padding:8px 15px;cursor:pointer;position:relative;transition:.15s;border-bottom:1px solid rgba(255,255,255,.04)}
   .row:active{background:rgba(255,255,255,.04)}
   .row .av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;color:#fff;font-family:'Space Grotesk'}
   .row.unread{background:linear-gradient(90deg, rgba(124,92,255,.09), transparent)}
   .row .mid{flex:1;min-width:0}
   .row .nm{font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.2px}
   .row.unread .nm{color:#fff}
-  .row .lt{display:block;font-size:13px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0}
+  .row .lt{display:block;font-size:13px;line-height:1.25;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:0}
   .row .lt.cust{color:#eef1fb;font-weight:600}
+  .row .lt.cust .ctag{color:var(--rowc);font-weight:800}
   .row .lt.rep{color:var(--dim)}
   .row .lt.rep b{color:#a7b0c6;font-weight:700}
   .row .rt{display:flex;flex-direction:column;align-items:flex-end;gap:7px;flex-shrink:0}
@@ -3864,7 +3865,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   /* transparent rows over the vivid collage — text carries its own shadow for legibility */
   #listView .row{gap:10px;padding:4px 11px;margin:5px 7px;border-radius:13px;border:1.4px solid var(--rowc,rgba(255,255,255,.18));background:rgba(6,5,14,.14);backdrop-filter:none;align-items:center;box-shadow:0 0 11px var(--rowg,transparent)}
   #listView .row:active{background:rgba(255,255,255,.09)}
-  .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .row .body{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
   .row .toprow{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
   .row .nm{flex:1;min-width:0;display:flex;align-items:center;gap:6px;text-shadow:0 2px 7px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.9)}
   .row .nmtext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
@@ -3881,7 +3882,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     mask:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2048%2030'%3E%3Cg%20fill='%23000'%3E%3Crect%20x='0'%20y='0'%20width='48'%20height='5'%20rx='2'/%3E%3Crect%20x='2'%20y='3'%20width='3.6'%20height='11'%20rx='1.8'/%3E%3Ccircle%20cx='3.8'%20cy='14'%20r='2.8'/%3E%3Crect%20x='9'%20y='3'%20width='4'%20height='17'%20rx='2'/%3E%3Ccircle%20cx='11'%20cy='20'%20r='3.2'/%3E%3Crect%20x='16'%20y='3'%20width='3.4'%20height='9'%20rx='1.7'/%3E%3Ccircle%20cx='17.7'%20cy='12'%20r='2.7'/%3E%3Crect%20x='22.5'%20y='3'%20width='4.4'%20height='21'%20rx='2.2'/%3E%3Ccircle%20cx='24.7'%20cy='24'%20r='3.6'/%3E%3Crect%20x='30'%20y='3'%20width='3.6'%20height='11'%20rx='1.8'/%3E%3Ccircle%20cx='31.8'%20cy='14'%20r='2.9'/%3E%3Crect%20x='36.5'%20y='3'%20width='4'%20height='18'%20rx='2'/%3E%3Ccircle%20cx='38.5'%20cy='21'%20r='3.2'/%3E%3Crect%20x='43'%20y='3'%20width='3.4'%20height='13'%20rx='1.7'/%3E%3Ccircle%20cx='44.7'%20cy='16'%20r='2.7'/%3E%3C/g%3E%3C/svg%3E") no-repeat center/100% 100%;
     filter:drop-shadow(0 1px 4px var(--rg,rgba(124,92,255,.6)))}
   .row .av{position:relative;overflow:visible}
-  .row .nm{font-family:'Permanent Marker',cursive;font-size:19px;font-weight:400;letter-spacing:.6px;gap:6px}
+  .row .nm{font-family:'Permanent Marker',cursive;font-size:17px;font-weight:400;letter-spacing:.5px;gap:6px}
   .row .lt{font-family:'Inter';font-size:13px}
   .av .avimg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
   .av .avini{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
@@ -4219,7 +4220,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         if(t.paused){ pv='<span class="pz">⏸ you\\'re handling this</span>'; }
         else {
           var lns='';
-          if(t.custPrev) lns += '<span class="lt cust">'+esc(t.custPrev)+'</span>';
+          if(t.custPrev) lns += '<span class="lt cust"><b class="ctag">Customer:</b> '+esc(t.custPrev)+'</span>';
           if(t.replyPrev) lns += '<span class="lt rep">'+(t.replyWho?('<b>'+esc(t.replyWho)+':</b> '):'')+esc(t.replyPrev)+'</span>';
           pv = lns || ('<span class="lt">'+esc(t.lastText||'…')+'</span>');
         }
