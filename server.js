@@ -1497,7 +1497,7 @@ function liveCatalog() {
   return Object.keys(m).map(id => ({ s: m[id], id: +id }));
 }
 
-function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price } = {}) {
+function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes } = {}) {
   let rows = liveCatalog();
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
   // range "9.5 to 10" or matching "9 and 7"). Normalise each to a clean number
@@ -1517,16 +1517,22 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
   // asics" returned a single shoe — the three asics with an 11 never showed).
   const isAll = String(size_match).toLowerCase() === 'all' && new Set(baseSizes.map(String)).size > 1;
   const wideWomens = womens && !isAll;
-  const sizeList = [...new Set(
-    baseSizes
-      .flatMap(n => womens
-        ? (wideWomens ? [String(n - 1.5), String(n)] : [String(n - 1.5)])
-        // MEN'S: on a normal "any" search ALWAYS also include the half-size UP, so a size 6
-        // request also shows the shoes that only come in 6.5 (Rodney's rule 2026-07-13 — don't
-        // lose a sale over a half size). A matching ("all") search stays exact.
-        : (isAll ? [String(n)] : [String(n), String(n + 0.5)]))
-      .filter(x => x && x !== 'NaN')
-  )];
+  // exact_sizes = use the sizes EXACTLY as given, with NO half-size-up and NO women's mapping.
+  // The completeness top-up passes sizes Kiki ALREADY expanded ("11","11.5") — re-running the
+  // +0.5 rule here would creep them up ("11.5"→"12") and pull wrong-size shoes into the "here's
+  // the rest" album (Rodney 2026-07-19: a size-11 browse wrongly included size-12 pairs).
+  const sizeList = exact_sizes
+    ? [...new Set(baseSizes.map(String).filter(x => x && x !== 'NaN'))]
+    : [...new Set(
+        baseSizes
+          .flatMap(n => womens
+            ? (wideWomens ? [String(n - 1.5), String(n)] : [String(n - 1.5)])
+            // MEN'S: on a normal "any" search ALWAYS also include the half-size UP, so a size 6
+            // request also shows the shoes that only come in 6.5 (Rodney's rule 2026-07-13 — don't
+            // lose a sale over a half size). A matching ("all") search stays exact.
+            : (isAll ? [String(n)] : [String(n), String(n + 0.5)]))
+          .filter(x => x && x !== 'NaN')
+      )];
   if (sizeList.length) {
     const has = (s, want) => s.sizesRaw.some(x => String(parseFloat(x)) === want);
     if (isAll) {
@@ -3212,7 +3218,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !customerNamedSpecific && turnSizeSearchSizes.length) {
     try {
       const wantSizes = [...new Set(turnSizeSearchSizes)];
-      const full = searchInventory({ sizes: wantSizes, size_match: 'any' });
+      // exact_sizes: wantSizes ALREADY include the half-size up (Kiki searched "11" AND "11.5"),
+      // so search them literally — never re-expand, or "11.5" creeps to "12" and size-12 pairs
+      // sneak into the top-up album (Rodney 2026-07-19: "size-11 browse added size-12 for no reason").
+      const full = searchInventory({ sizes: wantSizes, size_match: 'any', exact_sizes: true });
       const missing = full.filter(r => !turnSentIds.has(String(r.id))).map(r => r.id);
       if (missing.length) {
         record(req, { endpoint: 'size-album-topup', sub, sizes: wantSizes, alreadySent: turnSentIds.size, missing: missing.length });
