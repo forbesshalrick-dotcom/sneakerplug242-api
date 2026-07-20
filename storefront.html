@@ -851,6 +851,16 @@ select option{background:var(--surface2);}
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:4px">Select the size that was sold:</p>
       <div class="size-picker-grid" id="sold-size-grid"></div>
       <p style="font-size:12px;color:var(--text-muted);margin-top:8px" id="sold-pairs-info"></p>
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+        <label style="display:flex;align-items:center;gap:9px;font-size:13.5px;font-weight:700;cursor:pointer;">
+          <input type="checkbox" id="sold-send-receipt" onchange="var f=document.getElementById('sold-receipt-fields');if(f)f.style.display=this.checked?'block':'none';" style="width:17px;height:17px;accent-color:#25D366;flex-shrink:0;"/>
+          <span>📱 Send the customer a receipt on WhatsApp</span>
+        </label>
+        <div id="sold-receipt-fields" style="display:none;margin-top:10px;">
+          <input type="tel" id="sold-customer-wa" inputmode="tel" placeholder="Customer's WhatsApp — e.g. 456 7890" style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;"/>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5;">After you confirm the sale, WhatsApp opens with the receipt ready — just press send. Local numbers get <b>1&nbsp;242</b> added for you.</div>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="document.getElementById('sold-modal').classList.remove('open')">Cancel</button>
@@ -1998,21 +2008,31 @@ function openSoldPicker(id){
     return `<button class="size-pick-btn${!has?' unavail':''}" ${has?`onclick="pickSoldSize('${sz}')"`:'disabled'} id="spb-${sz.replace('.','_')}">${sz}${count>1?` (x${count})`:''}</button>`;
   }).join('');
   document.getElementById('sold-pairs-info').textContent='In stock: '+uniqueSizes(s.sizes).join(', ');
+  // reset the "send receipt" option every time so a leftover number can't go to the wrong customer
+  var _rc=document.getElementById('sold-send-receipt');if(_rc)_rc.checked=false;
+  var _rf=document.getElementById('sold-receipt-fields');if(_rf)_rf.style.display='none';
+  var _rw=document.getElementById('sold-customer-wa');if(_rw)_rw.value='';
   document.getElementById('sold-modal').classList.add('open');
 }
 function pickSoldSize(sz){soldSizeSelected=sz;document.querySelectorAll('.size-pick-btn').forEach(b=>b.classList.remove('selected'));document.getElementById('spb-'+sz.replace('.','_'))?.classList.add('selected');}
 function confirmSoldSize(){
   if(!soldSizeSelected){showToast('Pick a size first',true);return;}
   const s=shoes.find(x=>x.id===soldShoeId);if(!s)return;
+  // grab the "send receipt" choice before we clear the modal
+  const wantReceipt=!!(document.getElementById('sold-send-receipt')||{}).checked;
+  const custWa=((document.getElementById('sold-customer-wa')||{}).value||'').trim();
+  if(wantReceipt && !normalizeBahamasWa(custWa)){ showToast('Enter the customer’s number, or untick the receipt',true); return; }
   const idx=s.sizes.indexOf(soldSizeSelected);
   if(idx>-1)s.sizes.splice(idx,1);
   if(s.sizes.length===0)s.sold=true;
   s.updatedAt=Date.now();
   // ── Log the sale ──
-  logSale(s, soldSizeSelected);
+  const sale=logSale(s, soldSizeSelected, '', wantReceipt?{customerWa:normalizeBahamasWa(custWa)}:null);
   if(typeof addAudit==='function')addAudit('Size '+soldSizeSelected+' sold',s.brand+' '+s.name+(s.color?' — '+s.color:''),'sale',s.id);
   save();document.getElementById('sold-modal').classList.remove('open');
   renderInventory();_sfx.sell();showToast('Size '+soldSizeSelected+' marked sold ✓');
+  // hand the receipt to WhatsApp last so it doesn't block the sale being recorded
+  if(wantReceipt && sale) sendReceiptFor(sale, custWa);
 }
 // Tap a size chip straight from the inventory card (staff view) to sell THAT size:
 // opens the sold popup with the tapped size already picked, so it's one tap to confirm.
@@ -5222,10 +5242,10 @@ function deleteFromEdit() {
   
 // ─── SALES TRACKING ──────────────────────────────────────────
 
-function logSale(shoe, size, payment) {
+function logSale(shoe, size, payment, extra) {
   const sales = JSON.parse(localStorage.getItem('sp_sales') || '[]');
   const now = new Date();
-  sales.push({
+  const sale = {
     id: Date.now(),
     shoeId: shoe.id,
     brand: shoe.brand,
@@ -5239,8 +5259,61 @@ function logSale(shoe, size, payment) {
     dateStr: now.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}),
     timeStr: now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}),
     soldBy: currentUser || 'Employee'
-  });
+  };
+  if(extra && typeof extra==='object'){ for(var k in extra){ if(Object.prototype.hasOwnProperty.call(extra,k)) sale[k]=extra[k]; } }
+  sales.push(sale);
   localStorage.setItem('sp_sales', JSON.stringify(sales));
+  return sale;
+}
+
+// Turn a typed-in number into a WhatsApp-ready one. Bahamas numbers are +1 242:
+// 7 local digits → 1242XXXXXXX; 242XXXXXXX → 1242XXXXXXX; a full 1XXXXXXXXXX stays.
+function normalizeBahamasWa(raw){
+  var d=String(raw||'').replace(/[^0-9]/g,'');
+  if(!d) return '';
+  if(d.length===7) return '1242'+d;                 // local 7-digit
+  if(d.length===10 && d.slice(0,3)==='242') return '1'+d;
+  if(d.length===10) return '1'+d;                   // US/CA-style 10-digit
+  if(d.length===11 && d[0]==='1') return d;         // already full
+  return d;                                         // anything else: send as-is
+}
+
+// Pretty-print the store's own contact number for the receipt footer.
+function _fmtStoreWa(num){
+  var d=String(num||'').replace(/[^0-9]/g,'');
+  if(d.length===11 && d.slice(0,4)==='1242') return '1 (242) '+d.slice(4,7)+'-'+d.slice(7);
+  if(d.length===11 && d[0]==='1') return '1 ('+d.slice(1,4)+') '+d.slice(4,7)+'-'+d.slice(7);
+  return num||'';
+}
+
+// Build the receipt message the customer receives on WhatsApp.
+function buildReceiptText(sale){
+  var storeWa = (typeof settings==='object' && settings.wa_owner) ? settings.wa_owner : CUSTOMER_WA;
+  var order = 'SP-' + String(sale.id).slice(-6);
+  var item = ((sale.brand?sale.brand+' ':'') + (sale.name||'')).trim();
+  var lines = [];
+  lines.push('🧾 *SNEAKERPLUG 242 — RECEIPT*');
+  lines.push('');
+  lines.push('Order *' + order + '*');
+  lines.push(sale.dateStr + '  ·  ' + sale.timeStr);
+  lines.push('');
+  lines.push('👟 *' + item + '*');
+  if(sale.color) lines.push('Colour: ' + sale.color);
+  lines.push('Size: ' + sale.size);
+  if(sale.payment) lines.push('Paid: ' + sale.payment);
+  lines.push('*Total: $' + (parseFloat(sale.price)||0).toFixed(2) + '*');
+  lines.push('');
+  lines.push('Thank you for shopping with us! 🙏👟');
+  lines.push('Questions? WhatsApp us: ' + _fmtStoreWa(storeWa));
+  return lines.join('\n');
+}
+
+// Open WhatsApp to the customer with their receipt pre-written (they-just-tap-send).
+function sendReceiptFor(sale, customerRaw){
+  var wa = normalizeBahamasWa(customerRaw);
+  if(!wa){ showToast('Enter a valid customer number for the receipt',true); return false; }
+  openWA(wa, encodeURIComponent(buildReceiptText(sale)));
+  return true;
 }
 
 function getSales() {
