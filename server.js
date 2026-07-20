@@ -3900,6 +3900,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .eqbars i:nth-child(3){animation-delay:.3s}
   .eqbars i:nth-child(4){animation-delay:.45s}
   .eqbars i:nth-child(5){animation-delay:.6s}
+  .eqbars.live i{animation:none;transition:height .06s linear} /* JS drives the height from real mic level */
   @keyframes eq{0%,100%{height:5px}50%{height:19px}}
   .rechud .recstop{margin-left:auto;flex-shrink:0;height:34px;padding:0 14px;border:none;border-radius:17px;background:linear-gradient(135deg,#ff3b5c,#ff5c8a);color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 0 12px rgba(255,59,92,.5)}
   .rechud .recstop:active{transform:scale(.94)}
@@ -4573,8 +4574,38 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   }
   // 🎙 WhatsApp-style voice notes: HOLD the mic to record, SLIDE away to cancel, RELEASE to stage
   // a replayable preview (play it back, delete it, or hit Send). Rodney 2026-07-19.
-  var recStartMs=0, recCancel=false, recTimer=null, recBlobUrl=null, recMaxTimer=null;
+  var recStartMs=0, recCancel=false, recTimer=null, recBlobUrl=null, recMaxTimer=null, recAnalyser=null, recRaf=null;
   function fmtDur(s){ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2); }
+  // Drive the equalizer bars from the REAL mic level (opus-recorder exposes its live sourceNode +
+  // audioContext) so the wave moves WITH the voice — loud = tall bars, quiet = short — instead of a
+  // random CSS bounce. Falls back to the CSS animation if the browser doesn't expose the graph.
+  function startMeter(){
+    try{
+      if(!recorder || !recorder.sourceNode || !recorder.audioContext) return;
+      var ac=recorder.audioContext;
+      recAnalyser=ac.createAnalyser(); recAnalyser.fftSize=256; recAnalyser.smoothingTimeConstant=0.6;
+      recorder.sourceNode.connect(recAnalyser); // analyser only — NOT to destination (that echoes)
+      var eq=$('recHud')?$('recHud').querySelector('.eqbars'):null; if(eq) eq.classList.add('live');
+      var bars=eq?eq.querySelectorAll('i'):[];
+      var shape=[0.62,0.85,1,0.85,0.62];
+      var buf=new Uint8Array(recAnalyser.fftSize);
+      var draw=function(){
+        if(!recording || !recAnalyser){ return; }
+        recAnalyser.getByteTimeDomainData(buf);
+        var sum=0; for(var i=0;i<buf.length;i++){ var v=(buf[i]-128)/128; sum+=v*v; }
+        var level=Math.min(1, Math.sqrt(sum/buf.length)*3.4); // boost so normal speech fills the bars
+        for(var b=0;b<bars.length;b++){ bars[b].style.height=(3+level*18*(shape[b]||0.7)).toFixed(1)+'px'; }
+        recRaf=requestAnimationFrame(draw);
+      };
+      recRaf=requestAnimationFrame(draw);
+    }catch(e){}
+  }
+  function stopMeter(){
+    if(recRaf){ try{ cancelAnimationFrame(recRaf); }catch(e){} recRaf=null; }
+    if(recAnalyser){ try{ recAnalyser.disconnect(); }catch(e){} recAnalyser=null; }
+    var eq=$('recHud')?$('recHud').querySelector('.eqbars'):null;
+    if(eq){ eq.classList.remove('live'); var bb=eq.querySelectorAll('i'); for(var i=0;i<bb.length;i++) bb[i].style.height=''; }
+  }
   function startRec(){
     if(recording) return;
     loadOpus(function(){
@@ -4586,6 +4617,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
           $('mic').classList.add('rec');
           var hud=$('recHud'); if(hud){ hud.style.display='flex'; }
           recTimer=setInterval(function(){ if($('recTime')) $('recTime').textContent=fmtDur((Date.now()-recStartMs)/1000); }, 250);
+          startMeter(); // live audio-reactive equalizer
           // safety cap: a voice note can NEVER run away — auto-stop + stage at 3 min.
           if(recMaxTimer) clearTimeout(recMaxTimer);
           recMaxTimer=setTimeout(function(){ if(recording){ stopRec(false); toast('Max length reached — voice note ready'); } }, 180000);
@@ -4599,6 +4631,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     recording=false; recCancel=!!cancel;
     clearInterval(recTimer); recTimer=null;
     if(recMaxTimer){ clearTimeout(recMaxTimer); recMaxTimer=null; }
+    stopMeter();
     $('mic').classList.remove('rec');
     if($('recHud')) $('recHud').style.display='none';
     try{ recorder.stop(); }catch(e){}
@@ -5044,6 +5077,25 @@ app.get('/inbox/media/:id', (req, res) => {
   res.set('Cache-Control', 'public, max-age=86400');
   res.send(v.buf);
 });
+// 🎙 Voice-note PLAYER page. ManyChat drops native WhatsApp audio, so those customers get a tappable
+// link to THIS page instead — a clean in-browser play button (not a raw file download).
+app.get('/inbox/voice/:id', (req, res) => {
+  const id = String(req.params.id || '').replace(/[^a-z0-9]/gi, '');
+  const src = '/inbox/media/' + id;
+  res.type('html').send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Voice note · SNEAKERPLUG242</title><style>
+    html,body{margin:0;height:100%;background:#0a0512;color:#fff;font-family:-apple-system,Segoe UI,Roboto,sans-serif;display:flex;align-items:center;justify-content:center}
+    .card{text-align:center;padding:26px 22px;max-width:340px}
+    .mic{font-size:44px;margin-bottom:8px}
+    h1{font-size:17px;font-weight:800;margin:0 0 4px}
+    p{font-size:13px;opacity:.7;margin:0 0 18px}
+    audio{width:100%}
+    .brand{margin-top:16px;font-size:11px;letter-spacing:.5px;opacity:.5}
+  </style></head><body><div class="card">
+    <div class="mic">🎙</div><h1>Voice note</h1><p>Tap play to listen</p>
+    <audio controls autoplay playsinline src="${src}"></audio>
+    <div class="brand">SNEAKERPLUG242</div>
+  </div></body></html>`);
+});
 
 app.post('/inbox/send', async (req, res) => {
   if (!consoleAuth(req, res)) return;
@@ -5074,19 +5126,28 @@ app.post('/inbox/send', async (req, res) => {
   // and any pending nudge is cancelled so she never talks over us.
   setHumanPause(sub);
   clearFollowUp(sub);
+  // Voice-note delivery depends on the channel: the DIRECT WhatsApp line (Graph API) delivers a
+  // native ogg/opus voice note; ManyChat (TK/OSC) silently DROPS audio (returns ok but the customer
+  // gets nothing), so for those we send a tappable player LINK the customer can actually play.
+  const isGraph = !!waChannel.get(sub);
   const messages = [];
   if (imageUrl) messages.push({ type: 'image', url: imageUrl });
-  if (audioUrl) messages.push({ type: 'audio', url: audioUrl });
+  if (audioUrl) {
+    if (isGraph) messages.push({ type: 'audio', url: audioUrl });
+    else messages.push({ type: 'text', text: '🎙 Voice note 👉 ' + audioUrl.replace('/inbox/media/', '/inbox/voice/') });
+  }
   if (text) messages.push({ type: 'text', text });
   try {
     const r = await sendChunk(sub, messages, token, { sender: 'rodney', account });
     // Fold the human turn into Kiki's own convo history so she has context when she resumes.
     try { const note = (imageUrl ? '[sent a photo] ' : '') + (audioUrl ? '[sent a voice note] ' : '') + (text || ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note.trim() || '[sent media]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
-    record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, hasAudio: !!audioUrl, ok: !!(r && r.ok) });
+    record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, hasAudio: !!audioUrl, audioMode: audioUrl ? (isGraph ? 'native' : 'link') : '', ok: !!(r && r.ok), body: (r && r.body) ? String(r.body).slice(0, 180) : '' });
     if (r && r.ok) {
-      // Log the voice note to the thread ONLY now that it actually delivered (so it never shows as
-      // "sent" when it failed). sendChunk skips audio in its up-front logging for this reason.
-      if (audioUrl) { try { const th = inboxThreads.get(inboxSubIndex.get(sub) || ''); inboxRecord((th && th.account) || account, sub, { dir: 'out', sender: 'rodney', text: '🎙 voice note' }); } catch (_) {} }
+      // Log the native voice note to the thread ONLY now that it actually delivered (so it never
+      // shows as "sent" when it failed). sendChunk skips audio in its up-front logging for this
+      // reason. The ManyChat link path is a text message, which sendChunk already logs — so only
+      // the Graph (native audio) path logs the clean "🎙 voice note" bubble here (no double bubble).
+      if (audioUrl && isGraph) { try { const th = inboxThreads.get(inboxSubIndex.get(sub) || ''); inboxRecord((th && th.account) || account, sub, { dir: 'out', sender: 'rodney', text: '🎙 voice note' }); } catch (_) {} }
       return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
     }
     const body = String((r && r.body) || '');
