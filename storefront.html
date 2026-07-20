@@ -2657,7 +2657,9 @@ function handleShoeVideo(input){
   });
   vid.load();
 }
-function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))return;const brand=document.getElementById('f-brand').value.trim();const name=document.getElementById('f-name').value.trim();if(!brand||!name){showToast('Brand and name required',true);return;}const sizes=parseSizes(document.getElementById('f-sizes').value);const price=document.getElementById('f-price').value.trim();
+// Human-readable size change between two stock lists, e.g. "added size 13" / "removed size 8, added size 2×11".
+function _sizeDiffStr(oldArr,newArr){function c(a){var m={};(a||[]).forEach(function(s){s=String(s);m[s]=(m[s]||0)+1;});return m;}var o=c(oldArr),n=c(newArr),keys={},add=[],rem=[];Object.keys(o).forEach(function(k){keys[k]=1;});Object.keys(n).forEach(function(k){keys[k]=1;});Object.keys(keys).sort(function(a,b){return parseFloat(a)-parseFloat(b);}).forEach(function(k){var d=(n[k]||0)-(o[k]||0);if(d>0)add.push(d>1?d+'×'+k:k);else if(d<0)rem.push((-d)>1?(-d)+'×'+k:k);});var p=[];if(add.length)p.push('added size '+add.join(', '));if(rem.length)p.push('removed size '+rem.join(', '));return p.join(', ');}
+function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))return;var _oldShoe=editingId?shoes.find(function(x){return x.id===editingId;}):null;var _oldSizes=_oldShoe?(_oldShoe.sizes||[]).slice():null,_oldPrice=_oldShoe?_oldShoe.price:null,_oldColor=_oldShoe?(_oldShoe.color||''):null;const brand=document.getElementById('f-brand').value.trim();const name=document.getElementById('f-name').value.trim();if(!brand||!name){showToast('Brand and name required',true);return;}const sizes=parseSizes(document.getElementById('f-sizes').value);const price=document.getElementById('f-price').value.trim();
   // Determine frames: use pendingFrames only if they are cloud URLs (not base64 still-uploading)
   var resolvedFrames=null;
   if(pendingFrames&&pendingFrames.length>1){
@@ -2673,7 +2675,9 @@ function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))re
   // Log explicitly with detail (brand+name) — showToast wrapper will also fire but won't duplicate
   var _auditAction = editingId ? 'Shoe edited' : 'Shoe added';
   var _auditDetail = shoe.brand+' '+shoe.name+(shoe.color?' — '+shoe.color:'');
-  addAudit(_auditAction, _auditDetail, 'inventory', shoe.id);
+  // Spell out WHAT changed (sizes added/removed, price, colour) so the Log is useful, not just "Shoe edited".
+  if(editingId){var _chg=[];var _sd=_sizeDiffStr(_oldSizes,shoe.sizes);if(_sd)_chg.push(_sd);if(_oldPrice!=null&&Number(_oldPrice)!==Number(shoe.price))_chg.push('price $'+_oldPrice+' → $'+shoe.price);if(_oldColor!=null&&_oldColor!==(shoe.color||''))_chg.push('colour '+(_oldColor||'—')+' → '+(shoe.color||'—'));if(_chg.length)_auditDetail+=' — '+_chg.join(', ');}
+  addAudit(_auditAction, _auditDetail, 'inventory', shoe.id, shoe.image||null);
   var _auditIcon = editingId ? '✏️' : '👟';
   addNotification(_auditAction+': '+_auditDetail, 'inventory', _auditIcon);
   // Use a plain toast that won't re-trigger the wrapper's pattern match
@@ -6694,7 +6698,7 @@ function addNotification(msg, type, icon) {
   updateNotifBadge();
 }
 
-function addAudit(action, detail, category, shoeId) {
+function addAudit(action, detail, category, shoeId, img) {
   var log = getAuditLog();
   log.unshift({
     id: Date.now(),
@@ -6702,6 +6706,7 @@ function addAudit(action, detail, category, shoeId) {
     detail: detail || '',
     category: category || 'general',
     shoeId: shoeId || null,
+    img: img || null,
     user: currentUser || 'Customer',
     time: new Date().toISOString()
   });
@@ -6763,15 +6768,21 @@ function renderAuditLog() {
     return;
   }
   var catIcons = { sale:'💰', inventory:'👟', schedule:'📅', settings:'⚙️', offer:'💸', reserve:'📌', login:'🔑', general:'📝' };
-  var liveIds = {}; (typeof shoes!=='undefined'?shoes:[]).forEach(function(s){ liveIds[s.id]=1; });
+  var shoesById = {}; (typeof shoes!=='undefined'?shoes:[]).forEach(function(s){ shoesById[s.id]=s; });
   list.innerHTML = log.map(function(e) {
     var t = new Date(e.time);
     var timeStr = t.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) + ' ' + t.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
     var icon = catIcons[e.category] || '📝';
-    var tappable = e.shoeId && liveIds[e.shoeId];
+    var liveShoe = e.shoeId ? shoesById[e.shoeId] : null;
+    var tappable = !!liveShoe;
+    // Show the shoe's own photo (from the entry, or the live shoe) instead of a generic emoji.
+    var thumb = e.img || (liveShoe && liveShoe.image) || null;
+    var iconHtml = thumb
+      ? '<img src="' + thumb + '" alt="" loading="lazy" style="width:38px;height:38px;border-radius:8px;object-fit:cover;flex-shrink:0;background:#111;border:1px solid var(--border);">'
+      : '<div style="font-size:16px;flex-shrink:0;margin-top:1px;">' + icon + '</div>';
     var clickAttr = tappable ? ' onclick="jumpToShoe(\'' + e.shoeId + '\')" style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;"' : ' style="display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);"';
     return '<div' + clickAttr + '>'
-      + '<div style="font-size:16px;flex-shrink:0;margin-top:1px;">' + icon + '</div>'
+      + iconHtml
       + '<div style="flex:1;min-width:0;">'
       + '<div style="font-size:13px;font-weight:600;color:var(--text);">' + e.action + (tappable ? ' <span style="color:var(--accent);font-weight:500;">›</span>' : '') + '</div>'
       + (e.detail ? '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;word-break:break-word;">' + e.detail + '</div>' : '')
@@ -7203,8 +7214,8 @@ function syncLog(){
 }
 if(typeof addAudit==='function' && !addAudit._wrapped){
   var _origAddAudit=addAudit;
-  addAudit=function(action,detail,category){
-    _origAddAudit(action,detail,category);
+  addAudit=function(action,detail,category,shoeId,img){
+    _origAddAudit(action,detail,category,shoeId,img); // forward shoeId + img (were dropped → no thumbnail / no tap-to-view)
     try{ var log=getAuditLog(); var e=log[0]; if(e) shopPost('/shop/log',{entry:e}).catch(function(){}); }catch(err){}
   };
   addAudit._wrapped=true;
