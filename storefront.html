@@ -1004,7 +1004,12 @@ function save(){var _saveOk=true;
   // ── LOUD FAILURE: if the phone's storage rejected the write, the change did NOT
   // persist and WILL revert on the next sync. Never flash a fake green — warn hard.
   if(!_saveOk && !_isMerging){try{showToast('⚠️ NOT SAVED — phone storage full. Change will revert. Tell Rodney.',true);}catch(e){}try{_sfx&&_sfx.error&&_sfx.error();}catch(e){}}
-  _pushToCloud();return _saveOk;}
+  // NEVER let a cloud-push error break the save: Firestore's set() THROWS synchronously on any
+  // undefined field, which used to bubble up and stop saveShoe() before it closed the modal — the
+  // "press Save, nothing happens, dead page" bug. The local write already succeeded above; the cloud
+  // push is best-effort, so isolate it. (2026-07-19)
+  try{_pushToCloud();}catch(e){try{console.warn('[cloud push]',e&&e.message);}catch(_){}}
+  return _saveOk;}
 
 // ─── CATALOG OVERRIDES ───────────────────────────────────────
 // Built-in "catalog" shoes get their name/nickname/etc. re-stamped from the master
@@ -2888,7 +2893,10 @@ function _pushToCloud() {
     wholesale_pw: settings.wholesale_pw||'wholesale242',
     wholesale_enabled: settings.wholesale_enabled!==false
   };
-  _db.collection('sp242').doc('inventory').set(payload)
+  // Strip any `undefined` fields — Firestore's set() THROWS synchronously on undefined (a raw
+  // catalog shoe with no `sold`/`price` set would crash the whole save). JSON round-trip drops them.
+  var _clean; try{ _clean = JSON.parse(JSON.stringify(payload)); }catch(_e){ _clean = payload; }
+  _db.collection('sp242').doc('inventory').set(_clean)
     .catch(function(e){ console.warn('[Firebase push]', e.message); });
 }
 
