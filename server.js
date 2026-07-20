@@ -3889,13 +3889,22 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .attach{background:rgba(255,255,255,.05);border:1.2px solid rgba(198,92,255,.4);color:#e8dcff;font-size:14px;width:28px;height:28px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 6px rgba(198,92,255,.2)}
   .attach:active{transform:scale(.88)}
   .attach.rec{background:#e23b5a;color:#fff;border-color:#e23b5a;box-shadow:0 0 14px rgba(226,59,90,.6);animation:pulse 1s infinite}
-  /* 🎙 recording HUD (while holding the mic) + slide-to-cancel */
-  .rechud{display:flex;align-items:center;gap:10px;margin:0 10px 6px;padding:9px 14px;border-radius:16px;background:rgba(20,6,12,.92);border:1.5px solid #e23b5a;box-shadow:0 0 16px rgba(226,59,90,.45);color:#fff;font-size:14px;font-weight:700}
+  /* 🎙 recording HUD (tap mic to start, tap Stop to finish) */
+  .rechud{display:flex;align-items:center;gap:10px;margin:0 10px 6px;padding:9px 12px;border-radius:16px;background:rgba(20,6,12,.94);border:1.5px solid #e23b5a;box-shadow:0 0 16px rgba(226,59,90,.45);color:#fff;font-size:14px;font-weight:700}
   .rechud .recdot{width:11px;height:11px;border-radius:50%;background:#ff3b5c;animation:pulse 1s infinite;flex-shrink:0}
   .rechud #recTime{font-variant-numeric:tabular-nums;min-width:38px}
-  .rechud .recslide{margin-left:auto;color:#ffa8bd;font-weight:600;font-size:13px}
-  .rechud.armed{border-color:#ff2e6e;background:rgba(40,4,14,.96)}
-  .rechud.armed .recslide{color:#ff5c8a}
+  /* animated equalizer — clear "we're listening" confirmation */
+  .eqbars{display:flex;align-items:flex-end;gap:3px;height:20px;flex-shrink:0}
+  .eqbars i{display:block;width:3px;height:6px;border-radius:2px;background:#ff5c8a;animation:eq .9s ease-in-out infinite}
+  .eqbars i:nth-child(2){animation-delay:.15s}
+  .eqbars i:nth-child(3){animation-delay:.3s}
+  .eqbars i:nth-child(4){animation-delay:.45s}
+  .eqbars i:nth-child(5){animation-delay:.6s}
+  @keyframes eq{0%,100%{height:5px}50%{height:19px}}
+  .rechud .recstop{margin-left:auto;flex-shrink:0;height:34px;padding:0 14px;border:none;border-radius:17px;background:linear-gradient(135deg,#ff3b5c,#ff5c8a);color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 0 12px rgba(255,59,92,.5)}
+  .rechud .recstop:active{transform:scale(.94)}
+  .rechud .reccancel{flex-shrink:0;width:34px;height:34px;border:1.4px solid rgba(255,255,255,.3);border-radius:50%;background:rgba(255,255,255,.06);color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .rechud .reccancel:active{transform:scale(.9)}
   /* voice-note preview: play button + duration + send + delete */
   .voiceprev{align-items:center;gap:10px}
   .vplay{width:34px;height:34px;flex-shrink:0;border-radius:50%;border:1.5px solid #ff5cb4;background:rgba(255,92,180,.15);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
@@ -4132,7 +4141,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   <div class="replybar" id="replyBar" style="display:none"><span id="replyText"></span><span id="replyX">✕</span></div>
   <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label" id="imgLabel">Photo ready to send</span><button id="imgSend" class="ipsend">Send ➤</button><span id="imgX">✕</span></div>
   <div class="imgprev voiceprev" id="audPreview" style="display:none"><button id="audPlay" class="vplay" title="Play back">▶️</button><span class="ip-label"><b id="audDur">0:00</b> · voice note ready</span><button id="audSend" class="ipsend">Send ➤</button><span id="audX" title="Delete">🗑️</span><audio id="audEl" preload="auto" style="display:none"></audio></div>
-  <div class="rechud" id="recHud" style="display:none"><span class="recdot"></span><span id="recTime">0:00</span><span class="recslide" id="recSlide">‹ slide to cancel</span></div>
+  <div class="rechud" id="recHud" style="display:none"><span class="recdot"></span><span id="recTime">0:00</span><span class="eqbars"><i></i><i></i><i></i><i></i><i></i></span><button id="recStop" class="recstop">■ Stop</button><button id="recCancel" class="reccancel">🗑️</button></div>
   <div class="composer">
     <div class="compinner">
       <!-- Only the first 3 (photo, send-pics, voice note) show; swipe left for the rest. -->
@@ -4564,7 +4573,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   }
   // 🎙 WhatsApp-style voice notes: HOLD the mic to record, SLIDE away to cancel, RELEASE to stage
   // a replayable preview (play it back, delete it, or hit Send). Rodney 2026-07-19.
-  var recStartMs=0, recCancel=false, recTimer=null, recBlobUrl=null;
+  var recStartMs=0, recCancel=false, recTimer=null, recBlobUrl=null, recMaxTimer=null;
   function fmtDur(s){ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2); }
   function startRec(){
     if(recording) return;
@@ -4575,18 +4584,21 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         recorder.start().then(function(){
           recording=true; recCancel=false; recStartMs=Date.now();
           $('mic').classList.add('rec');
-          var hud=$('recHud'); if(hud){ hud.style.display='flex'; hud.classList.remove('armed'); }
-          if($('recSlide')) $('recSlide').textContent='‹ slide to cancel';
+          var hud=$('recHud'); if(hud){ hud.style.display='flex'; }
           recTimer=setInterval(function(){ if($('recTime')) $('recTime').textContent=fmtDur((Date.now()-recStartMs)/1000); }, 250);
+          // safety cap: a voice note can NEVER run away — auto-stop + stage at 3 min.
+          if(recMaxTimer) clearTimeout(recMaxTimer);
+          recMaxTimer=setTimeout(function(){ if(recording){ stopRec(false); toast('Max length reached — voice note ready'); } }, 180000);
         }).catch(function(){ recording=false; $('mic').classList.remove('rec'); if($('recHud'))$('recHud').style.display='none'; toast('Allow microphone access to record'); });
       }catch(e){ toast('Recorder error'); }
     });
   }
-  // stop recording. cancel=true → throw the recording away (slid to cancel / too short).
+  // stop recording. cancel=true → throw the recording away (Cancel button).
   function stopRec(cancel){
     if(!recorder || !recording) return;
     recording=false; recCancel=!!cancel;
     clearInterval(recTimer); recTimer=null;
+    if(recMaxTimer){ clearTimeout(recMaxTimer); recMaxTimer=null; }
     $('mic').classList.remove('rec');
     if($('recHud')) $('recHud').style.display='none';
     try{ recorder.stop(); }catch(e){}
@@ -4797,17 +4809,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('file').onchange=function(){ if(this.files){ Array.prototype.forEach.call(this.files, function(f){ pickPhoto(f); }); } };
   $('imgSend').onclick=send;
   $('avFile').onchange=function(){ if(this.files && this.files[0] && pendingAv){ setAvatarFromFile(pendingAv, this.files[0]); pendingAv=null; } };
-  // Hold-to-record mic (WhatsApp style). pointerdown → record; drag left/up past 60px → arm cancel;
-  // release → stop (or discard if armed / too short). Not a click, so a stray tap won't record.
-  (function(){
-    var m=$('mic'); if(!m) return;
-    var down=false, sx=0, sy=0, armed=false;
-    m.addEventListener('pointerdown', function(e){ e.preventDefault(); down=true; armed=false; sx=e.clientX; sy=e.clientY; try{ m.setPointerCapture(e.pointerId); }catch(_){} startRec(); });
-    m.addEventListener('pointermove', function(e){ if(!down||!recording) return; var dx=e.clientX-sx, dy=e.clientY-sy; var far=(dx < -60) || (dy < -60); if(far!==armed){ armed=far; var h=$('recHud'); if(h) h.classList.toggle('armed', armed); if($('recSlide')) $('recSlide').textContent = armed ? 'release to cancel ✕' : '‹ slide to cancel'; } });
-    var end=function(e){ if(!down) return; down=false; try{ m.releasePointerCapture(e.pointerId); }catch(_){} if(!recording){ return; } var tooShort=(Date.now()-recStartMs)<400; if(armed || tooShort){ stopRec(true); if(tooShort && !armed) toast('Hold the 🎙 to record'); } else { stopRec(false); } armed=false; };
-    m.addEventListener('pointerup', end); m.addEventListener('pointercancel', end);
-    m.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); }, true); // swallow the synthetic click
-  })();
+  // TAP-to-record mic. One tap starts (mic turns red + HUD shows Stop/Cancel); tap the mic again OR
+  // the Stop button to finish + stage. No hold, no release dependency — recording can't get stuck on
+  // a phone that never fires pointerup (that was the "keeps recording, can't stop" bug).
+  if($('mic')) $('mic').onclick=function(e){ e.preventDefault(); e.stopPropagation(); if(recording) stopRec(false); else startRec(); };
+  if($('recStop')) $('recStop').onclick=function(){ stopRec(false); };
+  if($('recCancel')) $('recCancel').onclick=function(){ stopRec(true); };
   $('imgX').onclick=clearImg;
   $('audX').onclick=clearAud;
   if($('audPlay')) $('audPlay').onclick=playAud;
