@@ -986,11 +986,12 @@ const ALL_SIZES = [...new Set(catalog.flatMap(s => s.sizesRaw.map(x => parseFloa
 const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.length - 1]}` : 'various';
 
 const STORE_DEFAULT = 'THE PLUG 242';
-const WEBSITE = '242plug.netlify.app';
-// 🚧 STOREFRONT STATUS: Netlify PAUSED the site (usage limit) 2026-07-19, so the link is DEAD.
-// While this is false, Kiki must NOT push the website — sell in-chat with photos instead. Flip
-// back to true (and update WEBSITE to the live URL) the moment the store is hosted again.
-const SITE_LIVE = false;
+// The store now lives on our own domain (pointed at Railway). Env can override if it moves again.
+const WEBSITE = (process.env.WEBSITE || '242plug.com').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+// 🚧 STOREFRONT STATUS: while false, Kiki must NOT push the website — sell in-chat with photos.
+// Flip to true (env SITE_LIVE=true on Railway, no redeploy) the MOMENT 242plug.com shows the
+// padlock, so Kiki starts sharing the site again. Defaults false until the domain/SSL is live.
+const SITE_LIVE = /^(1|true|yes|on)$/i.test(String(process.env.SITE_LIVE || '').trim());
 const SITE_TAIL = SITE_LIVE ? ` Want more options? Search our site 👉 ${WEBSITE}` : '';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟${SITE_TAIL}`;
@@ -5530,7 +5531,7 @@ let STORE_HTML = null, STORE_HTML_GZ = null;
     STORE_HTML_GZ = zlib.gzipSync(Buffer.from(html));
   } catch (e) { STORE_HTML = null; STORE_HTML_GZ = null; }
 })();
-app.get('/store', (req, res) => {
+function serveStore(req, res) {
   if (!STORE_HTML) return res.status(503).send('store loading — refresh in a moment');
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
@@ -5539,6 +5540,17 @@ app.get('/store', (req, res) => {
     return res.send(STORE_HTML_GZ);
   }
   res.send(STORE_HTML);
+}
+app.get('/store', serveStore);
+// When the request comes in on OUR domain (242plug.com / www.242plug.com, pointed at Railway),
+// the BARE root shows the store — so a customer typing 242plug.com lands on the shop, not an API
+// response. The Railway *.up.railway.app origin is untouched (falls through), so /inbox, /whatsapp,
+// /shop and every API route keep working exactly as before on both hosts.
+const STORE_HOST_RE = /(^|\.)242plug\.com$/i;
+app.get('/', (req, res, next) => {
+  const host = String(req.headers.host || '').split(':')[0].toLowerCase();
+  if (STORE_HOST_RE.test(host)) return serveStore(req, res);
+  return next();
 });
 
 // The Inbox page itself — a slim, mobile-first staff page served straight from the
