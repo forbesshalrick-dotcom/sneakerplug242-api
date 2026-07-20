@@ -1063,6 +1063,46 @@ const MANAGER_WA = (process.env.MANAGER_WA || '12428033126').replace(/[^0-9]/g, 
 const MANAGER_WA_2 = (process.env.MANAGER_WA_2 || '12428256405').replace(/[^0-9]/g, '');
 const MANAGER_NUMBERS = [MANAGER_WA, MANAGER_WA_2].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
+// ── 🧾 CUSTOMER RECEIPT (Rodney 2026-07-20) ───────────────────────────────────
+// After a staff sale, Kiki hands the staffer a tap-to-send WhatsApp receipt for the
+// customer — same approach as the website POS: build the message + a wa.me link the
+// staffer taps to fire it from their own store WhatsApp. Works for ANY number, no
+// template, no API cost. Bahamas numbers are +1 242.
+function normalizeBahamasWaDigits(raw) {
+  const d = String(raw || '').replace(/[^0-9]/g, '');
+  if (!d) return '';
+  if (d.length === 7) return '1242' + d;               // local 7-digit
+  if (d.length === 10) return '1' + d;                 // 242XXXXXXX or US/CA 10-digit
+  if (d.length === 11 && d[0] === '1') return d;       // already full
+  return d;                                            // anything else: as-is
+}
+function fmtStoreWa(num) {
+  const d = String(num || '').replace(/[^0-9]/g, '');
+  if (d.length === 11 && d.slice(0, 4) === '1242') return '1 (242) ' + d.slice(4, 7) + '-' + d.slice(7);
+  if (d.length === 11 && d[0] === '1') return '1 (' + d.slice(1, 4) + ') ' + d.slice(4, 7) + '-' + d.slice(7);
+  return num || '';
+}
+// Build the receipt text a customer receives, from a shared-register sale record.
+function buildCustomerReceiptText(sale) {
+  const order = 'SP-' + String(sale.id).slice(-6);
+  const item = ((sale.brand ? sale.brand + ' ' : '') + (sale.shoeLabel || sale.name || sale.shoeId || '')).trim();
+  const price = (sale.price != null && sale.price !== '') ? Number(sale.price) : null;
+  const lines = [];
+  lines.push('🧾 *SNEAKERPLUG 242 — RECEIPT*');
+  lines.push('');
+  lines.push('Order *' + order + '*');
+  if (sale.dateStr) lines.push(sale.dateStr + (sale.timeStr ? '  ·  ' + sale.timeStr : ''));
+  lines.push('');
+  lines.push('👟 *' + item + '*');
+  if (sale.color) lines.push('Colour: ' + sale.color);
+  lines.push('Size: ' + sale.size);
+  if (price != null && !isNaN(price)) lines.push('*Total: $' + price.toFixed(2) + '*');
+  lines.push('');
+  lines.push('Thank you for shopping with us! 🙏👟');
+  lines.push('Questions? WhatsApp us: ' + fmtStoreWa(MANAGER_WA));
+  return lines.join('\n');
+}
+
 function buildSystemPrompt({ store, name, greet = true } = {}) {
   const storeName = store || STORE_DEFAULT;
   const who = name && name.trim() ? name.trim() : '';
@@ -1423,6 +1463,14 @@ const AI_TOOLS = [
     description: "STAFF ONLY — pin the customer's payment / money-confirmation screenshot to a sale you JUST recorded, so the owner can see proof of payment on that sale in the app. Call this ONLY when BOTH are true: (1) you recorded a sale earlier in THIS conversation and have its sale_id (record_sale returned it), and (2) the staff member has NOW sent a PHOTO in this very message that is a payment / bank-transfer / SunCash / Cash App / cash-received screenshot. Do NOT call it for a shoe photo, a float/cash-pile photo, or a gas receipt. If the staffer says the sale was cash or has no screenshot, do NOT call it — that's fine, just move on.",
     input_schema: { type: 'object', required: ['sale_id'], properties: {
       sale_id: { type: 'string', description: "The exact saleId that record_sale returned for this sale, earlier in THIS conversation." },
+    } },
+  },
+  {
+    name: 'customer_receipt',
+    description: "STAFF ONLY — get a ready-to-send WhatsApp receipt for the CUSTOMER of a sale you JUST recorded. Call this when the staffer wants to send the customer a receipt and gives you the customer's WhatsApp number. It returns a `wa_link` (a tap-to-send link) and the `receipt_text`: send the staffer the wa_link and tell them to tap it — WhatsApp opens to the customer with the receipt already written, they just press send. Works for ANY number. Requires a sale_id from a record_sale call earlier in THIS conversation.",
+    input_schema: { type: 'object', required: ['sale_id', 'customer_number'], properties: {
+      sale_id: { type: 'string', description: "The exact saleId that record_sale returned for this sale, earlier in THIS conversation." },
+      customer_number: { type: 'string', description: "The customer's WhatsApp number as the staffer gave it — local 7-digit (e.g. '456 7890'), with area code, or full. Bahamas +1 242 is added automatically." },
     } },
   },
   {
@@ -3136,7 +3184,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               // PAYMENT PROOF (Rodney 2026-07-18): after logging the sale, Kiki asks the
               // staffer for the customer's payment screenshot and pins it to THIS sale so the
               // owner can see proof of payment in the app. Cash / no-screenshot is fine — don't nag.
-              result.next_step = 'After you give them the ✅ remaining-sizes confirmation, ask them to send the PAYMENT screenshot for this sale (the customer\'s bank-transfer / SunCash / Cash App proof) — e.g. "📸 send me the payment confirmation for this one and I\'ll pin it to the sale." When they send that photo, call attach_payment_proof with sale_id="' + result.saleId + '". If they say it was cash or they have no screenshot, that\'s fine — just say no worries and move on, do NOT nag.';
+              result.next_step = 'After you give them the ✅ remaining-sizes confirmation, do TWO things (keep it light, one message): (a) offer to send the customer a receipt — "want me to send the customer a receipt? just drop their WhatsApp number 📱" — and when they give you a number, call customer_receipt with sale_id="' + result.saleId + '" and that number, then pass them the wa_link to tap; (b) ask them to send the PAYMENT screenshot for this sale (the customer\'s bank-transfer / SunCash / Cash App proof) so you can pin it — when they send that photo, call attach_payment_proof with sale_id="' + result.saleId + '". Both are OPTIONAL — if they skip the receipt or say it was cash / no screenshot, that\'s fine, just move on, do NOT nag.';
             }
           }
         }
@@ -3160,6 +3208,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           } catch (e) { result = { error: 'proof save failed: ' + String(e).slice(0, 80) }; }
         }
         record(req, { endpoint: 'sale-proof', sub, by: staffName, params: tu.input, out: result && (result.ok ? 'ok' : result.error) });
+      }
+      else if (tu.name === 'customer_receipt') {
+        const inp = tu.input || {};
+        if (!staffName) { result = { error: 'REFUSED — staff numbers only.' }; }
+        else {
+          const wa = normalizeBahamasWaDigits(inp.customer_number);
+          if (!wa) { result = { error: 'That customer number doesn\'t look right — ask the staffer to re-send it (local 7-digit is fine).' }; }
+          else {
+            const sale = (require('./shop').getSales() || []).find(x => x && String(x.id) === String(inp.sale_id));
+            if (!sale) { result = { error: 'unknown sale ' + inp.sale_id + ' — use the sale_id record_sale returned in THIS conversation.' }; }
+            else {
+              const text = buildCustomerReceiptText(sale);
+              const wa_link = 'https://wa.me/' + wa + '?text=' + encodeURIComponent(text);
+              result = { ok: true, wa_link, receipt_text: text,
+                note: 'Send the staffer this exactly: the wa_link on its own line, and tell them "tap it and WhatsApp opens to the customer with the receipt ready — just press send 📱". Do NOT paste the raw receipt_text as the message to send; the link already carries it.' };
+            }
+          }
+        }
+        record(req, { endpoint: 'customer-receipt', sub, by: staffName, params: { sale_id: inp.sale_id }, out: result && (result.ok ? 'ok' : result.error) });
       }
       else if (tu.name === 'record_restock') {
         const inp = tu.input || {};
