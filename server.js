@@ -442,7 +442,7 @@ function displayName(shoe) {
   return name;
 }
 function formatShoeMessage(shoe) {
-  return `👟 *${displayName(shoe)}*\n🎨 ${shoe.color}\n💰 $${shoe.price}\n📏 Sizes: ${sizesOf(shoe)}`;
+  return `👟 *${displayName(shoe)}*\n🎨 ${shoe.color}\n💰 $${shoe.price}\n📏 Men's Sizes: ${sizesOf(shoe)}`;
 }
 
 // ── WhatsApp dynamic-block helper ─────────────────────────────────────────────
@@ -515,7 +515,7 @@ function handleWhatsApp(req, res) {
     ? "Yes! Here's what I've got 👇"
     : `Found ${shoes.length} matches${shoes.length > maxPics ? ` — showing the first ${maxPics}` : ''} 👇`;
   const summary = header + '\n\n' + shown.map((s, i) =>
-    `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 ${sizesOf(s)}`).join('\n');
+    `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
 
   const messages = [{ type: 'text', text: summary }];
   for (const s of shown) if (s.image) messages.push({ type: 'image', url: s.image });
@@ -546,7 +546,7 @@ function handleLookup(req, res) {
 
   // Numbered summary so the list lines up with the photos sent after it.
   const numbered = shoes.map((s, i) =>
-    `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 ${sizesOf(s)}`).join('\n');
+    `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
   const message = shoes.length === 1
     ? `Yes! Here's what I've got 👇\n\n${numbered}`
     : `Found ${shoes.length} options 👇\n\n${numbered}`;
@@ -558,7 +558,7 @@ function handleLookup(req, res) {
     flat[`shoe_${n}_price`] = `$${s.price}`;
     flat[`shoe_${n}_sizes`] = sizesOf(s);
     flat[`shoe_${n}_color`] = s.color;
-    flat[`shoe_${n}_caption`] = `${i + 1}. ${displayName(s)} — $${s.price} | 📏 ${sizesOf(s)}`;
+    flat[`shoe_${n}_caption`] = `${i + 1}. ${displayName(s)} — $${s.price} | 📏 Men's Sizes: ${sizesOf(s)}`;
     flat[`image_${n}`] = s.image || null;
   });
 
@@ -944,7 +944,7 @@ async function handleSendPhotos(req, res) {
     messages = [{ type: 'text', text: "Hmm, I don't have that in stock right now. DM me and I'll help you find something 📲" }];
   } else {
     const pics = shoes.filter(s => s.image).slice(0, MAX_PHOTOS);
-    const numbered = shoes.map((s, i) => `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 ${sizesOf(s)}`).join('\n');
+    const numbered = shoes.map((s, i) => `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
     const header = shoes.length === 1 ? "Yes! Here's what I've got 👇" : `Found ${shoes.length} 👇`;
     messages = [{ type: 'text', text: `${header}\n\n${numbered}` }];
     for (const s of pics) messages.push({ type: 'image', url: s.image });
@@ -1706,8 +1706,8 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     // Price in WhatsApp BOLD — just the price (Rodney 2026-07-15: "some people still
     // ask for price even tho we send the price list").
     const sizeLine = womens
-      ? `📏 women's ${sizesOf(s, true)}  ·  men's ${sizesOf(s, false)}`
-      : `📏 ${sizesOf(s, false)}`;
+      ? `📏 *Women's Sizes:* ${sizesOf(s, true)}  ·  *Men's:* ${sizesOf(s, false)}`
+      : `📏 *Men's Sizes:* ${sizesOf(s, false)}`;
     return `${displayName(s)} — *$${s.price}*\n${sizeLine}`;
   };
   // Look shoes up through the LIVE map so labels show current sizes and anything
