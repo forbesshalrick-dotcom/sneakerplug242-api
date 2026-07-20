@@ -1634,6 +1634,18 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     const phraseHits = rows.filter(({ s }) => hayOf(s).includes(c));
     const wordHits = cWords.length ? rows.filter(({ s }) => { const h = hayOf(s); return !h.includes(c) && cWords.some(w => h.includes(w)); }) : [];
     rows = phraseHits.concat(wordHits);
+    // PUREST colour first: a shoe whose COLOUR is ONLY the requested colour ("All Black" for a
+    // "black" / "all black" ask) leads one that merely CONTAINS it ("Black/Red"). A broad "all
+    // black" request then shows the true all-black pairs FIRST, so they make the album's ~9-photo
+    // limit instead of getting buried under multi-colour look-alikes (Rodney 2026-07-20: the
+    // all-black TN3 in a 12 never showed for an "all black 11.5" ask — 28 loosely-black shoes
+    // crowded it out). Stable within each group, so nothing is dropped — pure just ranks higher.
+    const COLOUR_FILLER = new Set(['all', 'and', 'the']);
+    const isPureColour = ({ s }) => {
+      const toks = normC(s.color || '').split(/[^a-z]+/).filter(w => w.length >= 3 && !COLOUR_FILLER.has(w));
+      return toks.length > 0 && toks.every(w => cWords.includes(w));
+    };
+    rows = [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r))];
   }
   // Price filter: "under $150" → max_price 150; "over $100" → min_price 100; a range uses both.
   const maxP = parseFloat(max_price), minP = parseFloat(min_price);
