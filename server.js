@@ -840,7 +840,8 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       const who = (logOpts && logOpts.sender) || 'kiki';
       for (const mm of (messages || [])) {
         if (mm && mm.type === 'image' && mm.url) { inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: '', img: mm.url }); continue; }
-        const txt = (mm && mm.type === 'audio') ? '🎙 voice note' : (mm && mm.text ? String(mm.text) : '');
+        if (mm && mm.type === 'audio') continue; // a voice note is logged by /inbox/send ONLY after it actually sends, so it never shows as "sent" when it failed
+        const txt = (mm && mm.text) ? String(mm.text) : '';
         if (txt) inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: txt });
       }
     }
@@ -3879,6 +3880,17 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .attach{background:rgba(255,255,255,.05);border:1.2px solid rgba(198,92,255,.4);color:#e8dcff;font-size:14px;width:28px;height:28px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 6px rgba(198,92,255,.2)}
   .attach:active{transform:scale(.88)}
   .attach.rec{background:#e23b5a;color:#fff;border-color:#e23b5a;box-shadow:0 0 14px rgba(226,59,90,.6);animation:pulse 1s infinite}
+  /* 🎙 recording HUD (while holding the mic) + slide-to-cancel */
+  .rechud{display:flex;align-items:center;gap:10px;margin:0 10px 6px;padding:9px 14px;border-radius:16px;background:rgba(20,6,12,.92);border:1.5px solid #e23b5a;box-shadow:0 0 16px rgba(226,59,90,.45);color:#fff;font-size:14px;font-weight:700}
+  .rechud .recdot{width:11px;height:11px;border-radius:50%;background:#ff3b5c;animation:pulse 1s infinite;flex-shrink:0}
+  .rechud #recTime{font-variant-numeric:tabular-nums;min-width:38px}
+  .rechud .recslide{margin-left:auto;color:#ffa8bd;font-weight:600;font-size:13px}
+  .rechud.armed{border-color:#ff2e6e;background:rgba(40,4,14,.96)}
+  .rechud.armed .recslide{color:#ff5c8a}
+  /* voice-note preview: play button + duration + send + delete */
+  .voiceprev{align-items:center;gap:10px}
+  .vplay{width:34px;height:34px;flex-shrink:0;border-radius:50%;border:1.5px solid #ff5cb4;background:rgba(255,92,180,.15);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .vplay:active{transform:scale(.9)}
   /* ✋ manual STOP — always visible, red, halts an in-progress photo send to this customer */
   .attach.stopsend{background:linear-gradient(135deg,#ff3b5c,#ff5c8a);border-color:#ff3b5c;color:#fff;box-shadow:0 0 12px rgba(255,59,92,.55);margin-left:2px}
   .attach.stopsend:active{transform:scale(.88)}
@@ -4110,7 +4122,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   <div class="msgs" id="msgs"></div>
   <div class="replybar" id="replyBar" style="display:none"><span id="replyText"></span><span id="replyX">✕</span></div>
   <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label" id="imgLabel">Photo ready to send</span><button id="imgSend" class="ipsend">Send ➤</button><span id="imgX">✕</span></div>
-  <div class="imgprev" id="audPreview" style="display:none"><span class="ip-label">🎙 Voice note ready to send</span><span id="audX">✕</span></div>
+  <div class="imgprev voiceprev" id="audPreview" style="display:none"><button id="audPlay" class="vplay" title="Play back">▶️</button><span class="ip-label"><b id="audDur">0:00</b> · voice note ready</span><button id="audSend" class="ipsend">Send ➤</button><span id="audX" title="Delete">🗑️</span><audio id="audEl" preload="auto" style="display:none"></audio></div>
+  <div class="rechud" id="recHud" style="display:none"><span class="recdot"></span><span id="recTime">0:00</span><span class="recslide" id="recSlide">‹ slide to cancel</span></div>
   <div class="composer">
     <div class="compinner">
       <!-- Only the first 3 (photo, send-pics, voice note) show; swipe left for the rest. -->
@@ -4540,30 +4553,56 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     s.onerror=function(){ toast('Could not load recorder — check connection'); };
     document.head.appendChild(s);
   }
+  // 🎙 WhatsApp-style voice notes: HOLD the mic to record, SLIDE away to cancel, RELEASE to stage
+  // a replayable preview (play it back, delete it, or hit Send). Rodney 2026-07-19.
+  var recStartMs=0, recCancel=false, recTimer=null, recBlobUrl=null;
+  function fmtDur(s){ s=Math.max(0,Math.floor(s)); return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2); }
   function startRec(){
+    if(recording) return;
     loadOpus(function(){
       try{
         recorder = new window.Recorder({ encoderPath: encoderBlobUrl, numberOfChannels:1, encoderSampleRate:16000, streamPages:false });
         recorder.ondataavailable = function(arr){ onRecorded(arr); };
-        recorder.start().then(function(){ recording=true; $('mic').classList.add('rec'); $('mic').textContent='⏹'; toast('Recording… tap 🎙 again to stop'); })
-          .catch(function(){ toast('Allow microphone access to record'); });
+        recorder.start().then(function(){
+          recording=true; recCancel=false; recStartMs=Date.now();
+          $('mic').classList.add('rec');
+          var hud=$('recHud'); if(hud){ hud.style.display='flex'; hud.classList.remove('armed'); }
+          if($('recSlide')) $('recSlide').textContent='‹ slide to cancel';
+          recTimer=setInterval(function(){ if($('recTime')) $('recTime').textContent=fmtDur((Date.now()-recStartMs)/1000); }, 250);
+        }).catch(function(){ recording=false; $('mic').classList.remove('rec'); if($('recHud'))$('recHud').style.display='none'; toast('Allow microphone access to record'); });
       }catch(e){ toast('Recorder error'); }
     });
   }
-  function stopRec(){ if(recorder && recording){ recording=false; $('mic').classList.remove('rec'); $('mic').textContent='🎙'; try{ recorder.stop(); }catch(e){} } }
+  // stop recording. cancel=true → throw the recording away (slid to cancel / too short).
+  function stopRec(cancel){
+    if(!recorder || !recording) return;
+    recording=false; recCancel=!!cancel;
+    clearInterval(recTimer); recTimer=null;
+    $('mic').classList.remove('rec');
+    if($('recHud')) $('recHud').style.display='none';
+    try{ recorder.stop(); }catch(e){}
+    if(cancel) toast('Voice note deleted');
+  }
   function onRecorded(arr){
+    if(recCancel){ recCancel=false; return; } // slid to cancel → discard, don't upload
     try{
       var blob=new Blob([arr], {type:'audio/ogg'});
+      // local URL so they can REPLAY it before sending
+      if(recBlobUrl){ try{ URL.revokeObjectURL(recBlobUrl); }catch(e){} }
+      recBlobUrl=URL.createObjectURL(blob);
+      var au=$('audEl'); if(au){ au.src=recBlobUrl; au.onloadedmetadata=function(){ if($('audDur')) $('audDur').textContent=fmtDur(au.duration||0); }; au.onended=function(){ if($('audPlay')) $('audPlay').textContent='▶️'; }; }
+      $('audPreview').style.display='flex';
+      // upload in the background so Send is instant
       var rd=new FileReader();
       rd.onload=function(){ post('/inbox/upload', {image: rd.result}).then(function(d){
-        if(d && d.ok && d.url){ pendingAudioUrl=d.url; $('audPreview').style.display='flex'; toast('Voice note ready — hit Send'); }
-        else toast((d&&d.error)||'Upload failed');
+        if(d && d.ok && d.url){ pendingAudioUrl=d.url; }
+        else { toast((d&&d.error)||'Upload failed'); }
       }).catch(function(){ toast('Upload failed — network'); }); };
       rd.readAsDataURL(blob);
     }catch(e){ toast('Could not save recording'); }
   }
-  function micTap(){ if(recording) stopRec(); else startRec(); }
-  function clearAud(){ pendingAudioUrl=null; $('audPreview').style.display='none'; if(recording) stopRec(); }
+  function playAud(){ var au=$('audEl'); if(!au||!au.src) return; if(au.paused){ au.currentTime=0; au.play(); if($('audPlay'))$('audPlay').textContent='⏸'; } else { au.pause(); if($('audPlay'))$('audPlay').textContent='▶️'; } }
+  function clearAud(){ pendingAudioUrl=null; $('audPreview').style.display='none'; var au=$('audEl'); if(au){ try{au.pause();}catch(e){} au.removeAttribute('src'); } if(recBlobUrl){ try{URL.revokeObjectURL(recBlobUrl);}catch(e){} recBlobUrl=null; } if($('audPlay'))$('audPlay').textContent='▶️'; if(recording) stopRec(true); }
 
   // ── speak-to-type (dictation): live via the browser like Claude's voice; Whisper fallback ──
   var recog=null, dictating=false, dictBase='', wRec=null, wRecording=false;
@@ -4749,9 +4788,21 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('file').onchange=function(){ if(this.files){ Array.prototype.forEach.call(this.files, function(f){ pickPhoto(f); }); } };
   $('imgSend').onclick=send;
   $('avFile').onchange=function(){ if(this.files && this.files[0] && pendingAv){ setAvatarFromFile(pendingAv, this.files[0]); pendingAv=null; } };
-  $('mic').onclick=micTap;
+  // Hold-to-record mic (WhatsApp style). pointerdown → record; drag left/up past 60px → arm cancel;
+  // release → stop (or discard if armed / too short). Not a click, so a stray tap won't record.
+  (function(){
+    var m=$('mic'); if(!m) return;
+    var down=false, sx=0, sy=0, armed=false;
+    m.addEventListener('pointerdown', function(e){ e.preventDefault(); down=true; armed=false; sx=e.clientX; sy=e.clientY; try{ m.setPointerCapture(e.pointerId); }catch(_){} startRec(); });
+    m.addEventListener('pointermove', function(e){ if(!down||!recording) return; var dx=e.clientX-sx, dy=e.clientY-sy; var far=(dx < -60) || (dy < -60); if(far!==armed){ armed=far; var h=$('recHud'); if(h) h.classList.toggle('armed', armed); if($('recSlide')) $('recSlide').textContent = armed ? 'release to cancel ✕' : '‹ slide to cancel'; } });
+    var end=function(e){ if(!down) return; down=false; try{ m.releasePointerCapture(e.pointerId); }catch(_){} if(!recording){ return; } var tooShort=(Date.now()-recStartMs)<400; if(armed || tooShort){ stopRec(true); if(tooShort && !armed) toast('Hold the 🎙 to record'); } else { stopRec(false); } armed=false; };
+    m.addEventListener('pointerup', end); m.addEventListener('pointercancel', end);
+    m.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); }, true); // swallow the synthetic click
+  })();
   $('imgX').onclick=clearImg;
   $('audX').onclick=clearAud;
+  if($('audPlay')) $('audPlay').onclick=playAud;
+  if($('audSend')) $('audSend').onclick=send;
   $('replyX').onclick=clearQuote;
   $('brief').onclick=openBrief;
   $('briefCancel').onclick=closeBrief;
@@ -5016,14 +5067,19 @@ app.post('/inbox/send', async (req, res) => {
     // Fold the human turn into Kiki's own convo history so she has context when she resumes.
     try { const note = (imageUrl ? '[sent a photo] ' : '') + (audioUrl ? '[sent a voice note] ' : '') + (text || ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note.trim() || '[sent media]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
     record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, hasAudio: !!audioUrl, ok: !!(r && r.ok) });
-    if (r && r.ok) return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
+    if (r && r.ok) {
+      // Log the voice note to the thread ONLY now that it actually delivered (so it never shows as
+      // "sent" when it failed). sendChunk skips audio in its up-front logging for this reason.
+      if (audioUrl) { try { const th = inboxThreads.get(inboxSubIndex.get(sub) || ''); inboxRecord((th && th.account) || account, sub, { dir: 'out', sender: 'rodney', text: '🎙 voice note' }); } catch (_) {} }
+      return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
+    }
     const body = String((r && r.body) || '');
     // ManyChat rejects a send to a number that never messaged us (no subscriber exists yet).
     // Show WHY in plain English instead of the raw "Subscriber does not exist" JSON.
     if (/subscriber (does not|doesn'?t) exist|subscriber not found/i.test(body)) {
       return res.json({ ok: false, error: "Can't text this number yet — WhatsApp only lets us reply after the customer messages your business first. They'll show up here automatically once they do.", pausedUntil: pausedUntilOf(sub) });
     }
-    return res.json({ ok: false, error: 'Send failed: ' + body.slice(0, 160), pausedUntil: pausedUntilOf(sub) });
+    return res.json({ ok: false, error: (audioUrl ? 'Voice note didn\'t send: ' : 'Send failed: ') + body.slice(0, 160), pausedUntil: pausedUntilOf(sub) });
   } catch (e) { return res.json({ ok: false, error: String(e).slice(0, 200) }); }
 });
 
