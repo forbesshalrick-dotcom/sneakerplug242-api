@@ -4016,6 +4016,9 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .sheet .cancel{background:rgba(255,255,255,.07);color:var(--ink)}
   .sheet .save{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#0a0b12}
   .agtoggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim);cursor:pointer;user-select:none;font-weight:600}
+  .briefmic{margin-top:10px;width:100%;padding:11px;border-radius:12px;border:1.5px solid #6c5ce7;background:rgba(108,92,231,.14);color:#e8dcff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+  .briefmic:active{transform:scale(.98)}
+  .briefmic.rec{background:#e23b5a;border-color:#e23b5a;color:#fff;animation:pulse 1s infinite}
   .agtoggle input{accent-color:var(--acc);width:15px;height:15px}
   /* ── OUTER UI: graffiti hero, search, spray rows, bottom nav ── */
   .hero{padding:calc(env(safe-area-inset-top) + 7px) 16px 2px;position:relative;flex-shrink:0;cursor:pointer}
@@ -4236,6 +4239,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <h2><span id="briefAv"></span> Brief Kiki</h2>
     <p>Tell Kiki the truth of this chat so she stops re-asking — the shoe &amp; size they want, that they already paid, delivery details, whatever she keeps getting wrong. The customer never sees this; Kiki uses it as fact on her next reply.</p>
     <textarea id="briefText" placeholder="e.g. Customer wants the Red Thunder Jordan 4 in a 10, already paid via SunCash, just needs delivery to Carmichael Rd."></textarea>
+    <button class="briefmic" id="briefDictate" title="Speak your note — you'll see it typed out here before you send">🎤 Speak your note</button>
     <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle" checked> Label my replies with 👨‍🦱 Agent: so customers know it's a human</label>
     <div class="btns"><button class="cancel" id="briefCancel">Cancel</button><button class="save" id="briefSave">Send to Kiki</button></div>
   </div>
@@ -4670,6 +4674,21 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 
   // ── speak-to-type (dictation): live via the browser like Claude's voice; Whisper fallback ──
   var recog=null, dictating=false, dictBase='', wRec=null, wRecording=false;
+  // 🎤 Speak your Brief-to-Kiki note (hands-free while driving). Live transcript lands in the box so
+  // you SEE it and can fix it before hitting Send to Kiki. Rodney 2026-07-20.
+  var briefRecog=null, briefDictating=false;
+  function briefDictate(){
+    if(briefDictating){ try{briefRecog.stop();}catch(e){} return; }
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ toast('Voice typing not supported in this browser — tap the 🎤 on your keyboard instead'); return; }
+    briefRecog=new SR(); briefRecog.lang='en-US'; briefRecog.interimResults=true; briefRecog.continuous=true;
+    var base = $('briefText').value ? $('briefText').value.replace(/\\s*$/,'')+' ' : '';
+    function reset(){ briefDictating=false; var b=$('briefDictate'); if(b){ b.classList.remove('rec'); b.textContent='🎤 Speak your note'; } }
+    briefRecog.onresult=function(e){ var out=''; for(var i=0;i<e.results.length;i++){ out+=e.results[i][0].transcript + (e.results[i].isFinal?' ':''); } $('briefText').value=base+out; };
+    briefRecog.onend=reset; briefRecog.onerror=reset;
+    try{ briefRecog.start(); briefDictating=true; var b=$('briefDictate'); if(b){ b.classList.add('rec'); b.textContent='● Listening… tap to stop'; } toast('Listening… speak, then check it before you send'); }
+    catch(e){ toast('Could not start voice typing'); }
+  }
   function grow(el){ el.style.height='auto'; el.style.height=Math.min(120,el.scrollHeight)+'px'; }
   function dictate(){
     if(dictating){ try{recog.stop();}catch(e){} return; }
@@ -4810,7 +4829,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 
   // ── Brief Kiki: privately tell her the truth of this chat so she stops re-asking ──
   function openBrief(){ if(!cur) return; $('briefText').value=''; $('agToggle').checked=agentLabel; $('briefModal').classList.add('open'); setTimeout(function(){ $('briefText').focus(); }, 60); }
-  function closeBrief(){ $('briefModal').classList.remove('open'); }
+  function closeBrief(){ if(briefDictating){ try{briefRecog.stop();}catch(e){} } $('briefModal').classList.remove('open'); }
   function saveBrief(){
     if(!cur) return; agentLabel = $('agToggle').checked;
     var note=$('briefText').value.trim();
@@ -4865,6 +4884,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('replyX').onclick=clearQuote;
   $('brief').onclick=openBrief;
   $('briefCancel').onclick=closeBrief;
+  if($('briefDictate')) $('briefDictate').onclick=briefDictate;
   $('briefSave').onclick=saveBrief;
   $('agToggle').onchange=function(){ agentLabel=this.checked; };
   $('briefModal').onclick=function(e){ if(e.target===this) closeBrief(); };
