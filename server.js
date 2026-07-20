@@ -652,10 +652,15 @@ const MANAGER_ALIASES = {
 const MANAGER_TAIL_NAMES = {};
 Object.keys(MANAGER_ALIASES).forEach(function (n) { MANAGER_TAIL_NAMES[n.replace(/\D/g, '').slice(-10)] = MANAGER_ALIASES[n]; });
 const EXTRA_STAFF = {};
-// 📱 TEST PHONE(S): numbers to treat as a normal CUSTOMER (not staff) so their messages show
-// up in the Inbox for testing — even if they're also a manager line. Rodney's 4324406 is his
-// test phone (Rodney 2026-07-19). Comma-separated, env-overridable.
-const TEST_CUSTOMER_RAW = (process.env.TEST_CUSTOMER_NUMBERS || '12424324406').split(',').map(s => String(s).replace(/\D/g, '')).filter(Boolean);
+// 📱 SHOW-IN-INBOX NUMBERS: numbers to treat as a normal CUSTOMER (not staff) so their messages
+// show up in the Inbox — even though they're an employee/manager line. They're STILL recognized
+// as staff when they report a SALE/RESTOCK/FLOAT (see STAFF_ACTION_RE below), so nothing breaks.
+//  · 4324406 = Rodney's test phone (Rodney 2026-07-19)
+//  · 4684477 = Ashinik — employee whose chats must show in the Inbox (Rodney 2026-07-20)
+// Baked-in numbers ALWAYS apply; TEST_CUSTOMER_NUMBERS env just ADDS more (it no longer overrides,
+// so a stray env value can never drop these two back into the hidden-as-staff bucket).
+const TEST_CUSTOMER_RAW = ('12424324406,12424684477,' + (process.env.TEST_CUSTOMER_NUMBERS || ''))
+  .split(',').map(s => String(s).replace(/\D/g, '')).filter(Boolean);
 const TEST_CUSTOMER_TAILS = new Set(TEST_CUSTOMER_RAW.map(s => s.slice(-10)).filter(t => t.length === 10));
 // Also match on the 7-digit LOCAL part so the test phone is recognised whatever country-code /
 // secondary-app (e.g. Hushed) form it arrives in — otherwise it can look like a manager line and
