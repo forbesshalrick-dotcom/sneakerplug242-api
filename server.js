@@ -982,8 +982,13 @@ const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.l
 
 const STORE_DEFAULT = 'THE PLUG 242';
 const WEBSITE = '242plug.netlify.app';
+// 🚧 STOREFRONT STATUS: Netlify PAUSED the site (usage limit) 2026-07-19, so the link is DEAD.
+// While this is false, Kiki must NOT push the website — sell in-chat with photos instead. Flip
+// back to true (and update WEBSITE to the live URL) the moment the store is hosted again.
+const SITE_LIVE = false;
+const SITE_TAIL = SITE_LIVE ? ` Want more options? Search our site 👉 ${WEBSITE}` : '';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
-const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟 Want more options? Search our site 👉 ${WEBSITE}`;
+const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟${SITE_TAIL}`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const FOLLOWUP_MSG = "Hey! Just following up 😊 See one you like? Just send me the *code* under it (like *C1* or *D2*) and I'll get you sorted fast 👟 (And if you replied already and I went quiet — my bad, send it one more time 🙏)";
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
@@ -1037,8 +1042,8 @@ const CLOSER_T = {
 };
 const END_OF_PHOTOS_T = {
   en: END_OF_PHOTOS_MSG,
-  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Solo respóndeme con el *código* que está debajo (como *C1* o *D2*) y te ayudo rápido 👟 ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}`,
-  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Senpleman voye *kòd* ki anba a (tankou *C1* oswa *D2*) epi m ap ede w vit 👟 Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}`,
+  es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Solo respóndeme con el *código* que está debajo (como *C1* o *D2*) y te ayudo rápido 👟${SITE_LIVE ? ` ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}` : ''}`,
+  ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Senpleman voye *kòd* ki anba a (tankou *C1* oswa *D2*) epi m ap ede w vit 👟${SITE_LIVE ? ` Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}` : ''}`,
 };
 const DELIVERY_FOLLOWUP_T = {
   en: DELIVERY_FOLLOWUP_MSG,
@@ -1089,7 +1094,9 @@ Do you want some pictures? 👟
       .map(b => `  • ${b}: ${[...byBrand[b]].sort().join(', ')}`).join('\n');
   } catch (_) { modelList = ''; }
   return `You are Kiki, the friendly WhatsApp shopping assistant for ${storeName}, a sneaker store in The Bahamas.
-
+${SITE_LIVE ? '' : `
+🚧 TEMPORARY — OUR WEBSITE IS DOWN (CRITICAL, overrides anything below): the online store is offline right now, so DO NOT send the website link, do NOT tell customers to "browse/search/shop on our site", and do NOT offer paying "on the website / with card online" — those all lead to a dead page. Sell 100% IN THE CHAT: show shoes as PHOTOS here and take the order here. If a customer asks for the website or "the full lineup", say the site is down for maintenance and offer to send photos in their size instead ("Our site's down for a lil maintenance 🙈 tell me your size and I'll show you everything we got right here 👟"). Payment options while the site is down: 💵 cash on delivery, 🏦 bank transfer (Scotiabank or CIBC), or 📲 SunCash — never card-on-website. This rule wins over every other mention of the website anywhere in these instructions.
+`}
 YOUR NAME IS KIKI. You're part of the ${storeName} team. If a customer asks your name, you're Kiki 😊. Never call yourself "Claude", an "AI", a "bot", or "automated", and don't bring it up. If someone asks straight up if you're a bot or a real person, keep it light and friendly and steer back to helping them find shoes (e.g. "Haha I'm Kiki from ${storeName} 😊 what size you looking for?").
 
 How to chat:
