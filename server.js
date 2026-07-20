@@ -5413,6 +5413,39 @@ app.post('/inbox/transcribe', async (req, res) => {
   catch (e) { res.json({ ok: false, error: String(e).slice(0, 150) }); }
 });
 
+// ── 🛒 STOREFRONT (served from here; Netlify paused 2026-07-19) ─────────────────
+// Serve the shop off Railway so it stays online after Netlify paused. Heavy assets (images/videos/
+// icons/manifest) are rewritten to the free jsDelivr CDN so Railway only sends the small GZIPPED
+// shell — protecting the API's bandwidth/credit. The page always talks to THIS api by absolute URL
+// (SHOP_API), so inventory sync keeps working. The service worker is neutered here (a root-scope SW
+// on the API origin would wrongly intercept API calls). NOTE: storefront.html is a SNAPSHOT bundled
+// from the 242plug repo — re-copy it when the store code changes.
+const _SHOP_CDN = 'https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/242plug@main';
+let STORE_HTML = null, STORE_HTML_GZ = null;
+(function buildStoreHtml(){
+  try {
+    const zlib = require('zlib');
+    let html = require('fs').readFileSync(require('path').join(__dirname, 'storefront.html'), 'utf8');
+    html = html
+      .replace(/(["'(`])assets\//g, '$1' + _SHOP_CDN + '/assets/')
+      .replace(/(["'`])(icon-192\.png|icon-512\.png|apple-touch-icon\.png|manifest\.json)(["'`])/g, '$1' + _SHOP_CDN + '/$2$3')
+      // neuter SW registration → chainable no-op so any .then()/.catch() after it is harmless
+      .replace(/navigator\.serviceWorker\.register\([^)]*\)/g, '({then:function(){return this},catch:function(){return this}})');
+    STORE_HTML = html;
+    STORE_HTML_GZ = zlib.gzipSync(Buffer.from(html));
+  } catch (e) { STORE_HTML = null; STORE_HTML_GZ = null; }
+})();
+app.get('/store', (req, res) => {
+  if (!STORE_HTML) return res.status(503).send('store loading — refresh in a moment');
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.set('Cache-Control', 'no-store');
+  if (STORE_HTML_GZ && /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) {
+    res.set('Content-Encoding', 'gzip');
+    return res.send(STORE_HTML_GZ);
+  }
+  res.send(STORE_HTML);
+});
+
 // The Inbox page itself — a slim, mobile-first staff page served straight from the
 // server (so the 242plug PWA stays slim and just links here with ?key=).
 app.get('/inbox', (req, res) => {
