@@ -4313,7 +4313,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <p>Tell Kiki the truth of this chat so she stops re-asking — the shoe &amp; size they want, that they already paid, delivery details, whatever she keeps getting wrong. The customer never sees this; Kiki uses it as fact on her next reply.</p>
     <textarea id="briefText" placeholder="e.g. Customer wants the Red Thunder Jordan 4 in a 10, already paid via SunCash, just needs delivery to Carmichael Rd."></textarea>
     <button class="briefmic" id="briefDictate" title="Speak your note — you'll see it typed out here before you send">🎤 Speak your note</button>
-    <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle" checked> Label my replies with 👨‍🦱 Agent: so customers know it's a human</label>
+    <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle" checked> Label my replies with 🧑Agent: so customers know it's a human</label>
     <div class="btns"><button class="cancel" id="briefCancel">Cancel</button><button class="save" id="briefSave">Send to Kiki</button></div>
   </div>
 </div>
@@ -4374,7 +4374,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     $('pkg').onclick=go; $('pk').addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
   }
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-  // Escape, then render WhatsApp *bold* as <b> so a bolded label (e.g. "👨‍🦱 *Agent:*") shows
+  // Escape, then render WhatsApp *bold* as <b> so a bolded label (e.g. "*🧑Agent:*") shows
   // bold in the staff inbox too, instead of literal asterisks.
   function escB(s){ return esc(s).replace(/\\*(\\S(?:[^*\\n]*\\S)?)\\*/g,'<b>$1</b>'); }
   // Strip WhatsApp *bold* markers for tiny dim preview lines (no bold needed there).
@@ -5217,7 +5217,7 @@ app.post('/inbox/send', async (req, res) => {
   // the toggle is on (Rodney 2026-07-19: it must be consistent, not just the first line).
   // Default on; the client can switch it off per-send with agent:false.
   if (quote) text = '↩️ "' + quote.slice(0, 180) + '"' + (text ? '\n\n' + text : '');
-  if (b.agent !== false && text) text = '👨‍🦱 *Agent:* ' + text; // *…* → WhatsApp renders "Agent:" in bold
+  if (b.agent !== false && text) text = '*🧑Agent:* ' + text; // emoji glued to Agent (no space), *…* → WhatsApp bold
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   // Right account token: the customer's own account first, then env fallbacks. Direct-API
   // customers (waChannel) route to the Graph API inside sendChunk no matter the token.
