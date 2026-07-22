@@ -699,7 +699,7 @@ function managerNameForNumber(req) {
 }
 // A message that is clearly a STAFF stock action (a sale, restock, float count, expense/gas) —
 // used to flip the owner's own line into staff mode even when it's set as a test customer.
-const STAFF_ACTION_RE = /\bsold\b|\bre-?stock|\bwe got \d|\bgot \d+ more\b|\bput .{0,20}\bback\b|\bfloat\b|\bcount(?:ed|ing)?\b|\bgas\b|\bexpense|\bpaid out\b|\bcash(?:ed)? out\b|\bwhat sold\b|\bsales today\b/i;
+const STAFF_ACTION_RE = /\bsold\b|\bre-?stock|\bwe got \d|\bgot \d+ more\b|\bput .{0,20}\bback\b|\bfloat\b|\bcount(?:ed|ing)?\b|\bgas\b|\bexpense|\bpaid out\b|\bcash(?:ed)? out\b|\bwhat sold\b|\bsales today\b|\brecord(?:ing|ed)?\b[\s\S]{0,15}\bsale|\blog(?:ging|ged)?\b[\s\S]{0,15}\bsale|\bmark(?:ed|ing)?\b[\s\S]{0,15}\bsold|\btake\b[\s\S]{0,20}\bout of stock|\bout of stock\b|\bmade a sale\b|\bmy sale\b|\bthis sale\b/i;
 
 // Every http(s) URL ManyChat sent, with its (lowercased) field name. Used to tell
 // a voice note from a photo from any other attachment.
