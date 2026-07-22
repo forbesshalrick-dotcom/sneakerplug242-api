@@ -3453,21 +3453,18 @@ function openBrandList(){
 // ─── INIT ────────────────────────────────────────────────────
 (function(){
   const APP_VERSION='8.7';
+  // 🛑 REVERT FIX (Rodney 2026-07-22): a version bump used to WIPE sp_shoes + reset Firebase, which
+  // snapped every shoe's stock back to the hardcoded master list — that's why fixes "reverted after a
+  // couple weeks" whenever an update shipped. We do NOT wipe anymore: the catalog build below already
+  // KEEPS live sizes for existing shoes (only refreshing price/image/name) and still ADDS any brand-new
+  // catalog shoes, so code updates propagate WITHOUT nuking inventory. Just record the new version.
   if(localStorage.getItem('sp_version')!==APP_VERSION){
-    localStorage.removeItem('sp_shoes');
-    // NOTE: do NOT clear sp_deleted here. The deletion graveyard must survive code
-    // updates, otherwise every deploy resurrects shoes the user already removed.
-    // Keep sp_settings — preserves WA numbers and payment details across updates
+    // NOTE: do NOT clear sp_deleted — the deletion graveyard must survive updates.
     localStorage.setItem('sp_version',APP_VERSION);
-    sessionStorage.setItem('sp_clean_push','1'); // signal Firebase to reset on first connect
-    shoes=[];
-    // Load existing settings if present
-    settings=JSON.parse(localStorage.getItem('sp_settings')||'{}');
-  } else {
-    shoes=JSON.parse(localStorage.getItem('sp_shoes')||'[]');
-    settings=JSON.parse(localStorage.getItem('sp_settings')||'{}');
-    receipts=JSON.parse(localStorage.getItem('sp_receipts')||'[]');
   }
+  shoes=JSON.parse(localStorage.getItem('sp_shoes')||'[]');
+  settings=JSON.parse(localStorage.getItem('sp_settings')||'{}');
+  receipts=JSON.parse(localStorage.getItem('sp_receipts')||'[]');
   const PIZZA= {"id":"jordan4pizza001","brand":"Jordan","name":"Air Jordan 4 Pizza","color":"Tan/Black/Red","condition":"New","price":180,"sku":"","sizes":["7","7","7.5"],"image":"https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-thumb.jpg","frames360":["https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-0.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-1.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-2.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-3.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-4.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-5.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-6.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-7.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-8.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-9.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-10.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-11.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-12.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-13.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-14.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-15.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-16.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-17.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-18.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-19.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-20.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-21.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-22.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-23.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-24.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-25.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-26.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-27.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-28.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-29.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-30.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-31.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-32.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-33.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-34.jpg","https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-35.jpg"],"sold":false,"reorder":false,"advertised":false,"spinReversed":true};
 
   // Jordan 4 Purple/Yellow
