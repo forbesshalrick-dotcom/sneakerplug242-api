@@ -878,6 +878,10 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       const account = (logOpts && logOpts.account) || (t && t.account) || '';
       const who = (logOpts && logOpts.sender) || 'kiki';
       for (const mm of (messages || [])) {
+        // HUMAN sends (the Inbox composer): logged by /inbox/send ONLY after ManyChat/Meta accepts
+        // the send — logging up-front here painted failed sends as delivered (Rodney 2026-07-24:
+        // "I'm here" / "in the Nissan" showed in the thread but never reached the customer).
+        if (who === 'rodney') continue;
         if (mm && mm.type === 'image' && mm.url) { inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: '', img: mm.url }); continue; }
         if (mm && mm.type === 'audio') continue; // a voice note is logged by /inbox/send ONLY after it actually sends, so it never shows as "sent" when it failed
         const txt = (mm && mm.text) ? String(mm.text) : '';
@@ -5470,11 +5474,16 @@ app.post('/inbox/send', async (req, res) => {
     try { const note = (imageUrl ? '[sent a photo] ' : '') + (audioUrl ? '[sent a voice note] ' : '') + (text || ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note.trim() || '[sent media]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
     record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, hasAudio: !!audioUrl, audioMode: audioUrl ? (isGraph ? 'native' : 'link') : '', ok: !!(r && r.ok), body: (r && r.body) ? String(r.body).slice(0, 180) : '' });
     if (r && r.ok) {
-      // Log the native voice note to the thread ONLY now that it actually delivered (so it never
-      // shows as "sent" when it failed). sendChunk skips audio in its up-front logging for this
-      // reason. The ManyChat link path is a text message, which sendChunk already logs — so only
-      // the Graph (native audio) path logs the clean "🎙 voice note" bubble here (no double bubble).
-      if (audioUrl && isGraph) { try { const th = inboxThreads.get(inboxSubIndex.get(sub) || ''); inboxRecord((th && th.account) || account, sub, { dir: 'out', sender: 'rodney', text: '🎙 voice note' }); } catch (_) {} }
+      // Log the human's messages to the thread ONLY now that the send actually succeeded — sendChunk
+      // skips ALL sender:'rodney' logging up-front, so a failed send can never sit in the thread
+      // looking delivered (Rodney 2026-07-24: "I'm here" showed as sent, the customer got nothing).
+      try {
+        const th = inboxThreads.get(inboxSubIndex.get(sub) || '');
+        const acct = (th && th.account) || account;
+        if (imageUrl) inboxRecord(acct, sub, { dir: 'out', sender: 'rodney', text: '', img: imageUrl });
+        if (audioUrl) inboxRecord(acct, sub, { dir: 'out', sender: 'rodney', text: '🎙 voice note' });
+        if (text) inboxRecord(acct, sub, { dir: 'out', sender: 'rodney', text });
+      } catch (_) {}
       return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
     }
     const body = String((r && r.body) || '');
