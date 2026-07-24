@@ -5180,6 +5180,31 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   }, 3000);
   // keep the Orders count badge fresh while a thread is open
   setInterval(function(){ if(cur) refreshOrderBadge(); }, 20000);
+  // 🔊 VOICE ALERTS (Rodney 2026-07-24): says "New order. New order." / "Need agent. Need
+  // agent." out loud the moment either happens — runs always, not just with a thread open,
+  // so it fires whether he's sitting on the list or inside a chat. Seeds seen-ids on the
+  // FIRST poll without speaking (so reopening the app doesn't replay old alerts), then
+  // speaks once for every genuinely new one after that.
+  var _seenVoiceIds={}, _voiceReady=false;
+  function speakVoice(text){
+    try{
+      if(!window.speechSynthesis) return;
+      var u=new SpeechSynthesisUtterance(text);
+      u.rate=1; u.pitch=1; u.volume=1;
+      window.speechSynthesis.speak(u);
+    }catch(e){}
+  }
+  function pollVoiceEvents(){
+    api('/inbox/voice-events').then(function(d){
+      if(!d || !d.events) return;
+      var fresh=d.events.filter(function(e){ return !_seenVoiceIds[e.id]; });
+      d.events.forEach(function(e){ _seenVoiceIds[e.id]=1; });
+      if(_voiceReady) fresh.forEach(function(e){ speakVoice(e.type==='agent' ? 'Need agent. Need agent.' : 'New order. New order.'); });
+      _voiceReady=true;
+    }).catch(function(){});
+  }
+  setInterval(pollVoiceEvents, 10000);
+  pollVoiceEvents();
 
   if(!KEY){ promptKey(); }
   else loadThreads();
@@ -5505,6 +5530,23 @@ app.get('/inbox/avatar/:sub', (req, res) => {
   const sub = String(req.params.sub).replace(/[^0-9]/g, '');
   try { const p = require('path').join(AVATAR_DIR, sub + '.jpg'); if (require('fs').existsSync(p)) { res.set('Content-Type', 'image/jpeg').set('Cache-Control', 'public, max-age=600'); return res.send(require('fs').readFileSync(p)); } } catch (_) {}
   res.status(404).end();
+});
+
+// 🔊 VOICE ALERTS (Rodney 2026-07-24: "both phones just rang... I want a voice to say New
+// order, and when a customer needs an agent the voice should say Need agent — on both the
+// Inbox app and the website app"). Returns recent notify_manager (order) and get_agent
+// (agent-needed) alerts, tagged by type, so the client can speak the right phrase for each
+// NEW one it hasn't seen before. Not date-restricted (unlike /inbox/orders) — the client
+// seeds its seen-ids on first load and only speaks for ones that arrive after that.
+app.get('/inbox/voice-events', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  let notes = [];
+  try { notes = require('./shop').getNotes() || []; } catch (_) {}
+  const events = notes
+    .filter(n => n && /NEW ORDER|🆕|CUSTOMER NEEDS A TEAM MEMBER|🙋/.test(n.text || ''))
+    .slice(0, 80)
+    .map(n => ({ id: n.id, at: n.createdAt, type: /CUSTOMER NEEDS A TEAM MEMBER|🙋/.test(n.text || '') ? 'agent' : 'order' }));
+  res.json({ ok: true, events });
 });
 
 // 🛍️ TODAY'S DELIVERY ORDERS — the order/delivery-ready alerts posted to the shared

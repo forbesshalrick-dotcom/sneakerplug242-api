@@ -7079,6 +7079,20 @@ function ensureNotifyPermission(){
   }catch(e){}
 }
 
+// 🔊 VOICE ALERT (Rodney 2026-07-24: "I want a voice to say New order" / "when the customer
+// needs an agent the voice should say Need agent" — on both this app and the Inbox app).
+// Runs alongside the existing sound/banner alert, not instead of it.
+function _speakVoiceAlert(note){
+  try{
+    var t=(note && note.text)||'';
+    var phrase = /CUSTOMER NEEDS A TEAM MEMBER|🙋/.test(t) ? 'Need agent. Need agent.'
+      : /NEW ORDER|🆕/.test(t) ? 'New order. New order.' : null;
+    if(!phrase || !window.speechSynthesis) return;
+    var u=new SpeechSynthesisUtterance(phrase);
+    u.rate=1; u.pitch=1; u.volume=1;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
 function _deliveryAlert(note){
   try{ _sfx.alert(); }catch(e){}
   try{ if(navigator.vibrate) navigator.vibrate([200,100,200,100,200]); }catch(e){}
@@ -7120,7 +7134,7 @@ function syncNotes(showMsg){
       // the seen-set silently; after that, an unseen OPEN note rings the alarm.
       var fresh = merged.filter(function(n){ return !_seenNoteIds[n.id] && !n.done; });
       merged.forEach(function(n){ _seenNoteIds[n.id]=1; });
-      if(_notesAlertReady && fresh.length){ _deliveryAlert(fresh[0]); }
+      if(_notesAlertReady && fresh.length){ _deliveryAlert(fresh[0]); fresh.forEach(_speakVoiceAlert); }
       _notesAlertReady = true;
       saveLocalNotes(merged);
       var pg=document.getElementById('page-tasks');
