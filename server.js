@@ -3914,6 +3914,17 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
      The body-prefixed selector beats the plain id inset:0 rule regardless of order. */
   @media (min-width:820px){
     body{background:#08070e}
+    /* Fallback gutter fill for when NO per-customer photo is set (Rodney 2026-07-24: a
+       laptop with no chat background showed the app as a narrow strip over plain flat
+       black — looked broken/unstyled). Same nebula gradient as the in-app backdrop, just
+       fixed to the full viewport. body.hasbg::before below is MORE specific (extra class)
+       so it still wins and shows the blurred customer photo whenever one is set. */
+    body::before{content:'';position:fixed;inset:0;z-index:-3;pointer-events:none;
+      background:
+        radial-gradient(700px 480px at 14% 8%, rgba(198,92,255,.22), transparent 60%),
+        radial-gradient(700px 540px at 86% 20%, rgba(34,211,238,.17), transparent 60%),
+        radial-gradient(820px 620px at 50% 105%, rgba(255,92,180,.19), transparent 60%),
+        linear-gradient(180deg,#0a0812,#05050a)}
     body.hasbg::before{content:'';position:fixed;inset:0;z-index:-3;background-image:var(--chatbg);background-size:cover;background-position:center;filter:blur(26px) brightness(.5) saturate(1.1);transform:scale(1.08)}
     body.hasbg::after{content:'';position:fixed;inset:0;z-index:-2;background:rgba(5,5,10,.55)}
     body #listView,body #threadView{left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:440px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10);box-shadow:0 0 120px rgba(0,0,0,.8)}
