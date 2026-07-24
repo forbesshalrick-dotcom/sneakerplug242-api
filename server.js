@@ -1221,7 +1221,7 @@ ${modelList}
 - EVEN IF THEY ONLY GAVE A SIZE (still show them — don't sit waiting): the moment you know their size, send the FULL ALBUM in that size right away (search_inventory + one send_photos with every id). A bare size with nothing else is STILL a green light to show everything — don't wait for another word and don't re-ask what they want. Everyone who gives us a size gets the whole lineup, so we never miss a customer. ⚠️ "SEND [SIZE]" IS AN ORDER, NOT A QUESTION (Rodney's rule 2026-07-13 — Bahamians talk short): "send 10.5", "send a ten and a half", "send 9", "shoot me the 8s", "let me get a 12" means SEND ME EVERYTHING YOU HAVE IN THAT SIZE, all brands. Do NOT reply "I need to know which shoe you want" or "what are you after?" — that's the #1 way to lose them. Just search that size (plus the half up) across ALL brands and send the whole album with "This is what we have in 10.5 rite now 👇 Ready to Order!".
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
 - Specific shoe: if they name a shoe ("Jordan 4", "Air Max 95"), help with that; ask their size only if you need it to narrow things down.
-- YOU CAN FIND ANYTHING — GUIDE THE CUSTOMER (IMPORTANT): you have the FULL, live, up-to-date inventory and can look up and send anything we have in seconds — customers do NOT need to send you a photo. When someone is unsure, just says "hi", asks "what can you do?", or looks like they're about to send a picture, let them know you're here to help them find the shoe they need and they can just ASK — then in ONE short friendly line give ONLY these example prompts and NO others (never open with a price / "under $150" / "cheapest" / "all black" example): "I've got our whole stock right here 👟 just tell me what you're after! Like — \"what you got in Jordans?\", \"any New Balance?\", \"what you have in red?\", \"anything in white?\", or \"what's in a size 7?\" 😊".
+- YOU CAN FIND ANYTHING — ASK THE SIZE, DON'T COACH (Rodney 2026-07-24, replaces the old example-prompts rule): you have the FULL, live inventory and can send anything in seconds. When a customer asks what we have — "what's in stock?", "wha all yall have?", "show me what you got" — do NOT lecture them on how to ask, do NOT list example questions ("you can ask me 'what you got in Jordans?', 'any New Balance?'…" — that menu reply annoyed a real customer 2026-07-24 who just wanted the goods). Ask ONE short thing — their SIZE — and GO: "What size you wear? 👟 I'll send you everything we got in it 🔥" — then the moment they answer, search that size (+ the half-size up) and send the photos. If they already gave a size, brand, or colour anywhere in the chat, skip the question entirely and just send the batch. One question max, then pictures — the photos ARE the answer.
 - HANDLE THESE QUESTION SHAPES DIRECTLY (call search_inventory, then send_photos of the matches):
   • "do you have the red Jordan 4 in 8.5?" → query "red Jordan 4" (or brand+color) + size "8.5" → confirm and send it.
   • "what do you have in pink?" → color "pink", no size → send everything pink.
@@ -1997,6 +1997,8 @@ const convos = new Map();    // subscriberId -> message history
 // said it once (history gets trimmed to 24 msgs, so a size given early can fall out — this
 // survives that). Set when Kiki searches a single size; injected back into her context.
 const custSize = new Map();   // sub -> { size, ts }
+// sub -> ts of the last 🙋 AGENT NEEDED alert, so one chat can't spam the owner's phone
+const humanAskAlerted = new Map();
 // PERSIST conversations to the /data volume so a redeploy/restart mid-chat doesn't
 // wipe Kiki's memory (Rodney 2026-07-13 — a customer sent their phone number right as
 // an update restarted the server, and Kiki "acted like a new convo started").
@@ -2593,6 +2595,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     } catch (_) {}
   }
+  // 🙋 AGENT NEEDED (Rodney 2026-07-24): when a CUSTOMER asks for a human — "can I talk to a
+  // person?", "speak to the owner/manager", "real person please", "is this a bot? get me someone" —
+  // ping the owner's WhatsApp immediately with a clear "AGENT NEEDED" headline so he knows exactly
+  // why his phone buzzed. Detected here in code (never left to the model), throttled to one alert
+  // per chat every 2h so a repeated ask can't spam.
+  if (!_isStaffChat) {
+    try {
+      const HUMAN_RE = /(talk|speak|chat)\s*(to|with)\s*(a\s*|the\s*)?(human|person|real\s*person|agent|owner|manager|boss|someone|somebody)|real\s*person|live\s*(agent|person)|actual\s*(person|human)|customer\s*service|need\s*(a\s*)?(human|agent)\b|\bhuman\s*please\b/i;
+      const plain = String(userText || '').split('\n\n(SYSTEM')[0];
+      if (HUMAN_RE.test(plain)) {
+        const last = humanAskAlerted.get(sub) || 0;
+        if (Date.now() - last > 2 * 3600 * 1000) {
+          humanAskAlerted.set(sub, Date.now());
+          const who = (ctx.name && String(ctx.name).trim()) || ('+' + String(getPhone(req) || sub).replace(/[^0-9]/g, ''));
+          waSendManager(`🙋 *AGENT NEEDED* — ${who}${ctx.store ? ' (' + ctx.store + ')' : ''} is asking for a HUMAN in the chat:\n"${plain.slice(0, 140)}"\n📥 Open the Inbox and reply — Kiki pauses the moment you do.`, token).catch(() => {});
+          record(req, { endpoint: 'agent-needed', sub, q: plain.slice(0, 60) });
+        }
+      }
+    } catch (_) {}
+  }
   // 📥 INBOX: log the customer's inbound message (skip our own staff/owner coworker
   // chats) so it appears in the staff Inbox even while Kiki is paused. Strip any
   // SYSTEM-note decoration so the thread shows what the customer actually said.
@@ -2999,8 +3021,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // "delivery_ready" (default) fires once the location is in hand.
         const earlyStage = inp.stage === 'order_confirmed';
         const lines = [
-          earlyStage ? '🆕 *NEW ORDER* — customer is buying now (location still coming)'
-                     : '🛵 *DELIVERY READY* — please facilitate',
+          earlyStage ? "🛒 *YOU'VE GOT AN ORDER!* 🆕 — customer is buying now (location still coming)"
+                     : "🛵 *YOU'VE GOT AN ORDER — DELIVERY READY* — please facilitate",
           inp.customer_name ? `👤 ${inp.customer_name}` : null,
           custPhone ? `📞 ${custPhone}  (wa.me/${custPhone.replace(/[^0-9]/g,'')})` : null,
           inp.shoe ? `👟 ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : (inp.size ? `👟 size ${inp.size}` : null),
@@ -4262,6 +4284,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     </div>
     <button class="sbtn dens" id="density" title="Smaller rows — fit the full name & number"><span style="font-weight:800;line-height:1">A<span style="font-size:11px">a</span></span></button>
     <button class="sbtn" id="rf" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg></button>
+    <a class="sbtn" id="siteBtn" href="https://242plug.com" target="_blank" rel="noopener" title="Open 242plug.com — the website" style="text-decoration:none;display:flex;align-items:center;justify-content:center;font-size:16px">🛒</a>
   </div>
   <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
   <div id="selBar" style="display:none"><span class="selinfo"><b id="selCount">0</b> selected</span><button id="selSend" class="selbtn">📸 Send pics</button><button id="selCancel" class="selx">✕</button></div>
