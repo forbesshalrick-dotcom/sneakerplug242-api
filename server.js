@@ -4133,9 +4133,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .banner b{cursor:pointer;text-decoration:underline;font-weight:700}
   .composer{display:flex;padding:4px 10px calc(4px + env(safe-area-inset-bottom));align-items:flex-end;background:transparent}
   /* scrollable icon strip inside the composer: camera/mic/dictate + pics/orders/pay/money */
-  /* show only 3 icons (photo, send-pics, voice note); the rest are a swipe away. The mask
-     fades the right edge so it's clear more icons hide off-screen. */
-  .iconstrip{display:flex;gap:4px;align-items:center;overflow-x:auto;flex:0 0 auto;width:96px;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px;touch-action:pan-x;cursor:grab;
+  /* Rodney 2026-07-24: "icon draw not pulling out" — the swipe-to-reveal drag DOES work, but
+     96px was already tight for 7 icons and got tighter once the dedicated camera button made
+     it 8 — too fiddly to reliably grab with a real thumb. Widened so ~5 show at once instead
+     of 3, meaning far less swiping is ever needed. The mask still fades the right edge so it's
+     clear a couple more icons hide off-screen. */
+  .iconstrip{display:flex;gap:4px;align-items:center;overflow-x:auto;flex:0 0 auto;width:150px;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:1px;touch-action:pan-x;cursor:grab;
     -webkit-mask-image:linear-gradient(90deg,#000 84%,transparent);mask-image:linear-gradient(90deg,#000 84%,transparent)}
   .iconstrip.dragging{cursor:grabbing}
   .iconstrip::-webkit-scrollbar{display:none}
