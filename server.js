@@ -2313,6 +2313,15 @@ function saveInbox() {
 // the nudge fires (not when scheduled), so it wins even against the race where a slow album
 // schedules the nudge AFTER the customer's reply already tried to cancel it.
 const DEFER_RE = /\b(get(ting)?\s*back\s*to\s*(you|u|ya|yah)|i'?ll?\s*(let|lmk)\s*you?\s*know|let\s*you\s*know\s*(later|soon|when)|think(ing)?\s*about\s*it|need\s*to\s*think|gotta\s*think|maybe\s*(later|next\s*time)|not\s*right\s*now|hold\s*on\b|(give\s*me|gimme)\s*a?\s*(min|sec|moment|minute|second)|i'?ll?\s*be\s*back|talk\s*(to\s*you\s*)?later|i'?ll?\s*check|come\s*back\s*to\s*(you|this|it))\b/i;
+// Shared brand/model/colour detector — used both to check what a CUSTOMER asked for and
+// what a lead-in/group-label already says, so an album isn't wrongly "topped up" beyond a
+// specific request. Includes common slang: "j's"/"js"/"jays" all mean Jordans (Rodney
+// 2026-07-24: a customer asked for "j's" — not the word "jordan" — and both this check and
+// Kiki's own reply text missed it, so a Jordan-only request got a random slide appended).
+// Plurals matter: bare "jordan\b" does NOT match "jordans" (the \b fails between the 'n'
+// and the plural 's', both word chars) — a customer saying "you got jordans?" was ALSO
+// silently missed before this fix, same bug class as the "j's" gap above.
+const BRAND_WORD_RE = /\b(jordans?|j'?s|jays?|nike|air ?max|air ?force|af1s?|dunks?|vapor|scorpion|shox|huaraches?|new ?balance|\bnb\b|9060|1906|990|550|yeezys?|adidas|asics|crocs?|puma|reebok|slippers?|mules?|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i;
 function scheduleNudge(sub, token, text, ms, next) {
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
@@ -2973,7 +2982,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try {
           const outIds = (Array.isArray(inp.groups) && inp.groups.length) ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
           outIds.forEach(id => turnSentIds.add(String(id)));
-          if (!/\b(jordan|nike|air ?max|air ?force|af1|dunk|vapor|scorpion|shox|huarache|new ?balance|\bnb\b|9060|1906|990|550|yeezy|adidas|asics|crocs|puma|reebok|slipper|mule|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i.test(String(leadIn || ''))) {
+          // Check group LABELS too, not just the top-level lead_in — a multi-size request
+          // ("j's 9.5 10 and 5.5 6") is exactly the case the tool spec tells Kiki to leave
+          // lead_in EMPTY for and put the brand in each group's label instead (Rodney
+          // 2026-07-24: a customer asked for JORDANS in 4 sizes, Kiki correctly sent all
+          // Jordans grouped by size, then the top-up still fired and appended a random
+          // slide — because this check only ever looked at leadIn, which was blank).
+          const groupLabels = (Array.isArray(inp.groups) ? inp.groups.map(g => g.label || '').join(' ') : '');
+          if (!BRAND_WORD_RE.test(String(leadIn || '') + ' ' + groupLabels)) {
             turnGenericSizeAlbum = true;
           }
         } catch (_) {}
@@ -3331,7 +3347,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       typeof m.content === 'string' ? m.content
         : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text || '').join(' ') : ''))
   ).join(' ');
-  const customerNamedSpecific = /\b(jordan|nike|air ?max|air ?force|af1|dunk|vapor|scorpion|shox|huarache|new ?balance|\bnb\b|9060|1906|990|550|yeezy|adidas|asics|crocs|puma|reebok|slipper|mule|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i.test(_recentCust);
+  const customerNamedSpecific = BRAND_WORD_RE.test(_recentCust);
   if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !customerNamedSpecific && turnSizeSearchSizes.length) {
     try {
       const wantSizes = [...new Set(turnSizeSearchSizes)];
@@ -3946,8 +3962,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
        come after it), so it doesn't need to hide behind anything via negative stacking.
        --chatbg always has a real value (defaults to /inbox/bg.jpg with no per-customer photo
        — see the CHATBG default below), so this needs no .hasbg gate. */
-    body::before{content:'';position:fixed;inset:0;z-index:0;background-image:var(--chatbg);background-size:cover;background-position:center;filter:blur(18px) saturate(1.3) brightness(1.1);transform:scale(1.08)}
-    body::after{content:'';position:fixed;inset:0;z-index:0;background:rgba(5,5,10,.2)}
+    /* pointer-events:none is CRITICAL, not decorative (Rodney 2026-07-24 — "site not
+       responding to touch, no scroll, nothing" — a real outage): ::after generated content
+       is ordered AFTER every real child in stacking, even at the same z-index, so this
+       nearly-invisible full-viewport tint was painting (and hit-testing) ON TOP OF
+       #listView/#threadView, silently swallowing every click/scroll/touch on the whole app.
+       Confirmed live via elementsFromPoint() before this fix — BODY was catching input that
+       should have gone to the row underneath it. These layers must never intercept input. */
+    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:var(--chatbg);background-size:cover;background-position:center;filter:blur(18px) saturate(1.3) brightness(1.1);transform:scale(1.08)}
+    body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(5,5,10,.2)}
     /* Rodney 2026-07-24: "I want the actual chat to be wider — it started off wide until we
        made changes to make the aspect ratio fit a mobile perfectly." Widened from the
        440px phone-simulation back up to a real desktop-app width (900px); message bubbles
