@@ -4416,7 +4416,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   <div class="msgs" id="msgs"></div>
   <div class="replybar" id="replyBar" style="display:none"><span id="replyText"></span><span id="replyX">✕</span></div>
   <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label" id="imgLabel">Photo ready to send</span><button id="imgSend" class="ipsend">Send ➤</button><span id="imgX">✕</span></div>
-  <div class="imgprev voiceprev" id="audPreview" style="display:none"><button id="audPlay" class="vplay" title="Play back">▶️</button><span class="ip-label"><b id="audDur">0:00</b> · voice note ready</span><button id="audSend" class="ipsend">Send ➤</button><span id="audX" title="Delete">🗑️</span><audio id="audEl" preload="auto" style="display:none"></audio></div>
+  <div class="imgprev voiceprev" id="audPreview" style="display:none"><button id="audPlay" class="vplay" title="Play back">▶️</button><span class="ip-label"><b id="audDur">0:00</b> · voice note ready</span><button id="audTranscribe" class="ipsend" title="Turn this into text instead of sending audio" style="background:rgba(255,255,255,.08);">📝</button><button id="audSend" class="ipsend">Send ➤</button><span id="audX" title="Delete">🗑️</span><audio id="audEl" preload="auto" style="display:none"></audio></div>
   <div class="rechud" id="recHud" style="display:none"><span class="recdot"></span><span id="recTime">0:00</span><span class="eqbars"><i></i><i></i><i></i><i></i><i></i></span><button id="recStop" class="recstop">■ Stop</button><button id="recCancel" class="reccancel">🗑️</button></div>
   <div class="composer">
     <div class="compinner">
@@ -5163,6 +5163,25 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('audX').onclick=clearAud;
   if($('audPlay')) $('audPlay').onclick=playAud;
   if($('audSend')) $('audSend').onclick=send;
+  // 📝 Turn the just-recorded voice note into TEXT instead of sending audio (Rodney
+  // 2026-07-24: on ManyChat accounts — TK/OSC — a voice note can only go out as a tappable
+  // link, not a real playable clip, since ManyChat silently drops native audio. Reuses the
+  // same Whisper transcription already used for the dictate fallback and for reading
+  // customers' own voice notes.
+  if($('audTranscribe')) $('audTranscribe').onclick=function(){
+    if(!pendingAudioUrl){ toast('No recording to transcribe'); return; }
+    var btn=$('audTranscribe'); var was=btn.textContent; btn.textContent='⏳'; btn.disabled=true;
+    post('/inbox/transcribe',{url:pendingAudioUrl}).then(function(r){
+      btn.textContent=was; btn.disabled=false;
+      if(r && r.ok && r.text){
+        var t=$('text'); var base=t.value?t.value.replace(/\s*$/,'')+' ':''; t.value=base+r.text; grow(t); t.focus();
+        clearAud();
+        toast('📝 Transcribed — check it over, then hit Send');
+      } else {
+        toast((r&&r.error)||'Could not transcribe — try again or just send the voice note');
+      }
+    }).catch(function(){ btn.textContent=was; btn.disabled=false; toast('Could not transcribe — network error'); });
+  };
   $('replyX').onclick=clearQuote;
   $('brief').onclick=openBrief;
   $('briefCancel').onclick=closeBrief;
