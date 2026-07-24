@@ -4090,6 +4090,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .ctxrow{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
   .ctxbtn{flex:1;min-width:96px;padding:13px 10px;border-radius:14px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.4);color:#fff;font-weight:700;font-size:13.5px;font-family:'Space Grotesk';cursor:pointer}
   .ctxbtn:active{transform:scale(.95)}
+  .customlblrow{display:flex;gap:8px;margin-bottom:14px}
+  .customlblrow input{flex:1;min-width:0;padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.35);color:#fff;font-family:'Space Grotesk';font-size:13.5px}
+  .customlblrow input::placeholder{color:var(--dim)}
+  .customlblrow button{padding:11px 16px;border-radius:12px;background:linear-gradient(135deg,#ff5cb4,#c65cff);border:0;color:#fff;font-weight:800;font-size:13px;font-family:'Space Grotesk';cursor:pointer}
+  .customlblrow button:active{transform:scale(.93)}
+  .ctxbtn.ctxdanger{width:100%;background:rgba(255,59,92,.12);border-color:rgba(255,59,92,.55);color:#ff8397;margin-bottom:14px}
   .chip.sending{background:#12b866;border-color:#2fe08a;color:#04120b;opacity:1}
   .modal.busy .sheet{pointer-events:none}
   .modal.busy .sheet::after{content:'Sending… ⏳';position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#7dffb0;font-weight:800;font-size:14px}
@@ -4245,7 +4251,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <div class="compinner">
       <!-- Only the first 3 (photo, send-pics, voice note) show; swipe left for the rest. -->
       <div class="iconstrip" id="iconStrip">
-        <button class="attach" id="attach" title="Send a photo">📷</button>
+        <button class="attach" id="attach" title="Choose photo from gallery">🖼️</button>
+        <button class="attach" id="camBtn" title="Take a photo">📷</button>
         <button class="attach q-shoes" id="q-shoes" title="Send pics by size / brand">📸</button>
         <button class="attach" id="mic" title="Record a voice note">🎙</button>
         <button class="attach" id="dictate" title="Speak to type">🗣️</button>
@@ -4255,6 +4262,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       </div>
       <button class="attach stopsend" id="stopSend" title="STOP sending photos to this customer">✋</button>
       <input type="file" id="file" accept="image/*" multiple style="display:none">
+      <input type="file" id="camFile" accept="image/*" capture="environment" style="display:none">
       <textarea id="text" rows="1" placeholder="Reply as the business…"></textarea>
       <button class="sendbtn" id="send" title="Send">➤</button>
     </div>
@@ -4284,6 +4292,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     </div>
     <div class="picklabel">Label this customer</div>
     <div class="chiprow" id="ctxLabels"></div>
+    <div class="customlblrow"><input id="ctxCustomLbl" placeholder="Or type your own label…" maxlength="24"><button id="ctxCustomLblGo">Set</button></div>
+    <button class="ctxbtn ctxdanger" id="ctxDelete">🗑️ Delete chat</button>
     <div class="btns"><button class="cancel" id="ctxClose">Close</button></div>
   </div>
 </div>
@@ -4953,7 +4963,13 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     s.addEventListener('click', function(e){ if(moved){ e.preventDefault(); e.stopPropagation(); moved=false; } }, true);
   })();
   $('attach').onclick=function(){ $('file').click(); };
-  $('file').onchange=function(){ if(this.files){ Array.prototype.forEach.call(this.files, function(f){ pickPhoto(f); }); } };
+  $('file').onchange=function(){ if(this.files){ Array.prototype.forEach.call(this.files, function(f){ pickPhoto(f); }); } this.value=''; };
+  // Dedicated CAMERA button (Rodney 2026-07-23): the gallery input above allows picking
+  // several images at once, which makes Android/Chrome hide the "take a photo" option
+  // entirely (a camera can only shoot one at a time) — that's why there was no way to snap
+  // a photo. This second input allows only ONE image and asks for the camera directly.
+  $('camBtn').onclick=function(){ $('camFile').click(); };
+  $('camFile').onchange=function(){ if(this.files && this.files[0]) pickPhoto(this.files[0]); this.value=''; };
   $('imgSend').onclick=send;
   $('avFile').onchange=function(){ if(this.files && this.files[0] && pendingAv){ setAvatarFromFile(pendingAv, this.files[0]); pendingAv=null; } };
   // TAP-to-record mic. One tap starts (mic turns red + HUD shows Stop/Cancel); tap the mic again OR
@@ -4982,6 +4998,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('ctxPics').onclick=function(){ if(!ctxTarget) return; pickTargets=[ctxTarget]; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=' · '+(ctxTarget.name||('+'+ctxTarget.sub)); closeCtx(); $('shoeModal').classList.add('open'); loadPickChips(); };
   $('ctxPin').onclick=function(){ if(!ctxTarget) return; post('/inbox/pin',{sub:ctxTarget.sub,account:ctxTarget.account}).then(function(r){ if(r&&r.ok){ toast(r.pinned?'📌 Pinned to top':'Unpinned'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not pin'); }); };
   $('ctxMulti').onclick=function(){ if(!ctxTarget) return; var t=ctxTarget; closeCtx(); selMode=true; selected[t.sub]=t; refreshSel(); };
+  $('ctxCustomLblGo').onclick=function(){ var v=($('ctxCustomLbl').value||'').trim(); if(!v){ toast('Type a label first'); return; } setLabel({text:v,color:'#ff5cb4'}); };
+  $('ctxCustomLbl').onkeydown=function(e){ if(e.key==='Enter'){ e.preventDefault(); $('ctxCustomLblGo').click(); } };
+  $('ctxDelete').onclick=function(){
+    if(!ctxTarget) return;
+    if(!confirm('Delete this chat from the Inbox?\n\n'+(ctxTarget.name||('+'+ctxTarget.sub))+'\n\nThis only removes it from YOUR inbox view — Kiki keeps replying to them normally, and a new message brings the chat right back.')) return;
+    post('/inbox/delete',{sub:ctxTarget.sub,account:ctxTarget.account}).then(function(r){
+      if(r&&r.ok){ toast('🗑️ Chat deleted'); closeCtx(); if(cur&&cur.sub===ctxTarget.sub){ closeThread(); } else loadThreads(); }
+      else toast((r&&r.error)||'Could not delete');
+    });
+  };
   $('q-shoes').onclick=openShoe;
   // ✋ STOP: halt an in-progress photo album to THIS customer (a picker send or a Kiki dump).
   $('stopSend').onclick=function(){ if(!cur){ toast('Open a chat first'); return; } post('/inbox/stop-send',{sub:cur.sub}).then(function(r){ toast(r&&r.ok?'✋ Stopping photos to this chat':'Could not stop'); }).catch(function(){ toast('Could not stop'); }); };
@@ -5317,6 +5343,23 @@ app.post('/inbox/label', (req, res) => {
   else t.label = ''; // clear
   inboxRev++; saveInbox();
   res.json({ ok: true, label: t.label });
+});
+
+// 🗑️ Delete a chat from the Inbox (Rodney 2026-07-23). Removes the thread + its sub
+// index entry so it no longer shows in the list. This only clears the INBOX view — it
+// does NOT touch Kiki's own conversation memory, so she still replies normally; it just
+// stops showing this customer's thread to staff. A new inbound message re-creates the
+// thread fresh (inboxRecord makes one if none exists), so deleting is safe/non-destructive.
+app.post('/inbox/delete', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = req.body || {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  const key = threadKey(b.account, sub);
+  const existed = inboxThreads.delete(key);
+  if (inboxSubIndex.get(sub) === key) inboxSubIndex.delete(sub);
+  if (!existed) return res.json({ ok: false, error: 'no thread' });
+  inboxRev++; saveInbox();
+  res.json({ ok: true });
 });
 
 // 🧠 BRIEF KIKI — Rodney privately tells Kiki the truth of this chat (the shoe/size the
