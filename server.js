@@ -1027,18 +1027,24 @@ const WELCOME_NUDGE_MSG = "Let me know if you'd like to see the catalog or what 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
 // English customer never gets Spanish/Creole auto-messages by mistake.
-const subLang = new Map(); // sub -> 'en' | 'es' | 'ht'
+const subLang = new Map(); // sub -> 'en' | 'es' | 'ht' | 'fr'
 function detectLang(text, prev) {
   const t = (text || '').toLowerCase();
   if (!t.trim()) return prev || 'en';
   // Strong single markers that are unmistakably one language (a greeting is enough).
   if (/\b(bonswa|bonsw[eè]|bonjou|sak pase|sak ap f[eè]t|kijan ou ye|m[eè]si anpil|koman ou ye)\b/.test(t)) return 'ht';
   if (/\b(hola|buenas|buenos d[ií]as|buenas tardes|buenas noches|gracias)\b/.test(t)) return 'es';
+  // French (Rodney 2026-07-24: a "Bonjour ! Puis-je…" customer got a FRENCH Kiki reply but an
+  // ENGLISH auto-nudge). "bonjour/bonsoir" are French — Creole's greeting is "bonjou" (no r),
+  // already matched above so the two never collide.
+  if (/\b(bonjour|bonsoir|puis[- ]je|pouvez[- ]vous|s'?il (vous|te) pla[iî]t|je voudrais|est-ce que vous)\b/.test(t)) return 'fr';
   const es = (t.match(/[ñ¿¡áéíóú]/g) || []).length
     + (t.match(/\b(hola|tienen|tienes|talla|cuanto|cuánto|gracias|qué|por favor|zapatos|tenis|quiero|precio|tamaño|tamano|entrega|envio|envío|donde|dónde|cuales|cuáles|disponible|negro|blanco|rojo|azul|verde|para mujer|para hombre|nino|niño|buenas|buenos dias|buenos días|necesito|mandame|mándame)\b/g) || []).length;
   const ht = (t.match(/\b(bonjou|mwen|koman|konbyen|soulye|mesi|mèsi|tanpri|gade|kisa|ki sa|eske|èske|ou gen|nou gen|pri|gwose|gwosè|livrezon|kibo|kibò|blan|nwa|wouj|ble|vet|vèt|pou fanm|pou gason|timoun|kijan|bay mwen|m bezwen)\b/g) || []).length;
+  const fr = (t.match(/\b(merci|combien|pointure|taille|livraison|chaussure|chaussures|prix|avez[- ]vous|je cherche|je veux|vous avez|c'est|noir|blanche|rouge|bleu|pour femme|pour homme|oui|svp)\b/g) || []).length;
   if (es >= 2 || (es >= 1 && /[ñ¿¡]/.test(t))) return 'es';
   if (ht >= 2) return 'ht';
+  if (fr >= 2) return 'fr';
   if (/\b(the|you|have|size|do|what|hello|need|want|got|show|please|black|white|red|blue|delivery|price|jordan|nike|thanks|morning|yes|hi)\b/.test(t)) return 'en';
   return prev || 'en';
 }
@@ -1048,31 +1054,37 @@ const ASKME_T = {
   en: WELCOME_NUDGE_MSG,
   es: "Avísame si quieres ver el catálogo o lo que tenemos en stock 👟",
   ht: "Fè m konnen si ou vle wè katalòg la oswa sa nou genyen an stok 👟",
+  fr: "Dis-moi si tu veux voir le catalogue ou ce qu'on a en stock 👟",
 };
 const FOLLOWUP_T = {
   en: FOLLOWUP_MSG,
   es: "¡Hola! Solo dando seguimiento 😊 ¿Viste algo que te gustó? Solo respóndeme con el *código* que está debajo (como *C1* o *D2*) y te ayudo rápido 👟",
   ht: "Alo! M ap tcheke avè w 😊 Èske w wè yon bagay ou renmen? Senpleman voye *kòd* ki anba a (tankou *C1* oswa *D2*) epi m ap ede w vit 👟",
+  fr: "Salut ! Petit suivi 😊 Tu as vu quelque chose qui te plaît ? Réponds-moi juste avec le *code* sous la photo (comme *C1* ou *D2*) et je m'occupe de toi vite 👟",
 };
 const CLOSER_T = {
   en: CLOSER_MSG,
   es: "Bueno, parece que no encontraste nada esta vez 🙂 ¡Quizás la próxima! Abrimos todos los días de 7 AM a 11 PM. Escríbeme tu talla cuando estés listo 👟",
   ht: "Oke, sanble ou pa jwenn anyen fwa sa a 🙂 Petèt pwochèn fwa! Nou louvri chak jou depi 7 AM rive 11 PM. Ekri m gwosè w lè ou pare 👟",
+  fr: "Bon, on dirait que tu n'as rien trouvé cette fois 🙂 Peut-être la prochaine ! On est ouverts tous les jours de 7h à 23h. Écris-moi ta pointure quand tu es prêt 👟",
 };
 const END_OF_PHOTOS_T = {
   en: END_OF_PHOTOS_MSG,
   es: `¡Ahí están las fotos! 👟 ¿Viste uno que te gustó? Solo respóndeme con el *código* que está debajo (como *C1* o *D2*) y te ayudo rápido 👟${SITE_LIVE ? ` ¿Quieres más opciones? Busca en nuestra página 👉 ${WEBSITE}` : ''}`,
   ht: `Men foto yo! 👟 Èske w wè youn ou renmen? Senpleman voye *kòd* ki anba a (tankou *C1* oswa *D2*) epi m ap ede w vit 👟${SITE_LIVE ? ` Ou vle plis opsyon? Chèche sou sit nou an 👉 ${WEBSITE}` : ''}`,
+  fr: `Voilà les photos ! 👟 Tu en vois une qui te plaît ? Réponds-moi juste avec le *code* sous la photo (comme *C1* ou *D2*) et je m'occupe de toi vite 👟${SITE_LIVE ? ` Tu veux plus d'options ? Va voir notre site 👉 ${WEBSITE}` : ''}`,
 };
 const DELIVERY_FOLLOWUP_T = {
   en: DELIVERY_FOLLOWUP_MSG,
   es: "Solo para avisarte — ¡seguimos en camino! 🚗 El chofer te llamará cuando esté cerca 👟",
   ht: "Jis pou fè w konnen — nou toujou an wout! 🚗 Chofè a ap rele w lè li pre 👟",
+  fr: "Juste pour te dire — on est toujours en route ! 🚗 Le chauffeur t'appellera quand il sera proche 👟",
 };
 const HANDOFF_T = {
   en: "Sorry, I can't see any pictures 🙈 Let me get an agent for you right now — someone will be right with you! 👟",
   es: "¡Perdón! No puedo ver las fotos 🙈 Déjame conseguirte un agente ahora mismo — ¡alguien te atenderá enseguida! 👟",
   ht: "Padon, m pa ka wè foto 🙈 Kite m jwenn yon ajan pou ou kounye a — yon moun ap la avè w touswit! 👟",
+  fr: "Désolée, je ne peux pas voir les photos 🙈 Je te trouve un agent tout de suite — quelqu'un s'occupe de toi dans un instant ! 👟",
 };
 // Owner's WhatsApp (digits only) for delivery-ready alerts. Defaults to Rodney's
 // number so it survives redeploys; MANAGER_WA env can override.
@@ -1160,8 +1172,8 @@ YOUR NAME IS KIKI. You're part of the ${storeName} team. If a customer asks your
 
 How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
-- LANGUAGE — MATCH THE CUSTOMER (IMPORTANT): DEFAULT to ENGLISH. ONLY use **Haitian Creole (Kreyòl)** if the customer is clearly WRITING to you in Creole, and ONLY use **Spanish** if they're clearly writing in Spanish — then reply in that same language. Do NOT switch languages over a single borrowed word or a name; only switch when the message is genuinely in that language. When in doubt, stay in English. Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
-- ⚠️ TRANSLATE THEIR MESSAGE FOR THE OWNER (Creole/Spanish — NEVER SKIP, EVERY SINGLE REPLY): The shop owner reads English only — this translation line is his ONLY way to follow a Spanish/Creole chat, so LEAVING IT OFF LEAVES HIM BLIND (Rodney 2026-07-17: a whole Spanish chat came through with no translations and he couldn't tell what the customer wanted). So: whenever the customer's message is in Haitian Creole or Spanish, reply to them normally in their language, then at the very END add a blank line and this EXACT single line: 🔎 _Customer said: "<their latest message in plain, natural English>"_. This is MANDATORY on EVERY such reply — no exceptions, not for a short message, not for a one-word reply, not for a bare size number or code. Even a lone "42" or "A1" still gets the line (🔎 _Customer said: "42 (size)"_ / _"A1 (the code)"_). NEVER add this line when the customer wrote in English (English needs no translation).
+- LANGUAGE — MATCH THE CUSTOMER (IMPORTANT): DEFAULT to ENGLISH. ONLY use **Haitian Creole (Kreyòl)** if the customer is clearly WRITING to you in Creole, ONLY use **Spanish** if they're clearly writing in Spanish, and ONLY use **French** if they're clearly writing in French (\"Bonjour ! Puis-je…\" = French — reply in French and STAY in French for the whole chat) — then reply in that same language. Do NOT switch languages over a single borrowed word or a name; only switch when the message is genuinely in that language. When in doubt, stay in English. Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
+- ⚠️ TRANSLATE THEIR MESSAGE FOR THE OWNER (Creole/Spanish — NEVER SKIP, EVERY SINGLE REPLY): The shop owner reads English only — this translation line is his ONLY way to follow a Spanish/Creole chat, so LEAVING IT OFF LEAVES HIM BLIND (Rodney 2026-07-17: a whole Spanish chat came through with no translations and he couldn't tell what the customer wanted). So: whenever the customer's message is in Haitian Creole, Spanish, or French, reply to them normally in their language, then at the very END add a blank line and this EXACT single line: 🔎 _Customer said: "<their latest message in plain, natural English>"_. This is MANDATORY on EVERY such reply — no exceptions, not for a short message, not for a one-word reply, not for a bare size number or code. Even a lone "42" or "A1" still gets the line (🔎 _Customer said: "42 (size)"_ / _"A1 (the code)"_). NEVER add this line when the customer wrote in English (English needs no translation).
 ${welcomeRule}
 - Talk like a real, friendly shop assistant having a normal conversation. Do NOT fire off photos the moment you see a number — but do NOT interrogate them either.
 - NEVER ask the customer whether they're "looking for something specific" or have "anything specific in mind", and never ask "what kind of shoe are you after". Don't make them name a model. Your DEFAULT move is simply to offer to show what we have, e.g. "Want me to show you what we've got in {size}? 👟" (or without the size if they haven't given one). Only dig into a specific shoe/brand/colour if THEY bring it up first. DELIVERY QUESTION (IMPORTANT — answer this FIRST, always): if a customer's very first message or any message mentions delivery — "do u deliver", "do you deliver", "delivery?", "can you bring it", "you does deliver" — answer it IMMEDIATELY: "Yes! We deliver right to your door in Nassau 🛵 What shoe and size are you looking for?" Do NOT send follow-up nudge messages to a customer whose delivery question was never answered.
@@ -1944,6 +1956,7 @@ const EMPTY_ASK_T = {
   en: "Hey! 👋 Would you like to see some pictures, or what we have in stock? 👟",
   es: "¡Hola! 👋 ¿Quieres ver algunas fotos o lo que tenemos en stock? 👟",
   ht: "Alo! 👋 Èske ou vle wè kèk foto, oswa sa nou genyen an stok? 👟",
+  fr: "Salut ! 👋 Tu veux voir des photos, ou ce qu'on a en stock ? 👟",
 };
 
 // ── Voice notes → text (OpenAI Whisper) ───────────────────────────────────────
