@@ -4506,7 +4506,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     <p>Tell Kiki the truth of this chat so she stops re-asking — the shoe &amp; size they want, that they already paid, delivery details, whatever she keeps getting wrong. The customer never sees this; Kiki uses it as fact on her next reply.</p>
     <textarea id="briefText" placeholder="e.g. Customer wants the Red Thunder Jordan 4 in a 10, already paid via SunCash, just needs delivery to Carmichael Rd."></textarea>
     <button class="briefmic" id="briefDictate" title="Speak your note — you'll see it typed out here before you send">🎤 Speak your note</button>
-    <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle" checked> Label my replies with 🧑Agent: so customers know it's a human</label>
+    <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle"> Label my replies with 🧑Agent: so customers know it's a human</label>
     <div class="btns"><button class="cancel" id="briefCancel">Cancel</button><button class="save" id="briefSave">Send to Kiki</button></div>
   </div>
 </div>
@@ -4521,7 +4521,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   if (qkey) { try { localStorage.setItem(LS, qkey); } catch(e){} }
   var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
   var cur = null, lastRev = -1, threadTimer = null, lastThreadSig = '', lastListSig = null; // null (not '') so an EMPTY first load still replaces the "Loading…" placeholder
-  var pendingImages = [], quoteText = null, agentLabel = true;
+  var pendingImages = [], quoteText = null, agentLabel = false;
   function $(id){return document.getElementById(id)}
   // Kiki's avatar — set KIKI_AVATAR to a served image URL to use the custom illustration;
   // until then it shows the professional-woman emoji. One-line swap when the file lands.
@@ -5447,11 +5447,12 @@ app.post('/inbox/send', async (req, res) => {
   // send API, so we quote the message as context right above the reply (works on every
   // account). The customer sees what you're answering.
   const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
-  // 👨‍🦱 Agent label so the customer knows a HUMAN is replying — on EVERY human reply while
-  // the toggle is on (Rodney 2026-07-19: it must be consistent, not just the first line).
-  // Default on; the client can switch it off per-send with agent:false.
+  // 🧑 Agent label so the customer knows a HUMAN is replying — OFF by default now (Rodney
+  // 2026-07-24: "remove the agent text before my messages"). The Brief toggle can turn it back
+  // on per chat; the client only sends agent:true when that box is ticked, so plain replies go
+  // out clean with no prefix.
   if (quote) text = '↩️ "' + quote.slice(0, 180) + '"' + (text ? '\n\n' + text : '');
-  if (b.agent !== false && text) text = '*🧑Agent:* ' + text; // emoji glued to Agent (no space), *…* → WhatsApp bold
+  if (b.agent === true && text) text = '*🧑Agent:* ' + text; // only when explicitly enabled; emoji glued to Agent, *…* → WhatsApp bold
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   // Right account token: the customer's own account first, then env fallbacks. Direct-API
   // customers (waChannel) route to the Graph API inside sendChunk no matter the token.
