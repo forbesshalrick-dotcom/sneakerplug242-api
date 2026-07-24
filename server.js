@@ -4362,7 +4362,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   var qkey = new URLSearchParams(location.search).get('key') || '';
   if (qkey) { try { localStorage.setItem(LS, qkey); } catch(e){} }
   var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
-  var cur = null, lastRev = -1, threadTimer = null, lastThreadSig = '', lastListSig = '';
+  var cur = null, lastRev = -1, threadTimer = null, lastThreadSig = '', lastListSig = null; // null (not '') so an EMPTY first load still replaces the "Loading…" placeholder
   var pendingImages = [], quoteText = null, agentLabel = true;
   function $(id){return document.getElementById(id)}
   // Kiki's avatar — set KIKI_AVATAR to a served image URL to use the custom illustration;
@@ -5015,7 +5015,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   $('ctxCustomLbl').onkeydown=function(e){ if(e.key==='Enter'){ e.preventDefault(); $('ctxCustomLblGo').click(); } };
   $('ctxDelete').onclick=function(){
     if(!ctxTarget) return;
-    if(!confirm('Delete this chat from the Inbox?\n\n'+(ctxTarget.name||('+'+ctxTarget.sub))+'\n\nThis only removes it from YOUR inbox view — Kiki keeps replying to them normally, and a new message brings the chat right back.')) return;
+    if(!confirm('Delete this chat from the Inbox?\\n\\n'+(ctxTarget.name||('+'+ctxTarget.sub))+'\\n\\nThis only removes it from YOUR inbox view — Kiki keeps replying to them normally, and a new message brings the chat right back.')) return;
     post('/inbox/delete',{sub:ctxTarget.sub,account:ctxTarget.account}).then(function(r){
       if(r&&r.ok){ toast('🗑️ Chat deleted'); closeCtx(); if(cur&&cur.sub===ctxTarget.sub){ closeThread(); } else loadThreads(); }
       else toast((r&&r.error)||'Could not delete');
