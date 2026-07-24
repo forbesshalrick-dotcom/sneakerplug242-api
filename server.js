@@ -1027,8 +1027,9 @@ const STORE_DEFAULT = 'THE PLUG 242';
 // The store now lives on our own domain (pointed at Railway). Env can override if it moves again.
 const WEBSITE = (process.env.WEBSITE || '242plug.com').replace(/^https?:\/\//, '').replace(/\/+$/, '');
 // 🟢 STOREFRONT STATUS: 242plug.com is on Railway with a valid SSL padlock (Rodney confirmed
-// 2026-07-24), so Kiki shares the site again. Defaults LIVE; set env SITE_LIVE=false on Railway
-// to pull the link back out of her replies without a code change if the site ever goes down.
+// 2026-07-24), so Kiki shares the site again — in the welcome, the end-of-photos line, and
+// payment options. Defaults LIVE; set env SITE_LIVE=false on Railway to pull the link back out
+// of her replies without a code change if the site ever goes down.
 const SITE_LIVE = !/^(0|false|no|off)$/i.test(String(process.env.SITE_LIVE || '').trim());
 const SITE_TAIL = SITE_LIVE ? ` Want more options? Search our site 👉 ${WEBSITE}` : '';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
@@ -1164,6 +1165,7 @@ function buildSystemPrompt({ store, name, greet = true } = {}) {
   const who = name && name.trim() ? name.trim() : '';
   // Greeting is decided in CODE (only the customer's very FIRST message), not left to Kiki —
   // that's what stops the double / triple "Welcome!" when someone fires "yo", "hello", "sup".
+  const siteGreetLine = SITE_LIVE ? `\n\nOr shop the full lineup anytime on our site 👉 ${WEBSITE}` : '';
   const welcomeRule = greet
     ? `- WELCOME (their first message — greet ONCE, keep it SHORT). Send it in EXACTLY this layout, with a BLANK LINE between each part so every question sits on its OWN line — customers here get confused when it's all jumbled together, so the spacing matters. Keep the *asterisks* exactly (in WhatsApp, *asterisks* make that part show up BOLD). Send exactly this, line breaks and blank lines included:
 
@@ -1171,9 +1173,9 @@ Hello! 👋
 
 Are you looking for something specific?
 *OR*
-Do you want some pictures? 👟
+Do you want some pictures? 👟${siteGreetLine}
 
-(That is the WHOLE greeting — nothing before or after it. The word *OR* sits on its OWN line between the two questions and stays BOLD. Keep the 👟 on the SAME line as "pictures?", right at the end — never on its own line. If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, keep the 👟 at the end of the last line, and keep the *asterisks* bold.`
+(That is the WHOLE greeting — nothing before or after it. The word *OR* sits on its OWN line between the two questions and stays BOLD. Keep the 👟 on the SAME line as "pictures?".${SITE_LIVE ? ` The website line is the LAST line, on its own after a blank line.` : ''} If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part${SITE_LIVE ? ` (including the website line)` : ''}, keep the 👟 on the pictures line, and keep the *asterisks* bold.`
     : `- ⚠️ DO NOT GREET — YOU ALREADY WELCOMED THIS CUSTOMER. You are ALREADY mid-conversation with them. NEVER send the "Hi! Welcome to ${storeName}" greeting again, and NEVER repeat the website line — not even if they now say "hi", "hello", "hey", "yo", "sup", "you open?", or anything that looks like a fresh start. Just answer their newest message directly, briefly and naturally (e.g. "hey! 👟 what you looking for?" or, if they asked if we're open, "yep we're open! what can I get you? 👟"). If you would be repeating something you already told them this chat (that we're open, the website, a shoe's info), do NOT say it again — just move them forward.`;
   // Live list of the models we ACTUALLY carry (built from current stock), grouped by
   // brand — so Kiki can name a photo/request correctly by matching it to a real model
