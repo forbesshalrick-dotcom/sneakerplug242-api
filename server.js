@@ -3480,6 +3480,12 @@ function handleChat(req, res) {
     const prevSeen = recentImageSeen.get(k);
     if (prevSeen && (Date.now() - prevSeen) < 60000) {
       record(req, { endpoint: 'photo-dupe-skip', sub, imageUrl });
+      // 📥 STILL LOG TO THE INBOX (Rodney 2026-07-23 — "sometimes a message doesn't come to
+      // both chats"): this guard only stops Kiki answering the SAME photo twice — it must
+      // never make the message itself invisible to staff. Without this, a customer's repeat
+      // send during a ManyChat send-fail (they think it didn't go through) vanished from the
+      // Inbox entirely, on top of getting no reply. Log it, just don't re-trigger the AI.
+      if (!staffNameFor(req)) try { inboxRecord(store, sub, { dir: 'in', sender: 'customer', text: '📷 photo (sent again)', name, img: imageUrl, phone: getPhone(req) || '' }); } catch (_) {}
       return;
     }
     recentImageSeen.set(k, Date.now());
@@ -3503,6 +3509,13 @@ function handleChat(req, res) {
     // customers were seeing Kiki reply twice in different words).
     if (!imageUrl && !audioUrl && prevM && (Date.now() - prevM) < 10000) {
       record(req, { endpoint: 'dupe-msg-skip', sub, q: userText.slice(0, 30) });
+      // 📥 STILL LOG TO THE INBOX (Rodney 2026-07-23: traced a real case — ManyChat sends were
+      // timing out, the customer got no reply, so they retyped "I wanna know" 3x in a row
+      // trying to get through. This guard correctly stops Kiki answering the same text 3x, but
+      // it was ALSO making every retry invisible in the Inbox — Rodney only ever saw the FIRST
+      // one, making it look like the customer's follow-ups never arrived. Log every retry so the
+      // Inbox shows the truth (a frustrated customer getting no reply); just don't re-run the AI.
+      if (!staffNameFor(req)) try { inboxRecord(store, sub, { dir: 'in', sender: 'customer', text: userText, name, phone: getPhone(req) || '' }); } catch (_) {}
       return;
     }
     recentMsgSeen.set(mk, Date.now());
