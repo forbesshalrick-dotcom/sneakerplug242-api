@@ -175,6 +175,21 @@ try {
   }
 } catch (e) { console.error('[shop] sales backfill failed:', e.message); }
 
+// Correction (Jul 24 2026): the backfilled J11 sale was labelled Legend Blue, but Rodney
+// confirmed the sold pair was the CONCORD (Black/White, an app-added shoe). Rewrite the
+// row in place — runs every boot but the condition self-limits to a single rewrite, and
+// resolves the Concord's real id from live inventory when it can.
+try {
+  const bf = (state.sales || []).find(s => s && s.id === 'backfill-j11-12-20260723');
+  if (bf && /legend blue/i.test(String(bf.shoeLabel || ''))) {
+    const cc = (state.shoes || []).find(s => s && /concord/i.test(String(s.nickname || '') + ' ' + String(s.name || '')));
+    bf.shoeLabel = 'Air Jordan 11 Retro (Concord)'; bf.name = 'Air Jordan 11 Retro (Concord)';
+    if (cc && cc.id != null) bf.shoeId = cc.id;
+    persist('sales.json'); bump();
+    console.log('[shop] backfill J11 sale relabelled to Concord', cc ? '(id ' + cc.id + ')' : '(id unresolved)');
+  }
+} catch (e) { console.error('[shop] backfill relabel failed:', e.message); }
+
 // Shared ACTIVITY LOG entry, in the exact shape the website's audit log uses
 // ({id, action, detail, category, shoeId, user, time}) so Kiki's actions show up
 // on every device's Log tab (Rodney 2026-07-14: "no sales being logged, what a joke").

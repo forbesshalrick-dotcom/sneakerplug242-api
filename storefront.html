@@ -4367,6 +4367,19 @@ function openBrandList(){
       _fix1('jordan11white001','12');         // sold 2026-07-23 (the white/black J11 — Legend Blue)
       localStorage.setItem('sp_stockfix_v2','1');
     } }catch(e){}
+    // 🧾 CORRECTION v3 (Rodney 2026-07-24): the sold "white and black" J11 was the CONCORD
+    // (app-added shoe, 12×2), NOT the Legend Blue — v2 above pulled the 12 off the wrong shoe.
+    // (a) Give the Legend Blue its 12 back — but ONLY if it has no 12 at all (it originally had
+    //     exactly one), so no device can ever add a second one. (b) Remove ONE 12 from the
+    //     Concord — but ONLY while it still shows 2×12, so a second device can't take it to zero.
+    // Both conditions make the fix converge safely across every phone syncing to the cloud.
+    try{ if(localStorage.getItem('sp_stockfix_v3')!=='1'){
+      var _lb=shoes.find(function(x){return x.id==='jordan11white001';});
+      if(_lb&&Array.isArray(_lb.sizes)&&!_lb.sizes.some(function(x){return parseFloat(x)===12;})){ _lb.sizes.push('12'); _lb.sold=false; _lb.updatedAt=Date.now(); }
+      var _cc=shoes.find(function(x){return x&&/concord/i.test(String(x.nickname||'')+' '+String(x.name||''))&&String(x.brand||'').toLowerCase()==='jordan';});
+      if(_cc&&Array.isArray(_cc.sizes)){ var _tw=_cc.sizes.filter(function(x){return parseFloat(x)===12;}); if(_tw.length>=2){ var _ci=_cc.sizes.findIndex(function(x){return parseFloat(x)===12;}); if(_ci>-1){ _cc.sizes.splice(_ci,1); _cc.updatedAt=Date.now(); } } }
+      localStorage.setItem('sp_stockfix_v3','1');
+    } }catch(e){}
     // Save metadata to localStorage after building
     try{const catIds=src.map(x=>x.id);const lite=shoes.map(s=>{const c=Object.assign({},s);if(catIds.includes(s.id)){c.frames360=[];}else if(Array.isArray(c.frames360)&&c.frames360[0]&&String(c.frames360[0]).indexOf('data:')===0){c.frames360=[];}c.video='';return c;});localStorage.setItem('sp_shoes',JSON.stringify(lite));}catch(e){console.warn('quota',e.message);}
   })();
@@ -5528,12 +5541,16 @@ function renderSalesPage() {
     const items = daySales.map(s => {
       // Photo: prefer the one saved with the sale; fall back to a live lookup by id.
       const img = s.image || ((typeof shoes!=='undefined' && (shoes.find(x=>x.id===s.shoeId)||{}).image) || '');
+      // Tapping the tile opens that shoe in the inventory (Rodney 2026-07-24: "clicking these
+      // tablets leads nowhere"). Only when the shoe still exists; Void/📎 stay separate buttons.
+      const tappable = s.shoeId && typeof shoes!=='undefined' && shoes.some(x=>x.id===s.shoeId);
+      const tapAttr = tappable ? ` onclick="jumpToShoe('${String(s.shoeId).replace(/'/g,'')}')" title="View this shoe" ` : ' ';
       return `
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <div${tapAttr}style="display:flex;align-items:center;gap:10px;min-width:0;${tappable?'cursor:pointer;':''}">
           ${img?`<img src="${img}" alt="" loading="lazy" style="width:48px;height:48px;border-radius:8px;object-fit:cover;background:#fff;flex-shrink:0;"/>`:`<div style="width:48px;height:48px;border-radius:8px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;">👟</div>`}
           <div style="min-width:0;">
-            <div style="font-size:13px;font-weight:600;">${s.brand} ${s.name}</div>
+            <div style="font-size:13px;font-weight:600;">${s.brand} ${s.name}${tappable?' <span style="color:var(--accent);font-weight:500;">›</span>':''}</div>
             <div style="font-size:11px;color:var(--text-muted);">${s.color?s.color+' · ':''}Size ${s.size} · ${s.timeStr} · ${s.soldBy}</div>
           </div>
         </div>
