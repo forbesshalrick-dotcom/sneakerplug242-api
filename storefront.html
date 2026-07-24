@@ -4380,6 +4380,15 @@ function openBrandList(){
       if(_cc&&Array.isArray(_cc.sizes)){ var _tw=_cc.sizes.filter(function(x){return parseFloat(x)===12;}); if(_tw.length>=2){ var _ci=_cc.sizes.findIndex(function(x){return parseFloat(x)===12;}); if(_ci>-1){ _cc.sizes.splice(_ci,1); _cc.updatedAt=Date.now(); } } }
       localStorage.setItem('sp_stockfix_v3','1');
     } }catch(e){}
+    // 🧾 CORRECTION v4 (Rodney 2026-07-24): "there was only 1" — the Concord never had two 12s,
+    // so the pair left showing after the v3 removal is phantom. Clear the LAST 12 (runs after v3,
+    // so a fresh device goes 2→1→0 in one load; a synced device with 0 left just skips), and mark
+    // the shoe sold out if no sizes remain.
+    try{ if(localStorage.getItem('sp_stockfix_v4')!=='1'){
+      var _cc4=shoes.find(function(x){return x&&/concord/i.test(String(x.nickname||'')+' '+String(x.name||''))&&String(x.brand||'').toLowerCase()==='jordan';});
+      if(_cc4&&Array.isArray(_cc4.sizes)){ var _ci4=_cc4.sizes.findIndex(function(x){return parseFloat(x)===12;}); if(_ci4>-1){ _cc4.sizes.splice(_ci4,1); if(!_cc4.sizes.length)_cc4.sold=true; _cc4.updatedAt=Date.now(); } }
+      localStorage.setItem('sp_stockfix_v4','1');
+    } }catch(e){}
     // Save metadata to localStorage after building
     try{const catIds=src.map(x=>x.id);const lite=shoes.map(s=>{const c=Object.assign({},s);if(catIds.includes(s.id)){c.frames360=[];}else if(Array.isArray(c.frames360)&&c.frames360[0]&&String(c.frames360[0]).indexOf('data:')===0){c.frames360=[];}c.video='';return c;});localStorage.setItem('sp_shoes',JSON.stringify(lite));}catch(e){console.warn('quota',e.message);}
   })();
