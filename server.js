@@ -3931,9 +3931,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
        440px phone-simulation back up to a real desktop-app width (900px); message bubbles
        are capped separately above so they don't stretch absurdly wide just because the
        column did. */
-    body #listView,body #threadView{left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:900px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10);box-shadow:0 0 120px rgba(0,0,0,.8)}
+    body #listView,body #threadView{left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:1400px;box-shadow:0 0 120px rgba(0,0,0,.8)}
   }
   .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateZ(0);will-change:scroll-position;scroll-behavior:auto}
+  /* Minimalist scrollbar (Rodney 2026-07-24): thin, floats over the backdrop instead of
+     a fat OS-style track taking its own reserved gutter. */
+  .scroll,#msgs{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.28) transparent}
+  .scroll::-webkit-scrollbar,#msgs::-webkit-scrollbar{width:5px}
+  .scroll::-webkit-scrollbar-track,#msgs::-webkit-scrollbar-track{background:transparent}
+  .scroll::-webkit-scrollbar-thumb,#msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:10px}
+  .scroll::-webkit-scrollbar-thumb:hover,#msgs::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.45)}
   .row{display:flex;gap:12px;align-items:center;padding:8px 15px;cursor:pointer;position:relative;transition:.15s;border-bottom:1px solid rgba(255,255,255,.04)}
   .row:active{background:rgba(255,255,255,.04)}
   .row .av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;color:#fff;font-family:'Space Grotesk'}
