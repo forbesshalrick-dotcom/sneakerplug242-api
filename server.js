@@ -1875,13 +1875,20 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // (Deashinique 2026-07-14).
   // Halted because they changed the request (not a plain "stop"): say so, so the
   // customer knows the switch registered — their new request is answered right after.
+  let redirectedMidAlbum = false;
   if (interrupted && !manualStopped) {
     const txt = lastIncomingText.get(sub) || '';
     if (REDIRECT.test(txt) && !STOPPISH.test(txt)) {
+      redirectedMidAlbum = true;
       try { await sendChunk(sub, [{ type: 'text', text: `Say less — switching to that now 👌` }], token); } catch (e) { /* non-fatal */ }
     }
   }
-  if (sent > 0 && !interrupted && !photosOnly && !isStaff) {
+  // The closer must reach the customer even when the album halted early (a webhook dup / glitch
+  // used to kill it silently — Rodney 2026-07-24: a 9.5 album ended with photos and NO "reply with
+  // the code" line, leaving the customer with no idea what to do). Only a manual ✋ STOP, a
+  // mid-album redirect (they changed the request — answered next turn), photos-only mode, or a
+  // staff chat suppress it now.
+  if (sent > 0 && !manualStopped && !redirectedMidAlbum && !photosOnly && !isStaff) {
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
@@ -3359,6 +3366,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (missing.length) {
         record(req, { endpoint: 'size-album-topup', sub, sizes: wantSizes, alreadySent: turnSentIds.size, missing: missing.length });
         const label = wantSizes.join(' and ');
+        endMsgSentAt[sub] = 0; // the top-up is the TRUE end of the album — always close after it, even if the first batch's closer was recent
         const r = await sendShoePhotos(sub, missing, token, true, null, "And here's the rest we've got in " + label + ' 👇', false, false, false, ctx.turnAt || 0).catch(() => null);
         if (r && r.sent > 0) sentToCustomer = true;
       }
