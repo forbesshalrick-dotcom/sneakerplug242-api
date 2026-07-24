@@ -142,6 +142,39 @@ try {
   }
 } catch (e) { console.error('[shop] sold recovery failed:', e.message); }
 
+// ── One-time SALES BACKFILL (Jul 24 2026) ────────────────────────────────────
+// Two real sales never made it into the register: the Air Max 90 Black/Yellow size 8
+// (reported to Kiki Jul 22 ~8 AM — confirmed but the record is missing) and the
+// Air Jordan 11 Legend Blue size 12 (Jul 23 — only ever reported in chat; its stock
+// was corrected but no sale row was written). Insert them once, in the exact shape
+// recordStaffSale writes, guarded by a marker file AND a same-shoe/size/day dupe
+// check so an organic record that exists but isn't rendering can never double-count.
+// Stock is NOT touched here — it was already corrected on the storefront side.
+try {
+  const marker2 = path.join(DATA_DIR, 'sales_backfill_v1.flag');
+  if (!fs.existsSync(marker2)) {
+    const BACKFILL = [
+      { id: 'backfill-j11-12-20260723', shoeId: 'jordan11white001', shoeLabel: 'Air Jordan 11 Retro (Legend Blue)', size: '12',
+        price: 180, by: 'Manager', at: '2026-07-23T16:00:00.000Z', src: 'backfill', name: 'Air Jordan 11 Retro (Legend Blue)',
+        brand: '', color: '', date: '2026-07-23T16:00:00.000Z', dateStr: 'Jul 23, 2026', timeStr: '12:00 PM', soldBy: 'Manager' },
+      { id: 'backfill-am90-8-20260722', shoeId: 'airmax90bkyel001', shoeLabel: 'Air Max 90 — Black/Yellow', size: '8',
+        price: 120, by: 'Manager P', at: '2026-07-22T12:02:00.000Z', src: 'backfill', name: 'Air Max 90 — Black/Yellow',
+        brand: '', color: '', date: '2026-07-22T12:02:00.000Z', dateStr: 'Jul 22, 2026', timeStr: '08:02 AM', soldBy: 'Manager P' },
+    ];
+    if (!Array.isArray(state.sales)) state.sales = [];
+    let added = 0;
+    for (const b of BACKFILL) {
+      const dupe = state.sales.some(s => s && String(s.shoeId) === b.shoeId
+        && String(parseFloat(s.size)) === String(parseFloat(b.size))
+        && (s.dateStr === b.dateStr || String(s.date || s.at || '').slice(0, 10) === b.date.slice(0, 10)));
+      if (!dupe) { state.sales.unshift(b); added++; }
+    }
+    if (added) { persist('sales.json'); bump(); }
+    console.log('[shop] one-time sales backfill: added', added, 'of', BACKFILL.length);
+    try { fs.writeFileSync(marker2, new Date().toISOString()); } catch (_) {}
+  }
+} catch (e) { console.error('[shop] sales backfill failed:', e.message); }
+
 // Shared ACTIVITY LOG entry, in the exact shape the website's audit log uses
 // ({id, action, detail, category, shoeId, user, time}) so Kiki's actions show up
 // on every device's Log tab (Rodney 2026-07-14: "no sales being logged, what a joke").
