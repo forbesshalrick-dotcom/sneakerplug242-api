@@ -2536,7 +2536,7 @@ function renderInventory(){
         <div class="shoe-name" onclick="_sfx.tap();openShoeDetail('${shoe.id}')" style="cursor:pointer;touch-action:manipulation;">${shoe.name}${shoe.nickname?' <span style="color:var(--accent);font-weight:600;">('+shoe.nickname+')</span>':''}</div>
         ${shoe.color?`<div class="shoe-color">${shoe.color}</div>`:''}
         ${isLow&&!shoe.sold?'<span class="badge-low">⚠ Low Stock</span>':''}
-        <div class="sizes-label">AVAILABLE SIZES</div>
+        <div class="sizes-label">AVAILABLE SIZES ${!shoe.sold&&shoe.sizes.length?`<span style="color:var(--accent);font-weight:800;">· Total: ${shoe.sizes.length} pair${shoe.sizes.length!==1?'s':''}</span>`:''}</div>
         <div class="sizes-row">${(function(){
   if(typeof currentRole !== 'undefined' && currentRole === 'employee'){
     // Count each size
@@ -4551,7 +4551,7 @@ function openShoeDetail(id){
       </div>`:''}
       <div style="font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:var(--accent);margin-bottom:18px;">$${s.price}</div>
       ${s.sold?'<div style="background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.4);color:#ff6666;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-align:center;margin-bottom:14px;">SOLD OUT</div>':''}
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:8px;">Available Sizes</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:8px;">Available Sizes ${!s.sold&&s.sizes.length?`<span style="color:var(--accent);font-weight:800;">· Total: ${s.sizes.length} pair${s.sizes.length!==1?'s':''}</span>`:''}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
         ${dispSizes.map(sz=>`<div style="background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 13px;font-size:13px;font-family:'Space Mono',monospace;">${sz}</div>`).join('')}
       </div>
