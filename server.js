@@ -3914,20 +3914,24 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
      The body-prefixed selector beats the plain id inset:0 rule regardless of order. */
   @media (min-width:820px){
     body{background:#08070e}
-    /* Fallback gutter fill for when NO per-customer photo is set (Rodney 2026-07-24: a
-       laptop with no chat background showed the app as a narrow strip over plain flat
-       black — looked broken/unstyled). Same nebula gradient as the in-app backdrop, just
-       fixed to the full viewport. body.hasbg::before below is MORE specific (extra class)
-       so it still wins and shows the blurred customer photo whenever one is set. */
-    body::before{content:'';position:fixed;inset:0;z-index:-3;pointer-events:none;
-      background:
-        radial-gradient(700px 480px at 14% 8%, rgba(198,92,255,.22), transparent 60%),
-        radial-gradient(700px 540px at 86% 20%, rgba(34,211,238,.17), transparent 60%),
-        radial-gradient(820px 620px at 50% 105%, rgba(255,92,180,.19), transparent 60%),
-        linear-gradient(180deg,#0a0812,#05050a)}
-    body.hasbg::before{content:'';position:fixed;inset:0;z-index:-3;background-image:var(--chatbg);background-size:cover;background-position:center;filter:blur(26px) brightness(.5) saturate(1.1);transform:scale(1.08)}
-    body.hasbg::after{content:'';position:fixed;inset:0;z-index:-2;background:rgba(5,5,10,.55)}
-    body #listView,body #threadView{left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:440px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10);box-shadow:0 0 120px rgba(0,0,0,.8)}
+    /* Desktop gutter fill (Rodney 2026-07-24: a laptop showed the phone-width card over
+       plain flat black on both sides). Root cause, confirmed by live testing: a NEGATIVE
+       z-index here gets hidden behind the html/body background colour itself in this
+       browser's actual paint order (the propagated canvas colour paints above negative-
+       z-index content, despite the usual mental model) — no amount of brightening the image
+       showed through it. Fix is z-index:0, not a sign flip in the numbers: a ::before with
+       z-index:0 still naturally paints below #listView/#threadView (real DOM children that
+       come after it), so it doesn't need to hide behind anything via negative stacking.
+       --chatbg always has a real value (defaults to /inbox/bg.jpg with no per-customer photo
+       — see the CHATBG default below), so this needs no .hasbg gate. */
+    body::before{content:'';position:fixed;inset:0;z-index:0;background-image:var(--chatbg);background-size:cover;background-position:center;filter:blur(18px) saturate(1.3) brightness(1.1);transform:scale(1.08)}
+    body::after{content:'';position:fixed;inset:0;z-index:0;background:rgba(5,5,10,.2)}
+    /* Rodney 2026-07-24: "I want the actual chat to be wider — it started off wide until we
+       made changes to make the aspect ratio fit a mobile perfectly." Widened from the
+       440px phone-simulation back up to a real desktop-app width (900px); message bubbles
+       are capped separately above so they don't stretch absurdly wide just because the
+       column did. */
+    body #listView,body #threadView{left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:900px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10);box-shadow:0 0 120px rgba(0,0,0,.8)}
   }
   .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateZ(0);will-change:scroll-position;scroll-behavior:auto}
   .row{display:flex;gap:12px;align-items:center;padding:8px 15px;cursor:pointer;position:relative;transition:.15s;border-bottom:1px solid rgba(255,255,255,.04)}
@@ -3960,6 +3964,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .thead #tSub{flex:0 0 auto}
   .msgs{flex:1;overflow-y:auto;padding:6px 12px 4px;display:flex;flex-direction:column;gap:8px}
   .brow{display:flex;align-items:flex-end;gap:7px;max-width:82%;animation:rise .22s ease}
+  /* On a wide desktop column, 82% of the container would let a two-word message stretch
+     into an absurd 700px+ bubble — cap the ABSOLUTE width too so bubbles stay a normal
+     chat width no matter how wide the container gets (Rodney 2026-07-24: widening the
+     desktop column back up after it got locked mobile-tight). Mobile screens are already
+     well under 460px wide, so this cap never engages there — desktop-only in practice. */
+  @media (min-width:820px){ .brow{max-width:min(82%,460px)} }
   .brow.out{align-self:flex-end;flex-direction:row-reverse}
   .brow.inb{align-self:flex-start}
   @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
