@@ -3924,7 +3924,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       radial-gradient(700px 520px at 50% 108%, rgba(255,92,180,.16), transparent 60%),
       linear-gradient(180deg,#0a0812,#05050a);
     background-size:cover;background-position:center}
-  body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center;filter:saturate(1.45) contrast(1.08) brightness(1.05)}
+  /* background-position:center 12% (not "center"): the collage's people are framed near the
+     top of the source photo, and on a wide/short viewport background-size:cover crops a LOT
+     of height — centering vertically cut faces off entirely (Rodney 2026-07-24: "faces are
+     cut off at the top"). Biasing the crop window toward the top keeps faces in frame. */
+  body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center 12%;filter:saturate(1.45) contrast(1.08) brightness(1.05)}
   body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.06),rgba(6,5,12,.14))}
   body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.08),rgba(6,5,12,.16))}
   /* haunted-luxury FX over the collage: a green halo that fades in/out (the "glowing
@@ -3977,7 +3981,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
        #listView/#threadView, silently swallowing every click/scroll/touch on the whole app.
        Confirmed live via elementsFromPoint() before this fix — BODY was catching input that
        should have gone to the row underneath it. These layers must never intercept input. */
-    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:var(--chatbg);background-size:cover;background-position:center;filter:blur(18px) saturate(1.3) brightness(1.1);transform:scale(1.08)}
+    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:var(--chatbg);background-size:cover;background-position:center 12%;filter:blur(18px) saturate(1.3) brightness(1.1);transform:scale(1.08)}
     body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(5,5,10,.2)}
     /* Rodney 2026-07-24: "I want the actual chat to be wider — it started off wide until we
        made changes to make the aspect ratio fit a mobile perfectly." Widened from the
