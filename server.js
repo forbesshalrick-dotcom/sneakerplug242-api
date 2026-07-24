@@ -988,10 +988,10 @@ const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.l
 const STORE_DEFAULT = 'THE PLUG 242';
 // The store now lives on our own domain (pointed at Railway). Env can override if it moves again.
 const WEBSITE = (process.env.WEBSITE || '242plug.com').replace(/^https?:\/\//, '').replace(/\/+$/, '');
-// 🚧 STOREFRONT STATUS: while false, Kiki must NOT push the website — sell in-chat with photos.
-// Flip to true (env SITE_LIVE=true on Railway, no redeploy) the MOMENT 242plug.com shows the
-// padlock, so Kiki starts sharing the site again. Defaults false until the domain/SSL is live.
-const SITE_LIVE = /^(1|true|yes|on)$/i.test(String(process.env.SITE_LIVE || '').trim());
+// 🟢 STOREFRONT STATUS: 242plug.com is on Railway with a valid SSL padlock (Rodney confirmed
+// 2026-07-24), so Kiki shares the site again. Defaults LIVE; set env SITE_LIVE=false on Railway
+// to pull the link back out of her replies without a code change if the site ever goes down.
+const SITE_LIVE = !/^(0|false|no|off)$/i.test(String(process.env.SITE_LIVE || '').trim());
 const SITE_TAIL = SITE_LIVE ? ` Want more options? Search our site 👉 ${WEBSITE}` : '';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟${SITE_TAIL}`;
