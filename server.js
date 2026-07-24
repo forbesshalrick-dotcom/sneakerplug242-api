@@ -4331,10 +4331,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .vbadge{width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-family:'Space Grotesk';font-weight:800;flex-shrink:0}
   /* Kiki on/off badge sitting on the corner of the TK/OSC tag — green ✓ = Kiki answering,
      red ✕ = Kiki paused (you're handling it), so you can spot it from the list. */
-  .row .tagbox{position:relative;display:inline-flex;align-items:center}
+  .row .tagbox{position:relative;display:inline-flex;align-items:center;cursor:pointer}
   .row .kiki,.thead .kiki{position:absolute;top:-9px;right:-9px;width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;line-height:1;border:2px solid #0a0812;box-shadow:0 1px 4px rgba(0,0,0,.6);font-family:'Space Grotesk';cursor:pointer;z-index:2;color:#fff}
   .row .kiki:active,.thead .kiki:active{transform:scale(.82)}
-  .thead .tagbox{position:relative;display:inline-flex;align-items:center}
+  .thead .tagbox{position:relative;display:inline-flex;align-items:center;cursor:pointer}
   .thead .kiki{border-color:#12131f;z-index:3}
   /* compact mode — smaller icons + a narrower name font so the full Name-number fits */
   #listView.compact .row{padding:3px 10px;gap:9px}
@@ -4707,8 +4707,13 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       Array.prototype.forEach.call(document.querySelectorAll('.av.setav'), function(el){
         el.onclick=function(ev){ ev.stopPropagation(); pendingAv={sub:el.getAttribute('data-sub'), account:el.getAttribute('data-acct')}; var f=$('avFile'); f.value=''; f.click(); };
       });
-      Array.prototype.forEach.call(document.querySelectorAll('.row .kiki'), function(el){
-        el.onclick=function(ev){ ev.stopPropagation();
+      // Bind to the whole .tagbox pill (OSC/TK label + checkmark), not just the tiny checkmark
+      // span — Rodney 2026-07-24: "only when I press the check mark it turns kiki off and on,
+      // not the whole button... when I touch the OSC button nothing happens." The label text
+      // looked like part of one button but only the ✓/✕ actually responded.
+      Array.prototype.forEach.call(document.querySelectorAll('.row .tagbox'), function(wrap){
+        var el=wrap.querySelector('.kiki'); if(!el) return;
+        wrap.onclick=function(ev){ ev.stopPropagation();
           var sub=el.getAttribute('data-sub'), off=el.classList.contains('koff');
           el.style.opacity='.4';
           post(off?'/inbox/resume':'/inbox/pause',{sub:sub}).then(function(r){
@@ -4778,7 +4783,12 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       // Kiki on/off badge on the header tag — same tap-to-toggle as the list
       var tk=$('tKiki');
       if(tk && cur){ var koff=!!d.paused; tk.style.display='flex'; tk.className='kiki '+(koff?'koff':'kon'); tk.textContent=koff?'✕':'✓'; tk.style.background=koff?'#ff3b5c':accCols(cur.tag)[0]; tk.title=koff?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her';
-        tk.onclick=function(ev){ ev.stopPropagation(); tk.style.opacity='.4'; post(koff?'/inbox/resume':'/inbox/pause',{sub:cur.sub}).then(function(r){ if(r&&r.ok){ toast(koff?'Kiki is back ON ✅':'Kiki paused — you\\'re handling this 👨‍🦱'); loadThread(false); } else { tk.style.opacity=''; toast((r&&r.error)||'Could not change Kiki'); } }).catch(function(){ tk.style.opacity=''; toast('Could not change Kiki'); }); };
+        var toggleKiki=function(ev){ ev.stopPropagation(); tk.style.opacity='.4'; post(koff?'/inbox/resume':'/inbox/pause',{sub:cur.sub}).then(function(r){ if(r&&r.ok){ toast(koff?'Kiki is back ON ✅':'Kiki paused — you\\'re handling this 👨‍🦱'); loadThread(false); } else { tk.style.opacity=''; toast((r&&r.error)||'Could not change Kiki'); } }).catch(function(){ tk.style.opacity=''; toast('Could not change Kiki'); }); };
+        tk.onclick=toggleKiki;
+        // Also bind the parent .tagbox pill (the "OSC"/"TK" label sits right next to the
+        // checkmark and looked tappable but wasn't — Rodney 2026-07-24).
+        var tagWrap=tk.parentElement;
+        if(tagWrap){ tagWrap.onclick=toggleKiki; tagWrap.title=tk.title; }
       }
     }).catch(function(){});
   }
