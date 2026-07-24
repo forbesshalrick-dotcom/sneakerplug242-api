@@ -4355,6 +4355,18 @@ function openBrandList(){
       }
     });
     _applyCatalogOverrides(); // user edits win over the master list (so renames stick)
+    // 🧾 ONE-TIME STOCK CORRECTIONS (Rodney 2026-07-22/23) — same pattern as the Wolf Grey fix:
+    // physical box checks + sales Kiki logged that never synced to the site. Each removes ONE pair
+    // of the named size IF present (guarded by a flag so it can never double-apply or resurrect
+    // stock) and stamps updatedAt so the newest-wins sync pushes it to the server and every phone.
+    try{ if(localStorage.getItem('sp_stockfix_v2')!=='1'){
+      var _fix1=function(id,sz,addInstead){ var s=shoes.find(function(x){return x.id===id;}); if(!s||!Array.isArray(s.sizes))return; var i=s.sizes.findIndex(function(x){return String(parseFloat(x))===String(parseFloat(sz));}); if(i>-1){ s.sizes.splice(i,1); if(addInstead)s.sizes.push(String(addInstead)); s.updatedAt=Date.now(); } };
+      _fix1('jordan4blackcat001','12','8.5'); // box actually holds an 8.5, not a 12
+      _fix1('airmax95bkbl001','8');           // the 8 isn't there (only the 7)
+      _fix1('airmax90bkyel001','8');          // sold via Kiki 2026-07-22; site never synced
+      _fix1('jordan11white001','12');         // sold 2026-07-23 (the white/black J11 — Legend Blue)
+      localStorage.setItem('sp_stockfix_v2','1');
+    } }catch(e){}
     // Save metadata to localStorage after building
     try{const catIds=src.map(x=>x.id);const lite=shoes.map(s=>{const c=Object.assign({},s);if(catIds.includes(s.id)){c.frames360=[];}else if(Array.isArray(c.frames360)&&c.frames360[0]&&String(c.frames360[0]).indexOf('data:')===0){c.frames360=[];}c.video='';return c;});localStorage.setItem('sp_shoes',JSON.stringify(lite));}catch(e){console.warn('quota',e.message);}
   })();
