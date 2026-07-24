@@ -480,6 +480,19 @@ app.get(['/feed.csv', '/catalog-feed.csv'], (req, res) => {
   res.send(lines.join('\n'));
 });
 
+// Diagnostic (Rodney 2026-07-24: "before I got sales notifications on both numbers, now
+// just Official Sneaker Crew, not Trendy Kicks"): shows WHICH stores have a live token
+// cached for waSendManager's owner-ping — never the actual token values, just presence,
+// so we can tell a missing/stale-token gap from a delivery failure without guessing.
+app.get('/debug-tokens', (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  res.json({
+    storesWithToken: [...storeTokens.keys()],
+    hasLastToken: !!lastToken,
+    managerStores: Object.keys(MANAGER_SUB_BY_STORE).map(store => ({ store, hasToken: storeTokens.has(store) })),
+  });
+});
+
 // Diagnostic: see the last requests ManyChat sent.
 // ?q=<digits/text> filters to entries mentioning it (e.g. ?q=4324406) and returns a SMALL,
 // phone-readable summary of each — easy to eyeball on a phone. Omit q for the full raw dump.
