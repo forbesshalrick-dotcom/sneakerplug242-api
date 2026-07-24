@@ -493,6 +493,27 @@ app.get('/debug-tokens', (req, res) => {
   });
 });
 
+// Diagnostic (Rodney 2026-07-24, same issue): fires a clearly-marked TEST alert through the
+// exact per-store loop waSendManager uses, but reports each store's result INDIVIDUALLY
+// (success/fail/thrown-error) instead of the collapsed true/false the real function returns —
+// so a TK-specific failure is visible instead of silently swallowed.
+app.get('/debug-manager-ping-test', async (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const text = '🔧 TEST — please ignore. Checking why Trendy Kicks alerts may be missing.';
+  const results = {};
+  for (const [store, subId] of Object.entries(MANAGER_SUB_BY_STORE)) {
+    const tk = storeTokens.get(store);
+    if (!tk) { results[store] = { attempted: false, reason: 'no cached token for this store' }; continue; }
+    try {
+      const r = await sendChunk(subId, [{ type: 'text', text }], tk);
+      results[store] = { attempted: true, ok: !!(r && r.ok), status: r && r.status, body: r && r.body };
+    } catch (e) {
+      results[store] = { attempted: true, threw: true, error: String(e && e.stack || e).slice(0, 400) };
+    }
+  }
+  res.json({ ok: true, results });
+});
+
 // Diagnostic: see the last requests ManyChat sent.
 // ?q=<digits/text> filters to entries mentioning it (e.g. ?q=4324406) and returns a SMALL,
 // phone-readable summary of each — easy to eyeball on a phone. Omit q for the full raw dump.
