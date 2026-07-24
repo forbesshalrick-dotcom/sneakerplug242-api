@@ -1998,18 +1998,28 @@ async function transcribeAudio(url, mediaAuth) {
   const audio = await fetch(url, mediaAuth ? { headers: { Authorization: `Bearer ${mediaAuth}` } } : undefined);
   if (!audio.ok) return null;
   const buf = Buffer.from(await audio.arrayBuffer());
-  // WhatsApp voice notes are ogg/opus; the filename extension tells Whisper the format.
-  const form = new FormData();
-  form.append('file', new Blob([buf]), 'voice.ogg');
-  form.append('model', 'whisper-1');
-  const r = await fetch(WHISPER_API, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY.trim()}` },
-    body: form,
-  });
-  if (!r.ok) return null;
-  const data = await r.json().catch(() => null);
-  return data && data.text ? String(data.text).trim() : null;
+  // WhatsApp voice notes are ogg/opus; the filename extension tells the model the format.
+  const tryModel = async (model) => {
+    const form = new FormData();
+    form.append('file', new Blob([buf]), 'voice.ogg');
+    form.append('model', model);
+    const r = await fetch(WHISPER_API, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY.trim()}` },
+      body: form,
+    });
+    if (!r.ok) return null;
+    const data = await r.json().catch(() => null);
+    return data && data.text ? String(data.text).trim() : null;
+  };
+  // gpt-4o-transcribe (Rodney 2026-07-24: noticed his phone's own dictation sounded more
+  // accurate than Kiki's) is OpenAI's newer, more accurate model — better with accents than
+  // the older whisper-1, which is exactly what caused the "spoken sizes come out garbled"
+  // workaround rule in Kiki's prompt ("ten and a half" -> "10 1 0"). Falls back to whisper-1
+  // automatically if the newer model name is ever rejected, so transcription never goes dark.
+  const modern = await tryModel('gpt-4o-transcribe').catch(() => null);
+  if (modern) return modern;
+  return await tryModel('whisper-1').catch(() => null);
 }
 
 async function callClaude(messages, system, toolChoice, toolsOverride) {
