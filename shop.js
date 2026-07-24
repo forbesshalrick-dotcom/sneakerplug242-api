@@ -6,6 +6,11 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+// Base catalog (immutable) — used only as a resurrection guard: a device's FIRST-EVER
+// push for a catalog shoe id must never claim more stock than the catalog's own baseline
+// (see the /shop/shoe guard below, 2026-07-24: sold-out catalog items reappearing in stock).
+let CATALOG_BASE = {};
+try { require('./catalog.json').forEach(s => { if (s && s.id != null) CATALOG_BASE[s.id] = s; }); } catch (_) {}
 
 // ── web push ─────────────────────────────────────────────────────────────────
 // Lets us notify the installed staff PWA about a new delivery/task even when the
@@ -715,7 +720,22 @@ function mount(app) {
         return res.json({ ok: true, skipped: 'stale' });
       }
       state.shoes[i] = sh;
-    } else state.shoes.push(sh);
+    } else {
+      // FIRST-EVER PUSH FOR THIS ID — nothing to compare it against, so a stale device's
+      // "everything looks fine" local copy would otherwise be accepted with zero checks
+      // (2026-07-24: sold-out catalog items reappearing in stock). For a CATALOG shoe, refuse
+      // a first push that claims MORE stock than the catalog's own immutable baseline — a
+      // genuinely full-stock item never needed pushing in the first place, so this only ever
+      // blocks a resurrection, never a real sale/edit (which always SHRINKS or matches stock).
+      const base = sh._catalog ? CATALOG_BASE[sh.id] : null;
+      if (base && Array.isArray(base.sizes)) {
+        const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[s] = (m[s] || 0) + 1, m), {});
+        const baseC = count(base.sizes), inC = count(sh.sizes);
+        const overStock = Object.keys(inC).some(s => inC[s] > (baseC[s] || 0));
+        if (overStock) return res.json({ ok: true, skipped: 'resurrection-guard' });
+      }
+      state.shoes.push(sh);
+    }
     persist('shoes.json'); bump();
     res.json({ ok: true });
   });
