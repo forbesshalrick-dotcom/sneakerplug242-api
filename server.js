@@ -5798,7 +5798,12 @@ let STORE_HTML = null, STORE_HTML_GZ = null;
     let html = require('fs').readFileSync(require('path').join(__dirname, 'storefront.html'), 'utf8');
     html = html
       .replace(/(["'(`])assets\//g, '$1' + _SHOP_CDN + '/assets/')
-      .replace(/(["'`])(icon-192\.png|icon-512\.png|apple-touch-icon\.png|manifest\.json)(["'`])/g, '$1' + _SHOP_CDN + '/$2$3')
+      // The web-app manifest MUST be same-origin with a same-origin start_url, or browsers
+      // refuse "Add to Home Screen / Add to Dock" (a CDN manifest's relative start_url resolves
+      // to the CDN origin — that's why the store wasn't installable while the Inbox was). Point
+      // it at our own /store/app.webmanifest (served below); icons still ride the CDN, which is fine.
+      .replace(/(["'`])manifest\.json(["'`])/g, '$1/store/app.webmanifest$2')
+      .replace(/(["'`])(icon-192\.png|icon-512\.png|apple-touch-icon\.png)(["'`])/g, '$1' + _SHOP_CDN + '/$2$3')
       // neuter SW registration → chainable no-op so any .then()/.catch() after it is harmless
       .replace(/navigator\.serviceWorker\.register\([^)]*\)/g, '({then:function(){return this},catch:function(){return this}})');
     STORE_HTML = html;
@@ -5816,6 +5821,22 @@ function serveStore(req, res) {
   res.send(STORE_HTML);
 }
 app.get('/store', serveStore);
+// Same-origin web-app manifest so the STORE is installable to the Mac Dock / phone home screen,
+// exactly like the Inbox. start_url "/" = the store at the domain root (242plug.com), scope "/"
+// so the page that links this is always in scope. Icons ride the CDN (cross-origin icons are OK).
+app.get(['/store/app.webmanifest', '/app.webmanifest'], (req, res) => {
+  res.type('application/manifest+json').set('Cache-Control', 'public, max-age=3600').send(JSON.stringify({
+    name: 'THE PLUG 242', short_name: 'PLUG 242',
+    description: 'Premium sneakers in Nassau, Bahamas — Jordans, Nike, New Balance & more.',
+    start_url: '/', scope: '/', display: 'standalone', orientation: 'portrait',
+    background_color: '#070707', theme_color: '#070707',
+    icons: [
+      { src: _SHOP_CDN + '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: _SHOP_CDN + '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: _SHOP_CDN + '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  }));
+});
 // When the request comes in on OUR domain (242plug.com / www.242plug.com, pointed at Railway),
 // the BARE root shows the store — so a customer typing 242plug.com lands on the shop, not an API
 // response. The Railway *.up.railway.app origin is untouched (falls through), so /inbox, /whatsapp,
