@@ -1795,7 +1795,22 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       if (PRICE_Q.test(q) && lastShoeSent) {
         await sendChunk(sub, [{ type: 'text', text: `That one's the ${displayName(lastShoeSent)} — $${lastShoeSent.price} 👟 more pics coming 👇` }], token);
       } else {
-        await sendChunk(sub, [{ type: 'text', text: `Good question! One sec — let me finish sending these and I'll answer you right after 👟` }], token);
+        // Really ANSWER the question inline, then keep sending (Rodney 2026-07-24: "answer them
+        // and then continue" — the old "one sec, I'll answer right after" read as dodging and
+        // rarely circled back). Quick no-tools model call, hard 12s cap so the album never stalls;
+        // the old line survives only as the fallback when the call fails.
+        let line = null;
+        try {
+          const sys = 'You are Kiki, the WhatsApp assistant for a Nassau (Bahamas) sneaker shop. A photo album is MID-SEND; the customer just asked a quick question between pictures. Answer it in ONE short, warm WhatsApp line (max ~25 words, 1 emoji ok), in the customer\'s language, then let them know the pics are still coming (e.g. "📸 more pics coming 👇"). FACTS: FREE delivery to your door in Nassau, 7am–11pm, pay on arrival (cash, Scotiabank/CIBC transfer, SunCash) or card on 242plug.com. We are MOBILE, based Carmichael Road — no walk-in store, we come to you. Family Islands: boat $10 (weekly sail day) or plane $35 daily — pay first + send receipt; before 3 PM ships same day, after 3 PM next flight. PRICES: Jordan 1 / AF1 / Dunk / Air Max / VaporMax $120 · all other Jordans $180 · Air Max 95 / New Balance / ASICS $130 · Crocs & Yeezy Foam $65 · Roshe $50 · Dunk High $60 · Scorpion $70. If the question needs live stock lookup or order details you cannot see, say you\'ll sort that the second the pics finish. Reply with ONLY the line, nothing else.';
+          const ctx2 = (lastShoeSent ? 'The photo that JUST went out: ' + displayName(lastShoeSent) + ' ($' + lastShoeSent.price + ').\n' : '') + 'Customer question: "' + q.slice(0, 300) + '"';
+          const resp = await Promise.race([
+            callClaude([{ role: 'user', content: ctx2 }], sys, undefined, []),
+            new Promise(res => setTimeout(() => res(null), 12000)),
+          ]);
+          const t2 = resp && resp.ok && resp.data && Array.isArray(resp.data.content) && resp.data.content.find(c => c.type === 'text');
+          if (t2 && t2.text && t2.text.trim()) line = t2.text.trim().slice(0, 400);
+        } catch (e) { /* fall through to the stock line */ }
+        await sendChunk(sub, [{ type: 'text', text: line || `Good question! One sec — let me finish sending these and I'll answer you right after 👟` }], token);
       }
     } catch (e) { /* non-fatal */ }
   };
