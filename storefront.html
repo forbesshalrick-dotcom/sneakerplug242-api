@@ -4840,7 +4840,7 @@ let currentUser = null;    // account name
 // Regular staff can SELL and ADD NEW stock (they receive & count new shipments),
 // but must NOT be able to edit, delete, re-price, or change ads on EXISTING shoes.
 // Only these owner accounts get that power. Add a name here to make someone an owner.
-const OWNER_ACCOUNTS = ['Manager','Owner'];
+const OWNER_ACCOUNTS = ['Manager','Owner','Deashinique']; // Rodney 2026-07-25: gave Deashinique full edit access
 function isManager(){ return currentRole==='employee' && OWNER_ACCOUNTS.indexOf(currentUser)>-1; }
 // Guard used at the top of owner-only actions: blocks + explains if a regular
 // staffer somehow triggers one (unhidden button, old cached page, etc.).
