@@ -2374,7 +2374,7 @@ function cycleGrid() {
 }
 function setTab(tab){currentTab=tab;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+tab).classList.add('active');renderInventory();}
 function markUnsold(id){const s=shoes.find(x=>x.id===id);if(s){s.sold=false;s.updatedAt=Date.now();save();renderInventory();_sfx.pop();addAudit('Shoe relisted',s.brand+' '+s.name,'inventory',s.id);showToast('Relisted ✓');}}
-function deleteShoe(id){if(!_requireManager('delete a shoe'))return;if(!confirm('Delete this shoe?'))return;const _ds=shoes.find(x=>x.id===id);shoes=shoes.filter(x=>x.id!==id);const deletedIds=JSON.parse(localStorage.getItem('sp_deleted')||'[]');if(!deletedIds.includes(id)){deletedIds.push(id);localStorage.setItem('sp_deleted',JSON.stringify(deletedIds));}if(typeof shopPost==='function')shopPost('/shop/deleted',{ids:[id]}).catch(function(){});save();renderInventory();_sfx.error();if(_ds)addAudit('Shoe deleted',_ds.brand+' '+_ds.name,'inventory');showToast('Shoe deleted');}
+function deleteShoe(id){if(!_requireDelete('delete a shoe'))return;if(!confirm('Delete this shoe?'))return;const _ds=shoes.find(x=>x.id===id);shoes=shoes.filter(x=>x.id!==id);const deletedIds=JSON.parse(localStorage.getItem('sp_deleted')||'[]');if(!deletedIds.includes(id)){deletedIds.push(id);localStorage.setItem('sp_deleted',JSON.stringify(deletedIds));}if(typeof shopPost==='function')shopPost('/shop/deleted',{ids:[id]}).catch(function(){});save();renderInventory();_sfx.error();if(_ds)addAudit('Shoe deleted',_ds.brand+' '+_ds.name,'inventory');showToast('Shoe deleted');}
 
 // ── Typo-tolerant search helpers ─────────────────────────────────────────────
 // Bounded edit distance so the search bar forgives misspellings/alt spellings
@@ -2586,7 +2586,7 @@ function openAddModal(){editingId=null;pendingImage=null;pendingFrames=null;pend
 function resetImgArea(){const area=document.getElementById('img-upload-area');area.classList.remove('has-image','has-video');document.getElementById('img-placeholder').style.display='';document.getElementById('vid-progress').style.display='none';const strip=document.getElementById('vid-frame-strip');strip.style.display='none';strip.innerHTML='';const ei=area.querySelector('img:not(.vid-frame-strip img)');if(ei)ei.remove();pendingFrames=null;pendingImage=null;pendingShoeId=null;const vi=document.getElementById('shoe-vid-input');if(vi)vi.value='';}
 function editShoe(id){if(!_requireManager('edit an existing shoe'))return;const s=shoes.find(x=>x.id===id);if(!s)return;editingId=id;pendingImage=s.image||null;document.getElementById('modal-title').textContent='Edit Shoe';document.getElementById('f-brand').value=s.brand;document.getElementById('f-name').value=s.name;document.getElementById('f-color').value=s.color||'';document.getElementById('f-condition').value=s.condition;document.getElementById('f-price').value=s.price||'';document.getElementById('f-sku').value=s.sku||'';document.getElementById('f-sizes').value=formatSizesWithCounts(s.sizes);document.getElementById('f-nickname').value=s.nickname||'';const area=document.getElementById('img-upload-area');if(s.image){area.classList.add('has-image');document.getElementById('img-placeholder').style.display='none';let img=area.querySelector('img');if(!img){img=document.createElement('img');area.appendChild(img);}img.src=s.image;}else resetImgArea();document.getElementById('shoe-modal').classList.add('open');
   const _db=document.getElementById('delete-shoe-btn');
-  if(_db){_db.style.display='inline-flex';_db.setAttribute('data-id',id);}
+  if(_db){_db.style.display=canDelete()?'inline-flex':'none';_db.setAttribute('data-id',id);}
 }
 function closeModal(){document.getElementById('shoe-modal').classList.remove('open');}
 function handleShoeVideo(input){
@@ -4842,6 +4842,11 @@ let currentUser = null;    // account name
 // Only these owner accounts get that power. Add a name here to make someone an owner.
 const OWNER_ACCOUNTS = ['Manager','Owner','Deashinique']; // Rodney 2026-07-25: gave Deashinique full edit access
 function isManager(){ return currentRole==='employee' && OWNER_ACCOUNTS.indexOf(currentUser)>-1; }
+// Rodney 2026-07-25: "employees can add but not delete, for security" — a narrower tier than
+// OWNER_ACCOUNTS. Deashinique gets edit/re-price/ads (isManager) but NOT delete — deleting a
+// listing is destructive and stays owner-only regardless of who else has edit rights.
+const DELETE_ACCOUNTS = ['Manager','Owner'];
+function canDelete(){ return currentRole==='employee' && DELETE_ACCOUNTS.indexOf(currentUser)>-1; }
 // Guard used at the top of owner-only actions: blocks + explains if a regular
 // staffer somehow triggers one (unhidden button, old cached page, etc.).
 function _requireManager(what){
@@ -4849,6 +4854,13 @@ function _requireManager(what){
   try{ showToast('🔒 Only the manager can '+(what||'do that')+'.', true); }catch(e){}
   try{ _sfx&&_sfx.error&&_sfx.error(); }catch(e){}
   try{ if(typeof addAudit==='function') addAudit('Blocked: '+(what||'manager action'), (currentUser||'staff')+' tried', 'security'); }catch(e){}
+  return false;
+}
+function _requireDelete(what){
+  if(canDelete()) return true;
+  try{ showToast('🔒 Only the owner can '+(what||'do that')+'.', true); }catch(e){}
+  try{ _sfx&&_sfx.error&&_sfx.error(); }catch(e){}
+  try{ if(typeof addAudit==='function') addAudit('Blocked: '+(what||'delete action'), (currentUser||'staff')+' tried', 'security'); }catch(e){}
   return false;
 }
 
@@ -5263,7 +5275,7 @@ renderInventory = function() {
 
   
 function deleteFromEdit() {
-  if(!_requireManager('delete a shoe'))return;
+  if(!_requireDelete('delete a shoe'))return;
   const btn = document.getElementById('delete-shoe-btn');
   const id = btn ? btn.getAttribute('data-id') : null;
   if (!id) return;
