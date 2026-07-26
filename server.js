@@ -2575,26 +2575,86 @@ let shiftSent = {};
 try { if (SHIFT_SENT_FILE && require('fs').existsSync(SHIFT_SENT_FILE)) shiftSent = JSON.parse(require('fs').readFileSync(SHIFT_SENT_FILE, 'utf8')) || {}; } catch (_) {}
 const NASSAU_OFFSET_H = -4; // Bahamas summer time (EDT). Winter is -5; adjust then.
 function nassauNow() { return new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000); }
+
+// ── Daily social-media posting rotation (Rodney 2026-07-26) ───────────────────
+// Employees were picking shoes to post by hand and kept re-posting the same ones
+// while others never got posted. This auto-picks 7 random IN-STOCK shoes every
+// day with NO repeats until the whole catalog has been posted once, then the
+// cycle resets and shuffles again — so every shoe gets equal airtime.
+const POST_ROTATION_FILE = REMINDERS_FILE ? REMINDERS_FILE.replace('reminders.json', 'post-rotation.json') : null;
+let postRotation = { postedIds: [], picks: {} };
+try { if (POST_ROTATION_FILE && require('fs').existsSync(POST_ROTATION_FILE)) postRotation = JSON.parse(require('fs').readFileSync(POST_ROTATION_FILE, 'utf8')) || postRotation; } catch (_) {}
+function savePostRotation() { if (POST_ROTATION_FILE) try { require('fs').writeFileSync(POST_ROTATION_FILE, JSON.stringify(postRotation)); } catch (_) {} }
+function shuffled(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function pickDailySocialShoes(dateKey, n = 7) {
+  const live = liveShoeMap();
+  if (postRotation.picks[dateKey]) return postRotation.picks[dateKey].map(id => Object.values(live).find(s => s.id === id)).filter(Boolean);
+  const pool = Object.values(live).filter(s => s && s.image);
+  if (!pool.length) return [];
+  let chosen = shuffled(pool.filter(s => !postRotation.postedIds.includes(s.id))).slice(0, n);
+  if (chosen.length < n) {
+    // Cycle exhausted (or close to it) — reset, then top up from the FULL pool
+    // (minus what's already picked this round) so the count still hits n.
+    postRotation.postedIds = [];
+    const already = new Set(chosen.map(s => s.id));
+    chosen = chosen.concat(shuffled(pool.filter(s => !already.has(s.id))).slice(0, n - chosen.length));
+  }
+  postRotation.postedIds.push(...chosen.map(s => s.id));
+  postRotation.picks[dateKey] = chosen.map(s => s.id);
+  const keys = Object.keys(postRotation.picks).sort();
+  if (keys.length > 30) delete postRotation.picks[keys[0]];
+  savePostRotation();
+  return chosen;
+}
+// Recurring extra tasks Rodney wants bundled into every evening's reminder —
+// just ask Claude to add a line here whenever a new recurring task comes up.
+const DAILY_TASKS = [];
+function buildTaskSection(shoes) {
+  let msg = '';
+  if (shoes.length) {
+    const list = shoes.map((s, i) => `${i + 1}. ${displayName(s)}`).join('\n');
+    msg += `\n\n📋 *Tomorrow's tasks:*\n📱 Post these ${shoes.length} shoes to Instagram/Facebook — photos coming right after this so you know exactly which pair:\n${list}`;
+  }
+  if (DAILY_TASKS.length) {
+    const startNum = shoes.length + 1;
+    msg += (shoes.length ? '\n' : '\n\n📋 *Tomorrow\'s tasks:*\n') + DAILY_TASKS.map((t, i) => `${startNum + i}. ${t}`).join('\n');
+  }
+  return msg;
+}
 const shiftTick = setInterval(async () => {
   const local = nassauNow();
   if (local.getUTCHours() !== 18) return; // fire during the 6 PM Nassau hour only
   const tomorrow = new Date(local.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
-  for (const [nm, info] of Object.entries(SHIFTS)) {
-    const hours = info && info.shifts && info.shifts[tomorrow];
-    if (!hours) continue;
+  const scheduled = Object.entries(SHIFTS).filter(([, info]) => info && info.shifts && info.shifts[tomorrow]);
+  const socialShoes = scheduled.length ? pickDailySocialShoes(tomorrow, 7) : [];
+  const taskMsg = buildTaskSection(socialShoes);
+  for (const [nm, info] of scheduled) {
+    const hours = info.shifts[tomorrow];
     const key = nm + '@' + tomorrow;
     if (shiftSent[key]) continue;
     shiftSent[key] = Date.now();
     try { if (SHIFT_SENT_FILE) require('fs').writeFileSync(SHIFT_SENT_FILE, JSON.stringify(shiftSent)); } catch (_) {}
-    const msg = `🙏 Big thanks for the work you've been putting in — it doesn't go unnoticed! 💪\n📅 Quick reminder: you're on tomorrow, ${hours}.\nSee you then! 👟🔥`;
+    const msg = `🙏 Big thanks for the work you've been putting in — it doesn't go unnoticed! 💪\n📅 Quick reminder: you're on tomorrow, ${hours}.${taskMsg}\nSee you then! 👟🔥`;
     const known = staffSubs[nm];
     let sent = false;
     if (known && known.sub) {
       const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
-      try { await sendChunk(known.sub, [{ type: 'text', text: msg }], tk); sent = true; } catch (_) {}
+      try {
+        await sendChunk(known.sub, [{ type: 'text', text: msg }], tk);
+        for (let i = 0; i < socialShoes.length; i++) {
+          const s = socialShoes[i];
+          if (!s.image) continue;
+          await sendChunk(known.sub, [{ type: 'image', url: s.image }, { type: 'text', text: `${i + 1}. ${displayName(s)}` }], tk);
+        }
+        sent = true;
+      } catch (_) {}
     }
-    try { require('./shop').addAlert(`📅 ${nm} works tomorrow (${tomorrow}): ${hours}${sent ? '' : ' — ⚠️ WhatsApp reminder NOT sent (they have not texted Kiki yet, so there is no direct line)'}`, 'Kiki 🤖'); } catch (_) {}
-    saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'shift-reminder', name: nm, date: tomorrow, hours, sentDirect: sent });
+    try { require('./shop').addAlert(`📅 ${nm} works tomorrow (${tomorrow}): ${hours}${taskMsg}${sent ? '' : ' — ⚠️ WhatsApp reminder NOT sent (they have not texted Kiki yet, so there is no direct line)'}`, 'Kiki 🤖'); } catch (_) {}
+    saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'shift-reminder', name: nm, date: tomorrow, hours, sentDirect: sent, socialShoes: socialShoes.map(s => s.id) });
     if (recent.length > 120) recent.length = 120;
   }
 }, 10 * 60 * 1000);
