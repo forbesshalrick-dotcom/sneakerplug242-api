@@ -2613,15 +2613,20 @@ function pickDailySocialShoes(dateKey, n = 7) {
 // Recurring extra tasks Rodney wants bundled into every evening's reminder —
 // just ask Claude to add a line here whenever a new recurring task comes up.
 const DAILY_TASKS = [];
-function buildTaskSection(shoes) {
+function buildTaskSection(shoes, dateKey) {
   let msg = '';
   if (shoes.length) {
     const list = shoes.map((s, i) => `${i + 1}. ${displayName(s)}`).join('\n');
     msg += `\n\n📋 *Tomorrow's tasks:*\n📱 Post these ${shoes.length} shoes to Instagram/Facebook — photos coming right after this so you know exactly which pair:\n${list}`;
   }
-  if (DAILY_TASKS.length) {
+  // One-off tasks Rodney typed into the website's Tasks page for THIS date (Rodney
+  // 2026-07-27) — separate from the instant-alert Task board, these just ride along
+  // in the evening reminder instead of pinging everyone the moment they're typed.
+  const extras = DAILY_TASKS.slice();
+  try { (require('./shop').getDateTasks(dateKey) || []).forEach(t => { if (t && t.text) extras.push(t.text); }); } catch (_) {}
+  if (extras.length) {
     const startNum = shoes.length + 1;
-    msg += (shoes.length ? '\n' : '\n\n📋 *Tomorrow\'s tasks:*\n') + DAILY_TASKS.map((t, i) => `${startNum + i}. ${t}`).join('\n');
+    msg += (shoes.length ? '\n' : '\n\n📋 *Tomorrow\'s tasks:*\n') + extras.map((t, i) => `${startNum + i}. ${t}`).join('\n');
   }
   return msg;
 }
@@ -2631,7 +2636,7 @@ const shiftTick = setInterval(async () => {
   const tomorrow = new Date(local.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
   const scheduled = Object.entries(SHIFTS).filter(([, info]) => info && info.shifts && info.shifts[tomorrow]);
   const socialShoes = scheduled.length ? pickDailySocialShoes(tomorrow, 7) : [];
-  const taskMsg = buildTaskSection(socialShoes);
+  const taskMsg = buildTaskSection(socialShoes, tomorrow);
   for (const [nm, info] of scheduled) {
     const hours = info.shifts[tomorrow];
     const key = nm + '@' + tomorrow;

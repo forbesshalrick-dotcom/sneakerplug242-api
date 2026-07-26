@@ -73,6 +73,7 @@ const state = {
   subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
   logins: loadFile('logins.json', {}),      // SERVER-side login patterns: { name: {hash, salt} } — hashed, never plaintext
   rev: loadFile('rev.json', { n: 1 }),
+  dateTasks: loadFile('dateTasks.json', {}), // { "YYYY-MM-DD": [{id,text,by,at}] } — queued into THAT evening's WhatsApp reminder (not an instant alert like notes/tasks above)
 };
 
 // Baseline seed so the core staff numbers/accounts come back automatically after a
@@ -514,6 +515,29 @@ function mount(app) {
     res.json({ ok: true });
   });
 
+  // ---- Date tasks (queued into a SPECIFIC evening's WhatsApp shift reminder,
+  // alongside the 7 rotating social-media shoes — NOT an instant alert) ----
+  app.get('/shop/date-tasks', (req, res) => {
+    if (!auth(req, res)) return;
+    const date = String(req.query.date || '').slice(0, 10);
+    res.json({ ok: true, tasks: date ? getDateTasks(date) : (state.dateTasks || {}) });
+  });
+  app.post('/shop/date-task', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const date = String(b.date || '').slice(0, 10);
+    const text = String(b.text || '').trim();
+    if (!date || !text) return res.status(400).json({ error: 'date and text required' });
+    const task = addDateTask(date, text, b.by);
+    res.json({ ok: true, task });
+  });
+  app.post('/shop/date-task/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const ok = deleteDateTask(String(b.date || '').slice(0, 10), b.id);
+    res.json({ ok });
+  });
+
   // ---- Employees (so the server knows who to WhatsApp) ----
   app.post('/shop/employees', (req, res) => {
     if (!auth(req, res)) return;
@@ -826,4 +850,24 @@ function mount(app) {
 function getShoes() { return Array.isArray(state.shoes) ? state.shoes : []; }
 function getDeleted() { return Array.isArray(state.deleted) ? state.deleted : []; }
 
-module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []) };
+// Tasks queued for a SPECIFIC date's evening reminder (Rodney 2026-07-27) — added from
+// the website's Tasks page, merged into that day's WhatsApp shift reminder alongside the
+// 7 rotating shoes, instead of instantly alerting everyone like the notes above do.
+function getDateTasks(dateKey) { return (state.dateTasks && state.dateTasks[dateKey]) || []; }
+function addDateTask(dateKey, text, by) {
+  if (!state.dateTasks || typeof state.dateTasks !== 'object') state.dateTasks = {};
+  if (!Array.isArray(state.dateTasks[dateKey])) state.dateTasks[dateKey] = [];
+  const task = { id: Date.now() + Math.random(), text: String(text).slice(0, 300), by: by || 'Manager', at: new Date().toISOString() };
+  state.dateTasks[dateKey].push(task);
+  persist('dateTasks.json'); bump();
+  return task;
+}
+function deleteDateTask(dateKey, id) {
+  if (!state.dateTasks || !Array.isArray(state.dateTasks[dateKey])) return false;
+  const before = state.dateTasks[dateKey].length;
+  state.dateTasks[dateKey] = state.dateTasks[dateKey].filter(t => String(t.id) !== String(id));
+  persist('dateTasks.json'); bump();
+  return state.dateTasks[dateKey].length !== before;
+}
+
+module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks };

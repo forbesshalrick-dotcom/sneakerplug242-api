@@ -7212,6 +7212,38 @@ function renderTasks(){
   }
   renderTasksList(getLocalNotes());
   syncNotes(false); // refresh from server in background
+  renderDateTasks();
+}
+
+function tomorrowKey(){
+  var d=new Date(); d.setDate(d.getDate()+1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function postDateTask(){
+  var ta=document.getElementById('rtask-text');
+  var text=(ta.value||'').trim();
+  if(!text){ showToast('Type the task first', true); return; }
+  var btn=document.getElementById('rtask-post-btn'); if(btn){ btn.disabled=true; btn.textContent='Adding…'; }
+  shopPost('/shop/date-task', {date: tomorrowKey(), text: text, by: currentUser||'Manager'})
+    .then(function(){ ta.value=''; showToast('Added to tomorrow\'s reminder ✅'); renderDateTasks(); })
+    .catch(function(){ showToast('Could not add — check connection', true); })
+    .then(function(){ if(btn){ btn.disabled=false; btn.innerHTML='🗓 Add to Tomorrow\'s Reminder'; } });
+}
+function renderDateTasks(){
+  var list=document.getElementById('rtask-list'); if(!list) return;
+  shopGet('/shop/date-tasks?date='+tomorrowKey()).then(function(res){
+    var tasks=res.tasks||[];
+    if(!tasks.length){ list.innerHTML='<div style="font-size:12px;color:var(--text-muted);">Nothing queued for tomorrow yet</div>'; return; }
+    list.innerHTML = tasks.map(function(t){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border-radius:8px;padding:9px 11px;margin-bottom:6px;">'
+        +'<div style="font-size:13px;color:var(--text);flex:1;">'+_esc(t.text)+'</div>'
+        +'<button onclick="deleteDateTask(\''+t.id+'\')" style="background:none;color:#888;border:1px solid var(--border);border-radius:7px;padding:5px 9px;font-size:12px;cursor:pointer;margin-left:8px;">🗑</button>'
+        +'</div>';
+    }).join('');
+  }).catch(function(){});
+}
+function deleteDateTask(id){
+  shopPost('/shop/date-task/delete', {date: tomorrowKey(), id: id}).then(function(){ renderDateTasks(); }).catch(function(){ showToast('Could not delete', true); });
 }
 
 function _esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -7905,6 +7937,13 @@ setTimeout(_showLandingFpBtn, 200);
 <div class="page" id="page-tasks">
   <div class="page-title"><h2>✅ TASKS</h2><p>Notes for the team — everyone gets a WhatsApp</p></div>
   <div style="padding:0 0 20px;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:18px;">
+      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;">🗓 Reminder Menu — Goes Into Tomorrow's WhatsApp</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">These ride along in the evening reminder with the 7 shoes to post — not an instant alert like the task form below.</div>
+      <textarea id="rtask-text" placeholder="e.g. Update the display window with new arrivals" style="width:100%;box-sizing:border-box;min-height:56px;padding:11px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;resize:vertical;font-family:inherit;"></textarea>
+      <button onclick="postDateTask()" id="rtask-post-btn" style="width:100%;margin-top:10px;padding:13px;border:0;border-radius:10px;background:var(--accent);color:#000;font-size:15px;font-weight:700;cursor:pointer;">🗓 Add to Tomorrow's Reminder</button>
+      <div id="rtask-list" style="margin-top:12px;"></div>
+    </div>
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:18px;">
       <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:10px;">New Task</div>
       <textarea id="task-text" placeholder="What needs to be done? e.g. Re-shoot the Pizza Jordan 4 spin" style="width:100%;box-sizing:border-box;min-height:64px;padding:11px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;resize:vertical;font-family:inherit;"></textarea>
