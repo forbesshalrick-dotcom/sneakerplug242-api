@@ -2108,7 +2108,15 @@ try {
       .sort((a, b) => b[1].ts - a[1].ts)
       .slice(0, 400); // safety cap
     for (const [sub, v] of entries) { convos.set(sub, v.h); convoTouched.set(sub, v.ts); }
-    console.log('[convos] restored', convos.size, 'conversations');
+    // Restore remembered sizes on their OWN 12h window (matches the TTL where sizeCtx is
+    // built) — deliberately longer than the 6h chat cutoff above, because knowing the
+    // customer's size is still useful after their older history has been pruned.
+    const sizeCutoff = Date.now() - 12 * 60 * 60 * 1000;
+    let sizesBack = 0;
+    for (const [sub, v] of Object.entries(saved.sizes || {})) {
+      if (v && v.size && (v.ts || 0) > sizeCutoff) { custSize.set(sub, v); sizesBack++; }
+    }
+    console.log('[convos] restored', convos.size, 'conversations,', sizesBack, 'sizes');
   }
 } catch (e) { console.log('[convos] restore failed:', e.message); }
 let convosSaveT = null;
@@ -2119,7 +2127,12 @@ function saveConvos() { // debounced best-effort write
     try {
       const chats = {};
       for (const [sub, h] of convos) chats[sub] = { ts: convoTouched.get(sub) || Date.now(), h };
-      require('fs').writeFileSync(CONVOS_FILE, JSON.stringify({ chats }));
+      // Persist remembered SIZES too (Rodney 2026-07-27: a customer said 9.5 in the morning,
+      // came back 11h44m later — inside the 12h size window — and Kiki asked his size AGAIN.
+      // custSize was memory-only, so any restart in between wiped it while convos survived.)
+      const sizes = {};
+      for (const [sub, v] of custSize) if (v && v.size) sizes[sub] = v;
+      require('fs').writeFileSync(CONVOS_FILE, JSON.stringify({ chats, sizes }));
     } catch (_) {}
   }, 2000);
   if (convosSaveT.unref) convosSaveT.unref();
@@ -3079,7 +3092,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Remember the customer's size (a single concrete size search = their size) so we can
         // reuse it later without re-asking. Skip "all"/ranges/matching (sizes array).
         if (p.size != null && String(p.size).trim() !== '' && !/all/i.test(String(p.size)))
-          try { custSize.set(sub, { size: String(p.size).trim(), ts: Date.now() }); } catch (_) {}
+          try { custSize.set(sub, { size: String(p.size).trim(), ts: Date.now() }); saveConvos(); } catch (_) {}
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
         record(req, { endpoint: 'search', sub, params: p, found: found.length });
@@ -3131,8 +3144,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // lead-in is a GENERIC size batch (mentions no brand, model or colour) — the case where
         // it must show every brand in the size. A lead-in naming a brand/model/colour (e.g.
         // "Here's our Jordan 4s") is a specific request and is left exactly as she sent it.
+        let outIdCount = 0;
         try {
           const outIds = (Array.isArray(inp.groups) && inp.groups.length) ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
+          outIdCount = outIds.length;
           outIds.forEach(id => turnSentIds.add(String(id)));
           // Check group LABELS too, not just the top-level lead_in — a multi-size request
           // ("j's 9.5 10 and 5.5 6") is exactly the case the tool spec tells Kiki to leave
@@ -3152,6 +3167,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           result.note = `These shoes were NOT sent — they don't come in a ${inp.size}${inp.womens ? " (women's)" : ''}: ${droppedWrongSize.join('; ')}. If one of them fits what the customer wanted, you may offer it as a NEAREST-SIZE option, saying plainly it doesn't come in their size.`;
         }
         if (result.sent > 0) { if (!staffName) scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // staff don't get 10-min nudges // nudge 10 min later if quiet
+        // 🚨 ALBUM SENT *NOTHING* — the silent hole (Rodney 2026-07-27): a size-4 customer got
+        // the lead-in "This is what we have in size 4 rite now 👇 Ready to Order!" at 12:20 and
+        // then NOTHING — no photos, and not one line in /last, so the image-timeout text
+        // fallback never fired either. He had to send the pics by hand 26 minutes later. There
+        // was no `else` here, so a zero-photo album was completely invisible. Now: log it LOUD,
+        // and hand Kiki the tool result telling her to answer in WORDS rather than leave the
+        // customer staring at a promise of pictures that never came.
+        else if (!result.interrupted) {
+          record(req, { endpoint: 'album-sent-nothing', sub, asked: outIdCount, droppedForSize: droppedWrongSize.length, leadIn: String(leadIn || '').slice(0, 100) });
+          result.note = (result.note ? result.note + ' ' : '')
+            + 'CRITICAL — ZERO photos actually reached this customer, but your lead-in already promised them pictures. DO NOT go silent and DO NOT just retry the same album. Reply NOW in words on this turn: name the pairs we have in their size with price and order code for each, and tell them they can see the pictures at 242plug.com. They are waiting on a promise you already made.';
+        }
         // Customer asked to STOP mid-album — end this turn, but CLOSE the tool call
         // properly first: leaving a dangling tool_use poisons the whole conversation
         // (every later message 400s → endless "didn't come through") (fixed 2026-07-13).
