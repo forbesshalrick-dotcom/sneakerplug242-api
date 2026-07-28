@@ -1765,7 +1765,7 @@ function clusterShoesByModel(arr) {
 // Subs whose in-progress photo album the OWNER hit STOP on (manual halt from the chat) —
 // so a malfunctioning "sends all stock" dump can be cut off mid-album by hand.
 const sendAbort = new Set();
-async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false, requestAt = 0) {
+async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false, requestAt = 0, wantSize = null) {
   sendAbort.delete(sub); // fresh send — clear any stale stop flag so it isn't halted before it starts
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
@@ -1781,7 +1781,19 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     const sizeLine = womens
       ? `📏 *Women's Sizes:* ${sizesOf(s, true)}  ·  *Men's:* ${sizesOf(s, false)}`
       : `📏 *Men's Sizes:* ${sizesOf(s, false)}`;
-    return `${displayName(s)} — *$${s.price}*\n${sizeLine}`;
+    // ⚠️ HALF-SIZE-UP HONESTY (Rodney 2026-07-28). The size guard deliberately lets a shoe
+    // through when it only carries the half size ABOVE what was asked for, so we can offer a
+    // near fit — that part is wanted. What was NOT wanted: a size-8 customer got "B9 · Air
+    // Jordan 1 Blue/Red — Men's Sizes: 8.5" sitting inside a "size 8" album with nothing
+    // said, reading as though we had her size. Offer it, but say plainly that we don't.
+    let nearNote = '';
+    const want = parseFloat(wantSize);
+    if (!isNaN(want) && !womens) {
+      const raw = s.sizesRaw || [];
+      const has = (n) => raw.some(x => parseFloat(x) === n);
+      if (!has(want) && has(want + 0.5)) nearNote = `\n⚠️ _No ${want} in this one — closest is ${want + 0.5}_`;
+    }
+    return `${displayName(s)} — *$${s.price}*\n${sizeLine}${nearNote}`;
   };
   // Look shoes up through the LIVE map so labels show current sizes and anything
   // marked sold/deleted on the website is dropped even if it slipped into `ids`.
@@ -3161,7 +3173,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             turnGenericSizeAlbum = true;
           }
         } catch (_) {}
-        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName, ctx.turnAt || 0);
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName, ctx.turnAt || 0, inp.size);
         if (droppedWrongSize.length) {
           record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
           result.dropped_wrong_size = droppedWrongSize;
