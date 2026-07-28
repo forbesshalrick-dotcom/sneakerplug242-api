@@ -4258,6 +4258,14 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     background:linear-gradient(90deg,#ff8ad4,#ff5cb4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .b.rodney .who{background:linear-gradient(90deg,#e4ffcf,#9dff5c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .b .tm{font-size:9.5px;opacity:.5;margin-top:4px;text-align:right}
+  /* 📅 Day divider — a centred pill with a hairline running through it, so a long thread
+     visibly breaks into days (Rodney 2026-07-28). Sticks to the top while you scroll that
+     day, so you always know which day you're reading. */
+  .dsep{display:flex;align-items:center;gap:10px;margin:16px 4px 10px;position:sticky;top:4px;z-index:3;pointer-events:none}
+  .dsep:before,.dsep:after{content:"";flex:1;height:1px;background:rgba(255,255,255,.13)}
+  .dsep span{flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+    color:#cfd6e6;background:rgba(18,22,34,.92);border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:4px 12px;backdrop-filter:blur(6px);box-shadow:0 2px 10px rgba(0,0,0,.35)}
   /* 🌐 English translation under a foreign-language message — clearly secondary to the
      original, but readable at a glance (Rodney 2026-07-28, Haitian-Creole customer). */
   .b .trl{margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.28);
@@ -4784,6 +4792,23 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   }
   function ago(ts){ if(!ts)return''; var s=Math.floor((Date.now()-ts)/1000); if(s<60)return'now'; if(s<3600)return Math.floor(s/60)+'m'; if(s<86400)return Math.floor(s/3600)+'h'; var d=new Date(ts); return (d.getMonth()+1)+'/'+d.getDate(); }
   function clock(ts){ var d=new Date(ts); var h=d.getHours(), ap=h>=12?'PM':'AM'; h=h%12||12; return h+':'+String(d.getMinutes()).padStart(2,'0')+' '+ap; }
+  // 📅 DAY DIVIDERS (Rodney 2026-07-28: "all messages are together, cannot tell which day it
+  // starts fresh"). dayKey = a stable YYYY-M-D so we only draw a divider when the calendar
+  // day actually changes; dayLabel = what a person would say — Today / Yesterday / the
+  // weekday name for the past week / then a plain date.
+  var DAYNM=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MONNM=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function dayKey(ts){ if(!ts) return ''; var d=new Date(ts); return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate(); }
+  function dayLabel(ts){
+    var d=new Date(ts), n=new Date();
+    var midnight=function(x){ return new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime(); };
+    var diff=Math.round((midnight(n)-midnight(d))/86400000);
+    if(diff===0) return 'Today';
+    if(diff===1) return 'Yesterday';
+    if(diff>1 && diff<7) return DAYNM[d.getDay()];
+    var s=DAYNM[d.getDay()]+', '+MONNM[d.getMonth()]+' '+d.getDate();
+    return d.getFullYear()===n.getFullYear() ? s : (s+' '+d.getFullYear());
+  }
   function tagCls(t){ return (t==='TK'||t==='OSC'||t==='SB')?t:'OTH'; }
   function countdown(until){ var s=Math.max(0,Math.floor((until-Date.now())/1000)); var m=Math.floor(s/60); return m>0?(m+' min'):(s+'s'); }
 
@@ -4897,10 +4922,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       if(d.avatar){ var c=accCols(cur.tag); $('tAv').innerHTML='<img src="'+esc(d.avatar)+'" class="avimg" onerror="__avFail(this)"><span class="avini" style="display:none">'+esc(($('tName').textContent||'?').charAt(0).toUpperCase())+'</span>'; }
       var m = $('msgs');
       var atBottom = (m.scrollHeight - m.scrollTop - m.clientHeight) < 60;
+      var lastDay='';
       m.innerHTML = (d.msgs||[]).map(function(x){
+        // 📅 A divider whenever the calendar day changes, so a long thread reads as days.
+        var sep='';
+        var dk=dayKey(x.ts);
+        if(dk && dk!==lastDay){ lastDay=dk; sep='<div class="dsep"><span>'+esc(dayLabel(x.ts))+'</span></div>'; }
         // System events (deliveries / new orders from Kiki's notify_manager) render as a
         // centred pill, not a chat bubble — they're not something the customer or you "said".
-        if(x.sender==='system'){ return '<div class="srow"><div class="sys">'+esc(x.text).replace(/\\n/g,'<br>')+'<span class="stm">'+clock(x.ts)+'</span></div></div>'; }
+        if(x.sender==='system'){ return sep+'<div class="srow"><div class="sys">'+esc(x.text).replace(/\\n/g,'<br>')+'<span class="stm">'+clock(x.ts)+'</span></div></div>'; }
         var cls = x.dir==='in'?'in':(x.sender==='rodney'?'rodney':'kiki');
         var row = x.dir==='in' ? 'inb' : 'out';
         var who = x.dir==='in'?'':(x.sender==='rodney'?(rodney(15)+' You'):(kiki(15)+' Kiki'));
@@ -4914,7 +4944,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
         // 🌐 English line under a non-English message, so Rodney can read his own inbox
         // (a whole Haitian-Creole conversation went by unreadable — 2026-07-28).
         var trl = x.tr ? '<div class="trl">🌐 '+escB(x.tr)+'</div>' : '';
-        return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+trl+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
+        return sep+'<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+trl+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
       // tap a customer message to quote it in your reply
       Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
