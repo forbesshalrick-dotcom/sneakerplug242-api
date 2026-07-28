@@ -5538,10 +5538,38 @@ app.get('/inbox/threads', (req, res) => {
 // now gets an English line underneath. Translation runs in the BACKGROUND (never blocks
 // opening a thread) and is cached on the message forever, so it's one cheap Haiku call per
 // message, once. English messages are marked done with no translation stored.
-const TRANSLATE_SYS = 'You translate chat messages for a Bahamian sneaker shop owner reading his own support inbox.\n'
-  + 'Reply with ONLY the English translation — no quotes, no preamble, no notes.\n'
-  + 'If the message is ALREADY in English (Bahamian slang and texting shorthand count as English), reply with exactly: SAME\n'
-  + 'Keep it short and natural. Preserve prices, sizes, shoe names and order codes exactly as written.';
+const TRANSLATE_SYS = 'You are a translation ENGINE for a Bahamian sneaker shop owner reading his own support inbox.\n'
+  + 'Output ONLY the English translation. Nothing else, ever.\n'
+  + 'NEVER write a preamble, an explanation, a note, quotes, or the name of the source language.\n'
+  + 'NEVER say what you are about to do or that you are translating. Do not narrate. Just output the English.\n'
+  + 'If the message is ALREADY in English (Bahamian slang and texting shorthand count as English), output exactly: SAME\n'
+  + 'If you cannot tell what it says, output exactly: SAME\n'
+  + 'Keep it short and natural. Preserve prices, sizes, shoe names and order codes exactly as written.\n'
+  + 'Example — input: "Mw bezyen yon tenis"  output: I need a sneaker\n'
+  + 'Example — input: "u have size 8?"  output: SAME';
+// Haiku sometimes narrates anyway on an unusual language (a Twi message came back as
+// "I need to translate this from Twi (Ghanaian language) to English." — Rodney 2026-07-28).
+// Catch that shape and drop it rather than showing the model's thinking as a translation.
+// ⚠️ MUST be narrow. A first draft matched anything starting "I need…" and silently ate the
+// correct translation "I need a sneaker". Only flag text that actually narrates TRANSLATING,
+// or explicitly names the source language — never ordinary sentences.
+const TR_META = /^\s*(?:[^.\n]{0,80}\btranslat(?:e|es|ed|ing|ion)\b|note:|(?:this|the)\s+(?:message|text)\s+(?:is|appears)\s+(?:to be\s+)?(?:in|written)\b)/i;
+function cleanTranslation(out) {
+  let s = String(out || '').trim();
+  if (!s) return '';
+  // "Translation: I want the Jordans" → keep what's after the label (no blank line to split on).
+  s = s.replace(/^\s*(?:english\s+)?(?:translation|translated|note)\s*:\s*/i, '').trim();
+  if (TR_META.test(s)) {
+    // Sometimes the real translation follows the narration after a blank line — keep that.
+    const parts = s.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const good = parts.find(p => !TR_META.test(p));
+    if (!good) return '';
+    s = good;
+  }
+  s = s.replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+  if (!s || /^same$/i.test(s)) return '';
+  return s.slice(0, 1200);
+}
 async function translateToEnglish(text) {
   const t = String(text || '').trim();
   if (!t || t.length < 2) return '';
@@ -5555,9 +5583,7 @@ async function translateToEnglish(text) {
     if (!r.ok) return '';
     const d = await r.json();
     const out = ((d.content || []).find(c => c.type === 'text') || {}).text || '';
-    const clean = out.trim();
-    if (!clean || /^same$/i.test(clean)) return '';   // already English
-    return clean.slice(0, 1200);
+    return cleanTranslation(out);   // '' = already English, or the model narrated instead
   } catch (_) { return ''; }
 }
 // Fire-and-forget: translate any untranslated text messages in a thread, then bump the rev
@@ -5566,7 +5592,10 @@ async function translateToEnglish(text) {
 const translating = new Set();
 function queueTranslations(t) {
   if (!t || !Array.isArray(t.msgs) || !process.env.ANTHROPIC_API_KEY) return;
-  const todo = t.msgs.filter(m => m && m.text && !m.trDone && !m.img && !m.loc).slice(-40).filter(m => !translating.has(m.id));
+  // Re-do any message whose CACHED translation is actually the model narrating — that's how
+  // the Twi bug self-heals without a manual purge of stored translations.
+  const needs = (m) => !m.trDone || (m.tr && TR_META.test(m.tr));
+  const todo = t.msgs.filter(m => m && m.text && !m.img && !m.loc && needs(m)).slice(-40).filter(m => !translating.has(m.id));
   if (!todo.length) return;
   todo.forEach(m => translating.add(m.id));
   (async () => {
@@ -5574,7 +5603,7 @@ function queueTranslations(t) {
     for (const m of todo) {
       const tr = await translateToEnglish(m.text);
       m.trDone = true;
-      if (tr) { m.tr = tr; }
+      if (tr) m.tr = tr; else delete m.tr;   // clear a previously-stored bad translation
       changed = true;
       translating.delete(m.id);
     }
