@@ -1835,6 +1835,14 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // early). Stashed at the end so the ▶️ Continue button in the inbox can send just these,
   // instead of Rodney re-sending the whole album by hand (Rodney 2026-07-28).
   const unsent = [];
+  // 🩹 CIRCUIT BREAKER (Rodney 2026-07-28). When ManyChat starts timing out, EVERY photo
+  // takes the full 20s to fail, so a 15-shoe album becomes a 15-minute death march that
+  // trickles shoes out late and out of order — and the customer's "stop sending me these"
+  // can't halt it, because ManyChat stops forwarding his messages too. Proven live on
+  // Pjaeee: 23:00→23:15 solid failures while he begged for Asics and got Air Max. After a
+  // run of consecutive failures, give up on the album instead of grinding through it.
+  let consecFail = 0, brokeOnFailures = false;
+  const FAIL_LIMIT = 3;
   // INTERRUPT MID-ALBUM — STOP-WORDS ONLY (Rodney's rule 2026-07-13 v2): the album halts
   // ONLY when the customer clearly asks it to ("stop", "that's enough", "never mind"...).
   // A QUESTION mid-album ("same price all?", "got Jordan 5s?") does NOT stop the pictures —
@@ -1938,13 +1946,14 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       const r = await sendChunk(sub, photoWithLabel(s), token);
       const delivered = !!(r && r.ok && !r.fallback); // fallback = text went, the PICTURE didn't
       if (delivered) {
-        sent += 1; lastShoeSent = s;
+        sent += 1; lastShoeSent = s; consecFail = 0;
         // Remember WHICH shoes this chat has actually SEEN — record_sale demands it.
         if (s && s.id != null) photoConfirmSeen.set(sub + '|' + s.id, Date.now());
-      } else if (s && s.id != null) {
-        unsent.push(s.id); // queue it for the ▶️ Continue button
+      } else {
+        consecFail += 1;
+        if (s && s.id != null) unsent.push(s.id); // queue it for the ▶️ Continue button
       }
-    } catch (e) { if (s && s.id != null) unsent.push(s.id); }
+    } catch (e) { consecFail += 1; if (s && s.id != null) unsent.push(s.id); }
   };
 
   // One shoe → its photo immediately followed by its label bubble (when labelling).
@@ -1970,6 +1979,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
         await answerMidAlbum();
         if (sendAbort.has(sub)) { sendAbort.delete(sub); interrupted = true; manualStopped = true; break outer; }
         if (customerSpoke()) { interrupted = true; break outer; }
+        if (consecFail >= FAIL_LIMIT) { brokeOnFailures = true; break outer; }
         await sendShoe(s);
       }
     }
@@ -1983,8 +1993,19 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       await answerMidAlbum();
       if (sendAbort.has(sub)) { sendAbort.delete(sub); interrupted = true; manualStopped = true; break; }
       if (customerSpoke()) { interrupted = true; break; }
+      if (consecFail >= FAIL_LIMIT) { brokeOnFailures = true; break; }
       await sendShoe(s);
     }
+  }
+  // Record the bail-out loudly — this is the signal that ManyChat is failing, and it's the
+  // only way to tell "album finished" apart from "album gave up" in the logs.
+  if (brokeOnFailures) {
+    try {
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'album-aborted-send-failures', sub,
+        sentOk: sent, abandoned: unsent.length, note: String(FAIL_LIMIT) + ' consecutive send failures — stopped instead of grinding' });
+      if (recent.length > 120) recent.length = 120;
+      saveRecent();
+    } catch (_) {}
   }
 
   // Close with the "text me the name" prompt once photos have gone out — but only
