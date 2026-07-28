@@ -1807,6 +1807,10 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       .map(id => live[id]).filter(x => x && x.image);
   };
   let sent = 0, requested = 0;
+  // Shoes whose PICTURE never reached the customer (ManyChat timeout, or the album halted
+  // early). Stashed at the end so the ▶️ Continue button in the inbox can send just these,
+  // instead of Rodney re-sending the whole album by hand (Rodney 2026-07-28).
+  const unsent = [];
   // INTERRUPT MID-ALBUM — STOP-WORDS ONLY (Rodney's rule 2026-07-13 v2): the album halts
   // ONLY when the customer clearly asks it to ("stop", "that's enough", "never mind"...).
   // A QUESTION mid-album ("same price all?", "got Jordan 5s?") does NOT stop the pictures —
@@ -1903,10 +1907,20 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // Send ONE shoe (photo + its label) per call, so a "stop" halts within a single shoe.
   const sendShoe = async (s) => {
     try {
-      await sendChunk(sub, photoWithLabel(s), token); sent += 1; lastShoeSent = s;
-      // Remember WHICH shoes this chat has actually SEEN — record_sale demands it.
-      if (s && s.id != null) photoConfirmSeen.set(sub + '|' + s.id, Date.now());
-    } catch (e) { /* keep going */ }
+      // ⚠️ sendChunk RETURNS {ok:false} on failure — it does NOT throw. This used to do
+      // `sent += 1` unconditionally, so 12 straight ManyChat timeouts still counted as
+      // 12 photos "sent" (Rodney 2026-07-28: an album took 12 × 20s AbortError and the
+      // customer got almost nothing, while the tally claimed success). Count DELIVERIES.
+      const r = await sendChunk(sub, photoWithLabel(s), token);
+      const delivered = !!(r && r.ok && !r.fallback); // fallback = text went, the PICTURE didn't
+      if (delivered) {
+        sent += 1; lastShoeSent = s;
+        // Remember WHICH shoes this chat has actually SEEN — record_sale demands it.
+        if (s && s.id != null) photoConfirmSeen.set(sub + '|' + s.id, Date.now());
+      } else if (s && s.id != null) {
+        unsent.push(s.id); // queue it for the ▶️ Continue button
+      }
+    } catch (e) { if (s && s.id != null) unsent.push(s.id); }
   };
 
   // One shoe → its photo immediately followed by its label bubble (when labelling).
@@ -4244,6 +4258,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     background:linear-gradient(90deg,#ff8ad4,#ff5cb4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .b.rodney .who{background:linear-gradient(90deg,#e4ffcf,#9dff5c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .b .tm{font-size:9.5px;opacity:.5;margin-top:4px;text-align:right}
+  /* 🌐 English translation under a foreign-language message — clearly secondary to the
+     original, but readable at a glance (Rodney 2026-07-28, Haitian-Creole customer). */
+  .b .trl{margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,.28);
+    font-size:12.5px;line-height:1.35;opacity:.82;font-style:italic;white-space:pre-wrap;word-break:break-word}
   .mini{width:17px;height:17px;border-radius:50%;vertical-align:middle}
   .banner{padding:10px 14px;font-size:12.5px;text-align:center;font-weight:500}
   .banner.paused{background:linear-gradient(90deg,rgba(255,183,77,.13),rgba(255,183,77,.05));color:#ffcf8f;border-bottom:1px solid rgba(255,183,77,.25)}
@@ -4867,7 +4885,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
       // actually changed (new/removed message, pause toggled, name/avatar) — or on a forced
       // open/scroll. Otherwise leave the DOM (and the scroll position) exactly as it is.
       var lm = (d.msgs && d.msgs.length) ? d.msgs[d.msgs.length-1] : null;
-      var sig = (cur.sub||'')+'|'+((d.msgs&&d.msgs.length)||0)+'|'+(lm?(lm.id+':'+lm.ts):'')+'|'+(d.paused?1:0)+'|'+(d.name||'')+'|'+(d.avatar||'')+'|'+(d.phone||'');
+      // 🌐 the translation count is part of the signature — translations land AFTER the
+      // message does, so without this the thread never redraws to show them.
+      var trN = 0; (d.msgs||[]).forEach(function(z){ if(z && z.tr) trN++; });
+      var sig = (cur.sub||'')+'|'+((d.msgs&&d.msgs.length)||0)+'|'+(lm?(lm.id+':'+lm.ts):'')+'|'+(d.paused?1:0)+'|'+(d.name||'')+'|'+(d.avatar||'')+'|'+(d.phone||'')+'|tr'+trN;
       if(!scroll && sig===lastThreadSig) return; // nothing changed — don't touch the page
       lastThreadSig = sig;
       if(d.name){ cur.name=d.name; $('tName').innerHTML=custNameHTML(d.name, cur.tag); }
@@ -4890,7 +4911,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
                  : (x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : '<span class="btext">'+escB(x.text)+'</span>');
         var bimg = '';
         if(!x.img && LUX_COUNT>0){ var seed=String(x.id||x.ts||''); var h=2166136261; for(var si=0;si<seed.length;si++){ h^=seed.charCodeAt(si); h=(h*16777619)>>>0; } bimg=' style="--bimg:url(/inbox/lux/'+((h%LUX_COUNT)+1)+')"'; }
-        return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
+        // 🌐 English line under a non-English message, so Rodney can read his own inbox
+        // (a whole Haitian-Creole conversation went by unreadable — 2026-07-28).
+        var trl = x.tr ? '<div class="trl">🌐 '+escB(x.tr)+'</div>' : '';
+        return '<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+trl+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
       // tap a customer message to quote it in your reply
       Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
@@ -5508,6 +5532,56 @@ app.get('/inbox/threads', (req, res) => {
   res.json({ rev: inboxRev, threads: list });
 });
 
+// 🌐 INBOX TRANSLATION (Rodney 2026-07-28). Kiki answers customers in whatever language
+// they write — a Haiti customer got a whole conversation in Haitian Creole, correctly
+// handled, but Rodney couldn't read a word of his own inbox to supervise it. Every message
+// now gets an English line underneath. Translation runs in the BACKGROUND (never blocks
+// opening a thread) and is cached on the message forever, so it's one cheap Haiku call per
+// message, once. English messages are marked done with no translation stored.
+const TRANSLATE_SYS = 'You translate chat messages for a Bahamian sneaker shop owner reading his own support inbox.\n'
+  + 'Reply with ONLY the English translation — no quotes, no preamble, no notes.\n'
+  + 'If the message is ALREADY in English (Bahamian slang and texting shorthand count as English), reply with exactly: SAME\n'
+  + 'Keep it short and natural. Preserve prices, sizes, shoe names and order codes exactly as written.';
+async function translateToEnglish(text) {
+  const t = String(text || '').trim();
+  if (!t || t.length < 2) return '';
+  try {
+    const r = await fetch(ANTHROPIC_API, {
+      method: 'POST',
+      headers: { 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 400, system: TRANSLATE_SYS, messages: [{ role: 'user', content: t.slice(0, 1500) }] }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) return '';
+    const d = await r.json();
+    const out = ((d.content || []).find(c => c.type === 'text') || {}).text || '';
+    const clean = out.trim();
+    if (!clean || /^same$/i.test(clean)) return '';   // already English
+    return clean.slice(0, 1200);
+  } catch (_) { return ''; }
+}
+// Fire-and-forget: translate any untranslated text messages in a thread, then bump the rev
+// so the open inbox picks them up on its next poll. Capped per call so a long thread can't
+// stampede the API.
+const translating = new Set();
+function queueTranslations(t) {
+  if (!t || !Array.isArray(t.msgs) || !process.env.ANTHROPIC_API_KEY) return;
+  const todo = t.msgs.filter(m => m && m.text && !m.trDone && !m.img && !m.loc).slice(-40).filter(m => !translating.has(m.id));
+  if (!todo.length) return;
+  todo.forEach(m => translating.add(m.id));
+  (async () => {
+    let changed = false;
+    for (const m of todo) {
+      const tr = await translateToEnglish(m.text);
+      m.trDone = true;
+      if (tr) { m.tr = tr; }
+      changed = true;
+      translating.delete(m.id);
+    }
+    if (changed) { inboxRev++; saveInbox(); }
+  })().catch(() => { todo.forEach(m => translating.delete(m.id)); });
+}
+
 // Full thread history + reply state. Opening a thread marks it read.
 app.get('/inbox/thread', (req, res) => {
   if (!consoleAuth(req, res)) return;
@@ -5517,6 +5591,7 @@ app.get('/inbox/thread', (req, res) => {
   const t = (key && inboxThreads.get(key)) || (inboxSubIndex.get(sub) && inboxThreads.get(inboxSubIndex.get(sub)));
   if (!t) return res.json({ ok: true, account: req.query.account || '', tag: accountTag(req.query.account), sub, name: '', phone: '', msgs: [], paused: isHumanPaused(sub), pausedUntil: pausedUntilOf(sub) });
   if (t.unread) { t.unread = 0; inboxRev++; saveInbox(); }
+  queueTranslations(t); // background — the English lines appear on the next poll
   res.json({ ok: true, account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || (accountTag(t.account) === 'SB' ? t.sub : '') || '', avatar: t.avatar || '', msgs: t.msgs, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub) });
 });
 
