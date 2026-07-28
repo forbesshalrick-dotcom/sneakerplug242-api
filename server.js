@@ -226,7 +226,30 @@ const NON_MESSAGE_KEYS = new Set(['name', 'full_name', 'fullname', 'first_name',
   // Image/photo attachment fields — their value is a URL, NOT the customer's text.
   // (A photo's caption comes in a caption-named field, handled by FIELDS above.)
   'image_url', 'photo_url', 'picture_url', 'last_image_url', 'image', 'photo',
-  'picture', 'img_url', 'last_attachment_url']);
+  'picture', 'img_url', 'last_attachment_url',
+  // ManyChat contact metadata (Rodney 2026-07-28). Its webhook posts the WHOLE contact
+  // record, and `key` ("user:836222621") is the FIRST field in it. When `last_input_text`
+  // comes through empty, the desperate any-string fallback below was returning that key as
+  // the customer's message — Kiki then saw "user:836222621", treated it as a new contact and
+  // fired the welcome greeting + a whole album instead of answering what was actually said.
+  'key', 'id', 'page_id', 'user_refs', 'status', 'gender', 'profile_pic', 'locale',
+  'language', 'timezone', 'live_chat_url', 'subscribed', 'last_interaction',
+  'ig_last_interaction', 'last_seen', 'ig_last_seen', 'is_followup_enabled',
+  'whatsapp_phone', 'whatsapp_bsuid', 'whatsapp_username', 'ig_username', 'ig_id',
+  'optin_phone', 'optin_email', 'optin_whatsapp', 'phone', 'email',
+  'phone_country_code', 'last_growth_tool', 'custom_fields']);
+// Shapes that are NEVER a typed message — only ever applied to the last-ditch "any string
+// value" fallback, never to the known message fields (a bare "9" IS a real message: a size).
+function looksLikeMetadata(s) {
+  const v = String(s || '').trim();
+  if (/^user:\d+$/i.test(v)) return true;              // ManyChat contact key
+  if (/^BS\.\d+$/i.test(v)) return true;               // whatsapp_bsuid
+  if (/^\d{6,}$/.test(v)) return true;                 // bare subscriber/page id
+  if (/^\d{4}-\d{2}-\d{2}T/.test(v)) return true;      // ISO timestamp
+  if (/^UTC[+\-±]/i.test(v)) return true;              // timezone string
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(v)) return true; // uuid
+  return false;
+}
 
 function extractQuery(req) {
   // 1. Query string (?q= / ?message= ...)
@@ -256,6 +279,7 @@ function extractQuery(req) {
     for (const o of objs) {
       for (const [k, v] of Object.entries(o)) {
         if (typeof v === 'string' && !isJunk(v) && !NON_MESSAGE_KEYS.has(k.toLowerCase())
+            && !looksLikeMetadata(v)
             && !/^https?:\/\/\S+$/i.test(v.trim())) return v.trim();
       }
     }
