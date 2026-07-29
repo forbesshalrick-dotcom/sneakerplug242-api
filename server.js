@@ -1972,8 +1972,20 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       // `sent += 1` unconditionally, so 12 straight ManyChat timeouts still counted as
       // 12 photos "sent" (Rodney 2026-07-28: an album took 12 × 20s AbortError and the
       // customer got almost nothing, while the tally claimed success). Count DELIVERIES.
-      const r = await sendChunk(sub, photoWithLabel(s), token);
-      const delivered = !!(r && r.ok && !r.fallback); // fallback = text went, the PICTURE didn't
+      let r = await sendChunk(sub, photoWithLabel(s), token);
+      let delivered = !!(r && r.ok && !r.fallback); // fallback = text went, the PICTURE didn't
+      // 🔁 RETRY ONCE (Rodney 2026-07-29). ManyChat throws spurious failures mid-album —
+      // a size-13 customer got 30 photos and then "Subscriber does not exist" on the 31st,
+      // for a subscriber that plainly exists. Treating the first blip as fatal cut two
+      // albums short today. Pause briefly and try that one shoe again before giving up.
+      if (!delivered) {
+        await new Promise(rs => setTimeout(rs, 900));
+        if (!sendAbort.has(sub)) {
+          r = await sendChunk(sub, photoWithLabel(s), token);
+          delivered = !!(r && r.ok && !r.fallback);
+          if (delivered) { try { recent.unshift({ at: new Date().toISOString(), endpoint: 'send-retry-ok', sub, shoe: s && s.id }); if (recent.length > 120) recent.length = 120; } catch (_) {} }
+        }
+      }
       if (delivered) {
         sent += 1; lastShoeSent = s; consecFail = 0;
         // Remember WHICH shoes this chat has actually SEEN — record_sale demands it.
@@ -2031,9 +2043,20 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   if (brokeOnFailures) {
     try {
       recent.unshift({ at: new Date().toISOString(), endpoint: 'album-aborted-send-failures', sub,
-        sentOk: sent, abandoned: unsent.length, note: String(FAIL_LIMIT) + ' consecutive send failures — stopped instead of grinding' });
+        sentOk: sent, abandoned: unsent.length, note: String(FAIL_LIMIT) + ' consecutive send failures (after a retry each) — stopped instead of grinding' });
       if (recent.length > 120) recent.length = 120;
       saveRecent();
+      // 🗣️ DON'T LEAVE THE CUSTOMER MID-ALBUM (Rodney 2026-07-29). Two albums were cut short
+      // today and the customer just saw the pictures stop with no word — they can't tell a
+      // broken send from "that's all we have". Say something, and tell Rodney so he can finish
+      // it by hand while the customer is still warm.
+      if (sent > 0 && !isStaff) {
+        sendChunk(sub, [{ type: 'text', text: "That's what came through so far 👟 a few more didn't send — gimme one sec and I'll get them to you 🙏" }], token).catch(() => {});
+      }
+      const label = (lastShoeSent && displayName(lastShoeSent)) || '';
+      waSendManager('📷 *ALBUM CUT SHORT*\n' + sent + ' photos went, ' + unsent.length + ' did NOT.\n👤 Customer: ' + sub
+        + (label ? '\n🛑 Stopped after: ' + label : '')
+        + '\n⚠️ ManyChat kept rejecting the sends. They\'ve been told you\'ll follow up — send the rest from the Inbox.', token).catch(() => {});
     } catch (_) {}
   }
 
