@@ -340,6 +340,18 @@ function wordMatches(hay, hayWords, w) {
   if (hay.includes(w)) return true;                                          // direct substring (covers partials: "bred" in "bred reimagined")
   if (w.endsWith('s') && w.length > 3 && hay.includes(w.slice(0, -1))) return true;  // plural → singular ("thunders" → "thunder")
   if (hay.includes(w + 's')) return true;                                    // singular → plural
+  // 🔤 RUN-TOGETHER MODEL NAMES (Rodney 2026-07-29): he searched his own Send-Pictures tool
+  // for "airmax 95" in a size 8 and got "No shoes matched — nothing sent", while FOUR Air Max
+  // 95s had an 8 in stock. The catalog says "Air Max 95"; splitting on spaces means the word
+  // "airmax" never matches "air"+"max". Customers type it that way constantly, and so do we:
+  // airmax, airforce, newbalance, vapormax, airjordan, foamposite. Compare against the hay
+  // with all spaces/punctuation stripped so the two forms meet. 5+ chars only, so short words
+  // can't accidentally match across a word boundary.
+  if (w.length >= 5) {
+    const squashed = hay.replace(/[^a-z0-9]/g, '');
+    if (squashed.includes(w)) return true;
+    if (w.endsWith('s') && squashed.includes(w.slice(0, -1))) return true;   // "airmaxes" → "airmax"
+  }
   if (w.length >= 5) {                                                       // typo tolerance (5+ chars only — a 4-letter word like "bred" is 1 edit from "red", causing false hits)
     const tol = w.length >= 7 ? 2 : 1;
     for (const hw of hayWords) {
