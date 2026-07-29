@@ -146,9 +146,62 @@ function auditShoe(req, id, decision, before, after, extra) {
     state.shoeAudit.unshift(entry);
     if (state.shoeAudit.length > MAX_SHOE_AUDIT) state.shoeAudit.length = MAX_SHOE_AUDIT;
     persist('shoeAudit.json');
-    if (entry.grew) console.log('[shop] ⚠️ STOCK GREW', entry.id, JSON.stringify(entry.beforeSizes), '->', JSON.stringify(entry.afterSizes), entry.decision, JSON.stringify(entry.src));
+    if (entry.grew) { console.log('[shop] ⚠️ STOCK GREW', entry.id, JSON.stringify(entry.beforeSizes), '->', JSON.stringify(entry.afterSizes), entry.decision, JSON.stringify(entry.src)); maybeAlertRevert(entry); }
     return entry;
   } catch (_) { return null; }
+}
+
+// ── revert alarm ─────────────────────────────────────────────────────────────
+// Stock going UP is not automatically wrong — Rodney adds new pairs all the time, and
+// pinging him for that would be noise he'd learn to ignore. A REVERT is narrower and
+// unmistakable: a size that was REMOVED from this very shoe within the last 48h has
+// come BACK. That we can prove from the audit itself, so that's the only thing we shout
+// about. (Rodney 2026-07-29, after years of reverts that nobody could catch in the act.)
+const REVERT_LOOKBACK_MS = 48 * 60 * 60 * 1000;
+const revertAlertAt = new Map();          // shoeId -> ts of last alert (don't nag)
+const REVERT_ALERT_GAP_MS = 10 * 60 * 1000;
+function shoeLabel(id) {
+  const c = CATALOG_BASE[id];
+  if (!c) return String(id);
+  return [c.brand, c.name, c.color].filter(Boolean).join(' ').trim() || String(id);
+}
+function countSizes(arr) { return (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[String(s)] = (m[String(s)] || 0) + 1, m), {}); }
+function maybeAlertRevert(entry) {
+  try {
+    const beforeC = countSizes(entry.beforeSizes), afterC = countSizes(entry.afterSizes);
+    const added = Object.keys(afterC).filter(s => afterC[s] > (beforeC[s] || 0));
+    if (!added.length && !(entry.beforeSold && !entry.afterSold)) return;
+    // Did we RECENTLY record this same shoe losing one of these exact sizes?
+    const cutoff = Date.now() - REVERT_LOOKBACK_MS;
+    const cameBack = [];
+    for (const row of state.shoeAudit) {
+      if (row === entry || row.id !== entry.id) continue;
+      if (new Date(row.at).getTime() < cutoff) break;   // audit is newest-first
+      const bC = countSizes(row.beforeSizes), aC = countSizes(row.afterSizes);
+      for (const s of added) if ((aC[s] || 0) < (bC[s] || 0) && !cameBack.includes(s)) cameBack.push(s);
+    }
+    const unSold = !!(entry.beforeSold && !entry.afterSold);
+    if (!cameBack.length && !unSold) return;            // genuine restock — stay quiet
+    const last = revertAlertAt.get(entry.id) || 0;
+    if (Date.now() - last < REVERT_ALERT_GAP_MS) return;
+    revertAlertAt.set(entry.id, Date.now());
+    const label = shoeLabel(entry.id);
+    const lines = [
+      '🔁 *STOCK CAME BACK — a revert just happened*',
+      '👟 *' + label + '*  (' + entry.id + ')',
+      cameBack.length ? '↩️ Size ' + cameBack.join(', ') + ' reappeared after you removed it' : '↩️ This shoe was marked SOLD and is now un-sold',
+      '📋 Was: ' + JSON.stringify(entry.beforeSizes) + '\n   Now: ' + JSON.stringify(entry.afterSizes),
+      '📱 From: ' + ((entry.src && entry.src.ip) || 'unknown') + ((entry.src && entry.src.ua) ? ' · ' + entry.src.ua.slice(0, 40) : ''),
+      '🕒 ' + new Date(entry.at).toLocaleString('en-US', { timeZone: 'America/Nassau' }),
+      '',
+      'Check it: /shop/audit?key=…&id=' + entry.id,
+    ];
+    const text = lines.join('\n');
+    const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
+    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text).catch(() => {});
+    sendPush('🔁 Stock came back', label + ' — size ' + (cameBack.join(', ') || 'un-sold') + ' reappeared', '/').catch(() => {});
+    console.log('[shop] 🔁 REVERT ALERT', entry.id, label, 'sizes back:', cameBack.join(','));
+  } catch (e) { console.error('[shop] revert alert failed:', e.message); }
 }
 
 // ── One-time SOLD-STATUS RECOVERY (Jul 8 2026) ───────────────────────────────
