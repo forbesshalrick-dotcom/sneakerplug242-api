@@ -454,6 +454,16 @@ function sizesOf(shoe, womens = false) {
   return nums.sort((a, b) => a - b)
     .map(n => n % 1 === 0 ? String(n) : n.toFixed(1)).join(', ');
 }
+// 🔥 How a price is written to a customer. A normal shoe is just "$130". One Rodney has
+// marked ON SALE goes out as "🔥 SALE $60" with the old price struck through, so the
+// customer can see it's marked down instead of just seeing a lower number and not knowing
+// (Rodney 2026-07-29). `bold` wraps it in WhatsApp asterisks for the photo labels.
+function priceLabel(shoe, bold) {
+  const p = '$' + (shoe && shoe.price);
+  if (!shoe || !shoe.sale) return bold ? '*' + p + '*' : p;
+  const was = (shoe.wasPrice != null && Number(shoe.wasPrice) > Number(shoe.price)) ? '  ~$' + shoe.wasPrice + '~' : '';
+  return (bold ? '🔥 *SALE ' + p + '*' : '🔥 SALE ' + p) + was;
+}
 function displayName(shoe) {
   const name = (shoe.name || '').trim();
   // Prefer a colourway nickname when we have one ("Air Jordan 4 Retro (Thunder)").
@@ -466,7 +476,7 @@ function displayName(shoe) {
   return name;
 }
 function formatShoeMessage(shoe) {
-  return `👟 *${displayName(shoe)}*\n🎨 ${shoe.color}\n💰 $${shoe.price}\n📏 Men's Sizes: ${sizesOf(shoe)}`;
+  return `👟 *${displayName(shoe)}*\n🎨 ${shoe.color}\n💰 ${priceLabel(shoe)}\n📏 Men's Sizes: ${sizesOf(shoe)}`;
 }
 
 // ── WhatsApp dynamic-block helper ─────────────────────────────────────────────
@@ -573,7 +583,7 @@ function handleWhatsApp(req, res) {
     ? "Yes! Here's what I've got 👇"
     : `Found ${shoes.length} matches${shoes.length > maxPics ? ` — showing the first ${maxPics}` : ''} 👇`;
   const summary = header + '\n\n' + shown.map((s, i) =>
-    `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
+    `${i + 1}. *${displayName(s)}* — ${priceLabel(s)}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
 
   const messages = [{ type: 'text', text: summary }];
   for (const s of shown) if (s.image) messages.push({ type: 'image', url: s.image });
@@ -604,7 +614,7 @@ function handleLookup(req, res) {
 
   // Numbered summary so the list lines up with the photos sent after it.
   const numbered = shoes.map((s, i) =>
-    `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
+    `${i + 1}. *${displayName(s)}* — ${priceLabel(s)}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
   const message = shoes.length === 1
     ? `Yes! Here's what I've got 👇\n\n${numbered}`
     : `Found ${shoes.length} options 👇\n\n${numbered}`;
@@ -613,10 +623,10 @@ function handleLookup(req, res) {
   shoes.forEach((s, i) => {
     const n = i + 1;
     flat[`shoe_${n}_name`] = displayName(s);
-    flat[`shoe_${n}_price`] = `$${s.price}`;
+    flat[`shoe_${n}_price`] = priceLabel(s);
     flat[`shoe_${n}_sizes`] = sizesOf(s);
     flat[`shoe_${n}_color`] = s.color;
-    flat[`shoe_${n}_caption`] = `${i + 1}. ${displayName(s)} — $${s.price} | 📏 Men's Sizes: ${sizesOf(s)}`;
+    flat[`shoe_${n}_caption`] = `${i + 1}. ${displayName(s)} — ${priceLabel(s)} | 📏 Men's Sizes: ${sizesOf(s)}`;
     flat[`image_${n}`] = s.image || null;
   });
 
@@ -626,7 +636,7 @@ function handleLookup(req, res) {
     message,
     shoes: shoes.map(s => ({
       name: displayName(s), brand: s.brand, color: s.color,
-      price: `$${s.price}`, sizes: sizesOf(s), image: s.image,
+      price: priceLabel(s), sizes: sizesOf(s), image: s.image,
     })),
     images: shoes.map(s => s.image).filter(Boolean),
     ...flat,
@@ -1012,7 +1022,7 @@ async function handleSendPhotos(req, res) {
     messages = [{ type: 'text', text: "Hmm, I don't have that in stock right now. DM me and I'll help you find something 📲" }];
   } else {
     const pics = shoes.filter(s => s.image).slice(0, MAX_PHOTOS);
-    const numbered = shoes.map((s, i) => `${i + 1}. *${displayName(s)}* — $${s.price}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
+    const numbered = shoes.map((s, i) => `${i + 1}. *${displayName(s)}* — ${priceLabel(s)}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
     const header = shoes.length === 1 ? "Yes! Here's what I've got 👇" : `Found ${shoes.length} 👇`;
     messages = [{ type: 'text', text: `${header}\n\n${numbered}` }];
     for (const s of pics) messages.push({ type: 'image', url: s.image });
@@ -1632,7 +1642,13 @@ function liveShoeMap() {
       }
     }
     if (sold || !sizesRaw || sizesRaw.length === 0) return; // out of stock — never offer it
-    map[id] = Object.assign({}, s, { sizesRaw, price, advertised: !!(ov && ov.advertised) }, nameOv);
+    // 🔥 SALE (Rodney 2026-07-29): he wanted "SALE $60" to go out with the shoe instead of a
+    // bare price, so customers can see it's marked down. Kept as a FLAG + the old price rather
+    // than letting him type text into the price box — the price has to stay a real number or
+    // the sales reports, totals and price searches all break.
+    const onSale = !!(ov && ov.sale);
+    const wasPrice = (ov && ov.wasPrice != null) ? ov.wasPrice : (onSale && s.price !== price ? s.price : null);
+    map[id] = Object.assign({}, s, { sizesRaw, price, advertised: !!(ov && ov.advertised), sale: onSale, wasPrice }, nameOv);
   });
   return map;
 }
@@ -1818,7 +1834,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       const has = (n) => raw.some(x => parseFloat(x) === n);
       if (!has(want) && has(want + 0.5)) nearNote = `\n⚠️ _No ${want} in this one — closest is ${want + 0.5}_`;
     }
-    return `${displayName(s)} — *$${s.price}*\n${sizeLine}${nearNote}`;
+    return `${displayName(s)} — ${priceLabel(s, true)}\n${sizeLine}${nearNote}`;
   };
   // Look shoes up through the LIVE map so labels show current sizes and anything
   // marked sold/deleted on the website is dropped even if it slipped into `ids`.

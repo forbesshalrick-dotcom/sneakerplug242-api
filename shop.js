@@ -904,6 +904,43 @@ function mount(app) {
     res.json({ ok: true });
   });
 
+  // 🔥 Put a shoe ON SALE (or take it off). Rodney wanted customers to SEE that a price is a
+  // sale price rather than just a lower number (2026-07-29). Deliberately a flag + the old
+  // price, NOT free text in the price box — the price must stay a real number or the sales
+  // reports, totals and price searches all break.
+  //   POST /shop/shoe/sale  { id, sale: true, price: 60, wasPrice: 120 }
+  //   POST /shop/shoe/sale  { id, sale: false }          → back to a normal price
+  // price/wasPrice are optional: leave wasPrice out and it remembers what the shoe costs now.
+  app.post('/shop/shoe/sale', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    if (b.id == null) return res.status(400).json({ error: 'bad id' });
+    if (!Array.isArray(state.shoes)) state.shoes = [];
+    const i = state.shoes.findIndex(x => String(x.id) === String(b.id));
+    if (i < 0) return res.status(404).json({ error: 'shoe not found in shop state' });
+    const cur = state.shoes[i];
+    const on = b.sale !== false && b.sale !== 'false' && b.sale !== 0;
+    const before = JSON.parse(JSON.stringify(cur));
+    if (on) {
+      // Remember what it USED to cost so the label can show it struck through.
+      const oldPrice = (b.wasPrice != null) ? Number(b.wasPrice)
+                     : (cur.wasPrice != null ? cur.wasPrice : cur.price);
+      cur.sale = true;
+      if (oldPrice != null && !isNaN(oldPrice)) cur.wasPrice = oldPrice;
+      if (b.price != null && !isNaN(Number(b.price))) cur.price = Number(b.price);
+    } else {
+      cur.sale = false;
+      // Coming OFF sale restores the pre-sale price unless a new one was given.
+      if (b.price != null && !isNaN(Number(b.price))) cur.price = Number(b.price);
+      else if (cur.wasPrice != null) cur.price = cur.wasPrice;
+      delete cur.wasPrice;
+    }
+    cur.updatedAt = Date.now();
+    persist('shoes.json'); bump();
+    auditShoe(req, cur.id, 'accepted', before, cur, { via: on ? 'sale-on' : 'sale-off' });
+    res.json({ ok: true, id: cur.id, sale: !!cur.sale, price: cur.price, wasPrice: cur.wasPrice || null });
+  });
+
   // Replace the whole inventory at once (used for first upload / bulk sync)
   app.post('/shop/shoes', (req, res) => {
     if (!auth(req, res)) return;
