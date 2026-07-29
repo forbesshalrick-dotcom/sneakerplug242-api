@@ -970,6 +970,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // Either way, LOG it — silent send failures made Kiki look like she ignored a
   // customer (2026-07-14: two voice questions got no reply and nothing was recorded).
   saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
+  noteSendFailure(subscriberId, body, token);   // 🚨 watchdog — pings Rodney when the pipe starts failing
   if (recent.length > 120) recent.length = 120;
   // 📸➡️📝 IMAGE-SEND FALLBACK (Rodney 2026-07-19: a whole size-9 album got NO reply — every
   // IMAGE send to ManyChat timed out at 20s while TEXT sends were fine). If a failed bundle
@@ -2540,6 +2541,46 @@ const MANAGER_SUB_BY_STORE = {
   'Trendy Kicks': '2002253438',          // Driplomatics on TK
   'Official Sneaker Crew': '318550271',  // Driplomatics on OSC
 };
+
+// 🚨 MANYCHAT WATCHDOG (Rodney 2026-07-28). Until now he only found out ManyChat was
+// failing when an angry customer told him — one customer sat through 15 minutes of timing-out
+// photos begging Kiki to stop, and Rodney read about it afterwards. This pings his phone
+// WHILE it's happening so he can step in by hand. Deliberately quiet: it needs a real
+// cluster of failures, and it will not re-alert more than once every 30 minutes.
+const sendFailTimes = [];               // rolling timestamps of send failures
+const sendFailSubs = new Map();         // sub -> count within the window
+let lastPipeAlertAt = 0;
+const PIPE_WINDOW_MS = 10 * 60 * 1000;  // look back 10 minutes
+const PIPE_THRESHOLD = 5;               // this many failures in that window = something's wrong
+const PIPE_ALERT_GAP_MS = 30 * 60 * 1000;
+function noteSendFailure(sub, body, token) {
+  try {
+    const now = Date.now();
+    sendFailTimes.push(now);
+    while (sendFailTimes.length && now - sendFailTimes[0] > PIPE_WINDOW_MS) sendFailTimes.shift();
+    if (sendFailTimes.length > 400) sendFailTimes.splice(0, sendFailTimes.length - 400);
+    sendFailSubs.set(String(sub), { n: (sendFailSubs.get(String(sub)) || { n: 0 }).n + 1, at: now });
+    for (const [k, v] of sendFailSubs) if (now - v.at > PIPE_WINDOW_MS) sendFailSubs.delete(k);
+    if (sendFailTimes.length < PIPE_THRESHOLD) return;
+    if (now - lastPipeAlertAt < PIPE_ALERT_GAP_MS) return;
+    lastPipeAlertAt = now;
+    // Name the worst-hit customer — that's who's actually sitting there getting nothing.
+    let worst = '', worstN = 0;
+    for (const [k, v] of sendFailSubs) if (v.n > worstN) { worstN = v.n; worst = k; }
+    const kind = /timeout|aborted/i.test(String(body)) ? 'photos timing out'
+      : /does not exist/i.test(String(body)) ? 'contact rejected ("subscriber does not exist")'
+      : 'send errors';
+    const t = inboxThreads.get(inboxSubIndex.get(worst) || '') || null;
+    const who = t ? ((t.name || 'customer') + (t.phone ? ' ' + t.phone : '')) : ('sub ' + worst);
+    const msg = '🚨 *MANYCHAT IS DROPPING MESSAGES*\n'
+      + sendFailTimes.length + ' failed sends in the last 10 min — ' + kind + '.\n'
+      + '👤 Worst hit: *' + who + '* (' + worstN + ' failures)\n'
+      + '⚠️ Their messages to us may be getting swallowed too — check the real WhatsApp chat, not just the Inbox.\n'
+      + '📥 Reply to them from your phone if they were mid-order.';
+    waSendManager(msg, token).catch(() => {});
+    try { recent.unshift({ at: new Date().toISOString(), endpoint: 'pipe-alert', fails: sendFailTimes.length, worst, worstN, kind }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+  } catch (_) { /* a watchdog must never break the send path */ }
+}
 
 async function waSendManager(text, token, image) {
   // image (optional): shoe picture sent right above the alert text (Rodney 2026-07-14:
