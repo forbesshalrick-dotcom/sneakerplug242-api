@@ -2769,9 +2769,20 @@ function shuffled(arr) {
 }
 function pickDailySocialShoes(dateKey, n = 7) {
   const live = liveShoeMap();
-  if (postRotation.picks[dateKey]) return postRotation.picks[dateKey].map(id => Object.values(live).find(s => s.id === id)).filter(Boolean);
+  // ⚠️ An empty array is TRUTHY in JS (Rodney 2026-07-29: Deashinique's shift reminder went
+  // out with no "post these shoes" list and no photos at all). Once an empty pick list was
+  // stored for a date — or once every shoe it named went out of stock — this returned nothing
+  // for that date FOREVER and the whole task section silently disappeared. Only trust a
+  // cached pick that still resolves to real, in-stock shoes; otherwise pick again.
+  const cached = postRotation.picks[dateKey];
+  if (Array.isArray(cached) && cached.length) {
+    const resolved = cached.map(id => Object.values(live).find(s => s.id === id)).filter(Boolean);
+    if (resolved.length) return resolved;
+    console.log('[social] cached picks for', dateKey, 'resolve to 0 live shoes — re-picking');
+    delete postRotation.picks[dateKey];
+  }
   const pool = Object.values(live).filter(s => s && s.image);
-  if (!pool.length) return [];
+  if (!pool.length) { console.log('[social] ⚠️ no shoes with photos available to pick'); return []; }
   let chosen = shuffled(pool.filter(s => !postRotation.postedIds.includes(s.id))).slice(0, n);
   if (chosen.length < n) {
     // Cycle exhausted (or close to it) — reset, then top up from the FULL pool
@@ -2841,6 +2852,37 @@ const shiftTick = setInterval(async () => {
   }
 }, 10 * 60 * 1000);
 if (shiftTick.unref) shiftTick.unref();
+
+// 📱 See or send today's social-media post list on demand (Rodney 2026-07-29 — the picks
+// silently vanished from a staff reminder and there was no way to check without waiting for
+// 6 PM). GET shows what's picked; add &send=1 to WhatsApp the list + photos to staff now.
+app.get('/post-picks', async (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const day = String(req.query.date || '').match(/^\d{4}-\d{2}-\d{2}$/)
+    ? req.query.date
+    : new Date(nassauNow().getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const shoes = pickDailySocialShoes(day, Number(req.query.n) || 7);
+  const list = shoes.map((s, i) => ({ n: i + 1, id: s.id, name: displayName(s), image: s.image }));
+  if (req.query.send !== '1') return res.json({ date: day, count: list.length, shoes: list });
+  const text = '📱 *POST THESE TO INSTAGRAM / FACEBOOK*\n' + shoes.map((s, i) => `${i + 1}. ${displayName(s)}`).join('\n') + '\n\n📸 Photos coming right after this 👇';
+  let staffWa = [];
+  try { staffWa = await require('./shop').blastEmployees(text, null); } catch (_) {}
+  // Photos go to each staff member we have a live subscriber id for.
+  let photoed = 0;
+  for (const [nm, known] of Object.entries(staffSubs || {})) {
+    if (!known || !known.sub) continue;
+    const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+    if (!tk) continue;
+    for (let i = 0; i < shoes.length; i++) {
+      const s = shoes[i];
+      if (!s.image) continue;
+      try { await sendChunk(known.sub, [{ type: 'image', url: s.image }, { type: 'text', text: `${i + 1}. ${displayName(s)}` }], tk); } catch (_) {}
+    }
+    photoed++;
+  }
+  record(req, { endpoint: 'post-picks-sent', date: day, count: list.length, staffWa, photoedTo: photoed });
+  res.json({ ok: true, date: day, count: list.length, shoes: list, textSentTo: staffWa, photosSentTo: photoed });
+});
 
 // ── Delivery-day banner feed (Rodney 2026-07-14): the website shows a banner on days
 // with scheduled deliveries. Count only — no customer details leave this endpoint.
