@@ -146,7 +146,8 @@ function auditShoe(req, id, decision, before, after, extra) {
     state.shoeAudit.unshift(entry);
     if (state.shoeAudit.length > MAX_SHOE_AUDIT) state.shoeAudit.length = MAX_SHOE_AUDIT;
     persist('shoeAudit.json');
-    if (entry.grew) { console.log('[shop] ⚠️ STOCK GREW', entry.id, JSON.stringify(entry.beforeSizes), '->', JSON.stringify(entry.afterSizes), entry.decision, JSON.stringify(entry.src)); maybeAlertRevert(entry); }
+    if (entry.grew) console.log('[shop] ⚠️ STOCK GREW', entry.id, JSON.stringify(entry.beforeSizes), '->', JSON.stringify(entry.afterSizes), entry.decision, JSON.stringify(entry.src));
+    if (decision === 'accepted' || decision === 'added' || decision === 'shrink-from-stale-app' || decision === 'bulk') maybeAlertRevert(entry);
     return entry;
   } catch (_) { return null; }
 }
@@ -170,26 +171,38 @@ function maybeAlertRevert(entry) {
   try {
     const beforeC = countSizes(entry.beforeSizes), afterC = countSizes(entry.afterSizes);
     const added = Object.keys(afterC).filter(s => afterC[s] > (beforeC[s] || 0));
-    if (!added.length && !(entry.beforeSold && !entry.afterSold)) return;
-    // Did we RECENTLY record this same shoe losing one of these exact sizes?
+    const lost  = Object.keys(beforeC).filter(s => (afterC[s] || 0) < beforeC[s]);
+    const unSold = !!(entry.beforeSold && !entry.afterSold);
+    if (!added.length && !lost.length && !unSold) return;
+    // A revert runs in BOTH directions and the first build only caught one of them
+    // (Rodney 2026-07-29: two Air Force 1s he'd raised to 2 pairs were quietly back at 1 —
+    // an ADDITION that vanished, which the growth-only check would have missed entirely).
+    //   cameBack  = a size he REMOVED in the last 48h is back   → the classic revert
+    //   wentAway  = an amount he ADDED in the last 48h is gone  → his work being undone
+    // Both are proven from the audit's own history, so neither is a guess. A plain sale
+    // (stock he never recently added going down) still says nothing.
     const cutoff = Date.now() - REVERT_LOOKBACK_MS;
-    const cameBack = [];
+    const cameBack = [], wentAway = [];
     for (const row of state.shoeAudit) {
       if (row === entry || row.id !== entry.id) continue;
       if (new Date(row.at).getTime() < cutoff) break;   // audit is newest-first
       const bC = countSizes(row.beforeSizes), aC = countSizes(row.afterSizes);
       for (const s of added) if ((aC[s] || 0) < (bC[s] || 0) && !cameBack.includes(s)) cameBack.push(s);
+      for (const s of lost)  if ((aC[s] || 0) > (bC[s] || 0) && !wentAway.includes(s)) wentAway.push(s);
     }
-    const unSold = !!(entry.beforeSold && !entry.afterSold);
-    if (!cameBack.length && !unSold) return;            // genuine restock — stay quiet
+    if (!cameBack.length && !wentAway.length && !unSold) return;   // genuine restock or sale — stay quiet
     const last = revertAlertAt.get(entry.id) || 0;
     if (Date.now() - last < REVERT_ALERT_GAP_MS) return;
     revertAlertAt.set(entry.id, Date.now());
     const label = shoeLabel(entry.id);
+    const what = [];
+    if (cameBack.length) what.push('↩️ Size ' + cameBack.join(', ') + ' came BACK after you removed it');
+    if (wentAway.length) what.push('❌ Size ' + wentAway.join(', ') + ' you added has DISAPPEARED');
+    if (unSold) what.push('↩️ This shoe was marked SOLD and is now un-sold');
     const lines = [
-      '🔁 *STOCK CAME BACK — a revert just happened*',
+      '🔁 *YOUR EDIT WAS UNDONE*',
       '👟 *' + label + '*  (' + entry.id + ')',
-      cameBack.length ? '↩️ Size ' + cameBack.join(', ') + ' reappeared after you removed it' : '↩️ This shoe was marked SOLD and is now un-sold',
+      what.join('\n'),
       '📋 Was: ' + JSON.stringify(entry.beforeSizes) + '\n   Now: ' + JSON.stringify(entry.afterSizes),
       '📱 From: ' + ((entry.src && entry.src.ip) || 'unknown') + ((entry.src && entry.src.ua) ? ' · ' + entry.src.ua.slice(0, 40) : ''),
       '🕒 ' + new Date(entry.at).toLocaleString('en-US', { timeZone: 'America/Nassau' }),
@@ -199,8 +212,8 @@ function maybeAlertRevert(entry) {
     const text = lines.join('\n');
     const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
     if (mgr) waSend(String(mgr).replace(/\D/g, ''), text).catch(() => {});
-    sendPush('🔁 Stock came back', label + ' — size ' + (cameBack.join(', ') || 'un-sold') + ' reappeared', '/').catch(() => {});
-    console.log('[shop] 🔁 REVERT ALERT', entry.id, label, 'sizes back:', cameBack.join(','));
+    sendPush('🔁 Your edit was undone', label + ' — ' + (cameBack.length ? 'size ' + cameBack.join(', ') + ' came back' : wentAway.length ? 'size ' + wentAway.join(', ') + ' disappeared' : 'un-sold'), '/').catch(() => {});
+    console.log('[shop] 🔁 REVERT ALERT', entry.id, label, 'back:', cameBack.join(',') || '-', 'gone:', wentAway.join(',') || '-');
   } catch (e) { console.error('[shop] revert alert failed:', e.message); }
 }
 
