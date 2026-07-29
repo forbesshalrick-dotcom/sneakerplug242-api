@@ -74,6 +74,13 @@ const state = {
   logins: loadFile('logins.json', {}),      // SERVER-side login patterns: { name: {hash, salt} } — hashed, never plaintext
   rev: loadFile('rev.json', { n: 1 }),
   dateTasks: loadFile('dateTasks.json', {}), // { "YYYY-MM-DD": [{id,text,by,at}] } — queued into THAT evening's WhatsApp reminder (not an instant alert like notes/tasks above)
+  // 🔍 SHOE AUDIT (Rodney 2026-07-29). The inventory "reverting" has been patched five
+  // separate times and keeps coming back, because every fix was reasoned from a symptom
+  // instead of a record. Nothing has ever written down WHAT actually changed a shoe. This
+  // does: every write to /shop/shoe, /shop/shoes and /shop/shoe/delete is logged with the
+  // before/after sizes, the decision the guards made, and where the request came from. Next
+  // time a size reappears there is a fact to read instead of a theory to argue about.
+  shoeAudit: loadFile('shoeAudit.json', []),
 };
 
 // Baseline seed so the core staff numbers/accounts come back automatically after a
@@ -102,6 +109,47 @@ function schedule() {
   }, 400);
 }
 function bump() { state.rev.n++; persist('rev.json'); }
+
+// ── shoe audit ───────────────────────────────────────────────────────────────
+// Record EVERY attempted change to a shoe, accepted or not. `grew` is the one that
+// matters most: a size count going UP is a size coming BACK — i.e. a revert. Kept to
+// the last MAX_SHOE_AUDIT entries and persisted, so it survives a redeploy.
+const MAX_SHOE_AUDIT = 3000;
+const sizeCount = (arr) => (Array.isArray(arr) ? arr.length : 0);
+function reqSource(req) {
+  try {
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || '';
+    const ua = String(req.headers['user-agent'] || '').slice(0, 80);
+    const by = (req.body && (req.body.by || req.body.clientId || (req.body.shoe && req.body.shoe.by))) || '';
+    return { ip, ua, by: String(by).slice(0, 40) };
+  } catch (_) { return {}; }
+}
+function auditShoe(req, id, decision, before, after, extra) {
+  try {
+    const b = before || null, a = after || null;
+    const bN = sizeCount(b && b.sizes), aN = sizeCount(a && a.sizes);
+    const entry = Object.assign({
+      at: new Date().toISOString(),
+      id: String(id),
+      decision,                                  // accepted | added | skipped-stale | skipped-deleted | shrink-from-stale-app | resurrection-guard | bulk | deleted
+      beforeSizes: b ? b.sizes : null,
+      afterSizes: a ? a.sizes : null,
+      beforeSold: b ? !!b.sold : null,
+      afterSold: a ? !!a.sold : null,
+      // 🚩 the revert signal: stock went UP, or a sold shoe came back to life
+      grew: (decision === 'accepted' || decision === 'added' || decision === 'shrink-from-stale-app' || decision === 'bulk')
+            && (aN > bN || (b && b.sold && a && !a.sold)),
+      inT: (a && (a.updatedAt || a.createdAt)) || 0,
+      exT: (b && (b.updatedAt || b.createdAt)) || 0,
+      src: reqSource(req),
+    }, extra || {});
+    state.shoeAudit.unshift(entry);
+    if (state.shoeAudit.length > MAX_SHOE_AUDIT) state.shoeAudit.length = MAX_SHOE_AUDIT;
+    persist('shoeAudit.json');
+    if (entry.grew) console.log('[shop] ⚠️ STOCK GREW', entry.id, JSON.stringify(entry.beforeSizes), '->', JSON.stringify(entry.afterSizes), entry.decision, JSON.stringify(entry.src));
+    return entry;
+  } catch (_) { return null; }
+}
 
 // ── One-time SOLD-STATUS RECOVERY (Jul 8 2026) ───────────────────────────────
 // A stale-device bulk sync overwrote the inventory with old FULL-stock data, wiping
@@ -410,6 +458,27 @@ function mount(app) {
     res.json({ rev: state.rev.n });
   });
 
+  // 🔍 Read the shoe audit — the record of what actually changed each shoe.
+  //   /shop/audit?key=…              → most recent writes across all shoes
+  //   /shop/audit?key=…&id=c0446     → just that shoe's history
+  //   /shop/audit?key=…&grew=1       → ONLY the reverts (stock went up / un-sold)
+  //   &limit=N                        → how many (default 100)
+  app.get('/shop/audit', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = req.query.id ? String(req.query.id) : '';
+    const onlyGrew = req.query.grew === '1' || req.query.grew === 'true';
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 1000);
+    let rows = state.shoeAudit || [];
+    if (id) rows = rows.filter(r => r.id === id);
+    if (onlyGrew) rows = rows.filter(r => r.grew);
+    res.json({
+      total: (state.shoeAudit || []).length,
+      grewTotal: (state.shoeAudit || []).filter(r => r.grew).length,
+      returned: Math.min(rows.length, limit),
+      rows: rows.slice(0, limit),
+    });
+  });
+
   // ---- Notes / tasks ----
   app.get('/shop/notes', (req, res) => {
     if (!auth(req, res)) return;
@@ -709,9 +778,10 @@ function mount(app) {
     if (!sh || sh.id == null) return res.status(400).json({ error: 'bad shoe' });
     // NEVER resurrect a deleted shoe: if it's tombstoned, reject the push. This is
     // the key guard — a device with stale data can otherwise re-add a deleted shoe.
-    if (state.deleted.includes(sh.id)) return res.json({ ok: true, skipped: 'deleted' });
+    if (state.deleted.includes(sh.id)) { auditShoe(req, sh.id, 'skipped-deleted', null, sh); return res.json({ ok: true, skipped: 'deleted' }); }
     if (!Array.isArray(state.shoes)) state.shoes = [];
     const i = state.shoes.findIndex(x => x.id === sh.id);
+    const _before = i > -1 ? JSON.parse(JSON.stringify(state.shoes[i])) : null;
     if (i > -1) {
       // NEWEST-WINS: refuse a push that is OLDER than what we already store. This is the
       // hard lock that stops a stale device from reverting prices/stock on the server —
@@ -739,11 +809,14 @@ function mount(app) {
         if (subset && (fewer || soldFlip)) {
           state.shoes[i] = Object.assign({}, ex, { sizes: sh.sizes, sold: !!sh.sold || !!ex.sold, updatedAt: Date.now() });
           persist('shoes.json'); bump();
+          auditShoe(req, sh.id, 'shrink-from-stale-app', _before, state.shoes[i]);
           return res.json({ ok: true, accepted: 'shrink-from-stale-app' });
         }
+        auditShoe(req, sh.id, 'skipped-stale', _before, sh, { why: inT === 0 ? 'no timestamp on the push' : 'push older than stored' });
         return res.json({ ok: true, skipped: 'stale' });
       }
       state.shoes[i] = sh;
+      auditShoe(req, sh.id, 'accepted', _before, sh);
     } else {
       // FIRST-EVER PUSH FOR THIS ID — nothing to compare it against, so a stale device's
       // "everything looks fine" local copy would otherwise be accepted with zero checks
@@ -756,9 +829,10 @@ function mount(app) {
         const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[s] = (m[s] || 0) + 1, m), {});
         const baseC = count(base.sizes), inC = count(sh.sizes);
         const overStock = Object.keys(inC).some(s => inC[s] > (baseC[s] || 0));
-        if (overStock) return res.json({ ok: true, skipped: 'resurrection-guard' });
+        if (overStock) { auditShoe(req, sh.id, 'resurrection-guard', { sizes: base.sizes, sold: false }, sh, { why: 'first push claims more stock than the catalog baseline' }); return res.json({ ok: true, skipped: 'resurrection-guard' }); }
       }
       state.shoes.push(sh);
+      auditShoe(req, sh.id, 'added', null, sh);
     }
     persist('shoes.json'); bump();
     res.json({ ok: true });
@@ -798,9 +872,15 @@ function mount(app) {
       // push that carries a REAL timestamp and isn't older (inT > 0 && inT >= exT). A TIMELESS
       // bulk push — an OLD cached copy of the app dumping the whole catalog — can no longer
       // clobber a stored shoe. That timeless tie was the last hole that reverted live edits.
-      if (!ex) { byId[s.id] = s; applied++; }
-      else if (inT > 0 && inT >= exT) { byId[s.id] = s; applied++; }
-      else { keptNewer++; }
+      if (!ex) { byId[s.id] = s; applied++; auditShoe(req, s.id, 'added', null, s, { via: 'bulk' }); }
+      else if (inT > 0 && inT >= exT) {
+        // Only log a bulk overwrite that actually CHANGES stock — a full catalog dump would
+        // otherwise write hundreds of no-op rows and bury the signal.
+        const changed = JSON.stringify(ex.sizes) !== JSON.stringify(s.sizes) || !!ex.sold !== !!s.sold;
+        byId[s.id] = s; applied++;
+        if (changed) auditShoe(req, s.id, 'bulk', ex, s);
+      }
+      else { keptNewer++; if (JSON.stringify(ex.sizes) !== JSON.stringify(s.sizes)) auditShoe(req, s.id, 'skipped-stale', ex, s, { via: 'bulk', why: inT === 0 ? 'no timestamp on the push' : 'push older than stored' }); }
     });
     const next = Object.keys(byId).map(k => byId[k]);
     console.log('[shop] /shop/shoes MERGE:', before, '→', next.length, 'shoes (applied ' + applied + ', kept-newer ' + keptNewer + ')');
