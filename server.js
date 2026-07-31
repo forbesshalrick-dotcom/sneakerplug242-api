@@ -922,10 +922,20 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   const waPhoneId = waChannel.get(String(subscriberId));
   if (waPhoneId) return waSendChunk(String(subscriberId), messages, waPhoneId);
   // CROSS-ACCOUNT TOKEN FALLBACK (2026-07-15: some customers get tagged with the WRONG
-  // store, so every send bounces with "Subscriber is not active" / "Something went
-  // wrong" while the SAME send works fine with the other account's token — Antoinette,
-  // MOBB and a size-4.5 customer all lost service this way). Try the suggested token
-  // first; on those errors, try every other token we know. Remember what worked.
+  // store, so every send bounces with "Subscriber is not active" while the SAME send
+  // works fine with the other account's token — Antoinette, MOBB and a size-4.5
+  // customer all lost service this way). Try the suggested token first; on that
+  // signature, try every other token we know. Remember what worked.
+  // ⚠️ DOUBLE-SEND FIX (2026-07-31): this used to ALSO rotate tokens on the generic
+  // "Something went wrong" body text. For a subscriber genuinely valid under two
+  // stores' tokens at once, that first token's send can actually reach WhatsApp even
+  // though ManyChat's response reads as an error — so retrying with the next token
+  // delivered the SAME photo+caption a second time, and every shoe in an album showed
+  // doubled back-to-back. "Subscriber is not active" is the one signature that reliably
+  // means THIS token's account never had the subscriber, so nothing went out on it —
+  // safe to retry elsewhere. A bare "Something went wrong" no longer triggers a retry;
+  // it's logged as a real send-fail instead (below) so staff can see and follow up,
+  // rather than risking a silent duplicate delivery.
   const fixed = subTokenFix.get(String(subscriberId));
   const candidates = [fixed, token, ...storeTokens.values(), lastToken, process.env.MANYCHAT_TOKEN]
     .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
@@ -937,8 +947,8 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       return { ok: true, status: r.status, body: r.body.slice(0, 300) };
     }
     last = r;
-    // Only rotate tokens on the wrong-account signatures; other errors are real.
-    if (!/not active|Something went wrong/i.test(r.body)) break;
+    // Only rotate tokens on the wrong-account signature; other errors are real.
+    if (!/not active/i.test(r.body)) break;
   }
   const body = (last && last.body) || '';
   const r = { ok: false, status: (last && last.status) || 0 };
