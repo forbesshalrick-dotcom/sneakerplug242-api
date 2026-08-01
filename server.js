@@ -943,6 +943,9 @@ function stripThinking(s) {
 // Subs whose sends only work with a token OTHER than the one their webhook suggested —
 // learned by the fallback below so future sends go straight to the right account.
 const subTokenFix = new Map();
+// logOpts.noTextFallback: skip the image→text-label fallback below and just report the
+// failure. The album path sets it so the fallback can't fire BEFORE its own retry — see
+// sendShoe (Rodney 2026-08-01: both nets ran on the same shoe and the label went out twice).
 async function sendChunk(subscriberId, messages, token, logOpts) {
   // 📥 INBOX LOG: record outbound text into the customer's thread — Kiki's auto-replies
   // AND a human's manual replies (logOpts.sender='rodney'). Only for KNOWN customer
@@ -1065,13 +1068,16 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // code instead of silence — they can reply with the code or see the pic on the website.
   const hadImage = (messages || []).some(m => m && m.type === 'image');
   const textParts = (messages || []).filter(m => m && m.type === 'text' && m.text && String(m.text).trim());
-  if (hadImage && textParts.length) {
+  if (hadImage && textParts.length && !(logOpts && logOpts.noTextFallback)) {
     const tk2 = subTokenFix.get(String(subscriberId)) || token || lastToken || process.env.MANYCHAT_TOKEN;
     if (tk2) {
       try {
         const fb = await sendChunkRaw(subscriberId, textParts, tk2);
         if (fb.ok) {
-          recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fallback-text', sub: subscriberId, note: 'image timed out — sent text label instead', tried: textParts.map(m => String(m.text).slice(0, 80)).join(' | ').slice(0, 200) });
+          // Log the REAL reason — this used to always say "image timed out", which sent anyone
+          // reading the logs after the wrong cause (the actual error is usually a 400
+          // "Subscriber does not exist"). Rodney 2026-08-01.
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fallback-text', sub: subscriberId, note: 'photo send failed — sent text label instead', why: body.slice(0, 160), tried: textParts.map(m => String(m.text).slice(0, 80)).join(' | ').slice(0, 200) });
           if (recent.length > 120) recent.length = 120;
           return { ok: true, status: fb.status, body: 'image failed; text fallback sent', fallback: true };
         }
@@ -2037,8 +2043,17 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       // `sent += 1` unconditionally, so 12 straight ManyChat timeouts still counted as
       // 12 photos "sent" (Rodney 2026-07-28: an album took 12 × 20s AbortError and the
       // customer got almost nothing, while the tally claimed success). Count DELIVERIES.
-      let r = await sendChunk(sub, photoWithLabel(s), token);
-      let delivered = !!(r && r.ok && !r.fallback); // fallback = text went, the PICTURE didn't
+      // ⚠️ ORDER MATTERS — RETRY FIRST, TEXT LABEL ONLY AS A LAST RESORT (Rodney 2026-08-01).
+      // These two safety nets used to BOTH fire on the same shoe: sendChunk's own
+      // image→text fallback ran the instant the first send failed, and THEN this retry
+      // re-sent the photo with its label. Proven live at 12:09 today — D4 (c0456) went
+      // send-fail → send-fallback-text → send-retry-ok, so the customer got the label
+      // alone and then the same label again under the photo. Now the fallback is
+      // suppressed (noTextFallback) for both photo attempts, and only runs if the retry
+      // ALSO failed — so a shoe can produce at most one photo attempt's worth of bubbles.
+      const opts = { noTextFallback: true };
+      let r = await sendChunk(sub, photoWithLabel(s), token, opts);
+      let delivered = !!(r && r.ok);
       // 🔁 RETRY ONCE (Rodney 2026-07-29). ManyChat throws spurious failures mid-album —
       // a size-13 customer got 30 photos and then "Subscriber does not exist" on the 31st,
       // for a subscriber that plainly exists. Treating the first blip as fatal cut two
@@ -2046,10 +2061,17 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       if (!delivered) {
         await new Promise(rs => setTimeout(rs, 900));
         if (!sendAbort.has(sub)) {
-          r = await sendChunk(sub, photoWithLabel(s), token);
-          delivered = !!(r && r.ok && !r.fallback);
+          r = await sendChunk(sub, photoWithLabel(s), token, opts);
+          delivered = !!(r && r.ok);
           if (delivered) { try { recent.unshift({ at: new Date().toISOString(), endpoint: 'send-retry-ok', sub, shoe: s && s.id }); if (recent.length > 120) recent.length = 120; } catch (_) {} }
         }
+      }
+      // Both photo attempts failed: NOW send the name/price/size/code as plain text so the
+      // customer still gets something they can order from (the 2026-07-19 net), with no
+      // chance of doubling a label that already went out under a picture.
+      if (!delivered && showLabels && !sendAbort.has(sub)) {
+        const textOnly = photoWithLabel(s).filter(m => m && m.type === 'text');
+        if (textOnly.length) await sendChunk(sub, textOnly, token).catch(() => {});
       }
       if (delivered) {
         sent += 1; lastShoeSent = s; consecFail = 0;
