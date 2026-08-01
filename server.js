@@ -849,10 +849,15 @@ function getToken(req) {
 }
 
 async function sendChunkRaw(subscriberId, messages, token) {
-  // HARD 20s TIMEOUT (2026-07-16: a size-9 album froze silently at shoe E8 — one
+  // HARD TIMEOUT (2026-07-16: a size-9 album froze silently at shoe E8 — one
   // ManyChat call hung forever with no error, and the whole album hung with it).
+  // 20s was too tight for PHOTO sends: ManyChat regularly takes longer than that and
+  // still delivers, so we were cutting the call off, calling it a failure, and sending
+  // the same shoe again — customers got every picture and every label TWICE (Rodney
+  // 2026-08-01). Photos now get 45s to finish; text stays snappy at 20s.
+  const hasImage = (messages || []).some(m => m && m.type === 'image');
   const ctl = new AbortController();
-  const tm = setTimeout(() => ctl.abort(), 20000);
+  const tm = setTimeout(() => ctl.abort(), hasImage ? 45000 : 20000);
   try {
     const r = await fetch(MC_API, {
       method: 'POST',
@@ -866,7 +871,9 @@ async function sendChunkRaw(subscriberId, messages, token) {
     const body = await r.text();
     return { ok: r.ok && !/"status"\s*:\s*"error"/i.test(body), status: r.status, body };
   } catch (e) {
-    return { ok: false, status: 0, body: 'fetch-error/timeout: ' + String(e).slice(0, 120) };
+    // timedOut = we never heard back. That is NOT the same as "it failed" — see sendChunk.
+    const timedOut = /abort/i.test(String(e && (e.name || e)));
+    return { ok: false, timedOut, status: 0, body: 'fetch-error/timeout: ' + String(e).slice(0, 120) };
   } finally { clearTimeout(tm); }
 }
 // ── 🟢 WHATSAPP CLOUD API (direct, no ManyChat) ───────────────────────────────
@@ -886,7 +893,9 @@ async function waSendOne(to, m, phoneNumberId) {
     ? { messaging_product: 'whatsapp', to, type: 'audio', audio: { link: m.url } }
     : { messaging_product: 'whatsapp', to, type: 'text', text: { preview_url: false, body: String(m.text || '').slice(0, 4096) } };
   const ctl = new AbortController();
-  const tm = setTimeout(() => ctl.abort(), 20000);
+  // Photos get longer than text before we give up — same reason as sendChunkRaw: cutting a
+  // slow-but-successful picture send off made us send it again, and the customer saw doubles.
+  const tm = setTimeout(() => ctl.abort(), m.type === 'image' ? 45000 : 20000);
   try {
     const r = await fetch(`${WA_GRAPH}/${phoneNumberId}/messages`, {
       method: 'POST', signal: ctl.signal,
@@ -896,17 +905,39 @@ async function waSendOne(to, m, phoneNumberId) {
     const txt = await r.text();
     return { ok: r.ok, status: r.status, body: txt.slice(0, 300) };
   } catch (e) {
-    return { ok: false, status: 0, body: 'wa-fetch-error: ' + String(e).slice(0, 120) };
+    const timedOut = /abort/i.test(String(e && (e.name || e)));
+    return { ok: false, timedOut, status: 0, body: 'wa-fetch-error: ' + String(e).slice(0, 120) };
   } finally { clearTimeout(tm); }
 }
 async function waSendChunk(to, messages, phoneNumberId) {
   let anyOk = false, last = null;
   for (const m of (messages || [])) {
     const r = await waSendOne(to, m, phoneNumberId);
-    last = r; if (r.ok) anyOk = true;
+    last = r;
+    // A timeout means we never heard back, not that it failed — count it as sent so nothing
+    // upstream re-sends it (that's what was duplicating photos).
+    if (r.ok || r.timedOut) anyOk = true;
     if (!r.ok) { try { recent.unshift({ at: new Date().toISOString(), endpoint: 'wa-send-fail', sub: to, status: r.status, body: r.body }); if (recent.length > 120) recent.length = 120; } catch (_) {} }
   }
   return { ok: anyOk, status: last ? last.status : 0, body: last ? last.body : '' };
+}
+
+// 🧠🚫 <thinking> TAGS MUST NEVER REACH A CUSTOMER (Rodney 2026-08-01: Lamar got Kiki's whole
+// thought process — "<thinking>The customer just said 'Ok' — this is a simple acknowledgement…
+// </thinking> Respect 🤛" — and a 451 customer got a full page of size-checking reasoning).
+// Claude sometimes wraps its reasoning in literal <thinking>…</thinking> tags INSIDE the normal
+// reply text, so the existing self-talk backstop below (which only matches opener phrases) walks
+// straight past it. Cut those blocks out wherever text leaves the building. Also handles a
+// half-written block (opener with no closer, or a closer whose opener got lost).
+const THINK_PAIR_RE = /<\s*(thinking|thought|scratchpad|reasoning|internal)\s*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
+const THINK_OPEN_RE = /<\s*(?:thinking|thought|scratchpad|reasoning|internal)\s*>[\s\S]*$/i;
+const THINK_CLOSE_RE = /^[\s\S]*<\s*\/\s*(?:thinking|thought|scratchpad|reasoning|internal)\s*>/i;
+function stripThinking(s) {
+  if (!s) return '';
+  let out = String(s).replace(THINK_PAIR_RE, '');
+  if (THINK_CLOSE_RE.test(out)) out = out.replace(THINK_CLOSE_RE, ''); // closer with no opener → the thought was everything before it
+  if (THINK_OPEN_RE.test(out)) out = out.replace(THINK_OPEN_RE, '');   // opener with no closer → the thought runs to the end
+  return out.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // Subs whose sends only work with a token OTHER than the one their webhook suggested —
@@ -948,6 +979,24 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       }
     }
   } catch (_) {}
+  // 🧠🚫 <thinking> BLOCKS — cut them out of every outgoing bubble, whatever path built it.
+  // If a bubble was NOTHING but a thought, drop the bubble rather than send an empty one.
+  try {
+    let leaked = false;
+    for (let i = (messages || []).length - 1; i >= 0; i--) {
+      const mm = messages[i];
+      if (!(mm && mm.type === 'text' && mm.text)) continue;
+      if (!/<\s*\/?\s*(?:thinking|thought|scratchpad|reasoning|internal)\s*>/i.test(mm.text)) continue;
+      leaked = true;
+      const kept = stripThinking(mm.text);
+      if (kept) mm.text = kept; else messages.splice(i, 1);
+    }
+    if (leaked) {
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'thinking-stripped', sub: subscriberId });
+      if (recent.length > 120) recent.length = 120;
+    }
+  } catch (_) {}
+  if (!(messages || []).length) return { ok: false, status: 0, body: 'nothing to send (all bubbles were reasoning)' };
   // 🧠🚫 LEAKED-REASONING BACKSTOP (Rodney 2026-07-19): a customer once received Kiki's whole
   // thought process ("That's asking about… But wait — I don't have their order yet! Let me back
   // up…") ahead of the real reply. The prompt now forbids this; this is the safety net. ONLY
@@ -987,6 +1036,21 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     if (!/not active|Something went wrong/i.test(r.body)) break;
   }
   const body = (last && last.body) || '';
+  // ⏱️ A TIMEOUT IS "DON'T KNOW", NOT "FAILED" (Rodney 2026-08-01). ManyChat often takes
+  // longer than our cutoff and delivers anyway. We used to treat that as a failure, which
+  // fired BOTH safety nets on a message that had already landed: the text-only fallback
+  // re-sent the label, and sendShoe's retry re-sent the whole photo+label — so customers
+  // saw the same shoe two and three times over. Now a timeout stops here: no re-send, no
+  // fallback, logged so /last still shows it. Real errors (a 4xx, or ManyChat answering
+  // "error") keep every retry they had — those are the ones worth sending again.
+  if (last && last.timedOut) {
+    saveRecent();
+    recent.unshift({ at: new Date().toISOString(), endpoint: 'send-timeout-assumed-delivered', sub: subscriberId,
+      note: 'ManyChat did not answer in time — NOT re-sent (it usually lands anyway; re-sending is what caused doubles)',
+      tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 80)).join(' | ').slice(0, 300) });
+    if (recent.length > 120) recent.length = 120;
+    return { ok: true, status: 0, body: 'timeout — assumed delivered, not re-sent', timedOut: true };
+  }
   const r = { ok: false, status: (last && last.status) || 0 };
   // ManyChat can fail with an error HTTP status OR a 200 carrying {"status":"error"}.
   // Either way, LOG it — silent send failures made Kiki look like she ignored a
@@ -1358,6 +1422,7 @@ ${modelList}
 - When you DO send photos, always send ALL the matching shoes with send_photos — never just a few.
 - NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Your ONE short lead-in line MUST be passed as the send_photos lead_in argument — NOT typed as a separate message. The system puts it right before the photos so the 👇 points down at them. Do NOT also write any other text on the turn you call send_photos. In the "SHOW OPTIONS AS PHOTOS" case above, that lead_in is your choice-framing line (e.g. "Here's the grey New Balance we've got 👇 Which one you like?"). In every other case the lead_in MUST keep this exact shape (including "rite now"): "This is what we have in {what} rite now 👇 Ready to Order!". Fill {what} with the BEST short description of what the customer actually asked for, using ALL the useful info they gave — colour, brand or model, and/or size. Pick the most meaningful descriptor, don't just default to the size: if they asked for "grey" and the matches are all their one size, say "This is what we have in grey rite now 👇 Ready to Order!"; if they only gave a size, use that, e.g. "This is what we have in 7.5 rite now 👇 Ready to Order!"; you can combine them when it reads naturally, e.g. "grey size 8". If the customer gave NO useful descriptor (general browsing), drop the "in {what}" part: "This is what we have rite now 👇 Ready to Order!".
 - 🧠🚫 NEVER SEND YOUR THINKING — REPLY IS WORD-FOR-WORD (Rodney 2026-07-19, a customer got Kiki's whole thought process): whatever you type is delivered to the customer EXACTLY as written — so it must contain ONLY the words a customer should read, never your analysis, planning, or self-talk about what they meant or what you should do next. Work all of that out SILENTLY in your head, then send just the one short final reply. ⛔ NEVER write lines like "That's asking about…", "But wait", "Let me back up", "Let me get the details", "they want to know", "they're asking", "we haven't locked in", "I don't have their order yet", "so I'll…", "now I need to…" — those are THOUGHTS, not messages. If you catch yourself explaining the situation to yourself, delete all of it and keep only the friendly line you'd actually say.
+  ⛔ AND NEVER WRAP YOUR THINKING IN TAGS. Do NOT write \`<thinking>\`, \`</thinking>\`, \`<thought>\`, \`<scratchpad>\` or ANY tag like them. Tags do NOT hide anything — the customer sees every character, tags included. Lamar was sent this word for word on 2026-08-01: "<thinking>The customer just said 'Ok' — this is a simple acknowledgement. The order is already confirmed and locked in… I should just give a warm, short closing.</thinking> Respect 🤛". He should have received ONLY "Respect 🤛". There is NO private channel in your reply — if you type it, it is sent. Think without writing, then write only the message.
   ❌ WRONG (this really went out): "That's asking about delivery arrival timing — they want to know when the driver is coming. But wait — I don't have their order yet! Let me back up and get the details: What size you need in that Air Max 97? 👟 And where should we meet you? 📍"
   ✅ RIGHT (send only this): "What size you need in that Air Max 97? 👟 And where should we meet you? 📍"
 - If nothing matches, say so kindly and offer to show something similar we DO have (same brand, colour or size).
@@ -3220,8 +3285,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const toolUses = data.content.filter(b => b.type === 'tool_use');
     if (toolUses.some(t => t.name === 'search_inventory')) didSearch = true;
     const sendPhotosTU = toolUses.find(t => t.name === 'send_photos');
-    const turnText = data.content.filter(b => b.type === 'text' && b.text.trim())
-      .map(b => b.text.trim()).join('\n');
+    // stripThinking: Claude sometimes writes its reasoning inline as <thinking>…</thinking>.
+    // Cut it HERE too (not just at the send) so the leaked text can never become `lastText`
+    // and get replayed by the safety net below.
+    const turnText = stripThinking(data.content.filter(b => b.type === 'text' && b.text.trim())
+      .map(b => b.text.trim()).join('\n'));
     if (turnText) lastText = turnText; // remember it in case nothing else lands
     // Stay quiet while searching. On a send_photos turn, DON'T send the text here —
     // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
