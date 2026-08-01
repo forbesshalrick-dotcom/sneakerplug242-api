@@ -2691,6 +2691,17 @@ let lastPipeAlertAt = 0;
 const PIPE_WINDOW_MS = 10 * 60 * 1000;  // look back 10 minutes
 const PIPE_THRESHOLD = 5;               // this many failures in that window = something's wrong
 const PIPE_ALERT_GAP_MS = 30 * 60 * 1000;
+// 👤 PER-CUSTOMER ALERT (Rodney 2026-08-01: "all messages not coming to the app"). The global
+// alert below fires at most once every 30 min and names only the WORST-hit customer — but this
+// breaks per PERSON, not shop-wide. On 2026-08-01 three customers' subscriber records went bad
+// within the same hour (910554615, 1620848129, 1484406491); Rodney was told about one, and the
+// other two lost messages silently. When ManyChat rejects a specific customer with "subscriber
+// does not exist", THEIR inbound stops reaching us too — proven that day: 910554615's last
+// message to arrive was 1:55pm, while their 2:10pm and 2:12pm messages never came at all, and
+// other customers' messages kept flowing fine the whole time. So each broken customer now gets
+// their own alert, on their own cooldown, whatever the shop-wide counter is doing.
+const subAlertAt = new Map();           // sub -> when we last warned about THIS customer
+const SUB_FAIL_THRESHOLD = 3;           // this many rejections for one person = their record is bad
 function noteSendFailure(sub, body, token) {
   try {
     const now = Date.now();
@@ -2699,6 +2710,19 @@ function noteSendFailure(sub, body, token) {
     if (sendFailTimes.length > 400) sendFailTimes.splice(0, sendFailTimes.length - 400);
     sendFailSubs.set(String(sub), { n: (sendFailSubs.get(String(sub)) || { n: 0 }).n + 1, at: now });
     for (const [k, v] of sendFailSubs) if (now - v.at > PIPE_WINDOW_MS) sendFailSubs.delete(k);
+    // Warn about THIS customer as soon as their own record looks broken.
+    const mine = sendFailSubs.get(String(sub));
+    if (mine && mine.n === SUB_FAIL_THRESHOLD && /does not exist|not active/i.test(String(body))
+        && now - (subAlertAt.get(String(sub)) || 0) > PIPE_ALERT_GAP_MS) {
+      subAlertAt.set(String(sub), now);
+      for (const [k, v] of subAlertAt) if (now - v > 6 * 60 * 60 * 1000) subAlertAt.delete(k);
+      const th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '') || null;
+      const nm = th ? ((th.name || 'A customer') + (th.phone ? ' ' + th.phone : '')) : ('Customer ' + sub);
+      waSendManager('⚠️ *THIS CUSTOMER IS CUT OFF*\n' + nm + '\n'
+        + 'ManyChat keeps rejecting them ("subscriber does not exist"), which means *their messages to us are probably not arriving either* — they will NOT show in the app.\n'
+        + '📱 Open the real WhatsApp chat on your phone and reply there.', token).catch(() => {});
+      try { recent.unshift({ at: new Date().toISOString(), endpoint: 'sub-cutoff-alert', sub, n: mine.n }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+    }
     if (sendFailTimes.length < PIPE_THRESHOLD) return;
     if (now - lastPipeAlertAt < PIPE_ALERT_GAP_MS) return;
     lastPipeAlertAt = now;
