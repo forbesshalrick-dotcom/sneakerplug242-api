@@ -217,6 +217,104 @@ function maybeAlertRevert(entry) {
   } catch (e) { console.error('[shop] revert alert failed:', e.message); }
 }
 
+// ── revert GUARD (Rodney 2026-08-02) ─────────────────────────────────────────
+// maybeAlertRevert above only ever SHOUTED after the fact — it could prove a size had
+// been undone, but nothing stopped the undo from landing in the first place. The hole:
+// "newest wins" trusts whatever timestamp a push carries, and a stale device that's been
+// sitting open all day stamps Date.now() (NOW) at push time regardless of how old its
+// DATA actually is — so a genuinely stale push always looks "newest" and sails straight
+// through the one branch (`state.shoes[i] = sh`) that has zero content checks. Proven
+// live: size 12 on an Air Max 95 sold at 12:02 AM, and by 5:35 PM it was back in stock —
+// some device's stale copy pushed with a fresher clock than the sale itself.
+// This runs BEFORE that trust is extended: for a push that's about to look "newest", any
+// size that was deliberately REMOVED from this exact shoe within the lookback window and
+// is now trying to reappear gets stripped back out — same signal maybeAlertRevert already
+// proved reliable, just enforced instead of only reported.
+function stripRevertedSizes(id, beforeShoe, incomingShoe) {
+  if (!beforeShoe || !incomingShoe || !Array.isArray(incomingShoe.sizes)) return { shoe: incomingShoe, blocked: [] };
+  const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[s] = (m[s] || 0) + 1, m), {});
+  const beforeC = count(beforeShoe.sizes), inC = count(incomingShoe.sizes);
+  const grown = Object.keys(inC).filter(s => inC[s] > (beforeC[s] || 0));
+  if (!grown.length) return { shoe: incomingShoe, blocked: [] };
+  const cutoff = Date.now() - REVERT_LOOKBACK_MS;
+  const cameBack = [];
+  for (const row of state.shoeAudit) {
+    if (row.id !== id) continue;
+    if (new Date(row.at).getTime() < cutoff) break; // audit is newest-first
+    const bC = count(row.beforeSizes), aC = count(row.afterSizes);
+    for (const s of grown) if ((aC[s] || 0) < (bC[s] || 0) && !cameBack.includes(s)) cameBack.push(s);
+  }
+  if (!cameBack.length) return { shoe: incomingShoe, blocked: [] };
+  // Clamp just the reverting sizes back to what's actually stored right now — every other
+  // legitimate change in the push (other sizes, price, name edits) still goes through.
+  const sizes = incomingShoe.sizes.slice();
+  for (const s of cameBack) {
+    let allow = beforeC[s] || 0, have = 0;
+    for (let k = sizes.length - 1; k >= 0; k--) {
+      if (String(sizes[k]) === String(s)) { have++; if (have > allow) sizes.splice(k, 1); }
+    }
+  }
+  return { shoe: Object.assign({}, incomingShoe, { sizes }), blocked: cameBack };
+}
+function alertRevertBlocked(id, blockedSizes, before, after, req) {
+  try {
+    const last = revertAlertAt.get(id) || 0;
+    if (Date.now() - last < REVERT_ALERT_GAP_MS) return;
+    revertAlertAt.set(id, Date.now());
+    const label = shoeLabel(id);
+    const lines = [
+      '🛡️ *REVERT BLOCKED*',
+      '👟 *' + label + '*  (' + id + ')',
+      '↩️ Size ' + blockedSizes.join(', ') + ' tried to come back after you sold/removed it — a stale device push, kept OUT of your live stock.',
+      '📋 Stayed at: ' + JSON.stringify(before && before.sizes),
+      '📱 From: ' + ((reqSource(req) && reqSource(req).ip) || 'unknown'),
+      '🕒 ' + new Date().toLocaleString('en-US', { timeZone: 'America/Nassau' }),
+    ];
+    const text = lines.join('\n');
+    const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
+    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text).catch(() => {});
+    sendPush('🛡️ Revert blocked', label + ' — size ' + blockedSizes.join(', ') + ' stayed sold', '/').catch(() => {});
+    console.log('[shop] 🛡️ REVERT BLOCKED', id, label, 'sizes:', blockedSizes.join(','));
+  } catch (e) { console.error('[shop] alertRevertBlocked failed:', e.message); }
+}
+
+// ── sale ↔ stock, tied atomically (Rodney 2026-08-02) ────────────────────────
+// "Sales never get dropped because they're recorded separately — why can't inventory
+// work the same way?" Because until now, recording a sale and shrinking the matching
+// shoe's stock were two INDEPENDENT client pushes that could drift apart (one lands,
+// the other doesn't, or lands and later gets overwritten). Do the stock side here too,
+// server-side, on the server's own clock, in the same request that records the sale —
+// so logging the sale IS what removes the pair. A client's own follow-up shoe push still
+// arrives normally and just confirms the same state (see stripRevertedSizes above for
+// what happens if a stale one tries to undo it instead).
+function applySaleToStock(req, sale) {
+  if (!Array.isArray(state.shoes) || sale.shoeId == null || sale.size == null) return;
+  const i = state.shoes.findIndex(x => x.id === sale.shoeId);
+  if (i < 0) return; // shoe not synced to the shop yet — nothing here to adjust
+  const before = JSON.parse(JSON.stringify(state.shoes[i]));
+  const sizes = Array.isArray(state.shoes[i].sizes) ? state.shoes[i].sizes.slice() : [];
+  const idx = sizes.findIndex(x => String(x) === String(sale.size));
+  if (idx === -1) return; // already reflects the sale — nothing to do
+  sizes.splice(idx, 1);
+  state.shoes[i] = Object.assign({}, state.shoes[i], { sizes, sold: sizes.length === 0 ? true : state.shoes[i].sold, updatedAt: Date.now() });
+  persist('shoes.json'); bump();
+  auditShoe(req, sale.shoeId, 'accepted', before, state.shoes[i], { via: 'sale' });
+}
+// Symmetric restock when a sale is voided — "that's the correct way to put a size back"
+// (see the recovery note below) now actually does it, instead of relying on the client
+// to separately push the shoe back to its pre-sale sizes.
+function applyVoidToStock(req, sale) {
+  if (!Array.isArray(state.shoes) || !sale || sale.shoeId == null || sale.size == null) return;
+  const i = state.shoes.findIndex(x => x.id === sale.shoeId);
+  if (i < 0) return;
+  const before = JSON.parse(JSON.stringify(state.shoes[i]));
+  const sizes = Array.isArray(state.shoes[i].sizes) ? state.shoes[i].sizes.slice() : [];
+  sizes.push(sale.size);
+  state.shoes[i] = Object.assign({}, state.shoes[i], { sizes, sold: false, updatedAt: Date.now() });
+  persist('shoes.json'); bump();
+  auditShoe(req, sale.shoeId, 'accepted', before, state.shoes[i], { via: 'void' });
+}
+
 // ── One-time SOLD-STATUS RECOVERY (Jul 8 2026) ───────────────────────────────
 // A stale-device bulk sync overwrote the inventory with old FULL-stock data, wiping
 // every "sold" reduction (sold shoes reappeared in stock). The SALE RECORDS survived
@@ -781,6 +879,8 @@ function mount(app) {
       state.sales.unshift(s);
       if (state.sales.length > MAX_SALES) state.sales.length = MAX_SALES;
       persist('sales.json'); bump();
+      // Shrink the matching shoe's stock right here, server-side — see applySaleToStock.
+      try { applySaleToStock(req, s); } catch (e) { console.error('[shop] applySaleToStock failed:', e.message); }
     }
     res.json({ ok: true, count: state.sales.length });
   });
@@ -791,10 +891,16 @@ function mount(app) {
     const id = req.body && req.body.id;
     if (id == null) return res.status(400).json({ error: 'no id' });
     const before = state.sales.length;
+    const voided = state.sales.find(x => String(x.id) === String(id));
     state.sales = state.sales.filter(x => String(x.id) !== String(id));
     // Drop any pinned payment proof for a voided sale so it doesn't orphan on disk.
     if (state.proofs && state.proofs[String(id)]) { delete state.proofs[String(id)]; persist('proofs.json'); }
-    if (state.sales.length !== before) { persist('sales.json'); bump(); }
+    if (state.sales.length !== before) {
+      persist('sales.json'); bump();
+      // Put the size back — see applyVoidToStock. This is now the ACTUAL restock, not
+      // just a note saying voiding is "the correct way" while nothing enforced it.
+      if (voided) { try { applyVoidToStock(req, voided); } catch (e) { console.error('[shop] applyVoidToStock failed:', e.message); } }
+    }
     res.json({ ok: true, removed: before - state.sales.length, count: state.sales.length });
   });
 
@@ -881,8 +987,13 @@ function mount(app) {
         auditShoe(req, sh.id, 'skipped-stale', _before, sh, { why: inT === 0 ? 'no timestamp on the push' : 'push older than stored' });
         return res.json({ ok: true, skipped: 'stale' });
       }
-      state.shoes[i] = sh;
-      auditShoe(req, sh.id, 'accepted', _before, sh);
+      // Even a push that LOOKS newest can carry stale content (see stripRevertedSizes) —
+      // strip out any size trying to reappear after it was deliberately removed before
+      // trusting the rest of this "newer" push.
+      const { shoe: safeShoe, blocked } = stripRevertedSizes(sh.id, state.shoes[i], sh);
+      state.shoes[i] = safeShoe;
+      auditShoe(req, sh.id, 'accepted', _before, safeShoe, blocked.length ? { revertBlocked: blocked } : undefined);
+      if (blocked.length) alertRevertBlocked(sh.id, blocked, _before, safeShoe, req);
     } else {
       // FIRST-EVER PUSH FOR THIS ID — nothing to compare it against, so a stale device's
       // "everything looks fine" local copy would otherwise be accepted with zero checks
@@ -977,11 +1088,15 @@ function mount(app) {
       // clobber a stored shoe. That timeless tie was the last hole that reverted live edits.
       if (!ex) { byId[s.id] = s; applied++; auditShoe(req, s.id, 'added', null, s, { via: 'bulk' }); }
       else if (inT > 0 && inT >= exT) {
+        // Same stale-but-fresh-looking-timestamp risk as the single-shoe path: strip any
+        // size trying to come back from a recent removal before trusting this "newer" row.
+        const { shoe: safeShoe, blocked } = stripRevertedSizes(s.id, ex, s);
         // Only log a bulk overwrite that actually CHANGES stock — a full catalog dump would
         // otherwise write hundreds of no-op rows and bury the signal.
-        const changed = JSON.stringify(ex.sizes) !== JSON.stringify(s.sizes) || !!ex.sold !== !!s.sold;
-        byId[s.id] = s; applied++;
-        if (changed) auditShoe(req, s.id, 'bulk', ex, s);
+        const changed = JSON.stringify(ex.sizes) !== JSON.stringify(safeShoe.sizes) || !!ex.sold !== !!safeShoe.sold;
+        byId[s.id] = safeShoe; applied++;
+        if (changed) auditShoe(req, s.id, 'bulk', ex, safeShoe, blocked.length ? { revertBlocked: blocked } : undefined);
+        if (blocked.length) alertRevertBlocked(s.id, blocked, ex, safeShoe, req);
       }
       else { keptNewer++; if (JSON.stringify(ex.sizes) !== JSON.stringify(s.sizes)) auditShoe(req, s.id, 'skipped-stale', ex, s, { via: 'bulk', why: inT === 0 ? 'no timestamp on the push' : 'push older than stored' }); }
     });
