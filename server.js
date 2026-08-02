@@ -3381,9 +3381,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // unverified "we don't have it" text and don't execute the other tools, so the
     // customer never gets a from-memory answer (or a needless human-escalation) that a
     // live search would contradict (2026-07-14: 1906 Navy 10 in stock, told "no" 4x).
+    // ⚠️ "IS THERE" ALSO MATCHES A NON-SHOE QUESTION (Rodney 2026-08-02, a genuinely broken
+    // reply): a customer asked "Is there a store" (a physical-location question, correctly
+    // answered in words about being mobile/delivery — no search needed). "is there" matched
+    // this regex anyway, so her correct answer got HELD BACK and she was forced into a
+    // pointless search_inventory call for "store location". It came back empty (of course —
+    // that's not a shoe), and her NEXT turn — meant to explain that empty search back to the
+    // SYSTEM NOTE that forced it — went out to the CUSTOMER instead: "The search came back
+    // empty because 'store location' isn't a shoe… No search needed for that one." A customer
+    // reading Kiki's internal reasoning about her own tool calls is as broken as it gets.
+    // Excluding store/shop/location questions here stops the force from ever firing on them.
     const willForceStockSearch = !didSearch && !photosSentRun && step === 0
       && !toolUses.some(t => t.name === 'search_inventory')
-      && /\b(do (you|u|ya|y'?all) have|you got|got any|have any|any more|is there|in stock|available)\b|^\s*any\b/i.test(userText || '');
+      && /\b(do (you|u|ya|y'?all) have|you got|got any|have any|any more|is there|in stock|available)\b|^\s*any\b/i.test(userText || '')
+      && !/\b(store|shop|location|address|open|hours?)\b/i.test(userText || '');
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
