@@ -360,6 +360,24 @@ try {
   }
 } catch (e) { console.error('[shop] sold recovery failed:', e.message); }
 
+// ── One-time RE-RECONCILE (Rodney 2026-08-02) ────────────────────────────────
+// The revert bug was STILL landing right up until stripRevertedSizes/applySaleToStock
+// shipped above — so stock it never got a chance to guard is still wrong on disk right
+// now (an Air Max 95 Black/Blue sold size 12 at 12:02 AM, reverted back by 5:35 PM the
+// same day). Re-run the exact same sales-vs-stock reconciliation as the v1 recovery,
+// under a fresh marker so it fires once more on this deploy — it pulls EVERY shoe back
+// in line with what sales.json actually says sold, not just this one pair, since sales
+// were never the thing that went missing (see the revert-guard note above).
+try {
+  const marker2 = path.join(DATA_DIR, 'sold_recovered_v2.flag');
+  if (!fs.existsSync(marker2)) {
+    const n = applySoldFromSales();
+    console.log('[shop] re-reconcile v2 (post-revert-guard): adjusted', n, 'shoes from', state.sales.length, 'sale records');
+    if (n) persist('shoes.json');
+    try { fs.writeFileSync(marker2, new Date().toISOString()); } catch (_) {}
+  }
+} catch (e) { console.error('[shop] v2 sold re-reconcile failed:', e.message); }
+
 // ── One-time SALES BACKFILL (Jul 24 2026) ────────────────────────────────────
 // Two real sales never made it into the register: the Air Max 90 Black/Yellow size 8
 // (reported to Kiki Jul 22 ~8 AM — confirmed but the record is missing) and the
