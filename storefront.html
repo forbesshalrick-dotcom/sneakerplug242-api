@@ -2692,6 +2692,20 @@ function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))re
   if(editingId){const i=shoes.findIndex(x=>x.id===editingId);shoes[i]=shoe;}else shoes.unshift(shoe);
   _recordCatalogOverride(shoe); // remember edits to built-in shoes so they don't revert on refresh
   save();closeModal();renderInventory();_sfx.success();
+  // A human just reviewed and typed this exact size list into the edit form and hit Save — that's
+  // never a stale background sync, so push it to the server flagged as a deliberate edit; the
+  // server's anti-revert guard (2026-08-02) trusts THIS push outright instead of second-guessing a
+  // real restock as a revert. One-shot only: the flag rides on this single request, never gets
+  // written onto the stored shoe object, so every later background sync of this same shoe is still
+  // fully guarded like normal (2026-08-02: a manager tried to restock size 9 twice and the guard
+  // kept silently stripping it back out because it looked identical to the exact stale-sync revert
+  // the guard exists to stop).
+  if(typeof shopPost==='function'&&typeof liteShoe==='function'){
+    try{ shopPost('/shop/shoe',{shoe:Object.assign({},liteShoe(shoe),{_manualEdit:true})}).then(function(res){
+      if(res&&res.skipped==='stale'){ showToast('⚠️ "'+shoe.name+'" did NOT save — refresh the app and redo the change.', true); try{syncInventory();}catch(e){} }
+      else if(typeof _lastInvSnap==='object'&&_lastInvSnap) _lastInvSnap[shoe.id]=JSON.stringify(liteShoe(shoe));
+    }).catch(function(){ showToast('⚠️ Change didn\'t reach the server — check your internet and redo it.', true); }); }catch(e){}
+  }
   // Log explicitly with detail (brand+name) — showToast wrapper will also fire but won't duplicate
   var _auditAction = editingId ? 'Shoe edited' : 'Shoe added';
   var _auditDetail = shoe.brand+' '+shoe.name+(shoe.color?' — '+shoe.color:'');

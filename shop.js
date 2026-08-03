@@ -1007,10 +1007,20 @@ function mount(app) {
       }
       // Even a push that LOOKS newest can carry stale content (see stripRevertedSizes) —
       // strip out any size trying to reappear after it was deliberately removed before
-      // trusting the rest of this "newer" push.
-      const { shoe: safeShoe, blocked } = stripRevertedSizes(sh.id, state.shoes[i], sh);
+      // trusting the rest of this "newer" push. EXCEPTION: a push flagged _manualEdit came
+      // from a human who just typed this exact size list into the edit form and hit Save —
+      // that's a deliberate restock, not a stale device, so it skips the strip entirely
+      // (Rodney 2026-08-02: the guard was silently stripping a real restock of a size that
+      // happened to have sold recently — indistinguishable from a revert by pattern alone,
+      // so a genuine manual edit has to say so explicitly instead of being pattern-matched).
+      // The flag itself never gets stored — it only ever applies to THIS one push.
+      const isManualEdit = !!sh._manualEdit;
+      if (sh._manualEdit != null) delete sh._manualEdit;
+      const { shoe: safeShoe, blocked } = isManualEdit
+        ? { shoe: sh, blocked: [] }
+        : stripRevertedSizes(sh.id, state.shoes[i], sh);
       state.shoes[i] = safeShoe;
-      auditShoe(req, sh.id, 'accepted', _before, safeShoe, blocked.length ? { revertBlocked: blocked } : undefined);
+      auditShoe(req, sh.id, 'accepted', _before, safeShoe, blocked.length ? { revertBlocked: blocked } : (isManualEdit ? { via: 'manual-edit' } : undefined));
       if (blocked.length) alertRevertBlocked(sh.id, blocked, _before, safeShoe, req);
     } else {
       // FIRST-EVER PUSH FOR THIS ID — nothing to compare it against, so a stale device's
