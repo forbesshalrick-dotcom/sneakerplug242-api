@@ -973,7 +973,11 @@ select option{background:var(--surface2);}
 <script src="https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/242plug@main/frames/shoe_73.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/242plug@main/frames/shoe_74.js"></script>
 <script>
-const STANDARD_SIZES = ["5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "13"];
+// 4 and 5 added (Rodney 2026-08-02, jessinventorytask.md): SB Navy has real stock in
+// both — they were never dropped from the DATA (the edit-form's free-text sizes field
+// takes any value, no validation against this list), but the "mark as sold" quick-pick
+// grid below only offered these buttons, so a 4 or 5 could never be sold FROM that picker.
+const STANDARD_SIZES = ["4", "4.5", "5", "5.5", "6", "6.5", "7", "7.5", "8", "8.5", "9", "9.5", "10", "10.5", "11", "11.5", "12", "13"];
 const WALLETS = {
   btc: 'bc1qkv52q6zdm5zpwqvzntldeadhmtq6kzrhl5pss8',
   eth: '0x4De4A1491157A6088e249Ff67C631207737lbDf7',
@@ -2848,12 +2852,32 @@ function _mergeCloudData(data, rerender) {
     const cloudT = c.updatedAt || c.createdAt || 0;
     const localT = shoe.updatedAt || shoe.createdAt || 0;
     if (cloudT >= localT) {
-      if (c.sizes) shoe.sizes = c.sizes;
-      if (c.hasOwnProperty('sold')) shoe.sold = c.sold;
+      // 🛡️ FIRESTORE REVERT GUARD (Rodney 2026-08-02, jessinventorytask.md — "it always
+      // shorts, never over-counts... something is subtracting"): this listener fires
+      // straight into whatever's on screen, completely bypassing shop.js's server-side
+      // revert guard added earlier today — a stale device stamping Date.now() here
+      // reverts what you're LOOKING AT, not just some background record. Only trust cloud
+      // sizes/sold here when they're a SHRINK (same-or-fewer of every size) or a flip TO
+      // sold — the same shrink-only rule shop.js's own stale-push handling already uses.
+      // GROWTH (a size reappearing, un-selling) must come through the protected shop.js
+      // sync (/shop/state) instead of landing here unchecked.
+      const cnt = function(arr){ var m={}; (arr||[]).forEach(function(x){ m[x]=(m[x]||0)+1; }); return m; };
+      var inC = cnt(c.sizes), exC = cnt(shoe.sizes);
+      var isShrinkOrEqual = Object.keys(inC).every(function(s){ return inC[s] <= (exC[s]||0); });
+      var soldFlipToTrue = !!c.sold && !shoe.sold;
+      var sizesChanged = JSON.stringify(c.sizes||[]) !== JSON.stringify(shoe.sizes||[]);
+      var soldChanged = c.hasOwnProperty('sold') && !!c.sold !== !!shoe.sold;
+      var growthRejected = (sizesChanged || soldChanged) && !isShrinkOrEqual && !soldFlipToTrue;
+      if (!growthRejected) {
+        if (c.sizes) shoe.sizes = c.sizes;
+        if (c.hasOwnProperty('sold')) shoe.sold = c.sold;
+        if (c.updatedAt) shoe.updatedAt = c.updatedAt;
+      } else {
+        try{ console.warn('[cloud sync] rejected apparent revert on', shoe.id, '— kept', shoe.sizes, 'over cloud', c.sizes); }catch(e){}
+      }
       if (c.hasOwnProperty('price')) shoe.price = c.price;
       shoe.reorder = c.reorder || false;
       shoe.advertised = c.advertised || false;
-      if (c.updatedAt) shoe.updatedAt = c.updatedAt;
       // Overrides (rename/colour) follow the SAME newest-wins rule — only apply
       // an incoming override when the cloud copy is at least as new as ours, so a
       // stale device holding the OLD name can't overwrite a fresh local rename.
