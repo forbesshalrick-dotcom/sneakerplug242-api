@@ -1145,6 +1145,57 @@ function mount(app) {
     res.json({ ok: true });
   });
 
+  // List what's currently tombstoned, with a label where we can figure one out (the
+  // catalog baseline, or the shoe's audit history) — deleting only ever kept the bare
+  // id, so this is how staff can even tell WHICH shoe an id refers to before deciding
+  // whether to undelete it (Rodney 2026-08-02 — there was previously no way back at all
+  // from an accidental delete, e.g. two real pairs mistaken for one duplicate listing).
+  app.get('/shop/deleted-detail', (req, res) => {
+    if (!auth(req, res)) return;
+    const rows = (state.deleted || []).map(id => {
+      const base = CATALOG_BASE[id] || null;
+      let lastAudit = null;
+      for (const row of state.shoeAudit) { if (row.id === id) { lastAudit = row; break; } } // newest-first
+      return {
+        id,
+        label: base ? shoeLabel(id) : (lastAudit ? shoeLabel(id) : String(id)),
+        recoverable: !!base, // only a catalog shoe has a baseline we can rebuild from
+        lastSeenSizes: lastAudit ? lastAudit.beforeSizes : null,
+        lastChangeAt: lastAudit ? lastAudit.at : null,
+      };
+    });
+    res.json({ total: rows.length, rows });
+  });
+
+  // Undo an accidental delete. A catalog shoe (the vast majority) has an immutable
+  // baseline in catalog.json we can rebuild from — sizes/price won't reflect whatever
+  // was actually in stock the moment it got deleted (that data is gone, deleting never
+  // kept a copy), but the listing itself comes back so staff can correct the count by
+  // hand instead of re-creating the shoe from scratch. A non-catalog custom shoe has no
+  // baseline to rebuild from — undeleting it only clears the tombstone so a device that
+  // still has it cached locally can re-push it.
+  app.post('/shop/shoe/undelete', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = req.body && req.body.id;
+    if (id == null) return res.status(400).json({ error: 'bad id' });
+    const wasDeleted = state.deleted.includes(id);
+    state.deleted = state.deleted.filter(x => x !== id);
+    persist('deleted.json');
+    let restored = false;
+    if (!Array.isArray(state.shoes)) state.shoes = [];
+    const already = state.shoes.some(x => x.id === id);
+    const base = CATALOG_BASE[id];
+    if (!already && base) {
+      const shoe = Object.assign({}, base, { updatedAt: Date.now(), createdAt: Date.now(), sold: false });
+      state.shoes.push(shoe);
+      restored = true;
+      auditShoe(req, id, 'added', null, shoe, { via: 'undelete' });
+      persist('shoes.json');
+    }
+    bump();
+    res.json({ ok: true, wasDeleted, restored, hasBaseline: !!base, alreadyPresent: already });
+  });
+
   // Bulk-assert a device's deletion graveyard. The website re-pushes its local
   // deleted ids here on every load, so a deletion made anywhere is re-learned by
   // the server even after a restart that lost runtime data — deletes can never
