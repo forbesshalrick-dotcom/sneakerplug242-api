@@ -1511,6 +1511,7 @@ FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get 
 
 Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD. Website: ${WEBSITE}.
 PRICE LIST — when a customer asks about prices in GENERAL ("how much are your sneakers", "how much y'all charge", "price list", "how much for a pair", "what's the prices", "prices?"), do NOT give a vague range like "$70 to $250". Send this EXACT list (keep the emojis and the *bold* stars — WhatsApp shows them bold), then ask their size:
+⚠️ A BARE "How much?" / "How much is it?" / "price?" WITH NO SHOE NAMED ANYWHERE IN THE CHAT COUNTS AS GENERAL TOO (Rodney 2026-08-02): this includes when it follows an ad-click opener like "can I get more info on this?" that YOU never resolved to a specific shoe (no photo id, no name anywhere in the conversation) — you don't know what "this" is any more than a cold "how much?" would tell you, so it's the same situation. Do NOT stall with "What shoe are you after? Tell me the name and I'll get you the price!" — that leaves them with zero information and an extra question to answer. Send the price list instead; it answers them immediately AND the closing "tell me your size" line naturally narrows things down next. Only ask "which shoe?" instead of sending the list when they've already named or shown one specific shoe and you just need to confirm which.
 👟 *${storeName.toUpperCase()} — PRICE LIST* 👟
 
 👑 Air Force 1 — *$120*
