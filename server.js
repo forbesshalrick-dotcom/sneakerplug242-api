@@ -2469,13 +2469,22 @@ function nextPhotoCode(sub, shoe) {
       return code;
     }
   }
-  if (e.n >= 26 * 9) { e.n = 0; e.map = {}; }         // safety wrap on very long chats
+  // ⚠️ BOTH limits below used to be way too tight for how this store actually runs (Rodney
+  // 2026-08-02): a customer browsed past 100+ coded photos in one chat (wide "everything in
+  // my size" sends add up fast), picked "F1" — shown WAY earlier — and said stop. By then F1
+  // had long since been evicted by the old 60-entry cap, so codeCtx below no longer mentioned
+  // it at all; Kiki had no memory of what F1 was, never recognized the selection OR the stop,
+  // and just kept dumping unrelated photos for another hour while the customer repeated
+  // themselves. Each entry here is a few bytes — there's no real memory reason to cap this
+  // tight. Both limits now comfortably cover the whole catalog (~370 shoes) so a code stays
+  // valid for the WHOLE chat in practice instead of quietly expiring mid-conversation.
+  if (e.n >= 26 * 9 * 5) { e.n = 0; e.map = {}; }     // safety wrap — effectively never hit
   e.n += 1;
   const code = String.fromCharCode(65 + Math.floor((e.n - 1) / 9)) + (((e.n - 1) % 9) + 1); // A1..A9,B1..
   e.ts = Date.now();
   e.map[code] = { id: shoe.id, name: displayName(shoe), price: shoe.price, sizes: sizesOf(shoe) };
   const keys = Object.keys(e.map);
-  if (keys.length > 60) delete e.map[keys[0]];        // don't grow forever
+  if (keys.length > 400) delete e.map[keys[0]];       // don't grow forever
   photoCodes.set(sub, e);
   savePhotoCodes(); // survive restarts
   return code;
@@ -3267,7 +3276,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const cc = photoCodes.get(sub);
   if (cc && cc.map && Object.keys(cc.map).length && (Date.now() - (cc.ts || 0)) < 12 * 60 * 60 * 1000) {
     const lines = Object.entries(cc.map).map(([code, v]) => `${code} = ${v.name}${v.price != null ? ` ($${v.price})` : ''}${v.sizes ? ` [sizes: ${v.sizes}]` : ''}`);
-    codeCtx = `\n\n[PHOTO CODES you gave this customer — every pic you sent was labelled with its code, and the sizes shown are the ONLY sizes that shoe comes in. If their message IS or CONTAINS one of these codes, they mean THAT exact shoe: confirm it and go straight to their order — do NOT re-ask what shoe. ⚠️ If the customer states a SIZE for a code (e.g. "D9 in 7"), CHECK it against that code's listed sizes: only agree if that size is actually in the list. If it is NOT, do NOT agree — tell them that shoe only comes in [its real sizes] and offer the nearest. NEVER confirm a size that isn't in the code's sizes. Codes → shoes: ${lines.join('; ')}]`;
+    codeCtx = `\n\n[PHOTO CODES you gave this customer — every pic you sent was labelled with its code, and the sizes shown are the ONLY sizes that shoe comes in. If their message IS or CONTAINS one of these codes, they mean THAT exact shoe: confirm it and go straight to their order — do NOT re-ask what shoe. ⚠️ If the customer states a SIZE for a code (e.g. "D9 in 7"), CHECK it against that code's listed sizes: only agree if that size is actually in the list. If it is NOT, do NOT agree — tell them that shoe only comes in [its real sizes] and offer the nearest. NEVER confirm a size that isn't in the code's sizes. ⚠️ A code that LOOKS like our format (a letter + number, e.g. "F1") but is NOT in the list below is one you no longer have a record of — NEVER guess which shoe it was and NEVER silently search something else instead. Say so honestly and ask them to resend the name or a photo: "That code's not showing on my end anymore, sorry 🙈 — what was the shoe called, or send the pic again and I'll pull it right up 👟". Codes → shoes: ${lines.join('; ')}]`;
   }
   // PRIVATE OWNER CONTEXT: anything Rodney/staff typed with the ". " code since the customer
   // last wrote. Kiki uses it as the TRUTH to guide her help, but NEVER quotes or announces it.
