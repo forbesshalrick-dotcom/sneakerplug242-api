@@ -3411,6 +3411,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // search means the customer wanted something specific, so we never widen those.
   const turnSentIds = new Set();        // shoe ids actually sent this turn
   const turnSizeSearchSizes = [];       // sizes from pure size (±brand only) searches this turn
+  const turnSizeSearchBrands = [];      // the brand filter on each of those searches ('' = none)
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
   let turnGenericSizeAlbum = false;     // an album went out with a size-only lead-in (no brand/model/colour)
   // 🔒 STAFF PHOTO = float/receipt, NEVER a shoe (2026-07-17): the photo→shoe machinery is so
@@ -3564,6 +3565,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           [].concat(Array.isArray(p.sizes) ? p.sizes : (p.sizes != null ? [p.sizes] : []))
             .concat(p.size != null ? [p.size] : [])
             .forEach(x => { const n = parseFloat(x); if (!isNaN(n)) turnSizeSearchSizes.push(String(n)); });
+          // 🏷️ REMEMBER WHICH BRAND SHE SEARCHED (Rodney 2026-08-04). A customer wrote
+          // "looking for acisces" then "9" — Kiki read the typo correctly and searched
+          // brand ASICS, but the top-up below judged "did they name a brand?" by running a
+          // regex over the customer's OWN words, and "acisces" is not "asics". So it
+          // decided the album was a generic size batch and padded a 6-shoe ASICS request
+          // with 67 pairs of everything else. Kiki's own search parameter is the reliable
+          // signal — it already survives every misspelling — so the top-up now follows it.
+          const bs = (Array.isArray(p.brands) ? p.brands : (p.brand ? [p.brand] : []))
+            .map(x => String(x || '').trim()).filter(Boolean);
+          turnSizeSearchBrands.push(bs.length ? bs.map(b => b.toLowerCase()).sort().join('+') : '');
         }
       }
       else if (tu.name === 'send_photos') {
@@ -4065,17 +4076,38 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !customerNamedSpecific && turnSizeSearchSizes.length) {
     try {
       const wantSizes = [...new Set(turnSizeSearchSizes)];
+      // 🏷️ STAY INSIDE THE BRAND SHE SEARCHED (Rodney 2026-08-04: "customer only asked for
+      // asics"). If EVERY size search this turn carried the same non-empty brand filter, the
+      // customer named that brand — so "the rest we've got in your size" means the rest of
+      // THAT brand, not a flood of every other one. Only a genuinely brand-free size browse
+      // ("what you got in a 10?") still widens across the whole catalog, which is what this
+      // top-up was built for. Mixed brands in one turn → don't widen at all, she chose them.
+      const brandKeys = [...new Set(turnSizeSearchBrands)];
+      const mixedBrands = brandKeys.length > 1;
+      const onlyBrand = (brandKeys.length === 1 && brandKeys[0]) ? brandKeys[0].split('+') : null;
+      if (mixedBrands) {
+        record(req, { endpoint: 'size-topup-skipped', sub, why: 'more than one brand searched this turn — album left exactly as she sent it', brands: brandKeys });
+      } else {
       // exact_sizes: wantSizes ALREADY include the half-size up (Kiki searched "11" AND "11.5"),
       // so search them literally — never re-expand, or "11.5" creeps to "12" and size-12 pairs
       // sneak into the top-up album (Rodney 2026-07-19: "size-11 browse added size-12 for no reason").
-      const full = searchInventory({ sizes: wantSizes, size_match: 'any', exact_sizes: true });
+      const full = searchInventory(Object.assign(
+        { sizes: wantSizes, size_match: 'any', exact_sizes: true },
+        onlyBrand ? { brands: onlyBrand } : {}
+      ));
       const missing = full.filter(r => !turnSentIds.has(String(r.id))).map(r => r.id);
       if (missing.length) {
-        record(req, { endpoint: 'size-album-topup', sub, sizes: wantSizes, alreadySent: turnSentIds.size, missing: missing.length });
+        record(req, { endpoint: 'size-album-topup', sub, sizes: wantSizes, brand: onlyBrand || null, alreadySent: turnSentIds.size, missing: missing.length });
         const label = wantSizes.join(' and ');
+        // Name the brand when the top-up is scoped to one, so the line reads like an answer
+        // to what they asked ("the rest of the Asics we've got in 9") not a random pile.
+        const leadIn = onlyBrand
+          ? "And here's the rest of the " + onlyBrand.map(b => b.replace(/\b\w/g, c => c.toUpperCase())).join(' / ') + " we've got in " + label + ' 👇'
+          : "And here's the rest we've got in " + label + ' 👇';
         endMsgSentAt[sub] = 0; // the top-up is the TRUE end of the album — always close after it, even if the first batch's closer was recent
-        const r = await sendShoePhotos(sub, missing, token, true, null, "And here's the rest we've got in " + label + ' 👇', false, false, false, ctx.turnAt || 0).catch(() => null);
+        const r = await sendShoePhotos(sub, missing, token, true, null, leadIn, false, false, false, ctx.turnAt || 0).catch(() => null);
         if (r && r.sent > 0) sentToCustomer = true;
+      }
       }
     } catch (e) { record(req, { endpoint: 'size-topup-error', sub, error: String(e).slice(0, 120) }); }
   }
