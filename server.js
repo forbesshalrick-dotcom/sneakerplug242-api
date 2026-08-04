@@ -966,6 +966,19 @@ function stripThinking(s) {
 // Subs whose sends only work with a token OTHER than the one their webhook suggested —
 // learned by the fallback below so future sends go straight to the right account.
 const subTokenFix = new Map();
+// 👤 PROOF A SUBSCRIBER IS REAL. ManyChat regularly answers a perfectly good send with
+// 400 "Subscriber does not exist" — and then DELIVERS the message anyway (proven live
+// 2026-08-04 on Neily: F2 and F9 each went out twice, a minute apart, because that lie
+// was believed and the shoe was re-sent). If we have successfully sent to this exact
+// subscriber in the last half hour, they demonstrably exist, so that error is noise.
+// Only a sub we've NEVER reached can genuinely "not exist".
+const subProvenAlive = new Map();          // subscriberId -> ts of last CONFIRMED-ok send
+const PROVEN_ALIVE_MS = 30 * 60 * 1000;
+const GHOST_ERROR_RE = /Subscriber does not exist/i;
+function isProvenAlive(sub) {
+  const t = subProvenAlive.get(String(sub)) || 0;
+  return t > 0 && (Date.now() - t) < PROVEN_ALIVE_MS;
+}
 // logOpts.noTextFallback: skip the image→text-label fallback below and just report the
 // failure. The album path sets it so the fallback can't fire BEFORE its own retry — see
 // sendShoe (Rodney 2026-08-01: both nets ran on the same shoe and the label went out twice).
@@ -1055,6 +1068,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     const r = await sendChunkRaw(subscriberId, messages, tk);
     if (r.ok) {
       if (tk !== token) subTokenFix.set(String(subscriberId), tk);
+      subProvenAlive.set(String(subscriberId), Date.now()); // they're real — remember it
       return { ok: true, status: r.status, body: r.body.slice(0, 300) };
     }
     last = r;
@@ -1069,6 +1083,23 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // saw the same shoe two and three times over. Now a timeout stops here: no re-send, no
   // fallback, logged so /last still shows it. Real errors (a 4xx, or ManyChat answering
   // "error") keep every retry they had — those are the ones worth sending again.
+  // 👻 THE GHOST "Subscriber does not exist" (Rodney 2026-08-04). Same shape of problem as
+  // the timeout above, different lie: ManyChat answers 400 "Subscriber does not exist" for a
+  // customer who is right there receiving the album. Proven live on Neily — F2 (Metallic
+  // Green) and F9 (Air Max 90) each arrived TWICE a minute apart, and every one of those
+  // sends is in the log as this error followed by a "successful" retry. If we have already
+  // delivered to this exact subscriber inside the last half hour then they plainly exist,
+  // so the error is noise about a message that landed: stop here, exactly like a timeout —
+  // no retry, no text fallback. A sub we have NEVER reached keeps all its retries, because
+  // for them the error might actually be true.
+  if (last && !last.timedOut && GHOST_ERROR_RE.test(body) && isProvenAlive(subscriberId)) {
+    saveRecent();
+    recent.unshift({ at: new Date().toISOString(), endpoint: 'send-ghost-error-assumed-delivered', sub: subscriberId,
+      note: 'ManyChat said "Subscriber does not exist" for a sub we already delivered to minutes ago — NOT re-sent (believing it is what sent photos twice)',
+      tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 80)).join(' | ').slice(0, 300) });
+    if (recent.length > 120) recent.length = 120;
+    return { ok: true, status: 0, body: 'ghost subscriber error — assumed delivered, not re-sent', ghosted: true };
+  }
   if (last && last.timedOut) {
     saveRecent();
     recent.unshift({ at: new Date().toISOString(), endpoint: 'send-timeout-assumed-delivered', sub: subscriberId,
