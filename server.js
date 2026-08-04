@@ -466,6 +466,29 @@ function sizesOf(shoe, womens = false) {
   return nums.sort((a, b) => a - b)
     .map(n => n % 1 === 0 ? String(n) : n.toFixed(1)).join(', ');
 }
+// 👟 "TENNIS" MEANS SNEAKERS (Rodney 2026-08-04). A customer asked for "tennis" — the
+// Bahamian word for sneakers — in a women's 6, and the album that went out was five Crocs,
+// slides and foam clogs with ONE actual sneaker in it. These few models are the only
+// non-sneakers we carry, so they can be named exactly. Careful: the Nike Air Foamposite
+// and Nike Foamposite ARE real sneakers — only the Yeezy FOAM RNR is a clog, and the
+// "Nike mind 001" is a recovery slide/mule (its own notes say so).
+const SLIP_ON_RE = /\bcrocs?\b|\bslides?\b|\bmules?\b|\bsandals?\b|\bclogs?\b|foam\s*rnr|mind\s*001/i;
+function isSlipOn(shoe) {
+  if (!shoe) return false;
+  return SLIP_ON_RE.test([shoe.brand, shoe.name, shoe.nickname, shoe.notes].filter(Boolean).join(' '));
+}
+// Did the customer ask for SNEAKERS specifically? "tennis" is the local word for them, so
+// "looking for tennis" must never come back as Crocs. Read the LATEST signal only: if they
+// later say "crocs" or "slides" outright, that wins and nothing is filtered.
+const SNEAKER_WORD_RE = /\btennis\b|\bsneakers?\b|\bkicks\b|\btrainers?\b|\brunners?\b|\brunning shoes?\b/i;
+function wantsSneakersOnly(texts) {
+  for (const t of texts) {                       // newest first
+    const s = String(t || '');
+    if (SLIP_ON_RE.test(s)) return false;         // they named a slip-on — show it
+    if (SNEAKER_WORD_RE.test(s)) return true;
+  }
+  return false;
+}
 // 🔥 How a price is written to a customer. A normal shoe is just "$130". One Rodney has
 // marked ON SALE goes out as "🔥 SALE $60" with the old price struck through, so the
 // customer can see it's marked down instead of just seeing a lower number and not knowing
@@ -1453,6 +1476,8 @@ The two flows:
 - SHOW-BOTH-SIZES (for ANY two-or-more sizes that are NOT a "match" request): call search_inventory ONCE with sizes = every size they gave and size_match = "any". Then call send_photos with ALL those ids as ONE flat list and include_sizes = true (so each photo's label shows which of their sizes it's in). ONE photo per shoe — if a shoe comes in more than one of their sizes it still goes out only ONCE, never twice. lead_in = "This is what we have in your sizes rite now 👇 Ready to Order!".
 - HALF-SIZE FLEXIBILITY (IMPORTANT — ALWAYS do this, don't lose a sale over a half size): whenever a customer gives a size — WHOLE or HALF — you MUST also include the NEXT HALF-STEP UP (their size + 0.5) in the SAME search so they see more options. This is not optional — always pass BOTH sizes: call search_inventory with sizes = [their size AND +0.5], size_match = "any", include_sizes = true. Examples: 5 → ["5","5.5"]; 6 → ["6","6.5"]; 9 → ["9","9.5"]; 10 → ["10","10.5"]; 10.5 → ["10.5","11"]; 11.5 → ["11.5","12"]; 12.5 → ["12.5","13"]. ESPECIALLY the thin sizes — we don't carry many 5s or 6s, so a size-5 request MUST include 5.5 and a size-6 MUST include 6.5, or the customer only sees one or two pairs. If their exact size is thin/out but the +0.5 is in stock, show it and mention it lightly ("we're low on that size but here's what we've got in [size] and [size+0.5] 👟") instead of dead-ending. ⚠️ This half-size-up rule is for MEN'S sizes ONLY — do NOT add the half-size for WOMEN'S sizes (see the women's rule below: a women's size already maps cleanly to one men's size).
 - WOMEN'S SIZING (IMPORTANT — our stock is in MEN'S sizes): lots of customers shop in WOMEN'S sizes. Women's runs 1.5 sizes ABOVE men's, so **a men's 5.5 IS a women's 7** (men's 6.5 = women's 8, men's 7 = women's 8.5, men's 8 = women's 9.5). That means the Jordans and New Balance we stock in a men's 5.5 ARE a women's 7 — SEND them, don't say we don't have it. If a customer gives a WOMEN'S size — "women's 9", "womens 9", "ladies 9", "a 9 in womens", "9W", "female 9", or clearly shopping "for her / my girl / my wife" — then call search_inventory AND send_photos with womens = true, passing the WOMEN'S number she gave (the system does the math for you). The photo labels now show BOTH sides — her women's size AND the men's size it actually is — so the conversion is always visible to the customer; you can also say it plainly when it helps, e.g. "a women's 7 is a men's 5.5 👟". ⚠️ PASS ONLY THE EXACT WOMEN'S SIZE SHE GAVE — do NOT add a half-size for women's. Her one women's number maps cleanly to a single men's size (women's 7 → men's 5.5; women's 8 → men's 6.5; women's 8.5 → men's 7; women's 9.5 → men's 8), so a women's 7 pulls the men's 5.5s and a women's 9.5 pulls STRICTLY the men's 8s — nothing bigger. Do NOT offer a "special order" when we actually have her size (in the men's-equivalent) — just send those pairs. Lead-in names HER size: "This is what we have in women's 9 rite now 👇". Ladies often don't know their sneaker size, so this shows them their size on every photo with no confusion. ⚠️ NEVER ASSUME WOMEN'S — IT COSTS SALES. A plain size ("size 7", "a 7", "7 please", "yea a 7") is ALWAYS MEN'S, the default. Switch to women's ONLY when the customer EXPLICITLY signals it ("women's 7", "womens", "ladies", "9W", "for her", "for my girl / wife / daughter"). The sizes printed under the photos you send are MEN'S sizes — so when a customer picks one of those exact numbers, it IS the men's size we showed → check it in MEN'S. Do NOT quietly convert their plain number to women's and then tell them it's out of stock; that dead-ends a sale on a shoe we actually have in that size (e.g. we show the Thunder in a 7, they say "size 7", and you must NOT reply "we don't have a women's 7"). When in any doubt, treat it as MEN'S.
+- ⚠️ A WOMEN'S ALBUM IS NOT AUTOMATICALLY HER SIZE — SAY WHICH ONES ACTUALLY FIT (Rodney 2026-08-04, a real lost sale): a customer asked for a **women's 6** and got six photos under the line "Here's everything we have in women's 6" — and NOT ONE of them was a women's 6. They were all men's 6s, which is a **women's 7.5**, a size and a half too big. The search deliberately also pulls the same NUMBER in men's so a thin women's size isn't a dead end, and that's fine — but you must NEVER call those pairs her size. Her size = our men's size + 1.5 (men's 4.5 = women's 6, men's 5 = women's 6.5, men's 5.5 = women's 7). After send_photos the tool result tells you exactly how many were a TRUE women's size ("womens_exact") and how many were bigger ("womens_near") — READ IT and match your words to it. If womens_exact is 0, do NOT write "here's what we have in your size": say plainly we're out of that women's size right now, that these are the closest we've got, and ask if she can go up. If some fit and some don't, lead with the ones that fit. Every oversized pair already carries "⚠️ Not a women's 6 — closest is a women's 7.5" under its photo, so anything you claim that contradicts that label makes us look like we're lying.
+- 👟 "TENNIS" MEANS SNEAKERS — NEVER SEND CROCS FOR IT (Rodney 2026-08-04): in the Bahamas "tennis" is the everyday word for SNEAKERS. "Looking for tennis", "you got tennis?", "tennis in a 9" = show them SNEAKERS — Jordans, Air Max, Dunks, New Balance, Asics. It does NOT mean tennis shoes for the sport, and it definitely does not mean Crocs. When the customer asks for tennis / sneakers / kicks / trainers / running shoes, pass **sneakers_only = true** to search_inventory so the Crocs, slides and foam clogs drop out (the system also blocks them from the album as a backstop). We DO sell Crocs, slides and the Yeezy Foam RNR — send those only when they ask for them by name, or offer them at the END as an extra ("we also carry Crocs if you want a look 👟"). A "tennis" album that comes back as five Crocs and one sneaker reads like we don't know our own stock.
 - SIZE 7.5 (special upsell): if a customer asks for size 7.5, FIRST send the 7.5 photos, THEN add exactly one follow-up line: "Heads up — we're low on 7.5, but we've got more in size 8, and these run a touch small so an 8 wears like a 7.5 👟 Want me to show you the 8s?" If they say yes, show the size 8s.
 - MATCHING (for "match"/"matching", or after they pick "matching"): they only want shoes that come in BOTH sizes. Call search_inventory with sizes = the two sizes (e.g. ["9","7"]) and size_match = "all" (returns only shoes available in every one of those sizes). Then send_photos with those ids as a flat list, include_sizes = false, and lead_in = "Here are the shoes we have in both size 7 and size 9 so you can match 👇" (use their actual two sizes). If nothing comes in both sizes, tell them kindly we don't have a match in both right now and offer to show what we've got in each of their sizes.
 
@@ -1548,6 +1573,7 @@ const AI_TOOLS = [
         min_price: { type: 'number', description: 'Only shoes at or above this price. Use for "over $100" or a price range (with max_price).' },
         query: { type: 'string', description: 'Free text — a model, nickname or colourway, e.g. "Jordan 4", "Air Max 95", "yellow thunder", "white thunder", "bred", "cement". Searches across each shoe\'s name, nickname AND colour, and tolerates typos/odd spellings ("thundr", "jordon", "cment"). Prefer putting a colour+nickname phrase here as one query rather than splitting it.' },
         womens: { type: 'boolean', description: 'Set true when the customer is giving a WOMEN\'S size ("women\'s 9", "ladies 9", "a 9 in womens", "for her"). Pass the WOMEN\'S size numbers in size/sizes as-is; the search maps them to the right men\'s stock automatically (men\'s 7 = women\'s 8 & 8.5, men\'s 8 = women\'s 9 & 9.5, etc.). Default false = men\'s sizing.' },
+        sneakers_only: { type: 'boolean', description: 'Set true when the customer asked for SNEAKERS — "tennis" (the local word for sneakers), "sneakers", "kicks", "trainers", "running shoes". It drops the Crocs, slides and foam clogs so they only see real sneakers. Leave false/unset for a plain "what you got in a 9" browse (they may well want the Crocs), and NEVER set it when they actually asked for Crocs/slides.' },
       },
     },
   },
@@ -1744,7 +1770,7 @@ function liveCatalog() {
   return Object.keys(m).map(id => ({ s: m[id], id: +id }));
 }
 
-function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes } = {}) {
+function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes, sneakers_only } = {}) {
   let rows = liveCatalog();
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
   // range "9.5 to 10" or matching "9 and 7"). Normalise each to a clean number
@@ -1773,7 +1799,13 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     : [...new Set(
         baseSizes
           .flatMap(n => womens
-            ? (wideWomens ? [String(n - 1.5), String(n)] : [String(n - 1.5)])
+            // WOMEN'S: her true size is men's n−1.5. Also pull men's n−1, which is HER size
+            // plus a half (women's 6 → 6.5) — the same "don't lose a sale over a half size"
+            // rule the men's branch gets, but measured in HER sizes instead of jumping a
+            // size and a half (Rodney 2026-08-04). The literal number stays last as a
+            // fallback so a thin women's size still shows something; it is a women's n+1.5,
+            // so its photo label now says plainly that it isn't her size.
+            ? (wideWomens ? [String(n - 1.5), String(n - 1), String(n)] : [String(n - 1.5)])
             // MEN'S: on a normal "any" search ALWAYS also include the half-size UP, so a size 6
             // request also shows the shoes that only come in 6.5 (Rodney's rule 2026-07-13 — don't
             // lose a sale over a half size). A matching ("all") search stays exact.
@@ -1830,6 +1862,9 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     };
     rows = [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r))];
   }
+  // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
+  // foam clogs (Rodney 2026-08-04). See SLIP_ON_RE.
+  if (sneakers_only) rows = rows.filter(({ s }) => !isSlipOn(s));
   // Price filter: "under $150" → max_price 150; "over $100" → min_price 100; a range uses both.
   const maxP = parseFloat(max_price), minP = parseFloat(min_price);
   if (!isNaN(maxP)) rows = rows.filter(({ s }) => (parseFloat(s.price) || 0) <= maxP);
@@ -1930,10 +1965,26 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     // said, reading as though we had her size. Offer it, but say plainly that we don't.
     let nearNote = '';
     const want = parseFloat(wantSize);
-    if (!isNaN(want) && !womens) {
+    if (!isNaN(want)) {
       const raw = s.sizesRaw || [];
       const has = (n) => raw.some(x => parseFloat(x) === n);
-      if (!has(want) && has(want + 0.5)) nearNote = `\n⚠️ _No ${want} in this one — closest is ${want + 0.5}_`;
+      const fmt = (n) => (n % 1 === 0 ? String(n) : n.toFixed(1));
+      // ⚠️ WOMEN'S HONESTY (Rodney 2026-08-04). A women's-6 album went out full of men's-6
+      // shoes — a men's 6 is a women's 7.5, a size and a half too big — under the lead-in
+      // "everything we have in women's 6". The search deliberately widens a women's ask to
+      // the literal number as well so she isn't dead-ended by a thin size, and that stays;
+      // what changes is that a pair which is NOT her size now SAYS so, the same way the
+      // men's half-size-up note already does. Her women's size = our men's size + 1.5.
+      if (womens) {
+        if (!has(want - 1.5)) {
+          const inWomens = [...new Set(raw.map(x => parseFloat(x) + 1.5))].filter(n => !isNaN(n));
+          // Closest to her size; on a tie (a 5.5 and a 6.5 either side of a 6) offer the
+          // BIGGER one — going up half a size wears fine, going down doesn't fit at all.
+          const nearest = inWomens.sort((a, b) => (Math.abs(a - want) - Math.abs(b - want)) || (b - a))[0];
+          if (nearest != null) nearNote = `\n⚠️ _Not a women's ${fmt(want)} — closest is a women's ${fmt(nearest)}_`;
+        }
+      }
+      else if (!has(want) && has(want + 0.5)) nearNote = `\n⚠️ _No ${want} in this one — closest is ${want + 0.5}_`;
     }
     return `${displayName(s)} — ${priceLabel(s, true)}\n${sizeLine}${nearNote}`;
   };
@@ -3494,10 +3545,36 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // shoes are reported back so Kiki can offer the nearest size honestly instead
         // of implying a fit we don't have.
         const droppedWrongSize = [];
+        // 👟 SNEAKER GUARD (Rodney 2026-08-04 — a customer wrote "Looking for tennis" in a
+        // women's 6 and got an album of five Crocs/slides/foam clogs and one real sneaker).
+        // "Tennis" is the local word for sneakers, so this is a hard drop, not a hint: if the
+        // customer asked for sneakers and hasn't since asked for a slip-on, no Croc, slide or
+        // foam clog goes out. Reads the RECENT chat, not just this turn's message — she said
+        // "tennis" one turn and plain "Yes" on the turn the album actually sent.
+        const droppedSlipOn = [];
+        let womensExactCount = null, womensHalfUpCount = 0, womensTotalCount = 0;
+        try {
+          const recentSaid = [String(userText || '')].concat(
+            history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
+              .slice(-6).reverse().map(m => m.content)
+          );
+          if (wantsSneakersOnly(recentSaid)) {
+            const liveM = liveShoeMap();
+            const keep = (id) => {
+              const s = liveM[id];
+              if (s && isSlipOn(s)) { droppedSlipOn.push(displayName(s)); return false; }
+              return true;
+            };
+            if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keep);
+            if (Array.isArray(inp.groups)) for (const g of inp.groups) {
+              if (Array.isArray(g.ids)) g.ids = g.ids.filter(keep);
+            }
+          }
+        } catch (_) {}
         const wantN = parseFloat(inp.size);
         if (!isNaN(wantN)) {
           const acceptable = inp.womens === true
-            ? [String(wantN - 1.5), String(wantN)]
+            ? [String(wantN - 1.5), String(wantN - 1), String(wantN)]  // her size, her half-up, then the literal fallback
             : [String(wantN), String(wantN + 0.5)];
           const liveM = liveShoeMap();
           const fits = (id) => {
@@ -3512,6 +3589,29 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(id => fits(id) || drop(id));
           if (Array.isArray(inp.groups)) for (const g of inp.groups) {
             if (Array.isArray(g.ids)) g.ids = g.ids.filter(id => fits(id) || drop(id));
+          }
+          // 👠 HER REAL SIZE GOES FIRST, and Kiki is TOLD how many there actually are
+          // (Rodney 2026-08-04). A women's ask is deliberately widened to the literal
+          // number too, so a women's-6 album can be 100% men's-6 pairs — every one a
+          // women's 7.5. Sorting her true size (men's = hers − 1.5) to the front means
+          // the pairs that really fit make the top of the album, and the count below
+          // stops her writing "here's everything we have in women's 6" when we have none.
+          if (inp.womens === true) {
+            const hasMens = (id, n) => {
+              const s = liveM[id];
+              return !!s && s.sizesRaw.some(x => parseFloat(x) === n);
+            };
+            // 0 = her exact size, 1 = half a size up (still a real offer), 2 = bigger.
+            const tier = (id) => hasMens(id, wantN - 1.5) ? 0 : hasMens(id, wantN - 1) ? 1 : 2;
+            const herFirst = (list) => [...list].sort((a, b) => tier(a) - tier(b));
+            if (Array.isArray(inp.ids)) inp.ids = herFirst(inp.ids);
+            if (Array.isArray(inp.groups)) for (const g of inp.groups) {
+              if (Array.isArray(g.ids)) g.ids = herFirst(g.ids);
+            }
+            const all = (Array.isArray(inp.groups) && inp.groups.length) ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
+            womensExactCount = all.filter(id => tier(id) === 0).length;
+            womensHalfUpCount = all.filter(id => tier(id) === 1).length;
+            womensTotalCount = all.length;
           }
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
@@ -3537,10 +3637,38 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         } catch (_) {}
         result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName, ctx.turnAt || 0, inp.size);
+        // 👠 Tell her the truth about the women's album she just sent, so her words match
+        // the labels the customer is reading (Rodney 2026-08-04).
+        if (womensExactCount != null && womensTotalCount > 0) {
+          const halfUpSize = (parseFloat(inp.size) + 0.5);
+          const bigger = womensTotalCount - womensExactCount - womensHalfUpCount;
+          result.womens_exact = womensExactCount;
+          result.womens_half_up = womensHalfUpCount;
+          result.womens_bigger = bigger;
+          if (womensExactCount === 0) {
+            record(req, { endpoint: 'womens-no-exact', sub, size: inp.size, sent: womensTotalCount, halfUp: womensHalfUpCount });
+            result.note = (result.note ? result.note + ' ' : '')
+              + `⚠️ NOT ONE of those pairs is a women's ${inp.size} — we are OUT of that women's size right now. Do NOT write "here's everything we have in a women's ${inp.size}"; the labels under the photos contradict it and we look like we're lying. Say plainly we're out of the women's ${inp.size}, then offer what's actually there: `
+              + (womensHalfUpCount > 0
+                  ? `${womensHalfUpCount} of them are a women's ${halfUpSize} — just half a size up, the realistic option, lead with those. `
+                  : '')
+              + `Anything else shown is bigger still (its label says which women's size it really is). Ask her if she can go up before pushing further.`;
+          } else if (womensExactCount < womensTotalCount) {
+            result.note = (result.note ? result.note + ' ' : '')
+              + `Of those, ${womensExactCount} are a true women's ${inp.size}${womensHalfUpCount ? `, ${womensHalfUpCount} are a women's ${halfUpSize} (half up)` : ''}${bigger ? `, ${bigger} are bigger still` : ''}. Lead with the ${womensExactCount} that actually fit — do NOT call the whole album her size.`;
+          }
+        }
+        if (droppedSlipOn.length) {
+          record(req, { endpoint: 'sneaker-guard-drop', sub, dropped: droppedSlipOn });
+          result.dropped_not_sneakers = droppedSlipOn;
+          result.note = (result.note ? result.note + ' ' : '')
+            + `These are NOT sneakers so they were NOT sent — the customer asked for tennis/sneakers: ${droppedSlipOn.join('; ')}. Do not describe them as sneakers. You may mention at the END that we also carry Crocs/slides if they want to see those too.`;
+        }
         if (droppedWrongSize.length) {
           record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
           result.dropped_wrong_size = droppedWrongSize;
-          result.note = `These shoes were NOT sent — they don't come in a ${inp.size}${inp.womens ? " (women's)" : ''}: ${droppedWrongSize.join('; ')}. If one of them fits what the customer wanted, you may offer it as a NEAREST-SIZE option, saying plainly it doesn't come in their size.`;
+          result.note = (result.note ? result.note + ' ' : '')
+            + `These shoes were NOT sent — they don't come in a ${inp.size}${inp.womens ? " (women's)" : ''}: ${droppedWrongSize.join('; ')}. If one of them fits what the customer wanted, you may offer it as a NEAREST-SIZE option, saying plainly it doesn't come in their size.`;
         }
         if (result.sent > 0) { if (!staffName) scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // staff don't get 10-min nudges // nudge 10 min later if quiet
         // 🚨 ALBUM SENT *NOTHING* — the silent hole (Rodney 2026-07-27): a size-4 customer got
