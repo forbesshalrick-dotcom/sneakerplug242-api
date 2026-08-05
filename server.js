@@ -2246,9 +2246,26 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // One shoe → its photo immediately followed by its label bubble (when labelling).
   // Each photo gets a short ORDER CODE in its label (A1, A2, …) so the customer can
   // just reply with the code to pick it. Codes are assigned in send order.
+  // 📉 HALVE THE MESSAGES ON A BIG ALBUM (Rodney 2026-08-05). Every shoe costs TWO ManyChat
+  // messages — the photo, then its label — so 34 pairs is 68 sends in one burst. Proven live
+  // today: albums of 6 and 8 shoes delivered perfectly to another customer at the same
+  // moment a 34-pair album jammed Rodney's chat so badly ManyChat stopped forwarding his
+  // messages in BOTH directions for 15 minutes. Small albums are fine; the burst is what
+  // kills it. So above the threshold we send the pictures alone and follow with ONE list
+  // carrying every code, name, price and size. Half the sends, and the list is immune to
+  // ManyChat delivering things out of order — today a customer got "Here's the Dunks" with
+  // New Balance photos under it, because a detached label lands wherever it lands.
+  // Tunable live: ALBUM_LIST_OVER (0 disables, restoring a label under every photo).
+  const LIST_OVER = (() => { const v = parseInt(process.env.ALBUM_LIST_OVER, 10); return isNaN(v) ? 8 : v; })();
+  const useList = showLabels && LIST_OVER > 0 && totalPhotos > LIST_OVER;
+  const listRows = [];
   const photoWithLabel = (s) => {
     if (!showLabels) return [{ type: 'image', url: s.image }];
     const code = nextPhotoCode(sub, s);
+    if (useList) {
+      if (!listRows.some(r => r.id === s.id)) listRows.push({ id: s.id, line: `🟢 *${code}*  ·  ${labelText(s)}` });
+      return [{ type: 'image', url: s.image }];
+    }
     return [{ type: 'image', url: s.image }, { type: 'text', text: `🟢 *${code}*  ·  ${labelText(s)}` }];
   };
 
@@ -2347,6 +2364,25 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // the code" line, leaving the customer with no idea what to do). Only a manual ✋ STOP, a
   // mid-album redirect (they changed the request — answered next turn), photos-only mode, or a
   // staff chat suppress it now.
+  // 📋 THE ONE LIST that replaces a label under every photo on a big album (see useList).
+  // Sent AFTER the pictures so the customer scrolls up from it, and split only if it would
+  // blow WhatsApp's 4096-character limit. Every code, name, price and size in one place, so
+  // it stays correct no matter what order ManyChat delivered the pictures in.
+  if (useList && listRows.length && sent > 0 && !manualStopped && !photosOnly) {
+    const header = '👆 Here\'s what\'s in those pics — reply with the *code* of the one you want 👟\n\n';
+    const chunks = [];
+    let cur = header;
+    for (const r of listRows) {
+      const line = r.line + '\n\n';
+      if (cur.length + line.length > 3800) { chunks.push(cur.trimEnd()); cur = ''; }
+      cur += line;
+    }
+    if (cur.trim()) chunks.push(cur.trimEnd());
+    for (const c of chunks) {
+      try { await sendChunk(sub, [{ type: 'text', text: c }], token); } catch (e) { /* non-fatal */ }
+      await albumGap();
+    }
+  }
   if (sent > 0 && !manualStopped && !redirectedMidAlbum && !photosOnly && !isStaff) {
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
