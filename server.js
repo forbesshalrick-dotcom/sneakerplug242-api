@@ -1025,7 +1025,35 @@ function isProvenAlive(sub) {
 // logOpts.noTextFallback: skip the image→text-label fallback below and just report the
 // failure. The album path sets it so the fallback can't fire BEFORE its own retry — see
 // sendShoe (Rodney 2026-08-01: both nets ran on the same shoe and the label went out twice).
+// ✂️ ManyChat REJECTS ANY TEXT OVER 2000 CHARACTERS (Rodney 2026-08-05 — found in a real
+// failure body: `Wrong dynamic message format: Provided text is longer than 2000 symbols`).
+// The whole message is refused, so the customer gets NOTHING. This has been silently eating
+// Kiki's long replies — the "here's the whole lineup in your size" wall of text she falls
+// back to when an album fails is exactly the kind of message that trips it, so the customer
+// lost the album AND the text that was meant to rescue it. Split long text into 1900-char
+// pieces at a paragraph or line break where possible, so nothing is ever refused for length.
+const MC_TEXT_LIMIT = 1900;
+function splitLongText(messages) {
+  const out = [];
+  for (const m of (messages || [])) {
+    if (!m || m.type !== 'text' || typeof m.text !== 'string' || m.text.length <= MC_TEXT_LIMIT) { out.push(m); continue; }
+    let rest = m.text;
+    while (rest.length > MC_TEXT_LIMIT) {
+      const window = rest.slice(0, MC_TEXT_LIMIT);
+      // Prefer a paragraph break, then a line break, then a space — never mid-word.
+      let cut = window.lastIndexOf('\n\n');
+      if (cut < MC_TEXT_LIMIT * 0.5) cut = window.lastIndexOf('\n');
+      if (cut < MC_TEXT_LIMIT * 0.5) cut = window.lastIndexOf(' ');
+      if (cut < MC_TEXT_LIMIT * 0.5) cut = MC_TEXT_LIMIT;
+      out.push(Object.assign({}, m, { text: rest.slice(0, cut).trimEnd() }));
+      rest = rest.slice(cut).replace(/^\s+/, '');
+    }
+    if (rest.trim()) out.push(Object.assign({}, m, { text: rest }));
+  }
+  return out;
+}
 async function sendChunk(subscriberId, messages, token, logOpts) {
+  messages = splitLongText(messages);
   // 📥 INBOX LOG: record outbound text into the customer's thread — Kiki's auto-replies
   // AND a human's manual replies (logOpts.sender='rodney'). Only for KNOWN customer
   // threads (an inbound created one) so manager alerts / staff blasts never spawn phantom
