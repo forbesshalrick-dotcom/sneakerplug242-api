@@ -256,6 +256,57 @@ function stripRevertedSizes(id, beforeShoe, incomingShoe) {
   }
   return { shoe: Object.assign({}, incomingShoe, { sizes }), blocked: cameBack };
 }
+// 🧱 A STALE PHONE MUST NOT ERASE A RESTOCK YOU JUST TYPED IN (Rodney 2026-08-05).
+// stripRevertedSizes above guards one direction — a sold size trying to come BACK. This
+// guards the other, and it is the one that was still costing him stock. Proven from the
+// audit: he manually added a size 8 to the Air Max 95 Black/Yellow and to p44; hours later
+// a device running an OLD cached copy of the app pushed its own smaller list and the
+// `shrink-from-stale-app` branch below accepted it, because a shrink is normally a sale
+// being marked on a phone with no timestamp. His own app then alerted him that his edit had
+// been undone. That branch has to stay — a real sale must never be dropped — but a size a
+// human DELIBERATELY ADDED through the edit form is not a sale, and a device that never saw
+// the restock has no business deleting it. So: any size the audit shows was added by a
+// `manual-edit` inside the lookback window is held at its stored count, and the rest of the
+// shrink still goes through untouched.
+function keepManualRestock(id, beforeShoe, incomingShoe) {
+  if (!beforeShoe || !incomingShoe || !Array.isArray(incomingShoe.sizes)) return { sizes: incomingShoe && incomingShoe.sizes, kept: [] };
+  const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[String(s)] = (m[String(s)] || 0) + 1, m), {});
+  const beforeC = count(beforeShoe.sizes), inC = count(incomingShoe.sizes);
+  const shrank = Object.keys(beforeC).filter(s => (inC[s] || 0) < beforeC[s]);
+  if (!shrank.length) return { sizes: incomingShoe.sizes, kept: [] };
+  const cutoff = Date.now() - REVERT_LOOKBACK_MS;
+  const manuallyAdded = new Set();
+  for (const row of state.shoeAudit) {
+    if (row.id !== String(id)) continue;
+    if (new Date(row.at).getTime() < cutoff) break;      // audit is newest-first
+    if (row.via !== 'manual-edit') continue;
+    const bC = count(row.beforeSizes), aC = count(row.afterSizes);
+    for (const s of shrank) if ((aC[s] || 0) > (bC[s] || 0)) manuallyAdded.add(s);
+  }
+  if (!manuallyAdded.size) return { sizes: incomingShoe.sizes, kept: [] };
+  // Put the manually-added pairs back to exactly what is stored; leave every other size alone.
+  const sizes = incomingShoe.sizes.slice();
+  for (const s of manuallyAdded) {
+    for (let n = (inC[s] || 0); n < beforeC[s]; n++) sizes.push(s);
+  }
+  return { sizes, kept: [...manuallyAdded] };
+}
+function alertRestockKept(id, keptSizes, req) {
+  try {
+    const last = revertAlertAt.get(id) || 0;
+    if (Date.now() - last < REVERT_ALERT_GAP_MS) return;
+    revertAlertAt.set(id, Date.now());
+    const label = shoeLabel(id);
+    const text = ['🧱 *RESTOCK PROTECTED*',
+      '👟 *' + label + '*  (' + id + ')',
+      '↩️ An old phone tried to delete size ' + keptSizes.join(', ') + ' that you added by hand — kept IN your stock.',
+      '📱 From: ' + ((reqSource(req) && reqSource(req).ip) || 'unknown'),
+      '🕒 ' + new Date().toLocaleString('en-US', { timeZone: 'America/Nassau' })].join('\n');
+    const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
+    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text, 'Manager').catch(() => {});
+    console.log('[shop] 🧱 RESTOCK PROTECTED', id, label, 'sizes:', keptSizes.join(','));
+  } catch (e) { console.error('[shop] alertRestockKept failed:', e.message); }
+}
 function alertRevertBlocked(id, blockedSizes, before, after, req) {
   try {
     const last = revertAlertAt.get(id) || 0;
@@ -1045,10 +1096,13 @@ function mount(app) {
         const fewer = (Array.isArray(sh.sizes) ? sh.sizes.length : 0) < (Array.isArray(ex.sizes) ? ex.sizes.length : 0);
         const soldFlip = !!sh.sold && !ex.sold;
         if (subset && (fewer || soldFlip)) {
-          state.shoes[i] = Object.assign({}, ex, { sizes: sh.sizes, sold: !!sh.sold || !!ex.sold, updatedAt: Date.now() });
+          // …but never let it delete a size a human added by hand — see keepManualRestock.
+          const { sizes: safeSizes, kept } = keepManualRestock(sh.id, ex, sh);
+          state.shoes[i] = Object.assign({}, ex, { sizes: safeSizes, sold: (!!sh.sold || !!ex.sold) && !kept.length, updatedAt: Date.now() });
           persist('shoes.json'); bump();
-          auditShoe(req, sh.id, 'shrink-from-stale-app', _before, state.shoes[i]);
-          return res.json({ ok: true, accepted: 'shrink-from-stale-app' });
+          auditShoe(req, sh.id, 'shrink-from-stale-app', _before, state.shoes[i], kept.length ? { restockKept: kept } : undefined);
+          if (kept.length) alertRestockKept(sh.id, kept, req);
+          return res.json({ ok: true, accepted: 'shrink-from-stale-app', restock_kept: kept.length ? kept : undefined });
         }
         auditShoe(req, sh.id, 'skipped-stale', _before, sh, { why: inT === 0 ? 'no timestamp on the push' : 'push older than stored' });
         return res.json({ ok: true, skipped: 'stale' });
