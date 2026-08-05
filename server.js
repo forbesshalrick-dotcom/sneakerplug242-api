@@ -2282,8 +2282,14 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // carrying every code, name, price and size. Half the sends, and the list is immune to
   // ManyChat delivering things out of order — today a customer got "Here's the Dunks" with
   // New Balance photos under it, because a detached label lands wherever it lands.
-  // Tunable live: ALBUM_LIST_OVER (0 disables, restoring a label under every photo).
-  const LIST_OVER = (() => { const v = parseInt(process.env.ALBUM_LIST_OVER, 10); return isNaN(v) ? 8 : v; })();
+  // ⚠️ OFF BY DEFAULT — Rodney 2026-08-05: "the label should be underneath each shoe."
+  // The code has to sit under its own picture; that's how customers order, and a separate
+  // list makes them scroll and match. The picture cap (ALBUM_MAX_PHOTOS, below) is what
+  // now keeps the burst small — 15 shoes with labels is 31 messages, against 106 for the
+  // 53-shoe album that jammed the queue this morning. Keep the list mode here anyway: if
+  // ManyChat starts choking again, ALBUM_LIST_OVER=8 halves the sends in one env change,
+  // no deploy. Set it only if delivery gets bad enough to be worth the trade.
+  const LIST_OVER = (() => { const v = parseInt(process.env.ALBUM_LIST_OVER, 10); return isNaN(v) ? 0 : v; })();
   const useList = showLabels && LIST_OVER > 0 && totalPhotos > LIST_OVER;
   const listRows = [];
   const photoWithLabel = (s) => {
