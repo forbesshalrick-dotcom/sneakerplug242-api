@@ -211,7 +211,7 @@ function maybeAlertRevert(entry) {
     ];
     const text = lines.join('\n');
     const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
-    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text).catch(() => {});
+    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text, 'Manager').catch(() => {});
     sendPush('🔁 Your edit was undone', label + ' — ' + (cameBack.length ? 'size ' + cameBack.join(', ') + ' came back' : wentAway.length ? 'size ' + wentAway.join(', ') + ' disappeared' : 'un-sold'), '/').catch(() => {});
     console.log('[shop] 🔁 REVERT ALERT', entry.id, label, 'back:', cameBack.join(',') || '-', 'gone:', wentAway.join(',') || '-');
   } catch (e) { console.error('[shop] revert alert failed:', e.message); }
@@ -272,7 +272,7 @@ function alertRevertBlocked(id, blockedSizes, before, after, req) {
     ];
     const text = lines.join('\n');
     const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
-    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text).catch(() => {});
+    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text, 'Manager').catch(() => {});
     sendPush('🛡️ Revert blocked', label + ' — size ' + blockedSizes.join(', ') + ' stayed sold', '/').catch(() => {});
     console.log('[shop] 🛡️ REVERT BLOCKED', id, label, 'sizes:', blockedSizes.join(','));
   } catch (e) { console.error('[shop] alertRevertBlocked failed:', e.message); }
@@ -568,23 +568,51 @@ function addAlert(text, by, meta) {
 // these sends now work with or without the env var.
 let _fallbackToken = null;
 function setFallbackToken(t) { if (t) _fallbackToken = t; }
-async function waSend(phoneDigits, text) {
+// 📇 A WHATSAPP SUBSCRIBER'S NUMBER IS NOT IN ManyChat's `phone` FIELD (Rodney 2026-08-05).
+// The lookup below asked findBySystemField for `phone=+1242…` and got nothing back, because
+// for a WhatsApp contact ManyChat leaves `phone` NULL and puts the number in
+// `whatsapp_phone` — you can see it plainly in any raw webhook body we log. That single
+// wrong field name is why every staff text alert reported failure. Try both.
+async function findSub(token, phoneDigits) {
+  for (const field of ['whatsapp_phone', 'phone']) {
+    try {
+      const f = await fetch('https://api.manychat.com/fb/subscriber/findBySystemField?' + field + '=' +
+        encodeURIComponent('+' + phoneDigits), { headers: { Authorization: `Bearer ${token}` } });
+      const fj = await f.json();
+      const d = fj && fj.data;
+      const sub = d && (d.id || (Array.isArray(d) && d[0] && d[0].id));
+      if (sub) return sub;
+    } catch (_) { /* try the next field */ }
+  }
+  return null;
+}
+// Send straight to a subscriber id we ALREADY know (set by server.js from staffSubs).
+// For staff this skips the phone lookup entirely — it's the same path the photo sends
+// use, which is exactly why those kept working while these didn't.
+let _staffSubLookup = null;
+function setStaffSubLookup(fn) { _staffSubLookup = fn; }
+async function waSendDetailed(phoneDigits, text, name) {
   const token = process.env.MANYCHAT_TOKEN || _fallbackToken;
-  if (!token || !phoneDigits) return false;
+  if (!token) return { ok: false, why: 'no ManyChat token available' };
+  if (!phoneDigits && !name) return { ok: false, why: 'no number' };
+  let sub = null, via = '';
+  if (name && _staffSubLookup) { try { sub = _staffSubLookup(name); if (sub) via = 'known-sub'; } catch (_) {} }
+  if (!sub && phoneDigits) { sub = await findSub(token, phoneDigits); if (sub) via = 'phone-lookup'; }
+  if (!sub) return { ok: false, why: 'no ManyChat subscriber found for that number (they may never have messaged us)' };
   try {
-    const f = await fetch('https://api.manychat.com/fb/subscriber/findBySystemField?phone=' +
-      encodeURIComponent('+' + phoneDigits), { headers: { Authorization: `Bearer ${token}` } });
-    const fj = await f.json();
-    const d = fj && fj.data;
-    const sub = d && (d.id || (Array.isArray(d) && d[0] && d[0].id));
-    if (!sub) return false;
     const r = await fetch('https://api.manychat.com/fb/sending/sendContent', {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscriber_id: sub, data: { version: 'v2', content: { type: 'whatsapp', messages: [{ type: 'text', text }] } } }),
     });
-    return r.ok;
-  } catch (_) { return false; }
+    if (r.ok) return { ok: true, via };
+    return { ok: false, via, why: 'ManyChat refused the send (' + r.status + ')' };
+  } catch (e) { return { ok: false, via, why: 'send threw: ' + String(e).slice(0, 80) }; }
+}
+// Kept boolean — several call sites treat the result as truthy/falsy, and an object
+// would always read as success.
+async function waSend(phoneDigits, text, name) {
+  return (await waSendDetailed(phoneDigits, text, name)).ok;
 }
 
 async function blastEmployees(text, exceptName) {
@@ -593,9 +621,8 @@ async function blastEmployees(text, exceptName) {
   for (const name of Object.keys(nums)) {
     if (exceptName && name.toLowerCase() === String(exceptName).toLowerCase()) continue;
     const digits = String(nums[name] || '').replace(/[^0-9]/g, '');
-    if (!digits) continue;
-    const ok = await waSend(digits, text);
-    results.push({ name, ok });
+    const r = await waSendDetailed(digits, text, name);
+    results.push({ name, ok: r.ok, via: r.via || undefined, why: r.why });
   }
   return results;
 }
@@ -1257,4 +1284,4 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, setFallbackToken, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks };
+module.exports = { mount, setFallbackToken, setStaffSubLookup, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks };

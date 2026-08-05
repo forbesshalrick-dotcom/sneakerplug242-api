@@ -2641,6 +2641,19 @@ function shareFallbackToken(t) {
   try { require('./shop').setFallbackToken(t); } catch (_) {}
   try { require('./delivery').setFallbackToken(t); } catch (_) {}
 }
+// Let shop.js reach a staff member by the subscriber id we already learned when they
+// messaged Kiki, instead of looking their number up. Same path the photo sends use.
+// Matches on name case-insensitively so "manager"/"Manager" both resolve.
+try {
+  require('./shop').setStaffSubLookup((name) => {
+    if (!name) return null;
+    const want = String(name).trim().toLowerCase();
+    for (const [nm, v] of Object.entries(staffSubs || {})) {
+      if (String(nm).trim().toLowerCase() === want && v && v.sub) return v.sub;
+    }
+    return null;
+  });
+} catch (_) {}
 
 // ── 📥 UNIFIED INBOX (Trendy Kicks + Official Sneaker Crew + direct-API numbers) ──
 // One place Rodney reads + replies to customers across ALL accounts. Every inbound

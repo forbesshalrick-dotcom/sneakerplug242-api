@@ -54,11 +54,17 @@ async function waSend(phoneDigits, text) {
   const token = process.env.MANYCHAT_TOKEN || _fallbackToken;
   if (!token || !phoneDigits) return false;
   try {
-    const f = await fetch('https://api.manychat.com/fb/subscriber/findBySystemField?phone=' +
-      encodeURIComponent('+' + phoneDigits), { headers: { Authorization: `Bearer ${token}` } });
-    const fj = await f.json();
-    const d = fj && fj.data;
-    const sub = d && (d.id || (Array.isArray(d) && d[0] && d[0].id));
+    // A WhatsApp contact's number lives in `whatsapp_phone`, not `phone` — see shop.js.
+    // Asking for the wrong field is why the customer's tracking link never sent.
+    let sub = null;
+    for (const field of ['whatsapp_phone', 'phone']) {
+      const f = await fetch('https://api.manychat.com/fb/subscriber/findBySystemField?' + field + '=' +
+        encodeURIComponent('+' + phoneDigits), { headers: { Authorization: `Bearer ${token}` } });
+      const fj = await f.json();
+      const d = fj && fj.data;
+      sub = d && (d.id || (Array.isArray(d) && d[0] && d[0].id));
+      if (sub) break;
+    }
     if (!sub) return false;
     const r = await fetch('https://api.manychat.com/fb/sending/sendContent', {
       method: 'POST',
