@@ -2641,17 +2641,21 @@ function shareFallbackToken(t) {
   try { require('./shop').setFallbackToken(t); } catch (_) {}
   try { require('./delivery').setFallbackToken(t); } catch (_) {}
 }
-// Let shop.js reach a staff member by the subscriber id we already learned when they
-// messaged Kiki, instead of looking their number up. Same path the photo sends use.
-// Matches on name case-insensitively so "manager"/"Manager" both resolve.
+// Let shop.js send a staff alert through sendChunk — the same call the photo sends make,
+// with token rotation and ghost-error handling built in. Looks the person up by the
+// subscriber id learned when they last messaged Kiki. Name match is case-insensitive.
 try {
-  require('./shop').setStaffSubLookup((name) => {
-    if (!name) return null;
-    const want = String(name).trim().toLowerCase();
+  require('./shop').setStaffSender(async (name, text) => {
+    const want = String(name || '').trim().toLowerCase();
+    let known = null;
     for (const [nm, v] of Object.entries(staffSubs || {})) {
-      if (String(nm).trim().toLowerCase() === want && v && v.sub) return v.sub;
+      if (String(nm).trim().toLowerCase() === want && v && v.sub) { known = v; break; }
     }
-    return null;
+    if (!known) return { ok: false, why: 'no WhatsApp line on file — they have not messaged Kiki yet' };
+    const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+    if (!tk) return { ok: false, why: 'no ManyChat token available' };
+    const r = await sendChunk(known.sub, [{ type: 'text', text }], tk);
+    return { ok: !!(r && r.ok), why: (r && r.ok) ? undefined : 'ManyChat refused the send' };
   });
 } catch (_) {}
 

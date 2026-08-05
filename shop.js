@@ -586,18 +586,29 @@ async function findSub(token, phoneDigits) {
   }
   return null;
 }
-// Send straight to a subscriber id we ALREADY know (set by server.js from staffSubs).
-// For staff this skips the phone lookup entirely — it's the same path the photo sends
-// use, which is exactly why those kept working while these didn't.
-let _staffSubLookup = null;
-function setStaffSubLookup(fn) { _staffSubLookup = fn; }
+// 🎯 SEND STAFF ALERTS THROUGH THE PATH THAT ACTUALLY WORKS (Rodney 2026-08-05).
+// Even with the right token and the right subscriber, ManyChat 400s these raw sends —
+// it's the same ghost "Subscriber does not exist" lie that was duplicating customer
+// photos, plus this file has no idea which of the two store tokens belongs to a given
+// subscriber. server.js's sendChunk already solves both: it rotates across every known
+// token and treats the ghost 400 as delivered. It is the exact call the photo sends make,
+// and those land 7/7 every time. So for anyone we know, hand the send to it.
+let _staffSender = null;
+function setStaffSender(fn) { _staffSender = fn; }
 async function waSendDetailed(phoneDigits, text, name) {
+  if (name && _staffSender) {
+    try {
+      const r = await _staffSender(name, text);
+      if (r && r.ok) return { ok: true, via: 'known-sub' };
+      if (r && r.why) return { ok: false, why: r.why };
+    } catch (_) { /* fall through to the phone lookup */ }
+  }
   const token = process.env.MANYCHAT_TOKEN || _fallbackToken;
   if (!token) return { ok: false, why: 'no ManyChat token available' };
-  if (!phoneDigits && !name) return { ok: false, why: 'no number' };
-  let sub = null, via = '';
-  if (name && _staffSubLookup) { try { sub = _staffSubLookup(name); if (sub) via = 'known-sub'; } catch (_) {} }
-  if (!sub && phoneDigits) { sub = await findSub(token, phoneDigits); if (sub) via = 'phone-lookup'; }
+  if (!phoneDigits) return { ok: false, why: 'no number' };
+  let via = '';
+  const sub = await findSub(token, phoneDigits);
+  if (sub) via = 'phone-lookup';
   if (!sub) return { ok: false, why: 'no ManyChat subscriber found for that number (they may never have messaged us)' };
   try {
     const r = await fetch('https://api.manychat.com/fb/sending/sendContent', {
@@ -1284,4 +1295,4 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, setFallbackToken, setStaffSubLookup, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks };
+module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks };
