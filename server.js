@@ -2055,6 +2055,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       .map(id => live[id]).filter(x => x && x.image);
   };
   let sent = 0, requested = 0;
+  const albumTrace = [];   // per-shoe record of what ManyChat answered — see below
   // Shoes whose PICTURE never reached the customer (ManyChat timeout, or the album halted
   // early). Stashed at the end so the ▶️ Continue button in the inbox can send just these,
   // instead of Rodney re-sending the whole album by hand (Rodney 2026-07-28).
@@ -2199,6 +2200,12 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       }
       if (delivered) {
         sent += 1; lastShoeSent = s; consecFail = 0;
+        // 🔬 PROOF OF WHAT ManyChat ACTUALLY SAID (Rodney 2026-08-05). An album reported 34
+        // pairs delivered and the customer received ZERO — with not one line in the log,
+        // because only FAILURES were ever recorded and every one of these came back
+        // "success". Keep a light trace of the successes too, so "we sent it" can be
+        // checked against what ManyChat really answered instead of taken on faith.
+        albumTrace.push({ id: s && s.id, status: r && r.status, body: String((r && r.body) || '').slice(0, 60) });
         // Remember WHICH shoes this chat has actually SEEN — record_sale demands it.
         if (s && s.id != null) photoConfirmSeen.set(sub + '|' + s.id, Date.now());
       } else {
@@ -2319,6 +2326,19 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   }
   // last_shoe: the FINAL photo that went out — Kiki's best guess when the customer
   // quote-replies a pic with just "this" (the quote never reaches us; see prompt rule).
+  // 🔬 EVERY album now leaves a receipt, not just the ones that visibly failed. A 34-pair
+  // album that ManyChat accepted in full and delivered none of was completely invisible
+  // here (Rodney 2026-08-05). Records how many were asked for, how many ManyChat said it
+  // took, and the distinct answers it gave — so "sent" can be checked, not trusted.
+  try {
+    const answers = {};
+    albumTrace.forEach(t => { const k = t.status + ' ' + t.body; answers[k] = (answers[k] || 0) + 1; });
+    saveRecent();
+    recent.unshift({ at: new Date().toISOString(), endpoint: 'album-done', sub,
+      requested, sent, interrupted, unsent: unsent.length,
+      manychatSaid: answers, firstIds: albumTrace.slice(0, 3).map(t => t.id) });
+    if (recent.length > 120) recent.length = 120;
+  } catch (_) {}
   return { sent, requested, interrupted, last_shoe: lastShoeSent ? displayName(lastShoeSent) : null };
 }
 
