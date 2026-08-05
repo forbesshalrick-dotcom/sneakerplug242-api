@@ -2627,8 +2627,19 @@ function rememberCustomer(sub, name, store, text, token) {
     if (recentCustomers.size > 80) { const first = recentCustomers.keys().next().value; recentCustomers.delete(first); }
     if (store) storeTokens.set(store, token);
     lastToken = token;
+    // Hand the live token down to the modules that send staff/customer WhatsApp texts.
+    // They only ever read MANYCHAT_TOKEN from the environment, which isn't set on Railway
+    // — so without this every one of those sends fails silently (Rodney 2026-08-05).
+    shareFallbackToken(token);
     saveTokens();
   }
+}
+// Push a working ManyChat token into shop.js / delivery.js. Called both on startup (from
+// whatever was restored to disk) and every time a fresh one is learned from a webhook.
+function shareFallbackToken(t) {
+  if (!t) return;
+  try { require('./shop').setFallbackToken(t); } catch (_) {}
+  try { require('./delivery').setFallbackToken(t); } catch (_) {}
 }
 
 // ── 📥 UNIFIED INBOX (Trendy Kicks + Official Sneaker Crew + direct-API numbers) ──
@@ -3106,17 +3117,24 @@ app.get('/post-picks', async (req, res) => {
   let staffWa = [];
   try { staffWa = await require('./shop').blastEmployees(text, null); } catch (_) {}
   // Photos go to each staff member we have a live subscriber id for.
-  let photoed = 0;
+  // Report WHO actually received the photos, not just how many (Rodney 2026-08-05: "make
+  // sure Deashinique gets the message" — a bare count can't answer that). Each person's
+  // delivered/failed tally comes straight from sendChunk's own result.
+  const photoed = [];
   for (const [nm, known] of Object.entries(staffSubs || {})) {
     if (!known || !known.sub) continue;
     const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
-    if (!tk) continue;
+    if (!tk) { photoed.push({ name: nm, sent: 0, failed: shoes.length, why: 'no token for this staff line' }); continue; }
+    let sent = 0, failed = 0;
     for (let i = 0; i < shoes.length; i++) {
       const s = shoes[i];
       if (!s.image) continue;
-      try { await sendChunk(known.sub, [{ type: 'image', url: s.image }, { type: 'text', text: `${i + 1}. ${displayName(s)}` }], tk); } catch (_) {}
+      try {
+        const r = await sendChunk(known.sub, [{ type: 'image', url: s.image }, { type: 'text', text: `${i + 1}. ${displayName(s)}` }], tk);
+        if (r && r.ok) sent++; else failed++;
+      } catch (_) { failed++; }
     }
-    photoed++;
+    photoed.push({ name: nm, sent, failed });
   }
   record(req, { endpoint: 'post-picks-sent', date: day, count: list.length, staffWa, photoedTo: photoed });
   res.json({ ok: true, date: day, count: list.length, shoes: list, textSentTo: staffWa, photosSentTo: photoed });
@@ -4492,6 +4510,9 @@ app.post('/wa-webhook', async (req, res) => {
 
 // Live delivery tracking (driver GPS → customer + manager watch a map).
 require('./delivery').mount(app);
+// Seed the same token at boot from whatever was restored to disk, so staff alerts work
+// straight after a redeploy instead of only once a customer happens to message in.
+shareFallbackToken(lastToken);
 
 // Shared shop "brain": notes/tasks, sales, log, inventory synced across devices
 // + WhatsApp alerts to employees on new notes.

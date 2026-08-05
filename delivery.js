@@ -44,8 +44,14 @@ async function geocode(address) {
 }
 
 // Best-effort WhatsApp send through ManyChat (find subscriber by phone, then send text).
+// 🔑 See the same note in shop.js: MANYCHAT_TOKEN is not set on Railway, so this was
+// silently failing — meaning the customer's live delivery-tracking link never sent and
+// the driver page's tap-to-send buttons were carrying the whole feature (Rodney
+// 2026-08-05). server.js passes down a live token learned from inbound webhooks.
+let _fallbackToken = null;
+function setFallbackToken(t) { if (t) _fallbackToken = t; }
 async function waSend(phoneDigits, text) {
-  const token = process.env.MANYCHAT_TOKEN;
+  const token = process.env.MANYCHAT_TOKEN || _fallbackToken;
   if (!token || !phoneDigits) return false;
   try {
     const f = await fetch('https://api.manychat.com/fb/subscriber/findBySystemField?phone=' +
@@ -244,4 +250,4 @@ function mount(app) {
   });
 }
 
-module.exports = { mount };
+module.exports = { mount, setFallbackToken };

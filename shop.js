@@ -558,8 +558,18 @@ function addAlert(text, by, meta) {
 }
 
 // ── WhatsApp send via ManyChat (find subscriber by phone, then send text) ────
+// 🔑 TOKEN FALLBACK (Rodney 2026-08-05). This only ever read MANYCHAT_TOKEN from the
+// environment, and that env var is NOT set on Railway — so EVERY staff text alert that
+// goes through here has been failing silently: the task-board blast, the revert alerts,
+// float requests, and the customer's delivery-tracking link. Found it when a "post these
+// 7 shoes" blast came back {Manager:false, Deashinique:false, Owner:false} while the photo
+// sends (which use a different path) went out fine. The server already holds live ManyChat
+// tokens learned from inbound webhooks — server.js hands one over via setFallbackToken, so
+// these sends now work with or without the env var.
+let _fallbackToken = null;
+function setFallbackToken(t) { if (t) _fallbackToken = t; }
 async function waSend(phoneDigits, text) {
-  const token = process.env.MANYCHAT_TOKEN;
+  const token = process.env.MANYCHAT_TOKEN || _fallbackToken;
   if (!token || !phoneDigits) return false;
   try {
     const f = await fetch('https://api.manychat.com/fb/subscriber/findBySystemField?phone=' +
@@ -1247,4 +1257,4 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks };
+module.exports = { mount, setFallbackToken, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks };
