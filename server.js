@@ -583,6 +583,25 @@ app.get('/debug-send-test', async (req, res) => {
   const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
   if (!tk) return res.json({ error: 'no token' });
   const img = 'https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@97f88b128b/c0409-card.jpg';
+  // ?n=12&gap=900 → fire n NUMBERED photos with that gap between them. The numbers are the
+  // point: whatever the last one to arrive is tells us exactly where ManyChat stops
+  // delivering while still answering "success", and whether a gap moves that line.
+  const n = Math.min(Math.max(parseInt(req.query.n, 10) || 0, 0), 40);
+  if (n > 0) {
+    const gap = Math.max(0, parseInt(req.query.gap, 10) || 0);
+    const answers = {};
+    for (let i = 1; i <= n; i++) {
+      let r;
+      try { r = await sendChunkRaw(known.sub, [{ type: 'image', url: img }, { type: 'text', text: `🔧 ${i} of ${n}` }], tk); }
+      catch (e) { r = { ok: false, status: 0, body: String(e).slice(0, 60) }; }
+      const k = (r && r.status) + ' ' + String((r && r.body) || '').slice(0, 40);
+      answers[k] = (answers[k] || 0) + 1;
+      if (gap && i < n) await new Promise(rs => setTimeout(rs, gap));
+    }
+    record(req, { endpoint: 'debug-burst-test', who: name, sub: known.sub, n, gap, answers });
+    return res.json({ who: name, sub: known.sub, burst: n, gapMs: gap, manychatSaid: answers,
+      askRodney: 'How many of the ' + n + ' numbered photos actually arrived? The last number you see is where it stops.' });
+  }
   const out = {};
   try { out.text = await sendChunkRaw(known.sub, [{ type: 'text', text: '🔧 TEST 1/2 — text. Please ignore.' }], tk); } catch (e) { out.text = { threw: String(e).slice(0, 120) }; }
   try { out.image = await sendChunkRaw(known.sub, [{ type: 'image', url: img }], tk); } catch (e) { out.image = { threw: String(e).slice(0, 120) }; }
@@ -2056,6 +2075,15 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   };
   let sent = 0, requested = 0;
   const albumTrace = [];   // per-shoe record of what ManyChat answered — see below
+  // 🐌 BREATHE BETWEEN PHOTOS (Rodney 2026-08-05). A 34-pair album fired 68 ManyChat calls
+  // back-to-back with no gap whatsoever, ManyChat answered 200 {"status":"success"} to every
+  // one, and the customer received NOTHING. A single photo to that same person, sent on its
+  // own, arrives every time. That gap between "one send works" and "a burst vanishes" is
+  // rate limiting, and the album had no pacing at all to protect against it. Tunable live
+  // via ALBUM_GAP_MS on Railway without a code change — raise it if albums still vanish,
+  // lower it if they feel slow. Set 0 to go back to the old behaviour.
+  const ALBUM_GAP_MS = Math.max(0, parseInt(process.env.ALBUM_GAP_MS, 10) || 900);
+  const albumGap = () => (ALBUM_GAP_MS ? new Promise(r => setTimeout(r, ALBUM_GAP_MS)) : Promise.resolve());
   // Shoes whose PICTURE never reached the customer (ManyChat timeout, or the album halted
   // early). Stashed at the end so the ▶️ Continue button in the inbox can send just these,
   // instead of Rodney re-sending the whole album by hand (Rodney 2026-07-28).
@@ -2240,6 +2268,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
         if (customerSpoke()) { interrupted = true; break outer; }
         if (consecFail >= FAIL_LIMIT) { brokeOnFailures = true; break outer; }
         await sendShoe(s);
+        await albumGap();
       }
     }
   } else {
@@ -2254,6 +2283,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       if (customerSpoke()) { interrupted = true; break; }
       if (consecFail >= FAIL_LIMIT) { brokeOnFailures = true; break; }
       await sendShoe(s);
+      await albumGap();
     }
   }
   // Record the bail-out loudly — this is the signal that ManyChat is failing, and it's the
