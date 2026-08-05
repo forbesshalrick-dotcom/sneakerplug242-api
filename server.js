@@ -2181,7 +2181,13 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // through). So an album's real cost is not just its own risk — it blocks everyone behind
   // it. Cap the pictures, and Kiki offers the rest, so no one waits behind a 53-photo queue.
   // ALBUM_MAX_PHOTOS=0 removes the cap and restores send-everything.
-  const MAX_PHOTOS = (() => { const v = parseInt(process.env.ALBUM_MAX_PHOTOS, 10); return isNaN(v) ? 15 : v; })();
+  // 🚨 OFF BY DEFAULT — this shipped at 16:41 on 2026-08-05 and albums immediately went to
+  // sent=0 for real customers (requested=15, nothing delivered, circuit breaker firing
+  // "the photos aren't sending"). Albums were delivering 53/53 minutes before it. Whatever
+  // truncating the id list does to the send payload, it is not safe, and customers were
+  // getting NO pictures at all. Reverted to send-everything until it is proven in a test
+  // rather than on live chats. Set ALBUM_MAX_PHOTOS=15 to try it again deliberately.
+  const MAX_PHOTOS = (() => { const v = parseInt(process.env.ALBUM_MAX_PHOTOS, 10); return isNaN(v) ? 0 : v; })();
   let heldBack = 0;
   if (MAX_PHOTOS > 0) {
     if (Array.isArray(groups) && groups.length) {
