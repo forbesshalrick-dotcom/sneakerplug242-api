@@ -566,6 +566,30 @@ app.get('/debug-tokens', (req, res) => {
 // exact per-store loop waSendManager uses, but reports each store's result INDIVIDUALLY
 // (success/fail/thrown-error) instead of the collapsed true/false the real function returns —
 // so a TK-specific failure is visible instead of silently swallowed.
+// Diagnostic (Rodney 2026-08-05: an album's lead-in arrived and then ZERO photos, with
+// nothing at all in the log). Text sends and IMAGE sends take different routes through
+// ManyChat and fail differently, so this fires ONE text and ONE image at a single staff
+// line and returns ManyChat's RAW answer to each — the only way to tell "ManyChat refused
+// it" from "ManyChat accepted it and never delivered it".
+//   /debug-send-test?key=…&who=Manager
+app.get('/debug-send-test', async (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const who = String(req.query.who || 'Manager').trim().toLowerCase();
+  let known = null, name = '';
+  for (const [nm, v] of Object.entries(staffSubs || {})) {
+    if (String(nm).trim().toLowerCase() === who && v && v.sub) { known = v; name = nm; break; }
+  }
+  if (!known) return res.json({ error: 'no staff line on file for ' + who, known: Object.keys(staffSubs || {}) });
+  const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+  if (!tk) return res.json({ error: 'no token' });
+  const img = 'https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@97f88b128b/c0409-card.jpg';
+  const out = {};
+  try { out.text = await sendChunkRaw(known.sub, [{ type: 'text', text: '🔧 TEST 1/2 — text. Please ignore.' }], tk); } catch (e) { out.text = { threw: String(e).slice(0, 120) }; }
+  try { out.image = await sendChunkRaw(known.sub, [{ type: 'image', url: img }], tk); } catch (e) { out.image = { threw: String(e).slice(0, 120) }; }
+  record(req, { endpoint: 'debug-send-test', who: name, sub: known.sub, store: known.store || null, textOk: !!(out.text && out.text.ok), imageOk: !!(out.image && out.image.ok) });
+  res.json({ who: name, sub: known.sub, store: known.store || null, results: out });
+});
+
 app.get('/debug-manager-ping-test', async (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   const text = '🔧 TEST — please ignore. Checking why Trendy Kicks alerts may be missing.';
