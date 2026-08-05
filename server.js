@@ -2171,6 +2171,33 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     } catch (e) { /* non-fatal */ }
   };
 
+  // 🚦 ONE HUGE ALBUM STARVES EVERY OTHER CUSTOMER (Rodney 2026-08-05 — proven, and this is
+  // the one that costs real sales). At 12:24 a 53-shoe album went out. At 12:36 a NEW
+  // customer sent a photo of a Jordan 14 and asked "yall have these in stock?" — Kiki found
+  // it and sent ONE picture, ManyChat answered 200 success, and the customer never got it.
+  // They received only the closer, so they replied "A1" and then "8.5" to a photo they had
+  // never seen. The 12-minute-old album was STILL draining out of ManyChat's queue and their
+  // single photo was stuck behind it (a 12-photo test earlier took 6 minutes to trickle
+  // through). So an album's real cost is not just its own risk — it blocks everyone behind
+  // it. Cap the pictures, and Kiki offers the rest, so no one waits behind a 53-photo queue.
+  // ALBUM_MAX_PHOTOS=0 removes the cap and restores send-everything.
+  const MAX_PHOTOS = (() => { const v = parseInt(process.env.ALBUM_MAX_PHOTOS, 10); return isNaN(v) ? 15 : v; })();
+  let heldBack = 0;
+  if (MAX_PHOTOS > 0) {
+    if (Array.isArray(groups) && groups.length) {
+      const seen = new Set(); let room = MAX_PHOTOS;
+      for (const g of groups) {
+        const keep = dedupe(g.ids, new Set(seen)).slice(0, Math.max(0, room)).map(x => x.id);
+        heldBack += (g.ids || []).length - keep.length;
+        g.ids = keep; keep.forEach(id => seen.add(id));
+        room -= keep.length;
+      }
+    } else if (Array.isArray(ids) && ids.length > MAX_PHOTOS) {
+      const keep = dedupe(ids).slice(0, MAX_PHOTOS).map(x => x.id);
+      heldBack = ids.length - keep.length;
+      ids = keep;
+    }
+  }
   const totalPhotos = (Array.isArray(groups) && groups.length)
     ? (() => { const seen = new Set(); return groups.reduce((n, g) => n + dedupe(g.ids, seen).length, 0); })()
     : dedupe(ids).length;
@@ -2401,11 +2428,11 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     albumTrace.forEach(t => { const k = t.status + ' ' + t.body; answers[k] = (answers[k] || 0) + 1; });
     saveRecent();
     recent.unshift({ at: new Date().toISOString(), endpoint: 'album-done', sub,
-      requested, sent, interrupted, unsent: unsent.length,
+      requested, sent, interrupted, unsent: unsent.length, heldBack,
       manychatSaid: answers, firstIds: albumTrace.slice(0, 3).map(t => t.id) });
     if (recent.length > 120) recent.length = 120;
   } catch (_) {}
-  return { sent, requested, interrupted, last_shoe: lastShoeSent ? displayName(lastShoeSent) : null };
+  return { sent, requested, interrupted, held_back: heldBack || undefined, last_shoe: lastShoeSent ? displayName(lastShoeSent) : null };
 }
 
 // When each customer's LATEST real message arrived — sendShoePhotos checks this
@@ -3844,6 +3871,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             result.note = (result.note ? result.note + ' ' : '')
               + `Of those, ${womensExactCount} are a true women's ${inp.size}${womensHalfUpCount ? `, ${womensHalfUpCount} are a women's ${halfUpSize} (half up)` : ''}${bigger ? `, ${bigger} are bigger still` : ''}. Lead with the ${womensExactCount} that actually fit — do NOT call the whole album her size.`;
           }
+        }
+        // 🚦 Held some back so the queue doesn't starve everyone else — make sure Kiki OFFERS
+        // them rather than letting the customer think that's our whole stock (Rodney's rule
+        // is never to show a token few; this keeps the spirit of it while the pipe recovers).
+        if (result && result.held_back) {
+          result.note = (result.note ? result.note + ' ' : '')
+            + `Only the first ${result.sent} pictures were sent — ${result.held_back} MORE are in stock and ready. Tell them plainly there's more and ask if they want to see the rest, e.g. "that's the first ${result.sent} — want me to send the rest? 👟". Do NOT imply this is everything we have.`;
         }
         if (droppedSlipOn.length) {
           record(req, { endpoint: 'sneaker-guard-drop', sub, dropped: droppedSlipOn });
