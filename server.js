@@ -149,6 +149,14 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
+// ── Agency preview bots (/demo-chat) ─────────────────────────────────────────
+// The demo sites on the agency page used to run a keyword lookup table, which is
+// why they answered the wrong question and repeated themselves. They now talk to
+// the same model Kiki uses. Business facts and every spend limit live in
+// demo-chat.js — the browser only sends a demo name and the conversation.
+try { require('./demo-chat').mount(app); }
+catch (e) { console.error('[demo-chat] not mounted:', e && e.message); }
+
 // ── Request recorder ──────────────────────────────────────────────────────────
 // Keeps the last few raw requests in memory so we can SEE exactly what ManyChat
 // sends. View at GET /last?key=<DEBUG_KEY> . Purely diagnostic.
