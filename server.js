@@ -3187,9 +3187,19 @@ function rememberStaffSub(nm, sub, store) {
 // Around 6 PM Nassau time, every employee on tomorrow's rota gets a thank-you +
 // reminder of their hours, on WhatsApp if we know their subscriber id (they've
 // texted Kiki at least once), otherwise as a task-board note + owner alert.
-// Schedule lives in shifts.json: { "Name": { "shifts": { "YYYY-MM-DD": "hours" } } }.
-let SHIFTS = {};
-try { SHIFTS = require('./shifts.json') || {}; } catch (_) {}
+// The rota now lives in the SHARED schedule (shop.js state.shifts) — the same list the
+// website's Schedule page reads, so a schedule the manager uploads on their phone reaches
+// this reminder with no second file to update by hand (Rodney 2026-08-09). The old root
+// shifts.json was migrated into it once, on first boot, and is no longer read.
+// Only real employees get a reminder: the Manager is the fallback who covers unassigned
+// slots, so "Manager" rows are not a rota entry to text about.
+function shiftsForDate(dateStr) {
+  try {
+    return require('./shop').getShifts()
+      .filter(s => s && s.date === dateStr && s.employee && s.employee !== 'Manager');
+  } catch (_) { return []; }
+}
+const SHIFT_HOURS_TXT = { morning: '8:00 AM - 3:00 PM', evening: '3:00 PM - 10:00 PM' };
 const SHIFT_SENT_FILE = REMINDERS_FILE ? REMINDERS_FILE.replace('reminders.json', 'shift-sent.json') : null;
 let shiftSent = {};
 try { if (SHIFT_SENT_FILE && require('fs').existsSync(SHIFT_SENT_FILE)) shiftSent = JSON.parse(require('fs').readFileSync(SHIFT_SENT_FILE, 'utf8')) || {}; } catch (_) {}
@@ -3265,11 +3275,17 @@ const shiftTick = setInterval(async () => {
   const local = nassauNow();
   if (local.getUTCHours() !== 18) return; // fire during the 6 PM Nassau hour only
   const tomorrow = new Date(local.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
-  const scheduled = Object.entries(SHIFTS).filter(([, info]) => info && info.shifts && info.shifts[tomorrow]);
+  // Someone on both slots gets ONE reminder listing both sets of hours.
+  const byName = new Map();
+  for (const s of shiftsForDate(tomorrow)) {
+    if (!byName.has(s.employee)) byName.set(s.employee, []);
+    byName.get(s.employee).push(SHIFT_HOURS_TXT[s.type] || s.type);
+  }
+  const scheduled = Array.from(byName.entries());
   const socialShoes = scheduled.length ? pickDailySocialShoes(tomorrow, 7) : [];
   const taskMsg = buildTaskSection(socialShoes, tomorrow);
-  for (const [nm, info] of scheduled) {
-    const hours = info.shifts[tomorrow];
+  for (const [nm, hourList] of scheduled) {
+    const hours = hourList.join(' and ');
     const key = nm + '@' + tomorrow;
     if (shiftSent[key]) continue;
     shiftSent[key] = Date.now();

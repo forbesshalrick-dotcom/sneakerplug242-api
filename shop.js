@@ -81,7 +81,46 @@ const state = {
   // before/after sizes, the decision the guards made, and where the request came from. Next
   // time a size reappears there is a fact to read instead of a theory to argue about.
   shoeAudit: loadFile('shoeAudit.json', []),
+  // 📅 WORK SCHEDULE — THE one source of truth (Rodney 2026-08-09).
+  // Was three copies that had to be kept in step by hand: localStorage on each phone, a
+  // hardcoded seed baked into storefront.html twice, and the root shifts.json this server
+  // read for the "you work tomorrow" WhatsApp reminder. They happened to agree, but nothing
+  // made them agree — and the two web views rendered the same data by different rules, so
+  // the page looked like it was contradicting itself. Now every phone and the reminder read
+  // this list. Shape: [{id, date:"YYYY-MM-DD", employee, type:"morning"|"evening"}].
+  // A day with NO record for a slot is not missing data — it means the Manager covers it.
+  shifts: loadFile('shifts.json', null),   // null = never migrated (see migrateLegacyShifts below)
 };
+
+// ── one-time migration off the old root shifts.legacy.json ───────────────────
+// The legacy file was { "Name": { "shifts": { "YYYY-MM-DD": "8:00 AM - 3:00 PM" } } }.
+// Convert it to records ONCE, then never read it again. This is a migration of real data
+// Rodney already had — nothing here invents a shift.
+const SHIFT_HOURS = { morning: '8:00 AM - 3:00 PM', evening: '3:00 PM - 10:00 PM' };
+function hoursToType(h) {
+  const s = String(h || '').toLowerCase();
+  if (/^\s*8/.test(s)) return 'morning';
+  if (/^\s*3/.test(s)) return 'evening';
+  // fall back on the END time if the start is written oddly (e.g. "08:00")
+  return /10\s*(:00)?\s*pm/.test(s) ? 'evening' : 'morning';
+}
+let persistShiftsOnBoot = false;
+if (state.shifts == null) {
+  const migrated = [];
+  try {
+    const legacy = require('./shifts.legacy.json') || {};
+    for (const [name, info] of Object.entries(legacy)) {
+      const days = (info && info.shifts) || {};
+      for (const [date, hours] of Object.entries(days)) {
+        migrated.push({ id: date + '|' + name, date, employee: name, type: hoursToType(hours) });
+      }
+    }
+  } catch (_) { /* no legacy file — start empty, which is correct, not broken */ }
+  migrated.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  state.shifts = migrated;
+  persistShiftsOnBoot = true;
+  console.log('[shop] shifts migrated from shifts.legacy.json:', migrated.length);
+}
 
 // Baseline seed so the core staff numbers/accounts come back automatically after a
 // redeploy even before a persistent disk is attached (the /data folder is wiped on
@@ -109,6 +148,190 @@ function schedule() {
   }, 400);
 }
 function bump() { state.rev.n++; persist('rev.json'); }
+// Write the migrated schedule to /data straight away so the legacy file is never needed again.
+if (persistShiftsOnBoot) persist('shifts.json');
+
+// ── 📅 SCHEDULE helpers ──────────────────────────────────────────────────────
+// The rule, in one place so the website, the popup and the WhatsApp reminder can't drift:
+// an employee assigned to a slot works it; a slot with nobody assigned is the Manager's.
+const SHIFT_TYPES = ['morning', 'evening'];
+function getShifts() { return Array.isArray(state.shifts) ? state.shifts : []; }
+function shiftKey(s) { return String(s.date) + '|' + String(s.employee) + '|' + String(s.type); }
+function setShifts(list) {
+  // de-dupe on date+employee+slot so a re-import can't double a day up
+  const seen = new Set(), out = [];
+  for (const s of list) { const k = shiftKey(s); if (!seen.has(k)) { seen.add(k); out.push(s); } }
+  out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.type < b.type ? -1 : 1)));
+  state.shifts = out;
+  persist('shifts.json'); bump();
+  return out;
+}
+// ── 📅 SCHEDULE FILE PARSING ─────────────────────────────────────────────────
+// All three upload formats are parsed HERE, on the server, so there is exactly one
+// definition of "what a schedule file looks like" and the phone just shows the result.
+//
+// THE FORMAT (documented on the upload box in the website too):
+//   Six columns, one row per calendar day, in this order:
+//     Employee | Day | Date | Start | End | Shift
+//   e.g.  Deashinique  Sunday  Aug 09, 2026  3:00pm  10:00pm  Night
+//   An off day is written with OFF as the shift and "-" for Start and End.
+//   Dates: "Aug 09, 2026" (or 2026-08-09). Times: "8:00am" / "3:00pm" (or 08:00 / 15:00).
+// Whether a row is the MORNING or the EVENING slot is decided by its START time, not by
+// the word in the Shift column — the word is only a label and people rename it.
+
+const MONTHS = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+const DAYNAMES = /^(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)(day|nesday|rsday|urday|s)?$/i;
+
+function normDate(raw) {
+  const s = String(raw || '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return s;
+  // "Aug 09, 2026" / "August 9 2026"
+  let monName, dayStr, yrStr;
+  m = s.match(/([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (m) { monName = m[1]; dayStr = m[2]; yrStr = m[3]; }
+  else {
+    // "9 Aug 2026"
+    m = s.match(/(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})/);
+    if (!m) return null;
+    monName = m[2]; dayStr = m[1]; yrStr = m[3];
+  }
+  const mo = MONTHS[monName.slice(0, 3).toLowerCase()];
+  if (!mo) return null;
+  const day = parseInt(dayStr, 10), yr = parseInt(yrStr, 10);
+  if (!day || day > 31 || !yr) return null;
+  return yr + '-' + String(mo).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+}
+
+// "8:00am" | "3:00pm" | "08:00" | "15:00" | "8am"  →  hour in 24h, or null
+function parseHour(raw) {
+  const s = String(raw || '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!s || s === '-' || s === '—' || s === 'off') return null;
+  const m = s.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)?$/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  if (isNaN(h) || h > 23) return null;
+  if (m[3] === 'pm' && h < 12) h += 12;
+  if (m[3] === 'am' && h === 12) h = 0;
+  return h;
+}
+// Before noon = the 8am–3pm slot; noon or later = the 3pm–10pm slot.
+function hourToType(h) { return h < 12 ? 'morning' : 'evening'; }
+
+// One text row → a shift record, or null for an OFF/blank/header row.
+// Returns {skip:true} for rows that are legitimately not shifts (OFF days, headers) and
+// {error:"..."} for rows that look like they were MEANT to be shifts but couldn't be read.
+function parseShiftLine(line, fallbackStaff) {
+  const raw = String(line || '').replace(/ /g, ' ').trim();
+  if (!raw) return { skip: true };
+  // header row
+  if (/employee/i.test(raw) && /date/i.test(raw) && /(start|shift)/i.test(raw)) return { skip: true };
+
+  const dateMatch = raw.match(/(\d{4}-\d{2}-\d{2})|([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})/);
+  if (!dateMatch) return { skip: true };           // no date = not a schedule row
+  const date = normDate(dateMatch[0]);
+  if (!date) return { error: 'could not read the date "' + dateMatch[0] + '"' };
+
+  const before = raw.slice(0, dateMatch.index).trim();
+  const after = raw.slice(dateMatch.index + dateMatch[0].length).trim();
+
+  // employee = everything before the date, minus a trailing weekday name
+  let empTokens = before.split(/[\s|,\t]+/).filter(Boolean);
+  while (empTokens.length && DAYNAMES.test(empTokens[empTokens.length - 1])) empTokens.pop();
+  const employee = empTokens.join(' ').trim() || String(fallbackStaff || '').trim();
+
+  const restTokens = after.split(/[\s|,\t]+/).filter(Boolean);
+  // an OFF day: the Manager covers both slots, which is exactly what "no record" means
+  if (/\boff\b/i.test(after)) return { skip: true, off: true, date, employee };
+
+  const startHour = parseHour(restTokens[0]);
+  if (startHour == null) {
+    // "-" placeholders with no OFF word still mean a day nobody was rostered
+    if (restTokens.length && /^[-—]+$/.test(restTokens[0])) return { skip: true, off: true, date, employee };
+    return { error: date + ': could not read the start time "' + (restTokens[0] || '(blank)') + '"' };
+  }
+  if (!employee) return { error: date + ': no employee name on the row' };
+
+  return { shift: { date, employee, type: hourToType(startHour) } };
+}
+
+// Whole-file parsers. Each returns { rows:[...], errors:[...], staff, from, to }.
+function parseScheduleJson(text) {
+  let obj;
+  try { obj = JSON.parse(text); } catch (e) { throw new Error('that file is not valid JSON (' + e.message + ')'); }
+  const staff = obj && (obj.staff || obj.employee) ? String(obj.staff || obj.employee) : '';
+  const list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.shifts) ? obj.shifts : null);
+  if (!list) throw new Error('the JSON has no "shifts" list in it');
+  const rows = [], errors = [];
+  for (const r of list) {
+    if (!r || typeof r !== 'object') continue;
+    const date = normDate(r.date);
+    if (!date) { errors.push('bad date: ' + JSON.stringify(r.date)); continue; }
+    const employee = String(r.staff || r.employee || staff || '').trim();
+    if (!employee) { errors.push(date + ': no staff name'); continue; }
+    // an OFF entry carries no hours — skip it, the Manager fallback covers the day
+    const startHour = parseHour(r.start);
+    if (startHour == null) {
+      if (/off/i.test(String(r.shift || '')) || !r.start || /^[-—]+$/.test(String(r.start).trim())) continue;
+      errors.push(date + ': could not read start time ' + JSON.stringify(r.start));
+      continue;
+    }
+    rows.push({ date, employee, type: hourToType(startHour) });
+  }
+  return {
+    rows, errors,
+    from: obj && obj.period_start ? normDate(obj.period_start) : null,
+    to: obj && obj.period_end ? normDate(obj.period_end) : null,
+  };
+}
+
+// Split one CSV line into fields, honouring "quoted, fields" — the Date column is
+// normally quoted precisely because "Aug 09, 2026" has a comma in it.
+function csvFields(line) {
+  const out = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ',' || c === '\t') { out.push(cur.trim()); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+function parseScheduleLines(text, fallbackStaff) {
+  const rows = [], errors = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    // A comma-or-tab separated row is re-joined with spaces first, so the single
+    // whitespace-based row reader below works for CSV and PDF text alike.
+    const flat = (line.indexOf(',') > -1 || line.indexOf('\t') > -1)
+      ? csvFields(line).filter(f => f !== '').join('   ')
+      : line;
+    const r = parseShiftLine(flat, fallbackStaff);
+    if (r.error) errors.push(r.error);
+    else if (r.shift) rows.push(r.shift);
+  }
+  return { rows, errors, from: null, to: null };
+}
+
+// Who is on for a given day, filling uncovered slots with the Manager. Used by the
+// WhatsApp reminder so it says the same thing the page does.
+function dayRoster(dateStr) {
+  const onDay = getShifts().filter(s => s && s.date === dateStr);
+  return SHIFT_TYPES.map(type => {
+    const hit = onDay.find(s => s.type === type);
+    return {
+      type,
+      hours: SHIFT_HOURS[type],
+      employee: hit ? hit.employee : 'Manager',
+      isFallback: !hit,
+    };
+  });
+}
 
 // ── shoe audit ───────────────────────────────────────────────────────────────
 // Record EVERY attempted change to a shoe, accepted or not. `grew` is the one that
@@ -730,7 +953,156 @@ function mount(app) {
       accounts: state.accounts,
       roles: state.roles,
       deletedStaff: state.deletedStaff,
+      shifts: getShifts(),
     });
+  });
+
+  // ---- 📅 Work schedule ----
+  app.get('/shop/shifts', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({ shifts: getShifts() });
+  });
+
+  // Add / overwrite ONE shift slot (the manual "+ Add Shift" form on the website).
+  app.post('/shop/shift', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const date = String(b.date || '').trim();
+    const employee = String(b.employee || '').trim();
+    const type = String(b.type || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+    if (!employee) return res.status(400).json({ error: 'employee required' });
+    if (SHIFT_TYPES.indexOf(type) === -1) return res.status(400).json({ error: 'type must be morning or evening' });
+    // one person per slot — assigning someone replaces whoever held it
+    const rest = getShifts().filter(s => !(s.date === date && s.type === type));
+    rest.push({ id: date + '|' + employee + '|' + type, date, employee, type });
+    setShifts(rest);
+    res.json({ ok: true, shifts: getShifts().length });
+  });
+
+  app.post('/shop/shift/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = String((req.body || {}).id || '');
+    if (!id) return res.status(400).json({ error: 'id required' });
+    const before = getShifts().length;
+    setShifts(getShifts().filter(s => String(s.id) !== id));
+    res.json({ ok: true, removed: before - getShifts().length });
+  });
+
+  // Lay a parsed batch into the schedule. Replaces those people's shifts INSIDE the
+  // imported date window only — importing Deashinique's Aug–Oct sheet never touches July,
+  // and never touches anybody else's rows.
+  function applyImport(rows, errors, from, to) {
+    const clean = [], bad = (errors || []).slice();
+    for (const r of rows) {
+      const date = String((r && r.date) || '').trim();
+      const employee = String((r && r.employee) || (r && r.staff) || '').trim();
+      const type = String((r && r.type) || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { bad.push('bad date: ' + JSON.stringify(r && r.date)); continue; }
+      if (!employee) { bad.push('missing employee for ' + date); continue; }
+      if (SHIFT_TYPES.indexOf(type) === -1) { bad.push('bad shift for ' + date + ': ' + JSON.stringify(r && r.type)); continue; }
+      clean.push({ id: date + '|' + employee + '|' + type, date, employee, type });
+    }
+    if (!clean.length) {
+      return { error: 'nothing importable', detail: bad.slice(0, 5).join('; ') || 'the file had no work shifts in it' };
+    }
+
+    const staff = new Set(clean.map(s => s.employee));
+    const dates = clean.map(s => s.date).sort();
+    const winFrom = from || dates[0];
+    const winTo = to || dates[dates.length - 1];
+
+    const kept = getShifts().filter(s => !(staff.has(s.employee) && s.date >= winFrom && s.date <= winTo));
+    const replaced = getShifts().length - kept.length;
+    setShifts(kept.concat(clean));
+
+    return {
+      ok: true,
+      imported: clean.length,
+      replaced,
+      skipped: bad.length,
+      skippedDetail: bad.slice(0, 5),
+      staff: Array.from(staff),
+      from: winFrom, to: winTo,
+      total: getShifts().length,
+    };
+  }
+
+  // Structured import (already-parsed rows).
+  app.post('/shop/shifts/import', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    if (!Array.isArray(b.shifts)) return res.status(400).json({ error: 'shifts must be an array' });
+    const out = applyImport(b.shifts, [], normDate(b.period_start), normDate(b.period_end));
+    if (out.error) return res.status(400).json(out);
+    res.json(out);
+  });
+
+  // 📤 FILE upload — the manager picks a .json / .csv / .pdf on their phone and it lands here.
+  // Parsing happens on the server so there is one parser, and so a PDF the phone can't read
+  // still imports. ALWAYS answers with either a count or a reason — never silence.
+  app.post('/shop/shifts/upload', async (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const name = String(b.filename || '').trim();
+    const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+    if (!b.data) return res.status(400).json({ error: 'no file came through — try picking it again' });
+
+    let buf;
+    try { buf = Buffer.from(String(b.data), 'base64'); }
+    catch (_) { return res.status(400).json({ error: 'the file could not be read off the phone' }); }
+    if (!buf.length) return res.status(400).json({ error: 'that file is empty (0 bytes)' });
+
+    let parsed;
+    try {
+      if (ext === 'json') {
+        parsed = parseScheduleJson(buf.toString('utf8'));
+      } else if (ext === 'pdf' || buf.slice(0, 4).toString() === '%PDF') {
+        let text = '';
+        try {
+          const { PDFParse } = require('pdf-parse');
+          const p = new PDFParse({ data: new Uint8Array(buf) });
+          const r = await p.getText();
+          text = (r && r.text) || '';
+          try { await p.destroy(); } catch (_) {}
+        } catch (e) {
+          return res.status(422).json({
+            error: 'could not open that PDF',
+            detail: e.message + ' — save the schedule as JSON or CSV instead and upload that.',
+          });
+        }
+        if (!text.trim()) {
+          return res.status(422).json({
+            error: 'that PDF has no readable text in it',
+            detail: 'It is probably a scan or a picture of a schedule. Upload the JSON or CSV version instead.',
+          });
+        }
+        parsed = parseScheduleLines(text, b.staff);
+      } else if (ext === 'csv' || ext === 'txt' || ext === 'tsv') {
+        parsed = parseScheduleLines(buf.toString('utf8'), b.staff);
+      } else {
+        return res.status(415).json({
+          error: 'that file type is not supported' + (ext ? ' (.' + ext + ')' : ''),
+          detail: 'Upload a .json, .csv or .pdf schedule.',
+        });
+      }
+    } catch (e) {
+      return res.status(422).json({ error: 'could not read that schedule file', detail: e.message });
+    }
+
+    if (!parsed.rows.length) {
+      return res.status(422).json({
+        error: 'no work shifts found in that file',
+        detail: (parsed.errors && parsed.errors.length)
+          ? parsed.errors.slice(0, 3).join('; ')
+          : 'Expected rows of: Employee | Day | Date | Start | End | Shift — e.g. "Deashinique  Sunday  Aug 09, 2026  3:00pm  10:00pm  Night".',
+      });
+    }
+
+    const out = applyImport(parsed.rows, parsed.errors, parsed.from, parsed.to);
+    if (out.error) return res.status(422).json(out);
+    out.filename = name;
+    res.json(out);
   });
 
   // Cheap change check for polling
@@ -1349,4 +1721,4 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks };
+module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };

@@ -25,5 +25,6 @@
    "2026-08-08": "3:00 PM - 10:00 PM"
   },
   "note": "every Monday off; source PDF Jun14-Aug8"
- }
+ },
+ "_note": "MIGRATED 2026-08-09 — this file is NOT the schedule any more. It is only the one-time seed that fills the shared schedule (shop.js state.shifts, /data/shifts.json) the first time the server boots on an empty volume. The live schedule is the shared one: GET /shop/shifts. Safe to delete once production has booted with a persistent volume."
 }

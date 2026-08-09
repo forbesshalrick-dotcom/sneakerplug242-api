@@ -5922,238 +5922,343 @@ function submitAddEmployee() {
 }
 
 // ─── SCHEDULE ────────────────────────────────────────────────
+// ONE source of truth: the shared schedule on the Railway server (/shop/shifts). This
+// localStorage copy is only an offline cache of that list so the page still draws with no
+// signal — every change is sent to the server first and the server's copy wins on sync.
+//
+// THE RULE, written once and used by the week card, the badge popup, the printout and the
+// on-duty lookup, so they cannot drift apart again:
+//     a slot with an employee assigned belongs to that employee;
+//     a slot with nobody assigned is covered by the Manager.
+// So a day with no records is not missing data — it is a full Manager day. That is also
+// exactly what an OFF day in an uploaded schedule looks like, which is why OFF days don't
+// need storing: they ARE the absence of a record.
+//
+// (2026-08-09: before this, the card drew only the logged-in person's own slots — for the
+// Manager that meant only the gaps, so it could never print an employee name — while the
+// popup drew everybody's assigned shifts. Same data, two rules, and the page looked like
+// it was arguing with itself.)
+
+var SHIFT_SLOTS = [
+  { type: 'morning', label: '8am–3pm', icon: '☀️', hours: '8:00 AM - 3:00 PM' },
+  { type: 'evening', label: '3pm–10pm', icon: '🌙', hours: '3:00 PM - 10:00 PM' }
+];
+var MANAGER_NAME = 'Manager';
+
+// Local calendar date. NOT toISOString(), which is UTC — in Nassau (UTC-4) that flips to
+// tomorrow at 8pm, which on its own could park the page on the wrong week every evening.
+function ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function schedToday() { return ymd(new Date()); }
+
 function getShifts() {
-  return JSON.parse(localStorage.getItem('sp_shifts') || '[]');
+  try { var v = JSON.parse(localStorage.getItem('sp_shifts') || '[]'); return Array.isArray(v) ? v : []; }
+  catch (e) { return []; }
 }
 function saveShifts(shifts) {
-  localStorage.setItem('sp_shifts', JSON.stringify(shifts));
+  try { localStorage.setItem('sp_shifts', JSON.stringify(shifts || [])); } catch (e) {}
 }
 
-function addShift() {
-  const date = document.getElementById('shift-date').value;
-  const employee = document.getElementById('shift-employee').value;
-  const type = document.getElementById('shift-type').value;
-  if (!date) { showToast('Please select a date', true); return; }
-  const shifts = getShifts();
-  shifts.push({ date, employee, type, id: Date.now() });
-  shifts.sort((a,b) => new Date(a.date) - new Date(b.date));
-  saveShifts(shifts);
+// Pull the shared schedule down and redraw. Called on load, on the 15s poll, and straight
+// after an import so the page updates without anyone refreshing.
+function syncShifts() {
+  return shopGet('/shop/shifts').then(function (r) {
+    if (r && Array.isArray(r.shifts)) { saveShifts(r.shifts); refreshScheduleViews(); }
+    return r;
+  }).catch(function () { /* offline — the cached copy stays on screen */ });
+}
+
+// Redraw whichever schedule views are currently on screen.
+function refreshScheduleViews() {
+  try { if (document.getElementById('page-schedule').classList.contains('active')) renderSchedulePage(); } catch (e) {}
+  try {
+    var pop = document.getElementById('schedule-popup');
+    if (pop && pop.style.display === 'block') renderSchedulePopup();
+  } catch (e) {}
+}
+
+// ── the week window ──
+// 0 = the week containing today, -1 = last week, +1 = next week. Monday is always
+// recomputed from new Date(), so the page rolls into the new week by itself and an
+// imported schedule months ahead is reachable by paging.
+var _schedWeekOffset = 0;
+function weekMonday(offset) {
+  var d = new Date();
+  d.setHours(12, 0, 0, 0);                              // midday — immune to DST edges
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + (offset || 0) * 7);
+  return d;
+}
+function weekLabelFor(monday) {
+  var sun = new Date(monday); sun.setDate(monday.getDate() + 6);
+  return monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' +
+    sun.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// THE shared week model. Every schedule view renders from this and nothing else.
+// Returns both slots for all 7 days, each already resolved to a person.
+function buildWeekModel(offset) {
+  var monday = weekMonday(offset);
+  var all = getShifts();
+  var today = schedToday();
+  var days = [];
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(monday); d.setDate(monday.getDate() + i);
+    var dateStr = ymd(d);
+    var onDay = all.filter(function (s) { return s && s.date === dateStr; });
+    days.push({
+      date: dateStr,
+      isToday: dateStr === today,
+      label: d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      slots: SHIFT_SLOTS.map(function (slot) {
+        var hit = onDay.filter(function (s) { return s.type === slot.type; })[0];
+        return {
+          type: slot.type, label: slot.label, icon: slot.icon, hours: slot.hours,
+          employee: hit ? hit.employee : MANAGER_NAME,
+          isFallback: !hit,                   // true = nobody rostered, so the Manager has it
+          id: hit ? hit.id : null
+        };
+      })
+    });
+  }
+  return { monday: monday, label: weekLabelFor(monday), offset: offset || 0, days: days };
+}
+
+function shiftWeek(delta) {
+  _schedWeekOffset += delta;
   renderSchedulePage();
-  showToast('✓ Shift added');
+}
+function schedThisWeek() {
+  _schedWeekOffset = 0;
+  renderSchedulePage();
+}
+
+// ── manual entry (manager) ──
+function addShift() {
+  var date = document.getElementById('shift-date').value;
+  var employee = document.getElementById('shift-employee').value;
+  var type = document.getElementById('shift-type').value;
+  if (!date) { showToast('Please select a date', true); return; }
+  shopPost('/shop/shift', { date: date, employee: employee, type: type })
+    .then(function () { return syncShifts(); })
+    .then(function () { renderSchedulePage(); showToast('✓ Shift added'); })
+    .catch(function (e) {
+      var why = (e && e.body && (e.body.error || e.body.detail)) || e.message || 'could not reach the server';
+      showToast('Could not add that shift — ' + why, true);
+    });
 }
 
 function removeShift(id) {
-  const shifts = getShifts().filter(s => s.id !== id);
-  saveShifts(shifts);
-  renderSchedulePage();
+  shopPost('/shop/shift/delete', { id: String(id) })
+    .then(function () { return syncShifts(); })
+    .then(function () { renderSchedulePage(); showToast('Shift removed'); })
+    .catch(function (e) {
+      var why = (e && e.body && e.body.error) || e.message || 'could not reach the server';
+      showToast('Could not remove that shift — ' + why, true);
+    });
 }
 
-function getThisWeekShifts() {
-  const now = new Date();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  monday.setHours(0,0,0,0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23,59,59,999);
-  return getShifts().filter(s => {
-    const d = new Date(s.date + 'T00:00:00');
-    return d >= monday && d <= sunday;
-  });
-}
-
+// Who is on the floor right now — same rule as everything else.
 function getOnDutyEmployee() {
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const hour = now.getHours();
-  const shifts = getShifts();
-  const todayShifts = shifts.filter(s => s.date === todayStr);
-  // Check if any employee is scheduled for the current time slot
-  for (const shift of todayShifts) {
-    if (shift.type === 'morning' && hour >= 8 && hour < 15) return shift.employee;
-    if (shift.type === 'evening' && hour >= 15 && hour < 22) return shift.employee;
-  }
-  // Manager covers any slot that has no employee assigned
-  const hasMorning = todayShifts.some(s => s.type === 'morning');
-  const hasEvening = todayShifts.some(s => s.type === 'evening');
-  if (!hasMorning && hour >= 8 && hour < 15) return 'Manager';
-  if (!hasEvening && hour >= 15 && hour < 22) return 'Manager';
-  return null;
+  var hour = new Date().getHours();
+  var slot = (hour >= 8 && hour < 15) ? 'morning' : ((hour >= 15 && hour < 22) ? 'evening' : null);
+  if (!slot) return null;                                     // shop closed
+  var today = schedToday();
+  var hit = getShifts().filter(function (s) { return s && s.date === today && s.type === slot; })[0];
+  return hit ? hit.employee : MANAGER_NAME;
 }
 
+// ── the main card ──
+// Shows the WHOLE day — both slots, every day — with the person who actually covers each.
+// A row reading "Manager" now means "nobody is rostered here", which is information;
+// before, every row read Manager whether or not anyone was assigned.
 function renderSchedulePage() {
-  const weekShifts = getThisWeekShifts();
-  const allShifts = getShifts();
-  const display = document.getElementById('schedule-week-display');
-  const dlBtn = document.getElementById('schedule-download-btn');
+  var display = document.getElementById('schedule-week-display');
+  var dlBtn = document.getElementById('schedule-download-btn');
+  var isManagerRole = (typeof isManager === 'function') ? isManager() : (currentUser === 'Manager');
 
-  // Show/hide manager-only sections
-  var isManagerRole = currentUser === 'Manager';
   var uploadSection = document.getElementById('schedule-upload-section');
   var entrySection = document.getElementById('schedule-entry-section');
   if (uploadSection) uploadSection.style.display = isManagerRole ? '' : 'none';
   if (entrySection) entrySection.style.display = isManagerRole ? '' : 'none';
 
-  // Populate employee select
-  const accounts = getAccounts();
-  const empSel = document.getElementById('shift-employee');
+  var accounts = getAccounts();
+  var empSel = document.getElementById('shift-employee');
   if (empSel) {
-    empSel.innerHTML = Object.keys(accounts).map(n => `<option value="${n}">${n}</option>`).join('');
+    var keep = empSel.value;
+    var names = Object.keys(accounts);
+    if (names.indexOf(MANAGER_NAME) === -1) names.unshift(MANAGER_NAME);
+    empSel.innerHTML = names.map(function (n) { return '<option value="' + n + '">' + n + '</option>'; }).join('');
+    if (keep && names.indexOf(keep) > -1) empSel.value = keep;
   }
 
-  // Build this employee's personal view of the week
-  const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const isManager = currentUser === 'Manager';
+  var model = buildWeekModel(_schedWeekOffset);
 
-  // Get Mon-Sun dates for this week
-  const weekDates = [];
-  const mon = new Date(now);
-  mon.setDate(now.getDate() - ((now.getDay()+6)%7));
-  for (var di = 0; di < 7; di++) {
-    const d = new Date(mon);
-    d.setDate(mon.getDate() + di);
-    weekDates.push(d.toISOString().split('T')[0]);
+  var head = document.getElementById('schedule-week-label');
+  if (head) {
+    head.textContent = (model.offset === 0 ? 'This week · ' : '') + model.label;
   }
+  var todayBtn = document.getElementById('schedule-today-btn');
+  if (todayBtn) todayBtn.style.display = model.offset === 0 ? 'none' : '';
 
-  // Build personal schedule rows
-  var myRows = [];
-  weekDates.forEach(function(dateStr) {
-    const dayShifts = weekShifts.filter(function(s){ return s.date === dateStr; });
-    const isToday = dateStr === todayStr;
-    const d = new Date(dateStr + 'T00:00:00');
-    const dayName = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  var rows = model.days.map(function (day) {
+    var dayCol = '<div style="font-size:13px;' + (day.isToday ? 'color:var(--accent);font-weight:700;' : 'color:var(--text);') + '">'
+      + day.label + (day.isToday ? ' ◀' : '') + '</div>';
 
-    if (isManager) {
-      // Manager covers any slot that has NO other employee assigned that day.
-      // Works across any number of employees - just fills the uncovered gaps.
-      var hasMorning = dayShifts.some(function(s){ return s.type === 'morning'; });
-      var hasEvening = dayShifts.some(function(s){ return s.type === 'evening'; });
+    var slotRows = day.slots.map(function (s) {
+      var isMe = s.employee === currentUser;
+      // the fallback is shown in muted grey so a rostered name reads as the real thing
+      var nameStyle = s.isFallback ? 'color:#7a7a7a;' : (isMe ? 'color:var(--accent);font-weight:700;' : 'color:#fff;font-weight:600;');
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 0 3px 10px;">'
+        + '<span style="font-size:11px;color:#8a8a8a;white-space:nowrap;">' + s.icon + ' ' + s.label + '</span>'
+        + '<span style="font-size:12px;text-align:right;' + nameStyle + '">' + s.employee
+        + (s.isFallback ? ' <span style="font-size:10px;color:#555;">(covering)</span>' : '') + '</span>'
+        + '</div>';
+    }).join('');
 
-      var managerSlots = [];
-      if (!hasMorning) managerSlots.push('morning');
-      if (!hasEvening) managerSlots.push('evening');
-
-      if (managerSlots.length === 0) {
-        // Both slots covered by other employees — manager is off
-        myRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
-          + '<span style="font-size:13px;color:#444;">' + dayName + '</span>'
-          + '<span style="font-size:12px;color:#444;">Off</span>'
-          + '</div>');
-      } else {
-        managerSlots.forEach(function(type) {
-          var label = type === 'morning' ? '8am–3pm ☀️' : '3pm–10pm 🌙';
-          myRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
-            + '<span style="font-size:13px;' + (isToday ? 'color:var(--accent);font-weight:700;' : '') + '">' + dayName + '</span>'
-            + '<span style="font-size:13px;">Manager · <span style="color:var(--accent);">' + label + '</span></span>'
-            + '</div>');
-        });
-      }
-
-    } else {
-      // Regular employee: show only their own shifts
-      const myShifts = dayShifts.filter(function(s){ return s.employee === currentUser; });
-      if (myShifts.length > 0) {
-        myShifts.forEach(function(s) {
-          const label = s.type === 'morning' ? '8am–3pm ☀️' : '3pm–10pm 🌙';
-          myRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
-            + '<span style="font-size:13px;' + (isToday ? 'color:var(--accent);font-weight:700;' : '') + '">' + dayName + '</span>'
-            + '<span style="font-size:13px;">' + currentUser + ' · <span style="color:var(--accent);">' + label + '</span></span>'
-            + '</div>');
-        });
-      } else {
-        myRows.push('<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
-          + '<span style="font-size:13px;color:#444;">' + dayName + '</span>'
-          + '<span style="font-size:12px;color:#444;">Off</span>'
-          + '</div>');
-      }
-    }
-  });
+    return '<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);">' + dayCol + slotRows + '</div>';
+  }).join('');
 
   if (display) {
-    if (myRows.length === 0) {
-      display.innerHTML = '<span style="color:#555;">No schedule data yet</span>';
-      if (dlBtn) dlBtn.style.display = 'none';
-    } else {
-      display.innerHTML = myRows.join('');
-      if (dlBtn) dlBtn.style.display = 'inline-flex';
-    }
+    display.innerHTML = rows;
+    if (dlBtn) dlBtn.style.display = 'inline-flex';
   }
 
-  // Render full list grouped by week
-  const listEl = document.getElementById('shifts-list');
+  // Manager's full list of everyone's assigned shifts, grouped by month.
+  var listEl = document.getElementById('shifts-list');
   if (!listEl) return;
+  var allShifts = getShifts().slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
   if (!allShifts.length) {
-    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">No shifts added yet</div>';
+    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px;">'
+      + 'No shifts assigned yet — every slot is covered by the Manager until you upload a schedule or add one below.</div>';
     return;
   }
-  // Group by month
-  const byMonth = {};
-  allShifts.forEach(s => {
-    const d = new Date(s.date + 'T00:00:00');
-    const key = d.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  var byMonth = {};
+  allShifts.forEach(function (s) {
+    var d = new Date(s.date + 'T12:00:00');
+    var key = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     if (!byMonth[key]) byMonth[key] = [];
     byMonth[key].push(s);
   });
-  listEl.innerHTML = Object.entries(byMonth).map(([month, shifts]) => `
-    <div style="margin-bottom:16px;">
-      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;">${month}</div>
-      ${shifts.map(s => {
-        const d = new Date(s.date + 'T00:00:00');
-        const dayName = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-        const shiftLabel = s.type === 'morning' ? '8am–3pm ☀️' : '3pm–10pm 🌙';
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;">
-          <div>
-            <div style="font-size:13px;font-weight:600;">${dayName}</div>
-            <div style="font-size:11px;color:var(--text-muted);">${s.employee} · ${shiftLabel}</div>
-          </div>
-          <button onclick="removeShift(${s.id})" style="background:rgba(255,68,68,0.15);border:1px solid #ff4444;color:#ff4444;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;">✕</button>
-        </div>`;
-      }).join('')}
-    </div>`).join('');
+  listEl.innerHTML = Object.keys(byMonth).map(function (month) {
+    var shifts = byMonth[month];
+    return '<div style="margin-bottom:16px;">'
+      + '<div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;">'
+      + month + ' <span style="color:#555;">· ' + shifts.length + '</span></div>'
+      + shifts.map(function (s) {
+        var d = new Date(s.date + 'T12:00:00');
+        var dayName = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        var slot = SHIFT_SLOTS.filter(function (x) { return x.type === s.type; })[0] || SHIFT_SLOTS[0];
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;">'
+          + '<div><div style="font-size:13px;font-weight:600;">' + dayName + '</div>'
+          + '<div style="font-size:11px;color:var(--text-muted);">' + s.employee + ' · ' + slot.icon + ' ' + slot.label + '</div></div>'
+          + '<button onclick="removeShift(\'' + String(s.id).replace(/'/g, "\\'") + '\')" style="background:rgba(255,68,68,0.15);border:1px solid #ff4444;color:#ff4444;padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;">✕</button>'
+          + '</div>';
+      }).join('')
+      + '</div>';
+  }).join('');
+}
+
+// ── upload ──
+// Accepts .json, .csv and .pdf. The file is sent to the server, which does the parsing
+// (one parser, and a PDF the phone can't read still imports). This ALWAYS says what
+// happened: a working state, then a count, or a visible reason it failed.
+function _schedSetStatus(html, color) {
+  var el = document.getElementById('schedule-upload-status');
+  if (!el) return;
+  el.innerHTML = html;
+  el.style.color = color || 'var(--text-muted)';
+}
+function _prettyDate(iso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(iso || ''))) return String(iso || '');
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function handleScheduleUpload(event) {
-  const file = event.target.files[0];
+  var input = event.target;
+  var file = input.files && input.files[0];
   if (!file) return;
-  const status = document.getElementById('schedule-upload-status');
-  if (status) status.textContent = '✓ Schedule PDF uploaded: ' + file.name;
-  // Store file name reference
-  localStorage.setItem('sp_schedule_pdf_name', file.name);
-  showToast('✓ Schedule uploaded: ' + file.name);
+
+  function fail(msg, detail) {
+    _schedSetStatus('❌ <b>' + msg + '</b>' + (detail ? '<div style="margin-top:4px;color:#c98;font-size:11px;">' + detail + '</div>' : ''), '#ff4444');
+    showToast(msg, true);
+    try { _sfx.error(); } catch (e) {}
+    input.value = '';
+  }
+
+  if (!/\.(json|csv|pdf|txt|tsv)$/i.test(file.name)) {
+    fail('That file type will not import', 'Pick a .json, .csv or .pdf schedule. You chose "' + file.name + '".');
+    return;
+  }
+  if (file.size === 0) { fail('That file is empty', file.name + ' is 0 bytes.'); return; }
+
+  _schedSetStatus('⏳ Reading <b>' + file.name + '</b>…', 'var(--accent)');
+
+  var reader = new FileReader();
+  reader.onerror = function () { fail('Could not read that file off this phone', 'Try picking it again.'); };
+  reader.onload = function () {
+    var b64 = String(reader.result || '').split(',')[1] || '';
+    if (!b64) { fail('Could not read that file off this phone', 'It came through empty.'); return; }
+
+    _schedSetStatus('⏳ Importing <b>' + file.name + '</b>…', 'var(--accent)');
+
+    shopPost('/shop/shifts/upload', { filename: file.name, data: b64 })
+      .then(function (r) {
+        return syncShifts().then(function () { return r; });
+      })
+      .then(function (r) {
+        var who = (r.staff && r.staff.length) ? r.staff.join(' & ') : 'staff';
+        var msg = 'Imported ' + r.imported + ' shift' + (r.imported === 1 ? '' : 's') + ' for ' + who
+          + ', ' + _prettyDate(r.from) + ' – ' + _prettyDate(r.to);
+        var extra = [];
+        if (r.replaced) extra.push('replaced ' + r.replaced + ' older shift' + (r.replaced === 1 ? '' : 's') + ' in that stretch');
+        if (r.skipped) extra.push('skipped ' + r.skipped + ' row' + (r.skipped === 1 ? '' : 's') + ' it could not read: ' + (r.skippedDetail || []).join('; '));
+        _schedSetStatus('✅ <b>' + msg + '</b>' + (extra.length ? '<div style="margin-top:4px;font-size:11px;color:#8a8a8a;">' + extra.join(' · ') + '</div>' : ''), 'var(--accent)');
+        showToast('✓ ' + msg);
+        try { _sfx.success && _sfx.success(); } catch (e) {}
+        try { addAudit('Schedule imported', msg + ' (' + file.name + ')', 'schedule'); } catch (e) {}
+        _schedWeekOffset = 0;
+        renderSchedulePage();                 // straight back on screen, no refresh
+        input.value = '';
+      })
+      .catch(function (e) {
+        var b = (e && e.body) || {};
+        fail(b.error || 'The schedule did not import', b.detail || e.message || 'The server did not answer.');
+      });
+  };
+  reader.readAsDataURL(file);
 }
 
+// ── printable week ──
 function downloadWeeklySchedule() {
-  var allWeekShifts = getThisWeekShifts();
-  if (!allWeekShifts.length) { showToast('No shifts this week', true); return; }
-  var isManagerRole = currentUser === 'Manager';
+  var model = buildWeekModel(_schedWeekOffset);
+  var isManagerRole = (typeof isManager === 'function') ? isManager() : (currentUser === 'Manager');
 
-  // Employees only see their own shifts; manager sees everyone
-  var weekShifts = isManagerRole
-    ? allWeekShifts
-    : allWeekShifts.filter(function(s){ return s.employee === currentUser; });
+  var rows = [];
+  model.days.forEach(function (day) {
+    var d = new Date(day.date + 'T12:00:00');
+    var dayName = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    day.slots.forEach(function (s) {
+      // an employee's own printout is just their shifts; the manager's is the whole floor
+      if (!isManagerRole && s.employee !== currentUser) return;
+      var empCol = isManagerRole
+        ? '<td style="padding:10px 14px;font-weight:600;' + (s.isFallback ? 'color:#888;' : '') + '">' + s.employee + (s.isFallback ? ' (covering)' : '') + '</td>'
+        : '';
+      rows.push('<tr><td style="padding:10px 14px;">' + dayName + '</td>' + empCol +
+        '<td style="padding:10px 14px;color:#c8f135;">' + s.hours + '</td></tr>');
+    });
+  });
 
-  if (!weekShifts.length) { showToast('You have no shifts this week', true); return; }
+  if (!rows.length) { showToast('You have no shifts that week', true); return; }
 
-  var now = new Date();
-  var monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay()+6)%7));
-  var sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
-  var weekLabel = monday.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' - ' + sunday.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  var sun = new Date(model.monday); sun.setDate(model.monday.getDate() + 6);
+  var weekLabel = model.monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' - ' +
+    sun.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   var title = isManagerRole ? 'Full Team Schedule' : (currentUser + "'s Schedule");
-
-  var rows = weekShifts.map(function(s) {
-    var d = new Date(s.date+'T00:00:00');
-    var dayName = d.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
-    var shiftLabel = s.type==='morning' ? '8:00 AM - 3:00 PM' : '3:00 PM - 10:00 PM';
-    var empCol = isManagerRole ? '<td style="padding:10px 14px;font-weight:600;">'+s.employee+'</td>' : '';
-    return '<tr><td style="padding:10px 14px;">'+dayName+'</td>'+empCol+'<td style="padding:10px 14px;color:#c8f135;">'+shiftLabel+'</td></tr>';
-  }).join('');
-
   var empHeader = isManagerRole ? '<th>Employee</th>' : '';
 
   var pdfHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"/>'
-    + '<title>SNEAKERPLUG242 - '+title+' - '+weekLabel+'</title>'
+    + '<title>SNEAKERPLUG242 - ' + title + ' - ' + weekLabel + '</title>'
     + '<style>'
     + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}'
     + 'body{font-family:Arial,sans-serif;background:#0a0a0a;color:#fff;padding:30px;margin:0;}'
@@ -6170,14 +6275,14 @@ function downloadWeeklySchedule() {
     + '<div class="sub">Weekly Work Schedule</div>'
     + (isManagerRole ? '' : '<div class="name">' + currentUser + '</div>')
     + '<div class="week">&#128197; ' + weekLabel + '</div>'
-    + '<table><thead><tr><th>Date</th>'+empHeader+'<th>Shift</th></tr></thead>'
-    + '<tbody>'+rows+'</tbody></table>'
+    + '<table><thead><tr><th>Date</th>' + empHeader + '<th>Shift</th></tr></thead>'
+    + '<tbody>' + rows.join('') + '</tbody></table>'
     + '<div class="footer">SNEAKERPLUG242 &middot; Nassau, Bahamas &middot; For internal use only</div>'
     + '</body></html>';
 
-  var win = window.open('','_blank');
-  if (win) { win.document.write(pdfHtml); win.document.close(); setTimeout(function(){win.print();},400); }
-  else { var b=new Blob([pdfHtml],{type:'text/html'}); var a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='SNEAKERPLUG242-Schedule-'+weekLabel.replace(/[^a-z0-9]/gi,'-')+'.html'; a.click(); }
+  var win = window.open('', '_blank');
+  if (win) { win.document.write(pdfHtml); win.document.close(); setTimeout(function () { win.print(); }, 400); }
+  else { var b = new Blob([pdfHtml], { type: 'text/html' }); var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'SNEAKERPLUG242-Schedule-' + weekLabel.replace(/[^a-z0-9]/gi, '-') + '.html'; a.click(); }
 }
 
 // ─── ON-DUTY NOTIFICATION ─────────────────────────────────────
@@ -6521,72 +6626,6 @@ showPage = function(page) {
 };
 
   
-  // ── Preload Deashinique's schedule ──
-  (function(){
-    const existing = JSON.parse(localStorage.getItem('sp_shifts') || '[]');
-    const preloaded = [
-      {date:'2026-06-14',employee:'Deashinique',type:'morning',id:1000},
-    {date:'2026-06-16',employee:'Deashinique',type:'evening',id:1001},
-    {date:'2026-06-17',employee:'Deashinique',type:'morning',id:1002},
-    {date:'2026-06-18',employee:'Deashinique',type:'morning',id:1003},
-    {date:'2026-06-19',employee:'Deashinique',type:'evening',id:1004},
-    {date:'2026-06-20',employee:'Deashinique',type:'morning',id:1005},
-    {date:'2026-06-21',employee:'Deashinique',type:'evening',id:1006},
-    {date:'2026-06-23',employee:'Deashinique',type:'morning',id:1007},
-    {date:'2026-06-24',employee:'Deashinique',type:'morning',id:1008},
-    {date:'2026-06-25',employee:'Deashinique',type:'morning',id:1009},
-    {date:'2026-06-26',employee:'Deashinique',type:'morning',id:1010},
-    {date:'2026-06-27',employee:'Deashinique',type:'morning',id:1011},
-    {date:'2026-06-28',employee:'Deashinique',type:'morning',id:1012},
-    {date:'2026-06-30',employee:'Deashinique',type:'morning',id:1013},
-    {date:'2026-07-01',employee:'Deashinique',type:'morning',id:1014},
-    {date:'2026-07-02',employee:'Deashinique',type:'morning',id:1015},
-    {date:'2026-07-03',employee:'Deashinique',type:'evening',id:1016},
-    {date:'2026-07-04',employee:'Deashinique',type:'evening',id:1017},
-    {date:'2026-07-05',employee:'Deashinique',type:'morning',id:1018},
-    {date:'2026-07-07',employee:'Deashinique',type:'evening',id:1019},
-    {date:'2026-07-08',employee:'Deashinique',type:'evening',id:1020},
-    {date:'2026-07-09',employee:'Deashinique',type:'evening',id:1021},
-    {date:'2026-07-10',employee:'Deashinique',type:'evening',id:1022},
-    {date:'2026-07-11',employee:'Deashinique',type:'evening',id:1023},
-    {date:'2026-07-12',employee:'Deashinique',type:'evening',id:1024},
-    {date:'2026-07-14',employee:'Deashinique',type:'evening',id:1025},
-    {date:'2026-07-15',employee:'Deashinique',type:'morning',id:1026},
-    {date:'2026-07-16',employee:'Deashinique',type:'morning',id:1027},
-    {date:'2026-07-17',employee:'Deashinique',type:'morning',id:1028},
-    {date:'2026-07-18',employee:'Deashinique',type:'morning',id:1029},
-    {date:'2026-07-19',employee:'Deashinique',type:'evening',id:1030},
-    {date:'2026-07-21',employee:'Deashinique',type:'evening',id:1031},
-    {date:'2026-07-22',employee:'Deashinique',type:'evening',id:1032},
-    {date:'2026-07-23',employee:'Deashinique',type:'morning',id:1033},
-    {date:'2026-07-24',employee:'Deashinique',type:'evening',id:1034},
-    {date:'2026-07-25',employee:'Deashinique',type:'morning',id:1035},
-    {date:'2026-07-26',employee:'Deashinique',type:'evening',id:1036},
-    {date:'2026-07-28',employee:'Deashinique',type:'evening',id:1037},
-    {date:'2026-07-29',employee:'Deashinique',type:'evening',id:1038},
-    {date:'2026-07-30',employee:'Deashinique',type:'evening',id:1039},
-    {date:'2026-07-31',employee:'Deashinique',type:'morning',id:1040},
-    {date:'2026-08-01',employee:'Deashinique',type:'morning',id:1041},
-    {date:'2026-08-02',employee:'Deashinique',type:'morning',id:1042},
-    {date:'2026-08-04',employee:'Deashinique',type:'evening',id:1043},
-    {date:'2026-08-05',employee:'Deashinique',type:'morning',id:1044},
-    {date:'2026-08-06',employee:'Deashinique',type:'morning',id:1045},
-    {date:'2026-08-07',employee:'Deashinique',type:'morning',id:1046},
-    {date:'2026-08-08',employee:'Deashinique',type:'evening',id:1047}
-    ];
-    // Only add shifts that aren't already stored (by date+employee)
-    let changed = false;
-    preloaded.forEach(s => {
-      if (!existing.some(e => e.date === s.date && e.employee === s.employee)) {
-        existing.push(s);
-        changed = true;
-      }
-    });
-    if (changed) {
-      existing.sort((a,b) => new Date(a.date) - new Date(b.date));
-      localStorage.setItem('sp_shifts', JSON.stringify(existing));
-    }
-  })();
 
   
 function toggleSchedulePopup() {
@@ -6600,60 +6639,6 @@ function toggleSchedulePopup() {
   }
 }
 
-
-function getPreloadedShifts() {
-  const preloaded = [
-      {date:'2026-06-14',employee:'Deashinique',type:'morning',id:1000},
-    {date:'2026-06-16',employee:'Deashinique',type:'evening',id:1001},
-    {date:'2026-06-17',employee:'Deashinique',type:'morning',id:1002},
-    {date:'2026-06-18',employee:'Deashinique',type:'morning',id:1003},
-    {date:'2026-06-19',employee:'Deashinique',type:'evening',id:1004},
-    {date:'2026-06-20',employee:'Deashinique',type:'morning',id:1005},
-    {date:'2026-06-21',employee:'Deashinique',type:'evening',id:1006},
-    {date:'2026-06-23',employee:'Deashinique',type:'morning',id:1007},
-    {date:'2026-06-24',employee:'Deashinique',type:'morning',id:1008},
-    {date:'2026-06-25',employee:'Deashinique',type:'morning',id:1009},
-    {date:'2026-06-26',employee:'Deashinique',type:'morning',id:1010},
-    {date:'2026-06-27',employee:'Deashinique',type:'morning',id:1011},
-    {date:'2026-06-28',employee:'Deashinique',type:'morning',id:1012},
-    {date:'2026-06-30',employee:'Deashinique',type:'morning',id:1013},
-    {date:'2026-07-01',employee:'Deashinique',type:'morning',id:1014},
-    {date:'2026-07-02',employee:'Deashinique',type:'morning',id:1015},
-    {date:'2026-07-03',employee:'Deashinique',type:'evening',id:1016},
-    {date:'2026-07-04',employee:'Deashinique',type:'evening',id:1017},
-    {date:'2026-07-05',employee:'Deashinique',type:'morning',id:1018},
-    {date:'2026-07-07',employee:'Deashinique',type:'evening',id:1019},
-    {date:'2026-07-08',employee:'Deashinique',type:'evening',id:1020},
-    {date:'2026-07-09',employee:'Deashinique',type:'evening',id:1021},
-    {date:'2026-07-10',employee:'Deashinique',type:'evening',id:1022},
-    {date:'2026-07-11',employee:'Deashinique',type:'evening',id:1023},
-    {date:'2026-07-12',employee:'Deashinique',type:'evening',id:1024},
-    {date:'2026-07-14',employee:'Deashinique',type:'evening',id:1025},
-    {date:'2026-07-15',employee:'Deashinique',type:'morning',id:1026},
-    {date:'2026-07-16',employee:'Deashinique',type:'morning',id:1027},
-    {date:'2026-07-17',employee:'Deashinique',type:'morning',id:1028},
-    {date:'2026-07-18',employee:'Deashinique',type:'morning',id:1029},
-    {date:'2026-07-19',employee:'Deashinique',type:'evening',id:1030},
-    {date:'2026-07-21',employee:'Deashinique',type:'evening',id:1031},
-    {date:'2026-07-22',employee:'Deashinique',type:'evening',id:1032},
-    {date:'2026-07-23',employee:'Deashinique',type:'morning',id:1033},
-    {date:'2026-07-24',employee:'Deashinique',type:'evening',id:1034},
-    {date:'2026-07-25',employee:'Deashinique',type:'morning',id:1035},
-    {date:'2026-07-26',employee:'Deashinique',type:'evening',id:1036},
-    {date:'2026-07-28',employee:'Deashinique',type:'evening',id:1037},
-    {date:'2026-07-29',employee:'Deashinique',type:'evening',id:1038},
-    {date:'2026-07-30',employee:'Deashinique',type:'evening',id:1039},
-    {date:'2026-07-31',employee:'Deashinique',type:'morning',id:1040},
-    {date:'2026-08-01',employee:'Deashinique',type:'morning',id:1041},
-    {date:'2026-08-02',employee:'Deashinique',type:'morning',id:1042},
-    {date:'2026-08-04',employee:'Deashinique',type:'evening',id:1043},
-    {date:'2026-08-05',employee:'Deashinique',type:'morning',id:1044},
-    {date:'2026-08-06',employee:'Deashinique',type:'morning',id:1045},
-    {date:'2026-08-07',employee:'Deashinique',type:'morning',id:1046},
-    {date:'2026-08-08',employee:'Deashinique',type:'evening',id:1047}
-    ];
-  return preloaded;
-}
 function openDayOffModal() {
   var popup = document.getElementById('schedule-popup');
   if (popup) popup.style.display = 'none';
@@ -6661,56 +6646,48 @@ function openDayOffModal() {
   setTimeout(openDayOffCalendar, 150);
 }
 
+// The badge popup. Same buildWeekModel() as the full Schedule page — the compact
+// wording differs, the DATA cannot. If the card says Deashinique has Friday morning,
+// this says the same thing, because it is the same object.
 function renderSchedulePopup() {
   const content = document.getElementById('schedule-popup-content');
   if (!content) return;
 
-  // Get shifts — try localStorage first, fall back to hardcoded
-  let allShifts = JSON.parse(localStorage.getItem('sp_shifts') || '[]');
-  if (!allShifts.length) {
-    allShifts = getPreloadedShifts();
-    localStorage.setItem('sp_shifts', JSON.stringify(allShifts));
-  }
+  const model = buildWeekModel(_schedWeekOffset);
 
-  // Get this week Mon-Sun
-  const now = new Date();
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  monday.setHours(0,0,0,0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23,59,59,999);
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:6px;">'
+    + '<button onclick="event.stopPropagation();_popupWeek(-1)" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;width:24px;height:24px;font-size:13px;cursor:pointer;line-height:1;">‹</button>'
+    + '<span style="font-size:10px;color:#666;text-align:center;flex:1;">'
+    + (model.offset === 0 ? 'THIS WEEK · ' : '') + model.label + '</span>'
+    + '<button onclick="event.stopPropagation();_popupWeek(1)" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;width:24px;height:24px;font-size:13px;cursor:pointer;line-height:1;">›</button>'
+    + '</div>';
 
-  const weekShifts = allShifts.filter(s => {
-    const d = new Date(s.date + 'T00:00:00');
-    return d >= monday && d <= sunday;
-  });
+  html += model.days.map(function (day) {
+    var slots = day.slots.map(function (s) {
+      var isMe = s.employee === currentUser;
+      var nameStyle = s.isFallback ? 'color:#6a6a6a;' : (isMe ? 'color:#c8f135;font-weight:700;' : 'color:#fff;');
+      return '<div style="display:flex;justify-content:space-between;gap:8px;padding:2px 0 2px 8px;">'
+        + '<span style="font-size:10px;color:#777;white-space:nowrap;">' + s.icon + ' ' + s.label + '</span>'
+        + '<span style="font-size:11px;text-align:right;' + nameStyle + '">' + s.employee + '</span>'
+        + '</div>';
+    }).join('');
+    return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);">'
+      + '<div style="font-size:11px;' + (day.isToday ? 'color:#c8f135;font-weight:700;' : 'color:#999;') + '">'
+      + day.label + (day.isToday ? ' ◀' : '') + '</div>' + slots + '</div>';
+  }).join('');
 
-  const todayStr = now.toISOString().split('T')[0];
-  const weekLabel = monday.toLocaleDateString('en-US',{month:'short',day:'numeric'}) +
-    ' – ' + sunday.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  html += '<button onclick="openDayOffModal()" style="width:100%;margin-top:12px;background:rgba(200,241,53,0.12);border:1px solid rgba(200,241,53,0.4);color:#c8f135;padding:9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">📆 Request Day Off</button>';
 
-  if (!weekShifts.length) {
-    content.innerHTML = '<div style="color:#666;text-align:center;padding:16px;font-size:13px;">No shifts this week</div>';
-    return;
-  }
-
-  content.innerHTML = '<div style="font-size:10px;color:#555;margin-bottom:10px;text-align:center;">' + weekLabel + '</div>' +
-    weekShifts.map(s => {
-      const d = new Date(s.date + 'T00:00:00');
-      const day = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-      const shift = s.type === 'morning' ? '☀️ 8am–3pm' : '🌙 3pm–10pm';
-      const isToday = s.date === todayStr;
-      const isMe = s.employee === currentUser;
-      return '<div onclick="openDayOffModal()" style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer;">' +
-        '<span style="font-size:12px;' + (isToday ? 'color:#c8f135;font-weight:700;' : 'color:#aaa;') + '">' + day + (isToday ? ' ◀' : '') + '</span>' +
-        '<span style="font-size:12px;' + (isMe ? 'color:#fff;' : 'color:#555;') + '">' + s.employee + ' · ' + shift + '</span>' +
-      '</div>';
-    }).join('') +
-    '<button onclick="openDayOffModal()" style="width:100%;margin-top:12px;background:rgba(200,241,53,0.12);border:1px solid rgba(200,241,53,0.4);color:#c8f135;padding:9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">📆 Request Day Off</button>';
+  content.innerHTML = html;
 }
 
-  
+// Paging from inside the popup moves the SAME week pointer the page uses, so opening
+// the Schedule page afterwards lands on the week you were just looking at.
+function _popupWeek(delta) {
+  _schedWeekOffset += delta;
+  renderSchedulePopup();
+}
+
 function handleBadgeClick() {
   if (currentRole === 'employee' || currentRole === 'manager') { try{ ensureNotifyPermission(); }catch(e){} }
   if (currentRole === 'employee') {
@@ -6734,70 +6711,6 @@ function handleBadgeClick() {
   }
 }
 
-function buildSchedulePopup() {
-  var content = document.getElementById('schedule-popup-content');
-  if (!content) return;
-
-  // Load shifts - use hardcoded if localStorage empty
-  var shifts = [];
-  try { shifts = JSON.parse(localStorage.getItem('sp_shifts') || '[]'); } catch(e){}
-  if (!shifts.length) {
-    shifts = getPreloadedShifts();
-    try { localStorage.setItem('sp_shifts', JSON.stringify(shifts)); } catch(e){}
-  }
-
-  // Build Mon-Sun date list for this week
-  var now = new Date();
-  var todayStr = now.toISOString().split('T')[0];
-  var monday = new Date(now);
-  monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-  monday.setHours(0,0,0,0);
-
-  var isManager = currentUser === 'Manager';
-  var html = '';
-
-  for (var di = 0; di < 7; di++) {
-    var day = new Date(monday);
-    day.setDate(monday.getDate() + di);
-    var dateStr = day.toISOString().split('T')[0];
-    var dayLabel = day.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
-    var isToday = dateStr === todayStr;
-    var dayShifts = shifts.filter(function(s){ return s.date === dateStr; });
-
-    var mySlots = [];
-
-    if (isManager) {
-      // Manager covers any slot with no employee assigned
-      var hasMorning = dayShifts.some(function(s){ return s.type === 'morning'; });
-      var hasEvening = dayShifts.some(function(s){ return s.type === 'evening'; });
-      if (!hasMorning) mySlots.push('morning');
-      if (!hasEvening) mySlots.push('evening');
-    } else {
-      // Regular employee: only their own shifts
-      dayShifts.forEach(function(s){
-        if (s.employee === currentUser) mySlots.push(s.type);
-      });
-    }
-
-    if (mySlots.length === 0) {
-      // Off this day
-      html += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);">';
-      html += '<span style="font-size:13px;color:#444;">' + dayLabel + '</span>';
-      html += '<span style="font-size:12px;color:#444;">Off</span>';
-      html += '</div>';
-    } else {
-      mySlots.forEach(function(type) {
-        var shiftLabel = type === 'morning' ? '☀️ 8am–3pm' : '🌙 3pm–10pm';
-        html += '<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.07);">';
-        html += '<span style="font-size:13px;' + (isToday ? 'color:#c8f135;font-weight:700;' : 'color:#aaa;') + '">' + dayLabel + (isToday ? ' ◀' : '') + '</span>';
-        html += '<span style="font-size:13px;color:#fff;font-weight:600;">' + currentUser + ' · ' + shiftLabel + '</span>';
-        html += '</div>';
-      });
-    }
-  }
-
-  content.innerHTML = html || '<p style="color:#555;text-align:center;padding:10px;font-size:13px;">No schedule data</p>';
-}
 
   renderInventory();
 applyDeepLink();
@@ -7558,7 +7471,7 @@ if(typeof save==='function' && !save._wrapped){
 
 function _pollShop(){
   shopGet('/shop/rev').then(function(r){
-    if(r && r.rev!==_shopLastRev){ _shopLastRev=r.rev; syncNotes(false); syncAccounts(); syncSales(); syncLog(); syncInventory(); }
+    if(r && r.rev!==_shopLastRev){ _shopLastRev=r.rev; syncNotes(false); syncAccounts(); syncSales(); syncLog(); syncInventory(); syncShifts(); }
   }).catch(function(){});
 }
 
@@ -7570,6 +7483,7 @@ function _initShopSync(){
   syncLog();
   _rebuildInvSnap();
   syncInventory();
+  syncShifts();
   setInterval(_pollShop, 15000);
 }
 setTimeout(_initShopSync, 700);
@@ -7746,22 +7660,49 @@ setTimeout(_showLandingFpBtn, 200);
 
     <!-- Current week display -->
     <div style="background:rgba(200,241,53,0.06);border:1px solid var(--accent);border-radius:14px;padding:16px;margin-bottom:20px;">
-      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);margin-bottom:12px;">This Week's Schedule</div>
-      <div id="schedule-week-display" style="font-size:13px;color:var(--text-muted);">No schedule uploaded yet</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:4px;">
+        <button onclick="shiftWeek(-1)" title="Previous week" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:8px;width:30px;height:30px;font-size:15px;cursor:pointer;line-height:1;">‹</button>
+        <div id="schedule-week-label" style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);text-align:center;flex:1;">This Week's Schedule</div>
+        <button onclick="shiftWeek(1)" title="Next week" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:8px;width:30px;height:30px;font-size:15px;cursor:pointer;line-height:1;">›</button>
+      </div>
+      <div style="text-align:center;margin-bottom:10px;">
+        <button onclick="schedThisWeek()" id="schedule-today-btn" style="display:none;background:none;border:none;color:var(--text-muted);font-size:11px;text-decoration:underline;cursor:pointer;padding:2px;">back to this week</button>
+      </div>
+      <div id="schedule-week-display" style="font-size:13px;color:var(--text-muted);">Loading the schedule…</div>
+      <div style="font-size:10px;color:#666;margin-top:10px;line-height:1.5;">Every day has two slots. A name in grey marked <i>(covering)</i> means nobody is rostered for that slot, so the Manager has it.</div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-        <button onclick="downloadWeeklySchedule()" id="schedule-download-btn" style="display:none;background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">⬇ Download Weekly PDF</button>
+        <button onclick="downloadWeeklySchedule()" id="schedule-download-btn" style="display:none;background:var(--accent);color:#000;border:none;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">⬇ Print this week</button>
       </div>
     </div>
 
     <!-- Upload area (Manager only) -->
     <div id="schedule-upload-section">
-      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Upload Master Schedule (PDF)</div>
+      <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;">Upload Master Schedule</div>
       <div style="border:2px dashed var(--border);border-radius:12px;padding:28px;text-align:center;cursor:pointer;transition:all 0.2s;" id="schedule-drop-zone" onclick="document.getElementById('schedule-pdf-input').click()">
         <div style="font-size:32px;margin-bottom:8px;">📄</div>
-        <div style="font-size:14px;color:var(--text-muted);">Tap to upload PDF schedule</div>
-        <div style="font-size:11px;color:#444;margin-top:4px;">3-4 months of shifts · 8am-3pm & 3pm-10pm</div>
-        <input type="file" id="schedule-pdf-input" accept=".pdf" style="display:none;" onchange="handleScheduleUpload(event)"/>
+        <div style="font-size:14px;color:var(--text-muted);">Tap to upload a schedule</div>
+        <div style="font-size:11px;color:#444;margin-top:4px;">JSON, CSV or PDF · months at a time · 8am-3pm &amp; 3pm-10pm</div>
+        <input type="file" id="schedule-pdf-input" accept=".json,.csv,.pdf,.txt,.tsv" style="display:none;" onchange="handleScheduleUpload(event)"/>
       </div>
+      <!-- The format was undiscoverable from the screen before, so it is written here. -->
+      <details style="margin-top:10px;">
+        <summary style="font-size:11px;color:var(--accent);cursor:pointer;">What should the file look like?</summary>
+        <div style="font-size:11px;color:var(--text-muted);line-height:1.6;margin-top:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;">
+          <b>Six columns, one row per calendar day:</b><br/>
+          <code style="color:var(--accent);">Employee | Day | Date | Start | End | Shift</code><br/><br/>
+          <code>Deashinique&nbsp; Sunday&nbsp; Aug 09, 2026&nbsp; 3:00pm&nbsp; 10:00pm&nbsp; Night</code><br/>
+          <code>Deashinique&nbsp; Monday&nbsp; Aug 10, 2026&nbsp; -&nbsp; -&nbsp; OFF</code><br/><br/>
+          Dates as <b>Aug 09, 2026</b> or <b>2026-08-09</b>. Times as <b>8:00am</b> / <b>3:00pm</b> (24-hour is fine too).<br/>
+          A day off is written <b>OFF</b> with <b>-</b> for Start and End — the Manager then covers both slots that day.<br/><br/>
+          Whether a row is the morning or the evening slot is decided by its <b>start time</b>, not by the word in the Shift column.<br/><br/>
+          <b>JSON</b> instead:
+          <code style="display:block;white-space:pre-wrap;margin-top:4px;color:#8a8a8a;">{"staff":"Deashinique","period_start":"2026-08-09",
+ "period_end":"2026-10-10","shifts":[
+  {"date":"2026-08-09","staff":"Deashinique",
+   "start":"15:00","end":"22:00","shift":"Night"}]}</code>
+          <br/>Importing only replaces those people's shifts <b>between the first and last date in the file</b> — nothing outside that stretch, and nobody else's rows, are touched.
+        </div>
+      </details>
       <div id="schedule-upload-status" style="margin-top:10px;font-size:12px;color:var(--text-muted);"></div>
     </div>
 
