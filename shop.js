@@ -90,6 +90,11 @@ const state = {
   // this list. Shape: [{id, date:"YYYY-MM-DD", employee, type:"morning"|"evening"}].
   // A day with NO record for a slot is not missing data — it means the Manager covers it.
   shifts: loadFile('shifts.json', null),   // null = never migrated (see migrateLegacyShifts below)
+  // 📋 Every schedule-upload ATTEMPT, good or bad (Rodney 2026-08-09). He uploaded a
+  // schedule "over and over and nothing happens" — and there was no way to tell whether
+  // his phone had even reached the server. Now there always is: read it at
+  // GET /shop/shifts/uploads. Keeps the last 30.
+  uploadLog: loadFile('uploadLog.json', []),
 };
 
 // ── one-time migration off the old root shifts.legacy.json ───────────────────
@@ -963,6 +968,13 @@ function mount(app) {
     res.json({ shifts: getShifts() });
   });
 
+  // Did my upload actually reach the server, and what did it say? A row here means it
+  // arrived (read `error`); no row means it never left the phone.
+  app.get('/shop/shifts/uploads', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({ attempts: state.uploadLog || [] });
+  });
+
   // Add / overwrite ONE shift slot (the manual "+ Add Shift" form on the website).
   app.post('/shop/shift', (req, res) => {
     if (!auth(req, res)) return;
@@ -1046,12 +1058,38 @@ function mount(app) {
     const b = req.body || {};
     const name = String(b.filename || '').trim();
     const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
-    if (!b.data) return res.status(400).json({ error: 'no file came through — try picking it again' });
+
+    // Log the attempt whatever happens, so "I uploaded it and nothing happened" is always
+    // answerable: either there is a row here (it arrived — read the reason) or there is
+    // not (it never left the phone).
+    const attempt = {
+      at: new Date().toISOString(),
+      filename: name || '(no name)',
+      ext: ext || '(none)',
+      bytes: 0,
+      by: String(b.by || '').slice(0, 40),
+      ua: String(req.headers['user-agent'] || '').slice(0, 90),
+      result: 'started',
+    };
+    function finish(status, payload) {
+      attempt.result = status === 200 ? 'imported' : 'rejected';
+      attempt.http = status;
+      if (status === 200) { attempt.imported = payload.imported; attempt.staff = payload.staff; attempt.from = payload.from; attempt.to = payload.to; }
+      else { attempt.error = payload.error; attempt.detail = String(payload.detail || '').slice(0, 200); }
+      state.uploadLog.unshift(attempt);
+      if (state.uploadLog.length > 30) state.uploadLog.length = 30;
+      persist('uploadLog.json');
+      console.log('[shop] schedule upload', attempt.filename, '→', attempt.result, attempt.error || ('+' + attempt.imported));
+      return res.status(status).json(payload);
+    }
+
+    if (!b.data) return finish(400, { error: 'no file came through — try picking it again' });
 
     let buf;
     try { buf = Buffer.from(String(b.data), 'base64'); }
-    catch (_) { return res.status(400).json({ error: 'the file could not be read off the phone' }); }
-    if (!buf.length) return res.status(400).json({ error: 'that file is empty (0 bytes)' });
+    catch (_) { return finish(400, { error: 'the file could not be read off the phone' }); }
+    attempt.bytes = buf.length;
+    if (!buf.length) return finish(400, { error: 'that file is empty (0 bytes)' });
 
     let parsed;
     try {
@@ -1066,13 +1104,13 @@ function mount(app) {
           text = (r && r.text) || '';
           try { await p.destroy(); } catch (_) {}
         } catch (e) {
-          return res.status(422).json({
+          return finish(422, {
             error: 'could not open that PDF',
             detail: e.message + ' — save the schedule as JSON or CSV instead and upload that.',
           });
         }
         if (!text.trim()) {
-          return res.status(422).json({
+          return finish(422, {
             error: 'that PDF has no readable text in it',
             detail: 'It is probably a scan or a picture of a schedule. Upload the JSON or CSV version instead.',
           });
@@ -1081,17 +1119,17 @@ function mount(app) {
       } else if (ext === 'csv' || ext === 'txt' || ext === 'tsv') {
         parsed = parseScheduleLines(buf.toString('utf8'), b.staff);
       } else {
-        return res.status(415).json({
+        return finish(415, {
           error: 'that file type is not supported' + (ext ? ' (.' + ext + ')' : ''),
           detail: 'Upload a .json, .csv or .pdf schedule.',
         });
       }
     } catch (e) {
-      return res.status(422).json({ error: 'could not read that schedule file', detail: e.message });
+      return finish(422, { error: 'could not read that schedule file', detail: e.message });
     }
 
     if (!parsed.rows.length) {
-      return res.status(422).json({
+      return finish(422, {
         error: 'no work shifts found in that file',
         detail: (parsed.errors && parsed.errors.length)
           ? parsed.errors.slice(0, 3).join('; ')
@@ -1100,9 +1138,9 @@ function mount(app) {
     }
 
     const out = applyImport(parsed.rows, parsed.errors, parsed.from, parsed.to);
-    if (out.error) return res.status(422).json(out);
+    if (out.error) return finish(422, out);
     out.filename = name;
-    res.json(out);
+    return finish(200, out);
   });
 
   // Cheap change check for polling

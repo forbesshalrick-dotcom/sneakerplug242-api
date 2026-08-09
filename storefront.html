@@ -6202,7 +6202,7 @@ function handleScheduleUpload(event) {
 
     _schedSetStatus('⏳ Importing <b>' + file.name + '</b>…', 'var(--accent)');
 
-    shopPost('/shop/shifts/upload', { filename: file.name, data: b64 })
+    shopPost('/shop/shifts/upload', { filename: file.name, data: b64, by: currentUser || '' })
       .then(function (r) {
         return syncShifts().then(function () { return r; });
       })
