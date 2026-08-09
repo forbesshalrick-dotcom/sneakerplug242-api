@@ -253,6 +253,16 @@ function parseShiftLine(line, fallbackStaff) {
   if (startHour == null) {
     // "-" placeholders with no OFF word still mean a day nobody was rostered
     if (restTokens.length && /^[-—]+$/.test(restTokens[0])) return { skip: true, off: true, date, employee };
+    // A TITLE line, not a broken row. Real rows carry a weekday ("Deashinique Sunday
+    // Aug 09, 2026 …"); a header like "Deashinique | August 9 - October 10, 2026 |
+    // Morning 8:00am-3:00pm" has a date in it but no weekday, and complaining about it
+    // makes a perfectly good file look half-broken (2026-08-09: Rodney's own PDF reported
+    // "skipped 1 row" purely because of its subtitle). Only call it an error when the line
+    // really does look like it was meant to be a shift.
+    if (!DAYNAMES.test(String(before).split(/[\s|,\t]+/).filter(Boolean).pop() || '')
+        && !/\b(sun|mon|tues?|wed(nes)?|thur?s?|fri|sat(ur)?)day\b/i.test(raw)) {
+      return { skip: true, title: true };
+    }
     return { error: date + ': could not read the start time "' + (restTokens[0] || '(blank)') + '"' };
   }
   if (!employee) return { error: date + ': no employee name on the row' };
