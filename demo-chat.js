@@ -139,8 +139,8 @@ RITUALS:         half-day retreat B$420 (4h) · couples ritual B$560 (2h30) ·
 ADD-ONS: scalp treatment B$40 · foot ritual B$45 · aromatherapy upgrade B$25 ·
   extra 30 minutes B$60
 THERAPISTS: Keva, Renée, Tanya, or whoever is free.
-OPEN SLOTS this week: Tuesday, Wednesday, Thursday, Saturday at 9:00am, 11:30am,
-  2:00pm or 4:30pm.
+APPOINTMENT TIMES are 9:00am, 11:30am, 2:00pm and 4:30pm. Which of those are actually
+  free is in the diary at the end of this brief — never guess from this list.
 HOURS: Tuesday to Saturday nine till six, late Thursdays till eight. Closed Sunday, Monday.
 DEPOSIT: 25% holds the room and comes off the final bill. Card, cash or transfer on the day.
 CANCELLING: free up to 24 hours before; inside that the deposit moves to another day.
@@ -203,6 +203,137 @@ OTHER GARMENTS: hoodies, polos, caps and totes print the same way.`,
   }
 };
 
+/* ── the clock and the diary ────────────────────────────────────────────────
+   A bot with no clock cannot answer "are you available now?" — it can only
+   change the subject, and changing the subject is what makes a bot sound like
+   a bot. So every request carries the real Nassau date and time, whether the
+   place is open at this minute, and a diary of what is genuinely free.
+
+   The diary is invented, but it is invented the SAME WAY every time for a
+   given day, so the bot never contradicts itself inside a conversation and
+   two people looking at the demo on the same afternoon see the same thing. */
+
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/* index 0 = Sunday. [openHour, closeHour]; a close past 24 means after midnight. */
+const CLOCK = {
+  'car-rental': { hours: [[7,21],[7,21],[7,21],[7,21],[7,21],[7,21],[7,21]] },
+  bfc:          { hours: [[10,26],[10,26],[10,26],[10,26],[10,26],[10,26],[10,26]] },
+  restaurant:   { hours: [null,null,[10,22],[10,22],[10,22],[10,22],[10,22]] },
+  salon:        { hours: [null,null,[9,18],[9,18],[9,20],[9,18],[9,18]],
+                  slots: ['9:00 am', '11:30 am', '2:00 pm', '4:30 pm'] },
+  estate:       { hours: [[8,21],[8,21],[8,21],[8,21],[8,21],[8,21],[8,21]] },
+  'print-shop': { hours: [null,[9,17],[9,17],[9,17],[9,17],[9,17],[9,13]] }
+};
+
+function nassau() {
+  const p = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Nassau', weekday: 'long', year: 'numeric', month: 'long',
+    day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+  }).formatToParts(new Date()).reduce((o, x) => (o[x.type] = x.value, o), {});
+  const h24 = new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: '2-digit', hour12: false });
+  return {
+    dow: DAYS.indexOf(p.weekday),
+    weekday: p.weekday,
+    date: `${p.weekday} ${p.day} ${p.month} ${p.year}`,
+    time: `${p.hour}:${p.minute} ${p.dayPeriod.toLowerCase()}`,
+    hour: parseInt(h24, 10) || 0
+  };
+}
+
+/* stable pseudo-random, so the same day always yields the same diary */
+function seeded(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 1000) / 1000;
+}
+
+function hhmm(h) {
+  const x = h % 24;
+  const ap = x < 12 ? 'am' : 'pm';
+  const t = x % 12 === 0 ? 12 : x % 12;
+  return `${t}${ap}`;
+}
+
+function liveBlock(key, shop) {
+  const c = CLOCK[key];
+  const n = nassau();
+  const today = c.hours[n.dow];
+  const open = !!today && n.hour >= today[0] && n.hour < today[1];
+
+  const out = [
+    `RIGHT NOW it is ${n.time} on ${n.date} in Nassau.`,
+    open
+      ? `You ARE open right now — today ${hhmm(today[0])} to ${hhmm(today[1])}.`
+      : today
+        ? `You are CLOSED at this minute. Today's hours are ${hhmm(today[0])} to ${hhmm(today[1])}.`
+        : `You are CLOSED today — ${n.weekday} is not a working day.`
+  ];
+
+  /* the next day the doors are actually open */
+  if (!open) {
+    for (let i = 1; i <= 7; i++) {
+      const d = (n.dow + i) % 7;
+      if (c.hours[d]) { out.push(`Next open: ${DAYS[d]} from ${hhmm(c.hours[d][0])}.`); break; }
+    }
+  }
+
+  /* what is genuinely free — this is the difference between "let me check"
+     and an answer */
+  if (key === 'salon') {
+    const lines = [];
+    for (let i = 0; i < 7 && lines.length < 5; i++) {
+      const d = (n.dow + i) % 7;
+      if (!c.hours[d]) continue;
+      const free = c.slots.filter(s => {
+        if (i === 0 && parseInt(s, 10) + (/pm/.test(s) && parseInt(s, 10) !== 12 ? 12 : 0) <= n.hour) return false;
+        return seeded(key + n.date + DAYS[d] + s + i) > 0.42;
+      });
+      lines.push(`  ${i === 0 ? 'Today' : DAYS[d]}: ${free.length ? free.join(', ') : 'fully booked'}`);
+    }
+    out.push('DIARY — these are the rooms actually free. Quote them directly, do not say you will check:');
+    out.push(...lines);
+    const t = lines[0] || '';
+    if (/Today/.test(t) && /fully booked/.test(t)) out.push('Nothing left today. Say so plainly and offer the next real slot.');
+  }
+
+  if (key === 'car-rental') {
+    const fleet = ['Nissan March', 'Honda Fit', 'Toyota Corolla', 'Jeep Wrangler', 'Crew pickup'];
+    const onLot = fleet.filter(v => seeded(key + n.date + v) > 0.25);
+    out.push(`ON THE LOT TODAY: ${onLot.length ? onLot.join(', ') : 'nothing until tomorrow'}.`);
+    const out_ = fleet.filter(v => onLot.indexOf(v) < 0);
+    if (out_.length) out.push(`OUT UNTIL TOMORROW: ${out_.join(', ')} — offer the nearest thing on the lot instead.`);
+  }
+
+  if (key === 'restaurant') {
+    const nights = [];
+    for (let i = 0; i < 7 && nights.length < 4; i++) {
+      const d = (n.dow + i) % 7;
+      if (!c.hours[d]) continue;
+      const seats = Math.round(seeded(key + n.date + DAYS[d]) * 26);
+      nights.push(`  ${i === 0 ? 'Tonight' : DAYS[d]}: ${seats < 3 ? 'full' : seats + ' of 26 seats left'}`);
+    }
+    out.push('THE BOOK — seats left at the seven o\'clock seating:');
+    out.push(...nights);
+  }
+
+  if (key === 'bfc') {
+    const wait = 15 + Math.round(seeded(key + n.date + n.hour) * 30);
+    out.push(open
+      ? `KITCHEN RIGHT NOW: about ${wait} minutes on delivery, ${Math.round(wait / 3)} on collection.`
+      : 'Kitchen is shut — take the order for when you open if they want.');
+  }
+
+  if (key === 'print-shop') {
+    const busy = seeded(key + n.date) > 0.5;
+    out.push(busy
+      ? 'THE PRESS: busy week. Standard is running six days, and rush slots for 48 hours are nearly gone — only two left.'
+      : 'THE PRESS: running clear. Standard is five days as normal and rush slots are open.');
+  }
+
+  return out.join('\n');
+}
+
 /* ── how it is told to behave ─────────────────────────────────────────────── */
 
 function systemPrompt(shop) {
@@ -218,13 +349,28 @@ not a letter. Contractions. No corporate padding, no "I'd be happy to assist you
 An emoji occasionally, never in every message.
 
 THE RULES THAT MATTER
-Answer the question that was actually asked, in your own words. If someone asks the
-deposit, tell them the deposit — do not recite the whole insurance policy at them.
+Answer the question that was actually asked, first, in your own words. If someone asks
+the deposit, tell them the deposit — do not recite the whole insurance policy at them.
+
+You are given the real date, the real time, and what is genuinely free today. USE IT.
+"Are you available now?" is a question with an answer: either yes and here is the slot,
+or no and here is why and here is the next one. Never answer a question about now by
+asking what day they were thinking. Never say you will "have to check" something that
+is written in the diary below — the diary IS the check, so give the answer.
+
+Never ask someone to repeat or explain a question that was already clear. If you find
+yourself typing "or did you mean" or "are you asking about today specifically", stop:
+they told you, answer it. If a question genuinely has two readings, pick the more
+likely one, answer that, and let them correct you.
+
 Read the conversation before you reply. If you have already said something, do not say
 it again; say "like I mentioned, it's B$200" or just move on. Repeating yourself word
 for word is the single fastest way to look like a broken robot.
-You can answer a question and ask your next one in the same message. That is what a
-person does.
+
+One question per message, at the end. You can answer them and ask your next thing in
+the same breath — that is what a person does — but do not stack up questions, and do
+not go back to the booking questions while they are asking about something else.
+
 Never invent a price, a car, a dish, a treatment or a rule that is not written above.
 If you genuinely do not know, say you will check with the team.
 If someone is upset, frustrated or asks for a human, offer to put a person on it.
@@ -338,7 +484,13 @@ function mount(app) {
         body: JSON.stringify({
           model: MODEL,
           max_tokens: 700,
-          system: [{ type: 'text', text: systemPrompt(shop), cache_control: { type: 'ephemeral' } }],
+          /* The clock and the diary sit AFTER the cache breakpoint on purpose —
+             they change every minute, and anything above a breakpoint that moves
+             throws the cached prefix away and bills the lot again. */
+          system: [
+            { type: 'text', text: systemPrompt(shop), cache_control: { type: 'ephemeral' } },
+            { type: 'text', text: liveBlock(String(body.demo), shop) }
+          ],
           thinking: { type: 'disabled' },      // a chat reply, not a research task
           output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
           messages
@@ -389,4 +541,4 @@ function mount(app) {
   });
 }
 
-module.exports = { mount, SHOPS };
+module.exports = { mount, SHOPS, liveBlock, nassau };
