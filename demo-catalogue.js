@@ -83,6 +83,25 @@ const CATALOGUE = {
     { id: 6, name: 'Garden house, Harbour Island',      price: 4800000,  cat: 'villa',    img: 'img/p6.webp', tags: 'garden tropical planting harbour island smaller entry' }
   ],
 
+  /* Freight and rides have no shelf to photograph — one sells a tracking status
+     and the other sells a fare. The catalogue is the service list; the real work
+     happens in the tools (track_package, quote_fare). */
+
+  freight: [
+    { id: 1, name: 'Air freight',        price: 3.50, cat: 'shipping', tags: 'air fast plane quick urgent per pound lb rate' },
+    { id: 2, name: 'Ocean freight',      price: 1.75, cat: 'shipping', tags: 'ocean sea boat slow cheap cheapest bulk heavy per pound lb rate' },
+    { id: 3, name: 'Customs clearing',   price: 15.00, cat: 'service', tags: 'customs clear duty broker paperwork entry processing' },
+    { id: 4, name: 'Delivery in Nassau', price: 12.00, cat: 'service', tags: 'delivery drop off bring home door' },
+    { id: 5, name: 'Storage after 14 days', price: 1.00, cat: 'service', tags: 'storage hold keep late overdue per day' }
+  ],
+
+  rideshare: [
+    { id: 1, name: 'Ryde',        price: 0,   cat: 'ride', tags: 'standard normal regular car 4 seats cheapest basic' },
+    { id: 2, name: 'Ryde XL',     price: 0,   cat: 'ride', tags: 'xl big large van 6 seats group luggage family' },
+    { id: 3, name: 'Airport Run', price: 0,   cat: 'ride', tags: 'airport lpia flight arrival departure fixed meet' },
+    { id: 4, name: 'Island Hop',  price: 65,  cat: 'charter', tags: 'charter hourly tour sightseeing wait hire by the hour driver for the day' }
+  ],
+
   /* The print shop sells a service, not a shelf of things — the shirt itself is
      built on the page in the designer. The catalogue is the price ladder, which
      is what people actually ask about. */
@@ -136,4 +155,110 @@ function byIds(demo, ids) {
   return (ids || []).map(id => list.find(i => i.id === id)).filter(Boolean);
 }
 
-module.exports = { CATALOGUE, search, byIds };
+/* ── freight: where is my package ────────────────────────────────────────────
+   "Is my package here yet?" is the entire job of a forwarder's phone. So the
+   bot gets a real answer instead of a paragraph about shipping in general.
+
+   The status is invented, but it is derived from the reference itself, so the
+   same number always comes back with the same story — ask twice and the bot
+   does not contradict itself, which is the thing that makes a demo look fake. */
+
+const STAGES = [
+  { at: 'Received at our Miami warehouse',   next: 'It leaves on the next flight out.' },
+  { at: 'Loaded — left Miami',               next: 'It lands in Nassau tomorrow morning.' },
+  { at: 'Landed in Nassau',                  next: 'It goes to customs first thing.' },
+  { at: 'With customs',                      next: 'Usually clears the same day.' },
+  { at: 'Cleared — ready for collection',    next: 'Come any time before six, or we can run it to you.' }
+];
+
+function hash(s) {
+  let h = 2166136261;
+  for (let i = 0; i < String(s).length; i++) { h ^= String(s).charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0);
+}
+
+function track(ref) {
+  const clean = String(ref || '').trim();
+  if (clean.length < 3) return { found: false, why: 'That does not look like a tracking number or a box number.' };
+  const h = hash(clean.toUpperCase());
+  const stage = h % STAGES.length;
+  const lbs = (2 + (h >>> 3) % 40) + (((h >>> 7) % 2) ? 0.5 : 0);
+  const air = ((h >>> 5) % 3) !== 0;
+  const rate = air ? 3.50 : 1.75;
+  const freight = Math.max(air ? 12 : 25, +(lbs * rate).toFixed(2));
+  return {
+    found: true,
+    ref: clean.toUpperCase(),
+    stage: STAGES[stage].at,
+    next: STAGES[stage].next,
+    ready: stage === STAGES.length - 1,
+    weight: lbs + ' lb',
+    service: air ? 'Air' : 'Ocean',
+    freight: 'B$' + freight.toFixed(2),
+    clearing: 'B$15.00',
+    dutyNote: 'Duty and VAT are charged by customs on the value of the goods — bring the invoice and we settle it together.'
+  };
+}
+
+/* ── rides: what does it cost from here to there ─────────────────────────────
+   A rough west-to-east position for each part of the island, so a fare comes
+   out of arithmetic rather than out of thin air. It will not match a real
+   meter, but it is CONSISTENT: the same trip always costs the same, and a
+   longer trip always costs more than a shorter one. */
+
+const ZONES = {
+  'lyford cay': 0, 'old fort bay': 2, 'love beach': 4, 'gladstone': 6,
+  'airport': 5, 'lpia': 5, 'carmichael': 12, 'south beach': 20, 'blue hill': 14,
+  'cable beach': 8, 'sandyport': 7, 'delaporte': 8, 'downtown': 16, 'bay street': 16,
+  'paradise island': 18, 'atlantis': 18, 'cabbage beach': 19,
+  'palmdale': 15, 'centreville': 16, 'shirley street': 17,
+  'sea breeze': 21, 'nassau east': 24, 'yamacraw': 25, 'fox hill': 22,
+  'east end': 26, 'montagu': 19, 'harbour bay': 20
+};
+
+function zoneOf(text) {
+  const t = norm(text);
+  if (!t) return null;
+  let best = null;
+  Object.keys(ZONES).forEach(z => {
+    if (t.indexOf(z) > -1 && (!best || z.length > best.length)) best = z;
+  });
+  if (best) return { name: best, x: ZONES[best] };
+  /* a single word that nearly matches — "cablebeach", "paradise" */
+  const words = t.split(' ');
+  for (const z of Object.keys(ZONES)) {
+    const zw = z.split(' ')[0];
+    if (words.some(w => close(w, zw))) return { name: z, x: ZONES[z] };
+  }
+  return null;
+}
+
+function fare(fromText, toText, type) {
+  const a = zoneOf(fromText), b = zoneOf(toText);
+  if (!a || !b) {
+    return { ok: false, why: 'I could not place ' + (!a ? 'the pick-up' : 'the drop-off') + '. Ask them for the area — Cable Beach, downtown, the airport, Sea Breeze and so on.',
+             known: Object.keys(ZONES).slice(0, 12) };
+  }
+  const miles = Math.max(1, Math.abs(a.x - b.x));
+  const isAirport = a.name === 'airport' || a.name === 'lpia' || b.name === 'airport' || b.name === 'lpia';
+
+  let base = 6 + miles * 1.6;
+  if (isAirport) base += 6;                       // fixed airport pickup charge
+  let out = Math.max(8, Math.round(base * 2) / 2);
+
+  const kind = String(type || '').toLowerCase();
+  if (kind.indexOf('xl') > -1) out = Math.round(out * 1.4 * 2) / 2;
+
+  const wait = 3 + (hash(a.name + b.name) % 9);   // minutes until a car reaches them
+  return {
+    ok: true,
+    from: a.name, to: b.name,
+    ride: kind.indexOf('xl') > -1 ? 'Ryde XL' : (isAirport ? 'Airport Run' : 'Ryde'),
+    fare: 'B$' + out.toFixed(2),
+    minutes: Math.max(6, Math.round(8 + miles * 1.35)) + ' min drive',
+    pickup: wait + ' min away',
+    note: isAirport ? 'Airport pickups include the meet-and-greet at arrivals.' : ''
+  };
+}
+
+module.exports = { CATALOGUE, search, byIds, track, fare, ZONES };

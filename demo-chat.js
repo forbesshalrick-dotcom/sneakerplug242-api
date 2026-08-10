@@ -25,7 +25,7 @@
 'use strict';
 
 const { HOUSE_RULES } = require('./bot-core');
-const { search, byIds } = require('./demo-catalogue');
+const { search, byIds, track, fare } = require('./demo-catalogue');
 
 const API = 'https://api.anthropic.com/v1/messages';
 
@@ -188,6 +188,61 @@ TONE: this is a discreet brokerage. Never pushy, never salesy. Short, precise se
     quoteTitle: 'Your brief'
   },
 
+  freight: {
+    name: 'Cay Cargo',
+    who: 'a freight forwarder in Nassau — you give Bahamians a US shipping address in Miami, receive their packages there, and bring them home',
+    facts: `
+HOW IT WORKS: the customer signs up free and gets their own US address in Miami with a
+  box number. They shop any US site, ship to that address, and we bring it in, clear it
+  and hand it to them in Nassau.
+THEIR US ADDRESS looks like:  <Their Name> — Box CC-<number>
+                              3901 NW 25th Street, Miami, FL 33142
+  The box number is the important part. Without it a package lands with no owner on it.
+RATES: air freight B$3.50 a pound, B$12 minimum. Ocean freight B$1.75 a pound, B$25
+  minimum. Ocean is for heavy, slow and cheap — furniture, tyres, cases of stock.
+SCHEDULE: air comes in Tuesday and Friday. Ocean lands Wednesday. Air is 2–3 days from
+  when it leaves Miami, ocean is 7–10.
+CUSTOMS: we clear it for you. Clearing is B$15 a shipment. The duty and VAT are set by
+  Bahamas Customs on the value of the goods, NOT by us — bring the invoice and we settle
+  it together. Never quote a duty figure as though it were our charge.
+STORAGE: free for 14 days after it lands, then B$1 a day.
+COLLECTION: our counter on Bay Street, or we deliver anywhere in Nassau for B$12.
+WON'T FLY: aerosols, loose lithium batteries, perishables on the ocean run, anything
+  hazardous. Say so plainly and offer the ocean run where it applies.
+TRACKING: they can give a US tracking number OR their box number — either works.
+WHAT PEOPLE ACTUALLY ASK: "is my package here yet?" That is most of the job. Track it
+  and tell them where it is — do not explain how shipping works in general.`,
+    voice: 'Straight, quick, reassuring. These people are waiting on something they already paid for, so lead with where it is. No jargon — say "landed" and "cleared", never "consignment" or "manifested". Warm but brisk.',
+    needs: 'a tracking number or a box number if they are chasing a package; or the weight and air-or-ocean if they are pricing a shipment',
+    quoteTitle: 'Shipment'
+  },
+
+  rideshare: {
+    name: 'Ryde 242',
+    who: 'an island ride-share service on New Providence — customers book a car from their phone',
+    facts: `
+RIDE TYPES:
+  Ryde         standard car, up to 4 people
+  Ryde XL      van, up to 6 people with luggage — about 40% more than a standard Ryde
+  Airport Run  pick-up or drop at LPIA, includes meeting them at arrivals
+  Island Hop   charter by the hour, B$65 an hour, two hour minimum — tours, a day of errands
+FARES are worked out per trip from where they are and where they are going. ALWAYS use
+  the quote tool — never guess a number. Fares are all in: no surge, no charge for bags.
+WAITING: first 5 minutes free, then B$0.50 a minute.
+PAYMENT: cash to the driver, or card in the app.
+DRIVERS: every driver is police-checked and licensed. Cars inspected twice a year.
+AIRPORT: pick-ups include meet-and-greet at arrivals. Take the flight number and the
+  driver tracks the landing, so a late flight is not a missed car.
+SCHEDULING: book now or set one for later — a 5am airport run is the most common.
+COVERAGE: New Providence and Paradise Island. Not the Family Islands.
+LOST PROPERTY: anything left in a car is logged and brought to the office the same day.
+IF SOMEBODY IS UNSAFE, SHAKEN OR ANGRY about a ride, do not run a script at them — put
+  a person on it immediately.`,
+    voice: 'Quick and easy, like a good dispatcher. Short lines. Give the number and the wait and get out of the way. A little island warmth, no chat.',
+    needs: 'where they are, where they are going, and which ride type — then confirm the fare and send the car',
+    quoteTitle: 'Your ride'
+  },
+
   'print-shop': {
     name: 'Press 242',
     who: 'a t-shirt printing shop on Mackey Street, Nassau, Bahamas',
@@ -232,7 +287,9 @@ const CLOCK = {
   salon:        { hours: [null,null,[9,18],[9,18],[9,20],[9,18],[9,18]],
                   slots: ['9:00 am', '11:30 am', '2:00 pm', '4:30 pm'] },
   estate:       { hours: [[8,21],[8,21],[8,21],[8,21],[8,21],[8,21],[8,21]] },
-  'print-shop': { hours: [null,[9,17],[9,17],[9,17],[9,17],[9,17],[9,13]] }
+  'print-shop': { hours: [null,[9,17],[9,17],[9,17],[9,17],[9,17],[9,13]] },
+  freight:      { hours: [null,[8,17],[8,17],[8,17],[8,17],[8,17],[9,13]] },
+  rideshare:    { hours: [[0,24],[0,24],[0,24],[0,24],[0,24],[0,24],[0,24]] }
 };
 
 function nassau() {
@@ -457,7 +514,43 @@ const TOOLS = [
   }
 ];
 
+/* Two businesses need a tool the others do not. A forwarder's whole phone is
+   "where is my package", and a ride service is worthless if it cannot say what
+   the trip costs — neither is answerable from a price list. */
+
+const EXTRA_TOOLS = {
+  freight: [{
+    name: 'track_package',
+    description: 'Look up where a customer\'s package actually is. Take either a US tracking number or their Cay Cargo box number — either works. Use this the moment somebody asks about a package, before you say anything about how shipping works. Never tell somebody you will "check and get back to them" — this IS the check.',
+    input_schema: {
+      type: 'object',
+      properties: { ref: { type: 'string', description: 'The tracking number or box number exactly as they gave it.' } },
+      required: ['ref']
+    }
+  }],
+  rideshare: [{
+    name: 'quote_fare',
+    description: 'Work out the real fare, drive time and how far away the nearest car is. ALWAYS use this for any question about cost — never estimate a fare yourself. If you cannot tell where they mean, it tells you, and then you ask them for the area.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Where they are — an area name like "Cable Beach", "the airport", "Sea Breeze".' },
+        to: { type: 'string', description: 'Where they are going.' },
+        type: { type: 'string', description: 'Ride type if they said one — "Ryde", "XL", "Airport Run". Leave out for a standard car.' }
+      },
+      required: ['from', 'to']
+    }
+  }]
+};
+
+function toolsFor(demo) {
+  return TOOLS.concat(EXTRA_TOOLS[demo] || []);
+}
+
 function runTool(demo, name, input) {
+  if (name === 'track_package') return track((input || {}).ref);
+  if (name === 'quote_fare')    return fare((input || {}).from, (input || {}).to, (input || {}).type);
+
   if (name === 'search_catalogue') {
     const found = search(demo, input || {});
     if (!found.length) return { found: 0, note: 'Nothing matched. Search a wider word before saying you do not have it.' };
@@ -571,7 +664,7 @@ function mount(app) {
               { type: 'text', text: liveBlock(demo, shop) }
             ],
             thinking: { type: 'disabled' },      // a chat reply, not a research task
-            ...(lastRound ? {} : { tools: TOOLS }),
+            ...(lastRound ? {} : { tools: toolsFor(demo) }),
             output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
             messages
           })
