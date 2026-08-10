@@ -545,9 +545,14 @@ function mount(app) {
          really in it, and it decides what to say. Three rounds is plenty —
          search, send the pictures, answer — and it stops the loop running away
          on somebody else's money. */
-      let album = null, usedIn = 0, usedOut = 0, data = null;
+      let album = null, usedIn = 0, usedOut = 0, data = null, stillWorking = false;
 
-      for (let round = 0; round < 3; round++) {
+      /* Six rounds, because a real conversation often searches twice before it
+         shows anything — and the LAST round drops the tools entirely so there
+         is always a turn left to actually answer in. Running out of rounds
+         mid-search used to come back as an empty reply. */
+      for (let round = 0; round < 6; round++) {
+        const lastRound = round === 5;
         const r = await fetch(API, {
           method: 'POST',
           headers: {
@@ -566,7 +571,7 @@ function mount(app) {
               { type: 'text', text: liveBlock(demo, shop) }
             ],
             thinking: { type: 'disabled' },      // a chat reply, not a research task
-            tools: TOOLS,
+            ...(lastRound ? {} : { tools: TOOLS }),
             output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
             messages
           })
@@ -586,7 +591,8 @@ function mount(app) {
         usedOut += (data.usage && data.usage.output_tokens) || 0;
 
         const calls = (data.content || []).filter(b => b.type === 'tool_use');
-        if (!calls.length) break;                    // it is done looking; the answer is in hand
+        if (!calls.length) { stillWorking = false; break; }   // it is done looking
+        stillWorking = true;
 
         messages.push({ role: 'assistant', content: data.content });
         messages.push({
@@ -604,7 +610,17 @@ function mount(app) {
       const text = ((data && data.content) || []).filter(b => b.type === 'text').map(b => b.text).join('');
       let out;
       try { out = JSON.parse(text); }
-      catch (_) { return res.status(502).json({ ok: false, reason: 'bad-json' }); }
+      catch (_) {
+        /* It sent the pictures but never got its sentence out. Rather than
+           show the customer an error, say the one line the pictures need and
+           let them pick — silence here would be the worst of both. */
+        if (album && album.length) {
+          out = { reply: 'Here you go 👇 tell me which one and I\'ll sort it.', suggest: album.slice(0, 3).map(a => a.label), quote: { ready: false } };
+        } else {
+          console.error('[demo-chat] no json', stillWorking ? '(ran out of tool rounds)' : '', String(text).slice(0, 200));
+          return res.status(502).json({ ok: false, reason: 'bad-json' });
+        }
+      }
 
       res.json({
         ok: true,
