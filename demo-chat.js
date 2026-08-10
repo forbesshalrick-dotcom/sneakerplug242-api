@@ -25,6 +25,7 @@
 'use strict';
 
 const { HOUSE_RULES } = require('./bot-core');
+const { search, byIds } = require('./demo-catalogue');
 
 const API = 'https://api.anthropic.com/v1/messages';
 
@@ -369,6 +370,21 @@ do not fire the whole list at them at once, and do not restart from the top when
 ask a question mid-way. Once you genuinely have everything, and only then, fill in the
 quote and read it back.
 
+YOUR TWO TOOLS — THIS IS HOW YOU ACTUALLY SELL
+You do not recite the list from memory. You have the real one.
+  search_catalogue — every time somebody asks what you have, what something costs,
+    whether you do a thing, or what you would recommend. Search it EVERY time, even
+    if you searched something similar a minute ago. It is forgiving: a single word
+    is enough, so search broad. An empty result nearly always means your search was
+    too narrow, so try a wider word before you ever tell somebody you do not have it.
+  send_photos — put the actual pictures in front of them with a short code under
+    each one. This is your best move. The moment somebody wants to see what you
+    have, send the pictures instead of describing them — a picture they can point
+    at beats another question every time. Then they answer with the code, like "A2",
+    and you know exactly what they mean.
+Send the WHOLE set that matches, not a shortened pick of two, and never ask
+permission first — if they asked to see what you have, showing them IS the answer.
+
 WHAT YOU SEND BACK each turn:
   reply    — what you say. Plain text. No markdown, no bullet lists.
   suggest  — up to 4 very short things they might tap next (2–4 words each, like
@@ -408,6 +424,68 @@ const SCHEMA = {
   required: ['reply', 'suggest', 'quote'],
   additionalProperties: false
 };
+
+/* ── the tools ──────────────────────────────────────────────────────────────
+   The same two moves Kiki has, with the shoes swapped out: look in the real
+   list, then put the pictures on screen with a code under each. */
+
+const TOOLS = [
+  {
+    name: 'search_catalogue',
+    description: 'Search what this business actually sells. Returns id, name and price for each match. Use it EVERY time somebody asks what you have, what something costs, or what you would suggest — never answer from memory. It is forgiving about spelling and a single word is enough, so search BROAD. If it comes back empty, try a wider word before telling anyone you do not have something.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'What they are after, in their own words — "dye my hair", "something for the kids", "4x4", "wings for a crowd". Put the whole phrase here.' },
+        cat: { type: 'string', description: 'Optional category to narrow to, if you already know it from an earlier search.' },
+        max_price: { type: 'number', description: 'Only things at or under this. Use for "under 100", "cheapest", "on a budget".' },
+        min_price: { type: 'number', description: 'Only things at or above this.' }
+      }
+    }
+  },
+  {
+    name: 'send_photos',
+    description: 'Show the customer the actual pictures, with a short code under each one so they can pick by typing two characters. Pass the ids from search_catalogue. Send them ALL — do not trim the list to two and do not ask permission first. Anything without a picture is listed as text automatically, so it is still safe to include.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        ids: { type: 'array', items: { type: 'integer' }, description: 'Every id from the search that matches what they asked for.' },
+        lead_in: { type: 'string', description: 'Your one short line that goes right before the pictures, e.g. "Here is what we do in colour 👇". Keep it to a sentence.' }
+      },
+      required: ['ids']
+    }
+  }
+];
+
+function runTool(demo, name, input) {
+  if (name === 'search_catalogue') {
+    const found = search(demo, input || {});
+    if (!found.length) return { found: 0, note: 'Nothing matched. Search a wider word before saying you do not have it.' };
+    return {
+      found: found.length,
+      items: found.map(i => ({
+        id: i.id, name: i.name, price: i.price,
+        ...(i.mins ? { minutes: i.mins } : {}),
+        hasPhoto: !!i.img
+      }))
+    };
+  }
+
+  if (name === 'send_photos') {
+    const items = byIds(demo, (input && input.ids) || []);
+    if (!items.length) return { sent: 0, note: 'None of those ids exist. Search again and use the ids it returns.' };
+    /* the codes go A1, A2 … exactly like the real store's albums */
+    const album = items.map((i, n) => ({
+      label: 'A' + (n + 1),
+      name: i.name,
+      price: i.price,
+      img: i.img || null
+    }));
+    return { sent: album.length, album, note: 'The pictures are on their screen now with these codes under them. Do not list them again in your reply — just say your one line and let them pick a code.' };
+  }
+
+  return { error: 'unknown tool' };
+}
 
 /* ── the limits ───────────────────────────────────────────────────────────── */
 
@@ -460,41 +538,70 @@ function mount(app) {
 
     used++;
 
+    const demo = String(body.demo);
+
     try {
-      const r = await fetch(API, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01'
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 700,
-          /* The clock and the diary sit AFTER the cache breakpoint on purpose —
-             they change every minute, and anything above a breakpoint that moves
-             throws the cached prefix away and bills the lot again. */
-          system: [
-            { type: 'text', text: systemPrompt(shop), cache_control: { type: 'ephemeral' } },
-            { type: 'text', text: liveBlock(String(body.demo), shop) }
-          ],
-          thinking: { type: 'disabled' },      // a chat reply, not a research task
-          output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-          messages
-        })
-      });
+      /* The tool loop: the model looks in the catalogue, we hand back what is
+         really in it, and it decides what to say. Three rounds is plenty —
+         search, send the pictures, answer — and it stops the loop running away
+         on somebody else's money. */
+      let album = null, usedIn = 0, usedOut = 0, data = null;
 
-      const data = await r.json();
+      for (let round = 0; round < 3; round++) {
+        const r = await fetch(API, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-api-key': key,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            max_tokens: 900,
+            /* The clock and the diary sit AFTER the cache breakpoint on purpose —
+               they change every minute, and anything above a breakpoint that moves
+               throws the cached prefix away and bills the lot again. */
+            system: [
+              { type: 'text', text: systemPrompt(shop), cache_control: { type: 'ephemeral' } },
+              { type: 'text', text: liveBlock(demo, shop) }
+            ],
+            thinking: { type: 'disabled' },      // a chat reply, not a research task
+            tools: TOOLS,
+            output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
+            messages
+          })
+        });
 
-      if (!r.ok) {
-        console.error('[demo-chat]', r.status, JSON.stringify(data).slice(0, 300));
-        return res.status(502).json({ ok: false, reason: 'upstream', status: r.status });
+        data = await r.json();
+
+        if (!r.ok) {
+          console.error('[demo-chat]', r.status, JSON.stringify(data).slice(0, 300));
+          return res.status(502).json({ ok: false, reason: 'upstream', status: r.status });
+        }
+        if (data.stop_reason === 'refusal') {
+          return res.json({ ok: true, reply: 'Let me get one of the team on that one 🙏', suggest: [], quote: { ready: false } });
+        }
+
+        usedIn  += (data.usage && data.usage.input_tokens)  || 0;
+        usedOut += (data.usage && data.usage.output_tokens) || 0;
+
+        const calls = (data.content || []).filter(b => b.type === 'tool_use');
+        if (!calls.length) break;                    // it is done looking; the answer is in hand
+
+        messages.push({ role: 'assistant', content: data.content });
+        messages.push({
+          role: 'user',
+          content: calls.map(c => {
+            const result = runTool(demo, c.name, c.input);
+            if (result.album) album = result.album;  // hold it back for the widget
+            const forModel = Object.assign({}, result);
+            delete forModel.album;                   // the model needs the count, not the payload
+            return { type: 'tool_result', tool_use_id: c.id, content: JSON.stringify(forModel) };
+          })
+        });
       }
-      if (data.stop_reason === 'refusal') {
-        return res.json({ ok: true, reply: "Let me get one of the team on that one 🙏", suggest: [], quote: { ready: false } });
-      }
 
-      const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+      const text = ((data && data.content) || []).filter(b => b.type === 'text').map(b => b.text).join('');
       let out;
       try { out = JSON.parse(text); }
       catch (_) { return res.status(502).json({ ok: false, reason: 'bad-json' }); }
@@ -503,11 +610,12 @@ function mount(app) {
         ok: true,
         reply: String(out.reply || '').trim(),
         suggest: (out.suggest || []).slice(0, 4).map(s => String(s).slice(0, 40)),
+        album: album,
         quote: out.quote && out.quote.ready
           ? { ready: true, title: out.quote.title || shop.quoteTitle, rows: out.quote.rows || [],
               total: out.quote.total || '', note: out.quote.note || '' }
           : { ready: false },
-        usage: data.usage ? { in: data.usage.input_tokens, out: data.usage.output_tokens } : null
+        usage: { in: usedIn, out: usedOut }
       });
 
     } catch (e) {
