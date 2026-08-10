@@ -189,13 +189,13 @@ TONE: this is a discreet brokerage. Never pushy, never salesy. Short, precise se
   },
 
   freight: {
-    name: 'Cay Cargo',
+    name: 'Ship242',
     who: 'a freight forwarder in Nassau — you give Bahamians a US shipping address in Miami, receive their packages there, and bring them home',
     facts: `
 HOW IT WORKS: the customer signs up free and gets their own US address in Miami with a
   box number. They shop any US site, ship to that address, and we bring it in, clear it
   and hand it to them in Nassau.
-THEIR US ADDRESS looks like:  <Their Name> — Box CC-<number>
+THEIR US ADDRESS looks like:  <Their Name> — Box S242-<number>
                               3901 NW 25th Street, Miami, FL 33142
   The box number is the important part. Without it a package lands with no owner on it.
 RATES: air freight B$3.50 a pound, B$12 minimum. Ocean freight B$1.75 a pound, B$25
