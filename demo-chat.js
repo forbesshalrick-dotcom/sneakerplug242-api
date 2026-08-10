@@ -206,6 +206,7 @@ CUSTOMS: we clear it for you. Clearing is B$15 a shipment. The duty and VAT are 
   Bahamas Customs on the value of the goods, NOT by us — bring the invoice and we settle
   it together. Never quote a duty figure as though it were our charge.
 STORAGE: free for 14 days after it lands, then B$1 a day.
+COUNTER HOURS: Monday to Friday 8 till 5, Saturday 9 till 1. Closed Sunday.
 COLLECTION: our counter on Bay Street, or we deliver anywhere in Nassau for B$12.
 WON'T FLY: aerosols, loose lithium batteries, perishables on the ocean run, anything
   hazardous. Say so plainly and offer the ocean run where it applies.

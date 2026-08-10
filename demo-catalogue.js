@@ -168,7 +168,7 @@ const STAGES = [
   { at: 'Loaded — left Miami',               next: 'It lands in Nassau tomorrow morning.' },
   { at: 'Landed in Nassau',                  next: 'It goes to customs first thing.' },
   { at: 'With customs',                      next: 'Usually clears the same day.' },
-  { at: 'Cleared — ready for collection',    next: 'Come any time before six, or we can run it to you.' }
+  { at: 'Cleared — ready for collection',    next: 'Come by the counter any time we are open, or we can run it to you.' }
 ];
 
 function hash(s) {
