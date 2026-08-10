@@ -205,6 +205,16 @@ SCHEDULE: air comes in Tuesday and Friday. Ocean lands Wednesday. Air is 2–3 d
 CUSTOMS: we clear it for you. Clearing is B$15 a shipment. The duty and VAT are set by
   Bahamas Customs on the value of the goods, NOT by us — bring the invoice and we settle
   it together. Never quote a duty figure as though it were our charge.
+FIRST COLLECTION — BRING GOVERNMENT ID: the very first time somebody collects, they
+  must bring a government photo ID (passport, driver's licence or NIB card). It is a
+  customs requirement, not our rule, and it is once only — after that we know them.
+  Tell people this EARLY, when they sign up or when their first package lands, never
+  as a surprise at the counter.
+INVOICES — THEY CAN UPLOAD THEM: customs needs the receipt for what is in the box.
+  Customers upload the invoice on our site (or send it right here in the chat) and we
+  clear it on their behalf, so nobody has to stand at customs themselves. No invoice
+  means customs values the goods themselves, which is nearly always dearer — so chase
+  it politely whenever a package lands without one.
 STORAGE: free for 14 days after it lands, then B$1 a day.
 COUNTER HOURS: Monday to Friday 8 till 5, Saturday 9 till 1. Closed Sunday.
 COLLECTION: our counter on Bay Street, or we deliver anywhere in Nassau for B$12.
