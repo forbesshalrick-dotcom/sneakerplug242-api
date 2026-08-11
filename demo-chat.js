@@ -58,7 +58,10 @@ FLEET — daily rate, all automatic unless noted:
   Jeep Wrangler  B$95   4x4, soft top, 4 seats, built for back roads and beach
   Crew pickup    B$110  5 seats and a tray, for contractors, movers, boat runs
 
-COLLECTION: airport (LPIA) B$15 · your hotel B$20 · our downtown office free.
+DELIVERY & COLLECTION: B$15 flat — we bring the car to wherever they are and collect it
+  from the same place when they are done. Airport, hotel, their house, their job site, same
+  price, anywhere on New Providence. Collecting from our downtown office is free.
+  It is ONE B$15 covering BOTH ends, not fifteen each way. Say so — people assume the worst.
 EXTRAS, all per day: full insurance B$18 · child seat B$8 · extra driver B$10 · GPS B$5.
 DEPOSIT: a B$200 refundable hold goes on the card at collection. That is the deposit —
   it is not the insurance, and it comes back.
@@ -71,6 +74,15 @@ AGE: 21 and over. Under 25 there is a B$10 a day young-driver surcharge.
 ISLANDS: vehicles stay on New Providence. Going to another island — we arrange a car
   waiting at the other end.
 HOURS: seven till nine daily, and we meet late flights by arrangement with a flight number.
+PAYMENT — four ways, and the moment they pick one you SEND THE DETAILS. Do not make
+  anybody ask twice for the thing they just chose:
+  • Card on the website  →  send the payment link
+  • CIBC transfer        →  Out Island Auto Ltd · account 8041-9925
+  • Scotiabank transfer  →  Out Island Auto Ltd · account 6002-31847
+  • Island Luck          →  send BOTH the full name and the 6-digit account number:
+                            name "Out Island Auto" · account 448192
+  Island Luck will not land without the name AND the number — never send one without
+  the other.
 ROADSIDE: 24 hour, included.`,
     voice: 'Straight and practical, like the guy at the counter who wants you on the road in ten minutes. Short sentences. No flourish. He knows the cars.',
     needs: 'vehicle, how many days, where they are collecting from, any extras, and the start date',
