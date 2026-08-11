@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" as="image" href="img/car-march.webp">
-<link rel="stylesheet" href="../assets/demo.css?v=20260811a">
+<link rel="stylesheet" href="../assets/demo.css?v=20260811b">
 <style>
   :root{
     --d-ground:#fff; --d-surface:#EEF2F6; --d-ink:#0C1E2E; --d-ink-2:#5A6B7A;
@@ -57,7 +57,7 @@
         <h1 class="d-h1">Keys in your hand<br>in under an hour.</h1>
         <p class="d-lead">Airport delivery, hotel drop-off, unlimited mileage. Book the whole thing on WhatsApp without waiting for anybody to call you back.</p>
         <div class="spec">
-          <span>✓ Free airport pickup</span>
+          <span>✓ B$15 to your door</span>
           <span>✓ Unlimited mileage</span>
           <span>✓ 24-hour roadside</span>
         </div>
@@ -116,7 +116,7 @@
     <div class="d-wrap d-stack g22">
       <p class="d-kicker">Straight rates</p>
       <h2 class="d-h2">No hidden counter fees</h2>
-      <p class="d-lead">Delivery to the airport is B$15. To your hotel, B$20. Downtown pickup is free. Insurance is B$18 a day and we will always ask before adding it.</p>
+      <p class="d-lead">We bring the car to you and collect it when you’re done — B$15 flat, both ends, anywhere on the island. Downtown pickup is free. Insurance is B$18 a day and we will always ask before adding it.</p>
       <img class="hero-shot" src="img/car-interior.webp" alt="The interior of one of the fleet" loading="lazy" width="1024" height="683" style="margin-top:18px;max-width:620px">
     </div>
   </section>
@@ -131,8 +131,8 @@
   </div>
 </footer>
 
-<script src="../assets/lightbox.js?v=20260811a"></script>
-<script src="../assets/bot.js?v=20260811a"></script>
+<script src="../assets/lightbox.js?v=20260811b"></script>
+<script src="../assets/bot.js?v=20260811b"></script>
 <script>
 DemoBot.start({
   mount: "#bot",
@@ -154,7 +154,7 @@ DemoBot.start({
     { re:/(other island|exuma|eleuthera|ferry|boat|take it off)/,
       a:"The vehicles stay on New Providence. If you're heading to another island, tell me and I'll sort a car waiting for you at the other end." },
     { re:/(airport|lpia|hotel|deliver|drop)/,
-      a:"We'll meet you at the airport for B$15, your hotel for B$20, or collect free from the downtown office." },
+      a:"We bring it to you for B$15 — that covers dropping it off and collecting it after. Anywhere on New Providence. Or collect free from our downtown office." },
     { re:/(open|hours|what time|late flight)/,
       a:"Seven till nine daily, and we'll meet late flights by arrangement — just tell me the flight number." }
   ],
@@ -186,10 +186,9 @@ DemoBot.start({
     },
     {
       key: "pickup",
-      ask: "Where you want to collect it?",
+      ask: "Want us to bring it to you, or you collecting? Delivery and collection is B$15 flat, both ends.",
       options: [
-        { label: "Airport (LPIA)", price: 15 },
-        { label: "Your hotel", price: 20 },
+        { label: "Bring it to me", price: 15 },
         { label: "Our downtown office", price: 0 }
       ]
     },
@@ -205,6 +204,17 @@ DemoBot.start({
         { label: "Child seat", price: 8, perDay: true },
         { label: "Extra driver", price: 10, perDay: true },
         { label: "GPS unit", price: 5, perDay: true }
+      ]
+    },
+    {
+      key: "pay",
+      ask: "How you paying?",
+      short: "How you paying?",
+      options: [
+        { label: "Card on the website" },
+        { label: "CIBC transfer" },
+        { label: "Scotiabank transfer" },
+        { label: "Island Luck" }
       ]
     },
     {
@@ -245,6 +255,7 @@ DemoBot.start({
       rows.push({ label: "Pickup — " + a.pickup.label, value: "Free" });
     }
 
+    rows.push({ label: "Paying by", value: a.pay.label });
     rows.push({ label: "Starting", value: a.when.label });
 
     return {

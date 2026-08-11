@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" as="image" href="img/hero.webp" fetchpriority="high">
-<link rel="stylesheet" href="../assets/demo.css?v=20260811a">
+<link rel="stylesheet" href="../assets/demo.css?v=20260811b">
 <style>
   :root{
     --d-ground:#FBF9F5; --d-surface:#F1ECE3; --d-ink:#2B2822; --d-ink-2:#6B6459;
@@ -294,8 +294,8 @@
   restart();
 })();
 </script>
-<script src="../assets/lightbox.js?v=20260811a"></script>
-<script src="../assets/bot.js?v=20260811a"></script>
+<script src="../assets/lightbox.js?v=20260811b"></script>
+<script src="../assets/bot.js?v=20260811b"></script>
 <script>
 var TREATMENTS = {
   "Hair": [
@@ -342,7 +342,7 @@ DemoBot.start({
     { re:/(walk in|walkin|without.*appointment|today)/,
       a:"We take walk-ins when there's a gap, but the treatment rooms are usually booked. Tell me what you want and I'll show you what's actually open." },
     { re:/(deposit|pay|payment|card|cash)/,
-      a:"A 25% deposit holds the room and comes off the final bill. Card, cash or transfer on the day." },
+      a:"A 25% deposit makes it a priority reservation — your slot is locked and can't be given away. It comes off the final bill. Card on the website, CIBC or Scotiabank transfer, and I'll send the details." },
     { re:/(gift|voucher|certificate|present)/,
       a:"Yes — gift vouchers for any amount or any treatment, and they don't expire. Just say the word." },
     { re:/(pregnan|prenatal|expecting)/,
@@ -388,6 +388,16 @@ DemoBot.start({
       ]
     },
     {
+      key: "pay",
+      ask: "A 25% deposit makes it a priority reservation \u2014 your slot is locked in. How would you like to send it?",
+      short: "How would you like to send the deposit?",
+      options: [
+        { label: "Card on the website" },
+        { label: "CIBC transfer" },
+        { label: "Scotiabank transfer" }
+      ]
+    },
+    {
       key: "day",
       ask: function (a) { return (a.who.label === "Whoever's free" ? "Here is what is open" : a.who.label + " has these open") + " this week:"; },
       options: [{ label: "Tuesday" }, { label: "Wednesday" }, { label: "Thursday" }, { label: "Saturday" }]
@@ -409,6 +419,7 @@ DemoBot.start({
     });
 
     rows.push({ label: "With", value: a.who.label });
+    rows.push({ label: "Deposit by", value: a.pay.label });
     rows.push({ label: "When", value: a.day.label + ", " + a.time.label });
     rows.push({ label: "In the house for", value: Math.floor(mins / 60) + "h " + (mins % 60 ? (mins % 60) + "m" : "00m") });
 
