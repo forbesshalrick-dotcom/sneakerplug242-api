@@ -11,7 +11,7 @@
      land and the whole column jumps -->
 <link rel="preload" href="../../assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../../assets/fonts/ibm-plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="../assets/demo.css?v=20260810s">
+<link rel="stylesheet" href="../assets/demo.css?v=20260811a">
 <style>
   /* Bright, sunny and easy. This is a service ordinary people use to get their
      online shopping home — a grandmother, a teenager buying sneakers, somebody
@@ -774,7 +774,7 @@
   </div>
 </footer>
 
-<script src="../assets/bot.js?v=20260810s"></script>
+<script src="../assets/bot.js?v=20260811a"></script>
 <script>
 /* Sign-up. Nothing leaves the page — this is a demo, so the "account" is made
    right here in front of you. The point is to show a client how little it takes
@@ -1010,6 +1010,11 @@ DemoBot.start({
       options: [{ label: "Track a package" }, { label: "Price a shipment" }, { label: "Get a US address" }] },
     { key: "ref", free: true, ask: "What's the box number or tracking number?",
       options: [{ label: "S242-4471" }, { label: "Don't have it" }] }
+  ],
+  afterOrder: [
+    { wait: 1300, text: "Logged \u2705 I'll message you the moment it's cleared and ready." },
+    { wait: 1800, gap: "10 minutes later", text: "Cleared and on the van \ud83d\ude9a the driver will call you when he's close \u2014 no tracking number for a local run, he just rings you." },
+    { wait: 2200, gap: "18 minutes later", text: "He's running a little behind, give him a few more minutes \ud83d\ude4f he's got your box with him." }
   ],
   summarise: function (a) {
     return {

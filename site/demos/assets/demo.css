@@ -266,3 +266,12 @@ a{ color:inherit; }
   aspect-ratio:1/1; background:var(--d-surface,#f0f0f0);
   color:var(--d-ink-2,#888); font-size:20px;
 }
+
+/* the wait between an order going in and the driver reaching — shown, because
+   the waiting is exactly where a customer normally hears nothing */
+.bot-gap{
+  align-self:stretch; display:flex; align-items:center; gap:10px;
+  margin:4px 0; font-family:"Plex Mono",monospace; font-size:10px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--d-ink-2);
+}
+.bot-gap::before,.bot-gap::after{ content:""; flex:1; height:1px; background:var(--d-line); }

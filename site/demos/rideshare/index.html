@@ -7,7 +7,7 @@
 <meta name="description" content="A preview of what a Bahamian ride-share service's website and WhatsApp bot could look like — real fares, airport runs, driver on the way. Fictional business, working bot.">
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../assets/demo.css?v=20260810m">
+<link rel="stylesheet" href="../assets/demo.css?v=20260811a">
 <style>
   /* Night shift on the island — this is a service people use at 5am and at
      midnight, so the page lives in the dark. Turquoise because that is the
@@ -436,7 +436,7 @@
   </div>
 </footer>
 
-<script src="../assets/bot.js?v=20260810m"></script>
+<script src="../assets/bot.js?v=20260811a"></script>
 <script>
 DemoBot.start({
   mount: "#bot",
@@ -472,6 +472,11 @@ DemoBot.start({
       options: [{ label: "Atlantis" }, { label: "Downtown" }, { label: "Sea Breeze" }] },
     { key: "type", ask: "Which ride?",
       options: [{ label: "Ryde" }, { label: "Ryde XL" }, { label: "Island Hop" }] }
+  ],
+  afterOrder: [
+    { wait: 1200, text: "Car's on the way \u2705 Marlon, red Toyota Corolla, plate 242-1487." },
+    { wait: 1700, gap: "4 minutes later", text: "He's turning on to your road now \ud83d\ude97 he'll call when he's outside." },
+    { wait: 2100, gap: "7 minutes later", text: "He's caught a bit of traffic \u2014 give him two more minutes \ud83d\ude4f he's nearly there." }
   ],
   summarise: function (a) {
     return {

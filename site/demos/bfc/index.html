@@ -8,7 +8,7 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" as="image" href="img/hero.webp" fetchpriority="high">
-<link rel="stylesheet" href="../assets/demo.css?v=20260810g">
+<link rel="stylesheet" href="../assets/demo.css?v=20260811a">
 <style>
   :root{
     --d-ground:#FFFFFF; --d-surface:#FFF6E8; --d-ink:#1B1613; --d-ink-2:#6B5F55;
@@ -182,8 +182,8 @@
   </div>
 </footer>
 
-<script src="../assets/lightbox.js?v=20260810g"></script>
-<script src="../assets/bot.js?v=20260810g"></script>
+<script src="../assets/lightbox.js?v=20260811a"></script>
+<script src="../assets/bot.js?v=20260811a"></script>
 <script>
 var COMBOS = [
   { label:"1 — The Two-Piece",   price:9.50 },
@@ -275,6 +275,11 @@ DemoBot.start({
       ask:"Which BFC you collecting from?", short:"Which branch?",
       options:[{label:"Carmichael"},{label:"Mackey Street"},{label:"Cable Beach"},{label:"Marathon"}]
     }
+  ],
+  afterOrder: [
+    { wait: 1300, text: "Order's in \u2705 kitchen has it now. I'll message you the second it leaves the shop." },
+    { wait: 1800, gap: "9 minutes later", text: "Food's boxed and the driver just pulled off \ud83d\udef5 he'll call you when he's outside \u2014 about 20 minutes." },
+    { wait: 2200, gap: "22 minutes later", text: "He's still on the road, give him a few more minutes \ud83d\ude4f he's not far." }
   ],
   summarise: function(a){
     var rows=[], total=0;

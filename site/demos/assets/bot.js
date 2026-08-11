@@ -231,11 +231,13 @@ window.DemoBot = (function () {
           if (res.d.quote && res.d.quote.ready) {
             quoteCard(res.d.quote);
             chips.innerHTML = "";
-            var again = el("button", "bot-restart", "↺ Run it again");
-            again.type = "button";
-            again.addEventListener("click", run);
-            log.appendChild(again);
-            log.scrollTop = log.scrollHeight;
+            afterOrder().then(function () {
+              var again = el("button", "bot-restart", "↺ Run it again");
+              again.type = "button";
+              again.addEventListener("click", run);
+              log.appendChild(again);
+              log.scrollTop = log.scrollHeight;
+            });
             return;
           }
           suggestChips(res.d.suggest);
@@ -641,6 +643,37 @@ window.DemoBot = (function () {
         .then(function () { renderChips(step); });
     }
 
+
+    /* The part of the job that happens after the money. Kiki does not go quiet
+       once an order is in — she says it is confirmed, tells them the driver
+       will call, and if it runs long she says so BEFORE they have to ask.
+       Being told late is what makes people angry, not waiting.
+
+       The demo compresses the clock: a divider says "10 minutes later" and the
+       next message arrives two seconds on, so somebody watching sees the whole
+       shape of it without sitting there for twenty minutes. */
+    function gapLine(text) {
+      var g = el("p", "bot-gap");
+      g.textContent = text;
+      log.appendChild(g);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function afterOrder() {
+      var seq = cfg.afterOrder;
+      if (!seq || !seq.length) return Promise.resolve();
+      return seq.reduce(function (chain, step) {
+        return chain.then(function () {
+          return new Promise(function (done) {
+            setTimeout(function () {
+              if (step.gap) gapLine(step.gap);
+              say(step.text, 700).then(done);
+            }, reduced ? 0 : (step.wait || 1400));
+          });
+        });
+      }, Promise.resolve());
+    }
+
     /* ---- the end -------------------------------------------------------- */
     function finish() {
       chips.innerHTML = "";
@@ -670,7 +703,7 @@ window.DemoBot = (function () {
         log.scrollTop = log.scrollHeight;
 
         return say(out.closing || "Want me to lock that in?");
-      }).then(function () {
+      }).then(afterOrder).then(function () {
         var again = el("button", "bot-restart", "↺ Run it again");
         again.type = "button";
         again.addEventListener("click", run);
