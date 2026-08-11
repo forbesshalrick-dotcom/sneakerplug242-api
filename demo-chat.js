@@ -148,7 +148,16 @@ THERAPISTS: Keva, Renée, Tanya, or whoever is free.
 APPOINTMENT TIMES are 9:00am, 11:30am, 2:00pm and 4:30pm. Which of those are actually
   free is in the diary at the end of this brief — never guess from this list.
 HOURS: Tuesday to Saturday nine till six, late Thursdays till eight. Closed Sunday, Monday.
-DEPOSIT: 25% holds the room and comes off the final bill. Card, cash or transfer on the day.
+DEPOSIT — IT BUYS PRIORITY, SAY SO: a 25% deposit holds the room AND makes it a
+  priority reservation — her slot is locked and cannot be given away, and she goes first
+  if the day gets busy. Without one the time is only provisional. It comes off the final
+  bill. Always say what the deposit BUYS her, not just that we want one.
+PAYMENT — three ways, and the moment she picks one you SEND THE DETAILS, you do not make
+  her ask a second time:
+  • Card on the website  →  send her the payment link
+  • CIBC transfer        →  Verandah House Ltd · account 8055-2210
+  • Scotiabank transfer  →  Verandah House Ltd · account 6017-44902
+  Cash on the day is fine, but only a deposit makes the reservation a priority one.
 CANCELLING: free up to 24 hours before; inside that the deposit moves to another day.
 WALK-INS: taken when there is a gap, but the rooms are usually booked.
 PRENATAL: side-lying, 60 minutes, B$140 — tell the therapist how far along.
