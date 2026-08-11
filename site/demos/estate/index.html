@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo — private island real estate with an enquiry bot</title>
+<meta name="description" content="A preview of a high-end Bahamian estate agency website with a WhatsApp enquiry bot. Fictional business, working bot.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" as="image" href="img/hero.webp" fetchpriority="high">
+<link rel="stylesheet" href="../assets/demo.css?v=20260810g">
+<style>
+  :root{
+    --d-ground:#080A0C; --d-surface:#11161A; --d-ink:#EFE9E0; --d-ink-2:#94918B;
+    --d-line:#1F262C; --d-accent:#B9A06A; --d-accent-ink:#CDB782; --d-on-accent:#080A0C;
+    --d-display:"Cormorant",Georgia,serif; --d-body:"Archivo",sans-serif; --d-radius:0px;
+    color-scheme:dark;
+  }
+  .es-eyebrow{ font-family:var(--d-body); font-size:10px; letter-spacing:.46em; text-transform:uppercase; color:var(--d-accent); }
+  .es-h1{ font-family:var(--d-display); font-weight:300; font-size:clamp(44px,7.4vw,100px); line-height:.96; letter-spacing:-.02em; }
+  .es-h1 em{ font-style:italic; color:var(--d-accent); }
+  .es-h2{ font-family:var(--d-display); font-weight:300; font-size:clamp(30px,4.4vw,54px); line-height:1.04; }
+  .es-lead{ font-size:16.5px; line-height:1.8; color:var(--d-ink-2); max-width:44ch; }
+  .d-logo{ font-family:var(--d-display); font-weight:400; font-size:24px; letter-spacing:.22em; text-transform:uppercase; }
+  .d-nav a{ font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; }
+  .es-section{ padding-block:clamp(50px,7vw,110px); }
+
+  /* cinematic hero — a slow push in, which is what a film would do */
+  .es-hero{ position:relative; min-height:min(92vh,820px); display:flex; align-items:flex-end; overflow:hidden; }
+  .es-hero img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; animation:push 26s ease-in-out infinite alternate; }
+  @keyframes push{ from{ transform:scale(1.02) translate3d(0,0,0); } to{ transform:scale(1.16) translate3d(-1.5%,-1.5%,0); } }
+  .es-hero::after{ content:""; position:absolute; inset:0;
+    background:
+      linear-gradient(90deg,rgba(8,10,12,.9) 0%,rgba(8,10,12,.55) 42%,rgba(8,10,12,0) 78%),
+      linear-gradient(180deg,rgba(8,10,12,.7) 0%,rgba(8,10,12,.25) 34%,rgba(8,10,12,.95) 100%); }
+  .es-hero .inner{ position:relative; z-index:1; width:100%; padding-block:clamp(40px,6vw,90px); }
+  @media (prefers-reduced-motion:reduce){ .es-hero img{ animation:none; } }
+
+  /* listings */
+  .props{ display:flex; flex-direction:column; gap:2px; }
+  .prop{ position:relative; display:grid; grid-template-columns:1.25fr 1fr; min-height:380px; background:var(--d-surface); }
+  .prop:nth-child(even){ grid-template-columns:1fr 1.25fr; }
+  .prop:nth-child(even) .shot{ order:2; }
+  @media (max-width:860px){ .prop, .prop:nth-child(even){ grid-template-columns:1fr; } .prop:nth-child(even) .shot{ order:0; } }
+  .prop .shot{ position:relative; overflow:hidden; min-height:280px; }
+  .prop .shot img{ width:100%; height:100%; object-fit:cover; transition:transform 1.2s cubic-bezier(.2,.7,.3,1); }
+  .prop:hover .shot img{ transform:scale(1.05); }
+  .prop .meta{ padding:clamp(26px,3.4vw,52px); display:flex; flex-direction:column; gap:14px; justify-content:center; }
+  .prop .isle{ font-family:var(--d-body); font-size:10px; letter-spacing:.32em; text-transform:uppercase; color:var(--d-accent); }
+  .prop .nm{ font-family:var(--d-display); font-weight:400; font-size:clamp(28px,3.2vw,40px); line-height:1.05; }
+  .prop .ds{ color:var(--d-ink-2); font-size:15px; line-height:1.75; max-width:42ch; }
+  .prop .specs{ display:flex; flex-wrap:wrap; gap:0; border-top:1px solid var(--d-line); margin-top:4px; }
+  .prop .specs div{ padding:14px 26px 0 0; }
+  .prop .specs dt{ font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:var(--d-ink-2); }
+  .prop .specs dd{ margin:4px 0 0; font-family:var(--d-display); font-size:21px; }
+  .prop .price{ font-family:var(--d-display); font-size:26px; color:var(--d-accent); margin-top:6px; }
+
+  /* gallery strip */
+  .strip{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:2px; }
+  .strip figure{ margin:0; position:relative; aspect-ratio:1; overflow:hidden; }
+  .strip img{ width:100%; height:100%; object-fit:cover; filter:saturate(.95); transition:transform 1s ease; }
+  .strip figure:hover img{ transform:scale(1.06); }
+  .strip figcaption{ position:absolute; inset:auto 0 0 0; padding:28px 14px 12px; color:#fff;
+    background:linear-gradient(180deg,transparent,rgba(0,0,0,.72));
+    font-size:10px; letter-spacing:.22em; text-transform:uppercase; }
+
+  .disc{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:clamp(20px,3vw,44px); }
+  .disc div{ display:flex; flex-direction:column; gap:8px; }
+  .disc .n{ font-family:var(--d-display); font-size:15px; color:var(--d-accent); letter-spacing:.2em; }
+  .disc h3{ font-family:var(--d-display); font-size:22px; font-weight:400; }
+  .disc p{ color:var(--d-ink-2); font-size:14.5px; line-height:1.7; }
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span><b>DEMO SITE</b> — “Fitzwilliam &amp; Cay” is not a real agency. No property here is for sale.</span>
+  <a href="../index.html">See the other demos</a>
+</div>
+
+<header>
+  <div class="d-head">
+    <a class="d-logo" href="#">Fitzwilliam &amp; Cay</a>
+    <nav class="d-nav">
+      <a href="#props">Portfolio</a>
+      <a href="#gallery">Gallery</a>
+      <a href="#service">Private office</a>
+      <a href="#bot">Enquire</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="es-hero">
+    <img src="img/hero.webp" alt="An infinity pool above the ocean at a private estate" width="1024" height="768" fetchpriority="high">
+    <div class="inner">
+      <div class="d-wrap d-stack g22">
+        <p class="es-eyebrow">Private client estates · The Bahamas</p>
+        <h1 class="es-h1">Some addresses<br><em>are not on a map.</em></h1>
+        <p class="es-lead">Eleven properties across four islands, most of which never reach a listing site. Introductions by appointment, discretion as standard.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
+          <a class="d-btn" href="#bot">Request an introduction</a>
+          <a class="d-btn d-btn-ghost" href="#props" style="color:#EFE9E0;border-color:rgba(239,233,224,.28)">View the portfolio</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- portfolio -->
+  <section class="es-section" id="props">
+    <div class="d-wrap"><div class="d-stack g22" style="max-width:700px;padding-bottom:34px">
+      <p class="es-eyebrow">The portfolio</p>
+      <h2 class="es-h2">Four of the eleven.</h2>
+      <p class="es-lead">The rest are shown privately. If nothing here fits, the office will tell you what is coming before it is announced.</p>
+    </div></div>
+
+    <div class="props">
+      <article class="prop">
+        <div class="shot" data-lightbox="estate"><img src="img/p1.webp" alt="An over-water pavilion on turquoise water" loading="lazy" width="1024" height="768"></div>
+        <div class="meta">
+          <span class="isle">Exuma · 4.2 acres</span>
+          <h3 class="nm">Sanctuary Point</h3>
+          <p class="ds">A single-owner estate on the western point, with a deep-water dock, staff house and a beach nobody else can reach by road.</p>
+          <dl class="specs">
+            <div><dt>Bedrooms</dt><dd>6</dd></div>
+            <div><dt>Bathrooms</dt><dd>7</dd></div>
+            <div><dt>Dock</dt><dd>120 ft</dd></div>
+          </dl>
+          <span class="price">B$14,500,000</span>
+        </div>
+      </article>
+
+      <article class="prop">
+        <div class="shot" data-lightbox="estate"><img src="img/p3.webp" alt="A pool at sunset framed by palms" loading="lazy" width="768" height="1024"></div>
+        <div class="meta">
+          <span class="isle">Harbour Island · beachfront</span>
+          <h3 class="nm">Casuarina House</h3>
+          <p class="ds">Colonial bones, rebuilt to the frame in 2023. Eighty feet of pink sand frontage and a garden wall old enough to be listed.</p>
+          <dl class="specs">
+            <div><dt>Bedrooms</dt><dd>5</dd></div>
+            <div><dt>Bathrooms</dt><dd>6</dd></div>
+            <div><dt>Frontage</dt><dd>80 ft</dd></div>
+          </dl>
+          <span class="price">B$8,900,000</span>
+        </div>
+      </article>
+
+      <article class="prop">
+        <div class="shot" data-lightbox="estate"><img src="img/p2.webp" alt="A pavilion set over still water" loading="lazy" width="1024" height="768"></div>
+        <div class="meta">
+          <span class="isle">Eleuthera · south shore</span>
+          <h3 class="nm">The Pavilion</h3>
+          <p class="ds">Built over the water on a private cut, with an open pavilion that has no walls on three sides and does not need them.</p>
+          <dl class="specs">
+            <div><dt>Bedrooms</dt><dd>4</dd></div>
+            <div><dt>Bathrooms</dt><dd>4</dd></div>
+            <div><dt>Plot</dt><dd>1.8 acres</dd></div>
+          </dl>
+          <span class="price">B$6,750,000</span>
+        </div>
+      </article>
+
+      <article class="prop">
+        <div class="shot" data-lightbox="estate"><img src="img/p4.webp" alt="A terraced pool and guest wing" loading="lazy" width="1024" height="768"></div>
+        <div class="meta">
+          <span class="isle">Private cay · Berry Islands</span>
+          <h3 class="nm">Blue Cay</h3>
+          <p class="ds">Twenty-two acres, an airstrip within nine minutes by boat, and planning already granted for a second residence.</p>
+          <dl class="specs">
+            <div><dt>Acreage</dt><dd>22</dd></div>
+            <div><dt>Residences</dt><dd>2</dd></div>
+            <div><dt>Beaches</dt><dd>3</dd></div>
+          </dl>
+          <span class="price">Price on application</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- gallery -->
+  <section class="es-section" id="gallery" style="padding-top:0">
+    <div class="d-wrap"><div class="d-stack g22" style="max-width:700px;padding-bottom:26px">
+      <p class="es-eyebrow">Gallery</p>
+      <h2 class="es-h2">Interiors and grounds.</h2>
+    </div></div>
+    <div class="strip">
+      <figure data-lightbox="estate"><img src="img/int1.webp" alt="A living room open to the ocean" loading="lazy" width="1024" height="819"><figcaption>Sanctuary Point · salon</figcaption></figure>
+      <figure data-lightbox="estate"><img src="img/int2.webp" alt="A modern interior with garden" loading="lazy" width="1024" height="768"><figcaption>Casuarina · garden room</figcaption></figure>
+      <figure data-lightbox="estate"><img src="img/p5.webp" alt="A villa terrace above the pool" loading="lazy" width="1024" height="686"><figcaption>The Pavilion · terrace</figcaption></figure>
+      <figure data-lightbox="estate"><img src="img/p6.webp" alt="A pool set into tropical planting" loading="lazy" width="1024" height="576"><figcaption>Blue Cay · south pool</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- service -->
+  <section class="es-section" id="service" style="background:var(--d-surface)">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g22" style="max-width:660px">
+        <p class="es-eyebrow">The private office</p>
+        <h2 class="es-h2">Four people. Eleven properties. No open houses.</h2>
+      </div>
+      <div class="disc">
+        <div><span class="n">I</span><h3>Discretion first</h3><p>Nothing is advertised without the owner's word. Several of the eleven are known only to this office.</p></div>
+        <div><span class="n">II</span><h3>Introductions, not viewings</h3><p>We meet before you see a property. It saves everybody a wasted flight and the owner an intrusion.</p></div>
+        <div><span class="n">III</span><h3>The whole transaction</h3><p>Title, permits, Crown land questions, contractors and staffing — handled in-house, not referred out.</p></div>
+        <div><span class="n">IV</span><h3>After the sale</h3><p>Management, chartering and the maintenance programme, for the eleven months a year you are elsewhere.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- bot -->
+  <section class="es-section" id="bot">
+    <div class="d-wrap" style="max-width:620px">
+      <div class="d-stack g22" style="margin-bottom:26px">
+        <p class="es-eyebrow">Enquiries</p>
+        <h2 class="es-h2">Tell the office what you are looking for.</h2>
+        <p class="es-lead">Six questions, answered on WhatsApp at whatever hour suits your time zone. A partner replies personally within four hours.</p>
+      </div>
+      <div class="bot-shell" id="est-bot"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="demo-foot">
+  <div class="d-wrap">
+    <h2>This is a demo. Yours would hold your listings.</h2>
+    <p>At this level the website is the first viewing. Big photography, restraint, and an enquiry that qualifies the buyer before a partner spends an afternoon on them — which is exactly what the bot above does.</p>
+    <a class="cta" href="../../contact.html">Build mine</a>
+    <p class="back">Preview built by <a href="../../index.html">Nightshift</a> · Nassau · <a href="../index.html">all demos</a> · <a href="../credits.html">photo credits</a></p>
+  </div>
+</footer>
+
+<script src="../assets/lightbox.js?v=20260810g"></script>
+<script src="../assets/bot.js?v=20260810g"></script>
+<script>
+var PORTFOLIO = [
+  { name:"Sanctuary Point", isle:"Exuma",         beds:6, price:14500000 },
+  { name:"Casuarina House", isle:"Harbour Island",beds:5, price:8900000 },
+  { name:"The Pavilion",    isle:"Eleuthera",     beds:4, price:6750000 },
+  { name:"Blue Cay",        isle:"Berry Islands", beds:8, price:22000000 }
+];
+
+DemoBot.start({
+  mount: "#est-bot",
+  ai: "estate",
+  botName: "Fitzwilliam & Cay",
+  channel: "WhatsApp",
+  currency: "B$",
+  knows: [
+    { re:/(fee|commission|charge|cost to buy|closing)/,
+      a:"The seller pays our commission, so there's no fee to you as a buyer. Government stamp duty and legal costs are separate and we'll set them out in writing before anything is signed." },
+    { re:/(financ|mortgage|loan|bank|lend)/,
+      a:"Several local and international banks lend on Bahamian property, typically 60 to 70 percent for non-residents. We can introduce you to two we work with regularly." },
+    { re:/(resid|citizen|permit|visa|live here|status)/,
+      a:"A purchase above B$750,000 supports an application for permanent residency. We'd put you with a Bahamian attorney early — it's not something to handle informally." },
+    { re:/(view|visit|see it|fly|when can i)/,
+      a:"Viewings are arranged privately, usually within a week. If you're travelling we'll coordinate several in one visit, and there's a boat for the cays." },
+    { re:/(confidential|discreet|privacy|nda|quiet)/,
+      a:"Standard. Several of the eleven are not published anywhere, and dossiers are released under NDA only." },
+    { re:/(rent|rental|income|yield|invest|return)/,
+      a:"Most of the portfolio rents at high season. We'll share actual figures for any property under NDA rather than quote you an estimate." },
+    { re:/(process|how does|next step|what happens)/,
+      a:"Introduction, then viewings, then an offer through your attorney. We handle title, permits and Crown land questions in-house." },
+    { re:/(open|hours|call|phone|reach)/,
+      a:"The office is four people and somebody answers this number until nine, seven days. A partner replies personally within four business hours." }
+  ],
+  greeting: [
+    "Good evening. Fitzwilliam & Cay, private client office.",
+    "May I ask what you are looking for?"
+  ],
+  steps: [
+    {
+      key:"purpose", ask:"Is this a residence, an investment, or a private island?",
+      options:[{label:"A residence"},{label:"An investment"},{label:"A private island"},{label:"Still deciding"}]
+    },
+    {
+      key:"budget", ask:"And roughly what level are we speaking about?",
+      options:[
+        { label:"Up to B$5m", cap:5000000 },
+        { label:"B$5m – 10m", cap:10000000 },
+        { label:"B$10m – 20m", cap:20000000 },
+        { label:"Above B$20m", cap:999000000 }
+      ]
+    },
+    {
+      key:"isle", ask:"Any island in particular?",
+      options:[{label:"Exuma"},{label:"Harbour Island"},{label:"Eleuthera"},{label:"A private cay"},{label:"Open to advice"}]
+    },
+    {
+      key:"beds", ask:"How much space do you need?",
+      options:[{label:"4 bedrooms",n:4},{label:"5–6 bedrooms",n:6},{label:"7 or more",n:7}]
+    },
+    {
+      key:"when", ask:"What is your timeframe?",
+      options:[{label:"Ready now"},{label:"Within 6 months"},{label:"This year"},{label:"Watching the market"}]
+    },
+    {
+      key:"meet", ask:"How would you prefer the introduction?",
+      options:[{label:"In person, in Nassau"},{label:"Private video call"},{label:"Send the dossiers first"}]
+    },
+    { key:"name", free:true, ask:"And who am I speaking with?",
+      options:[{label:"Mr Fitzgerald"},{label:"Ms Alvarez"},{label:"The family office"}] }
+  ],
+  summarise: function(a){
+    var cap = a.budget.cap;
+    var matches = PORTFOLIO.filter(function(p){
+      var okPrice = p.price <= cap * 1.15;
+      var okIsle  = a.isle.label === "Open to advice" || p.isle === a.isle.label ||
+                    (a.isle.label === "A private cay" && p.isle === "Berry Islands");
+      var okBeds  = p.beds >= a.beds.n;
+      return okPrice && okIsle && okBeds;
+    });
+
+    var rows = [
+      { label:"Looking for", value:a.purpose.label },
+      { label:"Level", value:a.budget.label },
+      { label:"Island", value:a.isle.label },
+      { label:"Space", value:a.beds.label },
+      { label:"Timeframe", value:a.when.label },
+      { label:"Introduction", value:a.meet.label },
+      { label:"Client", value:a.name.label }
+    ];
+    rows.push({ label:"Matches in the portfolio",
+                value: matches.length ? matches.map(function(m){return m.name;}).join(", ") : "None on the open list" });
+
+    return {
+      before:["Thank you. Let me put that in front of a partner."],
+      title:"Enquiry",
+      rows: rows,
+      note: matches.length
+        ? "Dossiers for these will be sent under NDA. A partner replies personally within four business hours."
+        : "Nothing on the open list fits, but three properties are held privately. A partner will come back to you within four business hours.",
+      closing:"Shall I have the office call you, or would you rather they wrote first?"
+    };
+  }
+});
+</script>
+</body>
+</html>

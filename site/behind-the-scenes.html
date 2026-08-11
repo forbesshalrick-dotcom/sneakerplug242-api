@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Behind the message — Nightshift</title>
+<meta name="description" content="Watch the bot handle a real request: 'you have any black work shoes?' It asks the size, searches the live stock in front of you, sends labelled photo options, takes the pick and dispatches a driver.">
+<link rel="canonical" href="https://nightshift.bs/behind-the-scenes.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nightshift.bs/behind-the-scenes.html">
+<meta property="og:title" content="Behind the message">
+<meta property="og:description" content="The machine room: watch the bot filter live stock down to the matches, send labelled options and dispatch a driver.">
+<meta property="og:image" content="https://nightshift.bs/assets/img/og.png">
+<meta name="theme-color" content="#FF4A1C">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/site.css?v=20260810g">
+<style>
+  .bts{ display:grid; grid-template-columns:minmax(0,368px) minmax(0,1fr); gap:clamp(18px,2.5vw,32px); align-items:start; }
+  /* minmax(0,1fr), not 1fr: a bare 1fr is minmax(auto,1fr), so the inventory
+     table's min-width propagated up and stretched the whole page at 375px */
+  @media (max-width:940px){ .bts{ grid-template-columns:minmax(0,1fr); } }
+
+  .runner{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:20px; }
+  .runner .state{ font-family:var(--display); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2); margin-left:auto; }
+  .rail{ height:3px; background:var(--line); position:relative; margin-bottom:26px; }
+  .rail span{ position:absolute; inset:0 auto 0 0; background:var(--accent); width:0; }
+
+  /* ---------- phone ---------- */
+  .ph{ border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; background:#ECE5DD; box-shadow:var(--shadow); }
+  .ph-bar{ display:flex; align-items:center; gap:10px; padding:11px 13px; background:#075E54; color:#fff; }
+  .ph-bar .av{ width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,.22); display:grid; place-items:center; font-size:12px; font-weight:700; }
+  .ph-bar .nm{ font-size:15px; font-weight:700; line-height:1.15; }
+  .ph-bar .st{ font-size:11.5px; opacity:.85; }
+  .ph-thread{
+    flex:1; padding:14px 12px; display:flex; flex-direction:column; gap:8px; justify-content:flex-end;
+    min-height:520px; max-height:620px; overflow-y:auto;
+    background-color:#ECE5DD;
+    background-image:radial-gradient(circle at 18% 24%,rgba(0,0,0,.05) 0 3px,transparent 3px),
+                     radial-gradient(circle at 72% 62%,rgba(0,0,0,.04) 0 4px,transparent 4px);
+    background-size:130px 130px;
+  }
+  .pb{ position:relative; font-size:14px; line-height:1.4; padding:8px 11px 16px; max-width:86%; border-radius:8px; box-shadow:0 1px 1px rgba(0,0,0,.12); animation:pop .3s ease both; }
+  .pb.cust{ align-self:flex-start; background:#fff; color:#111; border-top-left-radius:2px; }
+  .pb.bot{ align-self:flex-end; background:#DCF8C6; color:#111; border-top-right-radius:2px; }
+  .pb .tm{ position:absolute; right:8px; bottom:3px; font-size:10.5px; color:#7A8A7A; }
+  .pb .sp{ display:inline-block; width:46px; }
+  @keyframes pop{ from{ opacity:0; transform:translateY(6px); } }
+
+  /* the album — one photo, one label underneath. This is the mechanic. */
+  .album{ align-self:flex-end; background:#DCF8C6; border-radius:8px; border-top-right-radius:2px; padding:8px 8px 18px; display:grid; grid-template-columns:1fr 1fr; gap:6px; max-width:92%; box-shadow:0 1px 1px rgba(0,0,0,.12); animation:pop .3s ease both; position:relative; }
+  .album figure{ margin:0; display:flex; flex-direction:column; }
+  .album .shot{ aspect-ratio:1; border-radius:5px 5px 0 0; }
+  .album figcaption{ background:#111; color:#fff; border-radius:0 0 5px 5px; text-align:center; padding:4px 3px 5px; font-family:var(--display); font-size:12.5px; font-weight:600; letter-spacing:.08em; }
+  .album figcaption b{ display:block; font-weight:400; font-size:9.5px; opacity:.75; letter-spacing:.01em; margin-top:1px; }
+  .album .tm{ bottom:4px; }
+
+  /* ---------- stock scanner: the physical representation ---------- */
+  .scan{ background:#14100E; color:#F7F4F1; padding:16px; }
+  .scan-hd{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.55); padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,.14); }
+  .scan-hd .pulse{ width:7px; height:7px; border-radius:50%; background:#5A5148; }
+  .scan-hd .pulse.on{ background:var(--accent); }
+  .scan-hd .n{ margin-left:auto; color:#fff; font-variant-numeric:tabular-nums; letter-spacing:.06em; }
+
+  .funnel{ display:flex; flex-wrap:wrap; gap:6px; padding:13px 0 14px; }
+  .fstep{ display:flex; align-items:baseline; gap:7px; padding:5px 10px; border:1px solid rgba(255,255,255,.16); font-family:var(--display); font-size:11.5px; color:rgba(255,255,255,.45); }
+  .fstep.on{ border-color:var(--accent); color:#fff; }
+  .fstep .v{ font-weight:600; font-variant-numeric:tabular-nums; }
+  .fstep.on .v{ color:#FF8B62; }
+
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:5px; }
+  .tile{
+    aspect-ratio:1; border-radius:4px; position:relative; overflow:hidden;
+    display:grid; place-items:center; border:1px solid rgba(255,255,255,.14);
+    transition:opacity .35s ease, filter .35s ease, transform .25s ease, box-shadow .25s ease;
+  }
+  .tile .c{ position:absolute; inset:0; }
+  /* a chip, not a text-shadow: white-on-swatch hit 2.14:1 on the pale
+     colours, and shadows don't count toward contrast */
+  .tile .k{ position:relative; font-family:var(--display); font-size:9px; color:#fff;
+    background:rgba(0,0,0,.72); padding:1px 4px; border-radius:3px; }
+  .tile[data-s="out"]{ opacity:.12; filter:grayscale(1); }
+  .tile[data-s="scan"]{ box-shadow:0 0 0 2px #FFD9C9 inset; }
+  .tile[data-s="hit"]{ box-shadow:0 0 0 2px var(--accent), 0 0 16px rgba(255,74,28,.55); transform:scale(1.08); z-index:2; }
+  .tile .lab{
+    position:absolute; inset:auto 0 0 0; background:var(--accent); color:#fff;
+    font-family:var(--display); font-size:9px; text-align:center; padding:1px 0;
+    opacity:0; transition:opacity .3s ease;
+  }
+  .tile[data-s="hit"] .lab{ opacity:1; }
+
+  /* ---------- log + inventory ---------- */
+  .sys{ background:#14100E; color:#F7F4F1; padding:0 16px 16px; }
+  .sys-log{ display:flex; flex-direction:column; gap:2px; padding-top:12px; border-top:1px solid rgba(255,255,255,.14); max-height:250px; overflow-y:auto; }
+  .ev{ display:grid; grid-template-columns:58px 18px 1fr; gap:9px; align-items:baseline; padding:4px 0; font-size:13px; animation:pop .28s ease both; }
+  .ev .at{ font-family:var(--display); font-size:11px; color:rgba(255,255,255,.4); font-variant-numeric:tabular-nums; }
+  .ev .ic{ text-align:center; font-size:11px; }
+  .ev .tx{ color:rgba(255,255,255,.9); line-height:1.4; }
+  .ev .tx b{ color:#fff; font-weight:600; }
+  .ev code{ font-family:var(--display); font-size:11.5px; background:rgba(255,255,255,.1); padding:1px 5px; color:#FFB89C; }
+  .ev.good .ic{ color:#7BD88F; }
+  .ev.warn .tx{ color:#FFC48A; } .ev.warn .ic{ color:#FFC48A; }
+  .ev.human{ background:rgba(255,74,28,.15); margin-inline:-8px; padding-inline:8px; border-left:2px solid var(--accent); }
+
+  .inv{ border:1px solid var(--line); margin-top:18px; }
+  .inv-hd{ display:flex; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); background:var(--surface); font-family:var(--display); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-2); }
+  .inv-hd .live{ margin-left:auto; color:var(--accent-ink); }
+  table.stock{ width:100%; border-collapse:collapse; font-size:14px; min-width:430px; }
+  table.stock th, table.stock td{ text-align:left; padding:9px 14px; border-bottom:1px solid var(--line); }
+  table.stock th{ font-family:var(--display); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-2); font-weight:400; }
+  table.stock tbody tr:last-child td{ border-bottom:0; }
+  table.stock .code{ font-family:var(--display); font-weight:600; }
+  table.stock .qty{ font-family:var(--display); font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
+  table.stock .tag{ font-family:var(--display); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); }
+  tr.hit{ background:color-mix(in srgb, var(--accent) 13%, transparent); transition:background .4s ease; }
+  tr.hit .tag{ color:var(--accent-ink); }
+  .qty.drop{ color:var(--accent-ink); }
+
+  .legend{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); }
+  .legend div{ background:var(--ground); padding:18px 20px; display:flex; flex-direction:column; gap:7px; }
+  .legend h3{ font-family:var(--display); font-size:14px; font-weight:600; }
+  .legend p{ color:var(--ink-2); font-size:14.5px; }
+  @media (prefers-reduced-motion:reduce){ .pb,.ev,.album{ animation:none; } .tile{ transition:none; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="bar">
+    <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="services.html">Services</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="demos/index.html">Demos</a>
+      <a href="case-study.html">Case study</a>
+      <a href="about.html">About</a>
+      <a class="btn btn-primary btn-sm" href="contact.html">Start a project</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Behind the message</p>
+        <h1 class="h-xl">"Yo you have any<br>blackwork shoes?"</h1>
+        <p class="lead">No code, no size, spelled however it came out the thumb. That is what a real customer sends. Watch the bot ask the one question it needs, search the whole shelf in front of you, send back labelled options, take the pick and put a driver on the road.</p>
+      </div>
+
+      <div class="runner">
+        <button class="btn btn-primary" id="play" type="button">▶ Play the walkthrough</button>
+        <button class="btn btn-ghost" id="step" type="button">Step forward</button>
+        <button class="btn btn-ghost" id="reset" type="button">Restart</button>
+        <span class="state" id="state">Ready</span>
+      </div>
+      <div class="rail"><span id="rail"></span></div>
+
+      <div class="bts">
+        <div>
+          <p class="eyebrow" style="margin-bottom:12px">What the customer sees</p>
+          <div class="ph">
+            <div class="ph-bar">
+              <span class="av">TK</span>
+              <span><span class="nm">Trendy Kicks</span><br><span class="st">online</span></span>
+            </div>
+            <div class="ph-thread" id="thread" role="log" aria-live="polite" aria-label="Customer conversation"></div>
+          </div>
+        </div>
+
+        <div>
+          <p class="eyebrow" style="margin-bottom:12px">What actually happens</p>
+
+          <div class="scan">
+            <div class="scan-hd">
+              <span class="pulse" id="pulse"></span> Stock search
+              <span class="n" id="scanN">40 styles on the shelf</span>
+            </div>
+            <div class="funnel" id="funnel">
+              <span class="fstep" data-f="all">all stock <span class="v">40</span></span>
+              <span class="fstep" data-f="black">black <span class="v">—</span></span>
+              <span class="fstep" data-f="work">work shoe <span class="v">—</span></span>
+              <span class="fstep" data-f="size">size 10 in stock <span class="v">—</span></span>
+            </div>
+            <div class="grid" id="grid" role="img" aria-label="Live stock being filtered down to the matches"></div>
+          </div>
+
+          <div class="sys">
+            <div class="sys-log" id="syslog" role="log" aria-live="polite" aria-label="System events"></div>
+          </div>
+
+          <div class="inv">
+            <div class="inv-hd">Inventory <span class="live" id="invstate">watching</span></div>
+            <div class="table-scroll">
+              <table class="stock">
+                <thead><tr><th scope="col">Label</th><th scope="col">Shoe</th><th scope="col">Size</th><th scope="col">Status</th><th scope="col" style="text-align:right">Qty</th></tr></thead>
+                <tbody id="stock">
+                  <tr data-code="A6"><td class="code">A6</td><td>Black leather steel-toe</td><td>10</td><td class="tag" data-tag>In stock</td><td class="qty" data-qty>3</td></tr>
+                  <tr data-code="B2"><td class="code">B2</td><td>Black slip-resistant</td><td>10</td><td class="tag" data-tag>In stock</td><td class="qty" data-qty>2</td></tr>
+                  <tr data-code="C4"><td class="code">C4</td><td>Black chef shoe</td><td>10</td><td class="tag" data-tag>In stock</td><td class="qty" data-qty>4</td></tr>
+                  <tr data-code="D1"><td class="code">D1</td><td>Black safety boot</td><td>10</td><td class="tag" data-tag>In stock</td><td class="qty" data-qty>1</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted" style="font-size:14.5px;margin-top:22px;max-width:var(--measure)">
+        <strong>What this is:</strong> the real shape of a conversation the bot handles on THE PLUG 242 — vague request, size question, live search, labelled album, pick, delivery — played back at readable speed. The 40 tiles are a sample shelf for the walkthrough, not a live feed of anyone's stock.
+      </p>
+    </div>
+  </section>
+
+  <section class="band band-surface">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Why it works this way</p>
+        <h2 class="h-lg">The labels are the whole trick.</h2>
+      </div>
+      <div class="legend">
+        <div><h3>It asks the size first</h3><p>Sending twelve photos before knowing the size burns the customer's data and their patience. One question, then a short answer — that is the difference between a helpful bot and a spammy one.</p></div>
+        <div><h3>It reads bad spelling</h3><p>"Blackwork shoes" is not a category in any database. The bot turns it into black + work shoe before it searches, the same way a person would.</p></div>
+        <div><h3>One photo, one label</h3><p>Every option gets a code underneath it. The customer types two characters instead of describing "the one with the strap" — and the bot knows exactly which pair that is, with no back and forth.</p></div>
+        <div><h3>It only shows what exists</h3><p>The album is built from the live count in that size. Nothing gets offered that has to be walked back five minutes later.</p></div>
+        <div><h3>Delivery still gets a human</h3><p>Once an address is in, staff get an alert on their own phones. The bot arranges the run; a person still drives it.</p></div>
+        <div><h3>Then the shelf comes down</h3><p>The sale writes back to inventory, the count drops, the order gets a number, and the whole chain is logged so any sale can be audited later.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band no-border">
+    <div class="wrap">
+      <div class="stack stack-md" style="max-width:640px">
+        <p class="eyebrow">Next</p>
+        <h2 class="h-lg">Want this running on your stock?</h2>
+        <p class="lead">Tell us what you sell and how you count it now. That is the whole first conversation.</p>
+        <div class="btn-row" style="margin-top:10px">
+          <a class="btn btn-primary" href="https://wa.me/1242XXXXXXX?text=Hi%2C%20I%20watched%20the%20behind-the-scenes%20walkthrough%20and%20I%27d%20like%20one%20for%20my%20business." rel="noopener">Message us on WhatsApp</a>
+          <a class="btn btn-ghost" href="demos/index.html">Try the demos</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+        <p>Websites and WhatsApp order bots for Bahamian businesses. Nassau, New Providence.</p>
+      </div>
+      <div class="foot-col">
+        <h3>Site</h3>
+        <ul>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="pricing.html">Pricing</a></li>
+          <li><a href="demos/index.html">Demos</a></li>
+          <li><a href="behind-the-scenes.html">Behind the message</a></li>
+          <li><a href="case-study.html">Case study</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Start a project</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h3>Reach us</h3>
+        <ul>
+          <li><a href="https://wa.me/1242XXXXXXX" rel="noopener">WhatsApp</a></li>
+          <li><a href="mailto:hello@nightshift.bs">hello@nightshift.bs</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Nightshift · Nassau, Bahamas</span>
+      <span>Replies within 4 business hours</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/site.js?v=20260810g" defer></script>
+<script>
+(function () {
+  "use strict";
+
+  var COLOURS = { black:"#1A1A1A", white:"#EDEDED", tan:"#B98B55", red:"#A3342E", blue:"#2B4C7E", grey:"#6E6E6E" };
+
+  /* 40 styles on the sample shelf. Exactly four are black work shoes with a
+     size 10 on hand — those four become the labelled album. */
+  var SHELF = [
+    {k:"A6",c:"black",t:"work",s10:true,lab:"A6"},
+    {k:"B2",c:"black",t:"work",s10:true,lab:"B2"},
+    {k:"C4",c:"black",t:"work",s10:true,lab:"C4"},
+    {k:"D1",c:"black",t:"work",s10:true,lab:"D1"},
+    {k:"E3",c:"black",t:"work",s10:false},
+    {k:"F7",c:"black",t:"sneaker",s10:true},
+    {k:"G2",c:"black",t:"sneaker",s10:true},
+    {k:"H8",c:"black",t:"dress",s10:true},
+    {k:"J5",c:"black",t:"sneaker",s10:false},
+    {k:"K1",c:"white",t:"sneaker",s10:true},
+    {k:"L9",c:"white",t:"sneaker",s10:true},
+    {k:"M4",c:"white",t:"work",s10:true},
+    {k:"N6",c:"tan",t:"work",s10:true},
+    {k:"P3",c:"tan",t:"dress",s10:true},
+    {k:"Q7",c:"red",t:"sneaker",s10:true},
+    {k:"R2",c:"red",t:"sneaker",s10:false},
+    {k:"S8",c:"blue",t:"sneaker",s10:true},
+    {k:"T5",c:"blue",t:"work",s10:false},
+    {k:"U1",c:"grey",t:"sneaker",s10:true},
+    {k:"V9",c:"grey",t:"work",s10:true},
+    {k:"W3",c:"black",t:"sneaker",s10:true},
+    {k:"X6",c:"white",t:"dress",s10:false},
+    {k:"Y2",c:"tan",t:"sneaker",s10:true},
+    {k:"Z4",c:"blue",t:"dress",s10:true},
+    {k:"A1",c:"grey",t:"sneaker",s10:false},
+    {k:"B7",c:"red",t:"work",s10:true},
+    {k:"C3",c:"white",t:"sneaker",s10:true},
+    {k:"D8",c:"black",t:"dress",s10:false},
+    {k:"E5",c:"tan",t:"work",s10:false},
+    {k:"F2",c:"blue",t:"sneaker",s10:true},
+    {k:"G9",c:"grey",t:"dress",s10:true},
+    {k:"H4",c:"white",t:"work",s10:false},
+    {k:"J7",c:"red",t:"dress",s10:true},
+    {k:"K3",c:"black",t:"sneaker",s10:true},
+    {k:"L6",c:"tan",t:"sneaker",s10:true},
+    {k:"M8",c:"blue",t:"work",s10:true},
+    {k:"N2",c:"grey",t:"sneaker",s10:true},
+    {k:"P9",c:"white",t:"dress",s10:true},
+    {k:"Q4",c:"black",t:"work",s10:false},
+    {k:"R6",c:"red",t:"sneaker",s10:true}
+  ];
+
+  var ALBUM = [
+    { lab:"A6", name:"Leather steel-toe", price:"$95" },
+    { lab:"B2", name:"Slip-resistant",    price:"$78" },
+    { lab:"C4", name:"Chef shoe",         price:"$65" },
+    { lab:"D1", name:"Safety boot",       price:"$110" }
+  ];
+
+  var N_ALL   = SHELF.length,
+      N_BLACK = SHELF.filter(function(x){ return x.c==="black"; }).length,
+      N_WORK  = SHELF.filter(function(x){ return x.c==="black" && x.t==="work"; }).length,
+      N_HIT   = SHELF.filter(function(x){ return x.c==="black" && x.t==="work" && x.s10; }).length;
+
+  var thread=document.getElementById("thread"), syslog=document.getElementById("syslog"),
+      grid=document.getElementById("grid"), stock=document.getElementById("stock"),
+      rail=document.getElementById("rail"), stateEl=document.getElementById("state"),
+      invEl=document.getElementById("invstate"), pulse=document.getElementById("pulse"),
+      funnel=document.getElementById("funnel"), scanN=document.getElementById("scanN"),
+      playBtn=document.getElementById("play"), stepBtn=document.getElementById("step"),
+      resetBtn=document.getElementById("reset");
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var byKey = {};
+  SHELF.forEach(function(s){ byKey[s.k]=s; });
+
+  function el(tag,cls,html){ var n=document.createElement(tag); if(cls)n.className=cls; if(html!=null)n.innerHTML=html; return n; }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+  function stamp(t){ return '<span class="sp"></span><span class="tm">'+t+'</span>'; }
+
+  function buildGrid(){
+    grid.innerHTML="";
+    SHELF.forEach(function(item){
+      var t=el("div","tile");
+      t.dataset.k=item.k; t.dataset.s="idle";
+      t.innerHTML='<span class="c" style="background:'+COLOURS[item.c]+'"></span>'+
+                  '<span class="k">'+item.k+'</span>'+
+                  '<span class="lab">'+(item.lab||"")+'</span>';
+      grid.appendChild(t);
+    });
+  }
+  function tiles(){ return Array.prototype.slice.call(grid.children); }
+  function setF(name,val){
+    var f=funnel.querySelector('[data-f="'+name+'"]');
+    if(!f) return;
+    f.querySelector(".v").textContent=val;
+    f.classList.add("on");
+  }
+
+  /* the visible search: sweep the whole shelf, then knock out what fails */
+  function runScan(phase){
+    var all=tiles();
+    if(phase==="all"){
+      pulse.classList.add("on");
+      setF("all",SHELF.length);
+      all.forEach(function(t,idx){
+        setTimeout(function(){
+          t.dataset.s="scan";
+          setTimeout(function(){ if(t.dataset.s==="scan") t.dataset.s="idle"; }, reduced?0:230);
+        }, reduced?0:idx*11);
+      });
+    } else if(phase==="black"){
+      var n=0;
+      all.forEach(function(t){
+        if(byKey[t.dataset.k].c!=="black") t.dataset.s="out"; else n++;
+      });
+      setF("black",n);
+    } else if(phase==="work"){
+      var n2=0;
+      all.forEach(function(t){
+        if(t.dataset.s==="out") return;
+        if(byKey[t.dataset.k].t!=="work") t.dataset.s="out"; else n2++;
+      });
+      setF("work",n2);
+    } else if(phase==="size"){
+      var n3=0;
+      all.forEach(function(t){
+        if(t.dataset.s==="out") return;
+        if(!byKey[t.dataset.k].s10) t.dataset.s="out"; else { t.dataset.s="hit"; n3++; }
+      });
+      setF("size",n3);
+      scanN.textContent=n3+" to show the customer";
+      pulse.classList.remove("on");
+    }
+  }
+
+  var SCRIPT=[
+    {k:"cust",text:"Yo you have any blackwork shoes?",tm:"6:12 pm",wait:700},
+    {k:"sys",at:"18:12:04",ic:"→",tx:"Message received on <b>WhatsApp</b>",wait:420},
+    {k:"sys",at:"18:12:04",ic:"⚙",tx:'Normalising: <code>blackwork</code> → <b>black</b> + <b>work shoe</b>',wait:520},
+    {k:"sys",at:"18:12:05",ic:"?",cls:"warn",tx:"No size given — <b>ask before sending photos</b>",wait:520},
+    {k:"bot",text:"Yes 👍 What size you need?",tm:"6:12 pm",wait:800},
+
+    {k:"cust",text:"size 10",tm:"6:13 pm",wait:620},
+    {k:"sys",at:"18:13:11",ic:"⌕",tx:"Searching live stock <code>colour=black type=work size=10</code>",wait:380},
+    {k:"scan",phase:"all",wait:700},
+    {k:"scan",phase:"black",wait:620},
+    {k:"sys",at:"18:13:12",ic:"·",tx:"Colour filter — <b>"+N_BLACK+" black</b> styles left",wait:420},
+    {k:"scan",phase:"work",wait:620},
+    {k:"sys",at:"18:13:12",ic:"·",tx:"Category filter — <b>"+N_WORK+" work shoes</b> left",wait:420},
+    {k:"scan",phase:"size",wait:700},
+    {k:"sys",at:"18:13:13",ic:"✓",cls:"good",tx:"<b>"+N_HIT+" matches</b> with a size 10 on the shelf",wait:520},
+    {k:"sys",at:"18:13:13",ic:"🏷",tx:"Building album — <b>one photo, one label</b> each",wait:620},
+
+    {k:"bot",text:"This is what we have in size 10 black work shoes 👇",tm:"6:13 pm",wait:620},
+    {k:"album",tm:"6:13 pm",wait:820},
+    {k:"bot",text:"Pick the label under the one you want — A6, B2, C4 or D1.",tm:"6:13 pm",wait:900},
+
+    {k:"cust",text:"A6",tm:"6:14 pm",wait:620},
+    {k:"sys",at:"18:14:02",ic:"⚙",tx:'Label <code>A6</code> → <b>Black leather steel-toe</b>, size 10, $95',wait:520},
+    {k:"sys",at:"18:14:02",ic:"⏸",tx:"Reserved — <b>A6 size 10 held 15 min</b>",wait:520,inv:{code:"A6",tag:"1 held"}},
+    {k:"bot",text:"A6 — black leather steel-toe, size 10. $95. You collecting, or you want it delivered?",tm:"6:14 pm",wait:900},
+
+    {k:"cust",text:"delivery",tm:"6:15 pm",wait:600},
+    {k:"sys",at:"18:15:20",ic:"⚙",tx:"Delivery selected — address needed",wait:460},
+    {k:"bot",text:"Sweet. Where am I sending it?",tm:"6:15 pm",wait:800},
+
+    {k:"cust",text:"Sea Breeze, off Prince Charles",tm:"6:16 pm",wait:640},
+    {k:"sys",at:"18:16:03",ic:"📍",tx:"Address captured — zone <b>Nassau mainland</b>, delivery free",wait:520},
+    {k:"sys",at:"18:16:03",ic:"👤",cls:"human",tx:"Driver alert sent to <b>staff WhatsApp</b> — run assigned",wait:800},
+    {k:"bot",text:"Got it 🛵 A driver will be out to you in a few — delivery on the mainland is free. I'll send the tracking link.",tm:"6:16 pm",wait:900},
+
+    {k:"sys",at:"18:16:05",ic:"−",tx:"Stock write: <code>A6 size 10 −1</code>",wait:560,inv:{code:"A6",tag:"Sold 1",qty:2}},
+    {k:"sys",at:"18:16:05",ic:"✓",cls:"good",tx:"Confirmed: order <b>TK-2287</b> written and logged",wait:520},
+    {k:"sys",at:"18:16:05",ic:"■",tx:"Done — <b>4 minutes, nobody typed a reply</b>",wait:0}
+  ];
+
+  var i=0,timer=null,running=false;
+
+  function render(b){
+    if(b.k==="cust"||b.k==="bot"){
+      thread.appendChild(el("div","pb "+(b.k==="cust"?"cust":"bot"), esc(b.text)+stamp(b.tm)));
+    } else if(b.k==="album"){
+      var html="";
+      ALBUM.forEach(function(a){
+        html+='<figure><span class="shot" style="background:linear-gradient(140deg,#2B2B2B,#5A5A5A)"></span>'+
+              '<figcaption>'+a.lab+'<b>'+a.name+' · '+a.price+'</b></figcaption></figure>';
+      });
+      thread.appendChild(el("div","album",html+stamp(b.tm)));
+    } else if(b.k==="sys"){
+      syslog.appendChild(el("div","ev "+(b.cls||""),
+        '<span class="at">'+b.at+'</span><span class="ic">'+b.ic+'</span><span class="tx">'+b.tx+'</span>'));
+      syslog.scrollTop=syslog.scrollHeight;
+    } else if(b.k==="scan"){
+      runScan(b.phase);
+    }
+    thread.scrollTop=thread.scrollHeight;
+
+    if(b.inv){
+      var row=stock.querySelector('tr[data-code="'+b.inv.code+'"]');
+      if(row){
+        row.classList.add("hit");
+        row.querySelector("[data-tag]").textContent=b.inv.tag;
+        if(b.inv.qty!=null){
+          var q=row.querySelector("[data-qty]");
+          q.textContent=b.inv.qty; q.classList.add("drop");
+        }
+        invEl.textContent=b.inv.qty!=null?"updated":"holding";
+      }
+    }
+  }
+
+  function progress(){
+    rail.style.width=Math.round((i/SCRIPT.length)*100)+"%";
+    var label=i===0?"Ready":i>=SCRIPT.length?"Complete":running?"Running":"Paused";
+    stateEl.textContent=label+(i?" · "+i+" of "+SCRIPT.length:"");
+  }
+  function tick(){
+    if(i>=SCRIPT.length){ stop(true); return; }
+    var b=SCRIPT[i++];
+    render(b); progress();
+    if(running){
+      if(i>=SCRIPT.length){ stop(true); return; }
+      timer=setTimeout(tick, reduced?110:b.wait);
+    }
+  }
+  function start(){ if(i>=SCRIPT.length) reset(); running=true; playBtn.textContent="❚❚ Pause"; tick(); }
+  function stop(done){ running=false; clearTimeout(timer); playBtn.textContent=done?"▶ Play again":"▶ Resume"; progress(); }
+  function reset(){
+    clearTimeout(timer); running=false; i=0;
+    thread.innerHTML=""; syslog.innerHTML="";
+    buildGrid(); pulse.classList.remove("on");
+    scanN.textContent=N_ALL+" styles on the shelf";
+    Array.prototype.forEach.call(funnel.querySelectorAll(".fstep"),function(f,idx){
+      f.classList.remove("on");
+      f.querySelector(".v").textContent = idx===0 ? String(N_ALL) : "—";
+    });
+    invEl.textContent="watching";
+    Array.prototype.forEach.call(stock.querySelectorAll("tr"),function(r){
+      r.classList.remove("hit");
+      r.querySelector("[data-tag]").textContent="In stock";
+      var q=r.querySelector("[data-qty]");
+      q.classList.remove("drop");
+      q.textContent={A6:"3",B2:"2",C4:"4",D1:"1"}[r.dataset.code];
+    });
+    playBtn.textContent="▶ Play the walkthrough";
+    progress();
+  }
+
+  playBtn.addEventListener("click",function(){ running?stop(false):start(); });
+  stepBtn.addEventListener("click",function(){ if(running) stop(false); if(i<SCRIPT.length) tick(); });
+  resetBtn.addEventListener("click",reset);
+
+  buildGrid();
+  progress();
+})();
+</script>
+</body>
+</html>

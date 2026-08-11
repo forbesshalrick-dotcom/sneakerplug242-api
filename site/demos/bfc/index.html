@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo — fast food site with a numbered ordering bot</title>
+<meta name="description" content="A preview of a Bahamian fast food chain's website and WhatsApp ordering bot: numbered combos, pickup or delivery. Fictional business, working bot.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" as="image" href="img/hero.webp" fetchpriority="high">
+<link rel="stylesheet" href="../assets/demo.css?v=20260810g">
+<style>
+  :root{
+    --d-ground:#FFFFFF; --d-surface:#FFF6E8; --d-ink:#1B1613; --d-ink-2:#6B5F55;
+    --d-line:#EFE2CF; --d-accent:#C8102E; --d-accent-ink:#A50D25; --d-on-accent:#fff;
+    --d-display:"Anton",Impact,sans-serif; --d-body:"Archivo",sans-serif; --d-radius:12px;
+    --gold:#F5B301;
+  }
+  .bf-h1,.bf-h2,.d-logo{ text-transform:uppercase; letter-spacing:-.005em; }
+  .bf-h1{ font-family:var(--d-display); font-size:clamp(44px,8vw,96px); line-height:.9; }
+  .bf-h2{ font-family:var(--d-display); font-size:clamp(28px,4.4vw,50px); line-height:.96; }
+  .bf-lead{ font-size:clamp(16px,1.6vw,19px); color:var(--d-ink-2); max-width:44ch; line-height:1.7; }
+  .d-logo{ font-family:var(--d-display); font-size:26px; color:var(--d-accent); }
+  .d-logo span{ color:var(--d-ink); }
+  .d-nav a{ font-weight:600; font-size:13.5px; text-transform:uppercase; letter-spacing:.06em; }
+
+  .stripe{ height:8px; background:repeating-linear-gradient(90deg,var(--d-accent) 0 34px,var(--gold) 34px 68px); }
+
+  .bf-hero{ position:relative; overflow:hidden; background:#1B1613; }
+  .bf-hero img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:70% center; }
+  .bf-hero::after{ content:""; position:absolute; inset:0;
+    background:linear-gradient(95deg,rgba(27,22,19,.95) 0%,rgba(27,22,19,.8) 40%,rgba(27,22,19,.1) 82%); }
+  .bf-hero .inner{ position:relative; z-index:1; padding-block:clamp(44px,7vw,96px); color:#fff; }
+  .bf-hero .bf-lead{ color:rgba(255,255,255,.82); }
+  .flash{ display:inline-block; background:var(--gold); color:#1B1613; font-family:var(--d-display);
+    font-size:14px; letter-spacing:.08em; padding:6px 14px; border-radius:4px; text-transform:uppercase; }
+
+  /* the numbered board */
+  .board{ display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; }
+  .combo{ background:var(--d-surface); border-radius:var(--d-radius); overflow:hidden; display:flex; flex-direction:column; border:2px solid transparent; transition:border-color .18s ease, transform .18s ease; }
+  .combo:hover{ border-color:var(--d-accent); transform:translateY(-3px); }
+  .combo .pic{ position:relative; height:190px; flex:none; background:#EEE; overflow:hidden; }
+  .combo .pic img{ width:100%; height:100%; object-fit:cover; }
+  .combo .num{
+    position:absolute; top:10px; left:10px; background:var(--d-accent); color:#fff;
+    font-family:var(--d-display); font-size:24px; line-height:1; padding:8px 12px 6px; border-radius:8px;
+    box-shadow:0 3px 0 rgba(0,0,0,.25);
+  }
+  .combo .body{ padding:14px 16px 18px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .combo .nm{ font-family:var(--d-display); font-size:22px; text-transform:uppercase; }
+  .combo .ds{ font-size:13.5px; color:var(--d-ink-2); line-height:1.55; flex:1; }
+  .combo .pr{ font-family:var(--d-display); font-size:26px; color:var(--d-accent); }
+  .combo .pr small{ font-family:var(--d-body); font-size:12px; color:var(--d-ink-2); font-weight:600; letter-spacing:.04em; }
+
+  .how{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:18px; }
+  .how div{ background:var(--d-surface); border-radius:var(--d-radius); padding:20px; display:flex; flex-direction:column; gap:8px; }
+  .how b{ font-family:var(--d-display); font-size:34px; color:var(--gold); line-height:1; -webkit-text-stroke:1px var(--d-ink); }
+  .how h3{ font-family:var(--d-display); font-size:19px; text-transform:uppercase; }
+  .how p{ font-size:14px; color:var(--d-ink-2); line-height:1.6; }
+
+  .bf-section{ padding-block:clamp(40px,6vw,84px); }
+  .bot-hd{ font-family:var(--d-display); letter-spacing:.06em; text-transform:uppercase; }
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span><b>DEMO SITE</b> — “BFC” is not a real restaurant. Nothing here takes a real order.</span>
+  <a href="../index.html">See the other demos</a>
+</div>
+
+<div class="stripe"></div>
+
+<header>
+  <div class="d-head">
+    <a class="d-logo" href="#">BFC<span> · Bahamas Fried Chicken</span></a>
+    <nav class="d-nav">
+      <a href="#board">Menu</a>
+      <a href="#how">How to order</a>
+      <a href="#bot">Order now</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="bf-hero">
+    <img src="img/hero.webp" alt="A platter of fried chicken" width="1024" height="681" fetchpriority="high">
+    <div class="inner">
+      <div class="d-wrap d-stack g22">
+        <span class="flash">Open till 2am · 6 locations</span>
+        <h1 class="bf-h1">Know the number.<br>Say the number.<br>Eat.</h1>
+        <p class="bf-lead">Every combo on our board has a number. Message us the number, tell us pickup or delivery, and it's done. No menus to scroll, no waiting on hold.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <a class="d-btn" href="#bot">Order on WhatsApp</a>
+          <a class="d-btn d-btn-ghost" href="#board" style="color:#fff;border-color:rgba(255,255,255,.4)">See the board</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- the board -->
+  <section class="bf-section" id="board">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">The board</p>
+        <h2 class="bf-h2">Eight combos. Eight numbers.</h2>
+        <p class="bf-lead">Every combo comes with a side and a drink. Add a second side for B$3.</p>
+      </div>
+
+      <div class="board">
+        <article class="combo">
+          <div class="pic" data-lightbox="board"><span class="num">1</span><img src="img/m1.webp" alt="Two-piece chicken with slaw" loading="lazy" width="680" height="1023"></div>
+          <div class="body"><span class="nm">The Two-Piece</span><span class="ds">Two pieces, fries, slaw, drink. The one everybody orders.</span><span class="pr">B$9.50 <small>combo</small></span></div>
+        </article>
+        <article class="combo">
+          <div class="pic" data-lightbox="board"><span class="num">2</span><img src="img/m2.webp" alt="Eight-piece bucket" loading="lazy" width="900" height="675"></div>
+          <div class="body"><span class="nm">Family Bucket</span><span class="ds">Eight pieces, big fries, two sides, 1.5L drink. Feeds four.</span><span class="pr">B$34.00 <small>bucket</small></span></div>
+        </article>
+        <article class="combo">
+          <div class="pic" data-lightbox="board"><span class="num">3</span><img src="img/m3.webp" alt="Chicken plate with sides" loading="lazy" width="900" height="675"></div>
+          <div class="body"><span class="nm">The Sunday Plate</span><span class="ds">Three pieces, peas n rice, mac, plantain, drink.</span><span class="pr">B$14.00 <small>combo</small></span></div>
+        </article>
+        <article class="combo">
+          <div class="pic" data-lightbox="board"><span class="num">4</span><img src="img/m4.webp" alt="Chicken sandwich with onion rings" loading="lazy" width="900" height="596"></div>
+          <div class="body"><span class="nm">Crispy Sandwich</span><span class="ds">Fillet, pickles, hot mayo, onion rings, drink.</span><span class="pr">B$11.00 <small>combo</small></span></div>
+        </article>
+        <article class="combo">
+          <div class="pic" data-lightbox="board"><span class="num">5</span><img src="img/m5.webp" alt="Barbecue glazed wings" loading="lazy" width="900" height="1200"></div>
+          <div class="body"><span class="nm">Sticky Wings</span><span class="ds">Ten wings, BBQ or jerk glaze, fries, drink.</span><span class="pr">B$13.50 <small>combo</small></span></div>
+        </article>
+        <article class="combo">
+          <div class="pic" data-lightbox="board"><span class="num">6</span><img src="img/m6.webp" alt="Spicy fries box" loading="lazy" width="900" height="599"></div>
+          <div class="body"><span class="nm">Loaded Fries</span><span class="ds">Fries, cheese sauce, chopped chicken, scotch bonnet drizzle.</span><span class="pr">B$8.50 <small>box</small></span></div>
+        </article>
+        <article class="combo">
+          <div class="pic" data-lightbox="board"><span class="num">7</span><img src="img/m7.webp" alt="Chicken wings on a rack" loading="lazy" width="768" height="1024"></div>
+          <div class="body"><span class="nm">Wing Party</span><span class="ds">Twenty wings, two sauces, two big fries. Game night sorted.</span><span class="pr">B$29.00 <small>sharer</small></span></div>
+        </article>
+        <article class="combo">
+          <div class="pic" data-lightbox="board"><span class="num">8</span><img src="img/m8.webp" alt="Chicken wings platter" loading="lazy" width="900" height="600"></div>
+          <div class="body"><span class="nm">Lil Chick</span><span class="ds">One piece or three tenders, small fries, juice, a toy.</span><span class="pr">B$6.50 <small>kids</small></span></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- how -->
+  <section class="bf-section" id="how" style="background:var(--d-surface)">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">How to order</p>
+        <h2 class="bf-h2">Three taps and you're eating.</h2>
+      </div>
+      <div class="how">
+        <div><b>1</b><h3>Send the number</h3><p>Message “2” and the bot knows you want the Family Bucket. Or tap it off the list it sends you.</p></div>
+        <div><b>2</b><h3>Pick your side</h3><p>It offers what the kitchen actually has going, then asks about drinks and extras.</p></div>
+        <div><b>3</b><h3>Pickup or delivery</h3><p>Collection gives you a time. Delivery asks the address and quotes the fee before you commit.</p></div>
+        <div><b>4</b><h3>Pay and go</h3><p>Bank transfer or cash on collection. The kitchen gets the ticket the second you confirm.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- bot -->
+  <section class="bf-section" id="bot">
+    <div class="d-wrap" style="max-width:620px">
+      <div class="d-stack g22" style="margin-bottom:22px">
+        <p class="d-kicker">Order</p>
+        <h2 class="bf-h2">Go on then.</h2>
+        <p class="bf-lead">This is the real thing — it prices the combo, adds the extras, works out delivery and gives you a total.</p>
+      </div>
+      <div class="bot-shell" id="order-bot"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="demo-foot">
+  <div class="d-wrap">
+    <h2>This is a demo. Yours would have your board on it.</h2>
+    <p>Numbered combos are the fastest ordering system there is, because the customer does the typing and never gets it wrong. The bot above takes the number, the sides, the delivery and the money.</p>
+    <a class="cta" href="../../contact.html">Build mine</a>
+    <p class="back">Preview built by <a href="../../index.html">Nightshift</a> · Nassau · <a href="../index.html">all demos</a> · <a href="../credits.html">photo credits</a></p>
+  </div>
+</footer>
+
+<script src="../assets/lightbox.js?v=20260810g"></script>
+<script src="../assets/bot.js?v=20260810g"></script>
+<script>
+var COMBOS = [
+  { label:"1 — The Two-Piece",   price:9.50 },
+  { label:"2 — Family Bucket",   price:34.00 },
+  { label:"3 — The Sunday Plate",price:14.00 },
+  { label:"4 — Crispy Sandwich", price:11.00 },
+  { label:"5 — Sticky Wings",    price:13.50 },
+  { label:"6 — Loaded Fries",    price:8.50 },
+  { label:"7 — Wing Party",      price:29.00 },
+  { label:"8 — Lil Chick",       price:6.50 }
+];
+
+DemoBot.start({
+  mount: "#order-bot",
+  ai: "bfc",
+  botName: "BFC",
+  channel: "WhatsApp",
+  currency: "B$",
+  intents: [
+    { re:/(different|separate|not the same|two orders|2 orders|another (one|combo|order)|add (a|another)|as well|also want)/,
+      reply:"Course \u2014 just give me the numbers together, like \u201c5 and 7\u201d, and I'll put them on the one ticket." }
+  ],
+  knows: [
+    { re:/menu|what.*(you )?(have|sell|serve|do|got)|what.*(good|nice)|see.*(food|board)|options/,
+      a:"Everything's on the board above 👆 Eight combos, numbers 1 to 8 — chicken, wings, sandwiches, loaded fries and a kids meal. Every one comes with a side and a drink." },
+    { re:/(open|close|closing|hours|what time|still serving|late)/,
+      a:"We're open till 2am, seven days. Kitchen takes its last order about ten minutes before close." },
+    { re:/(deliver|delivery|drop off|bring it)/,
+      a:"Yes — delivery is B$6 anywhere on the mainland, usually 35 to 45 minutes. Collection is free and about 12 minutes." },
+    { re:/(where|location|address|find you|which branch|store)/,
+      a:"Six locations: Carmichael, Mackey Street, Cable Beach, Marathon, Prince Charles and JFK. Whichever's closest to you." },
+    { re:/(pay|payment|cash|card|transfer|bank)/,
+      a:"Cash on collection, or bank transfer if you'd rather sort it now. I'll send the details at the end." },
+    { re:/(vegetarian|vegan|no meat|meatless)/,
+      a:"Honestly, we're a chicken shop 🍗 The loaded fries can go without the chicken, and the sides — peas n rice, mac, slaw, plantain — are all good on their own." },
+    { re:/(big order|party|catering|large|feed|crowd|how many people)/,
+      a:"Number 2 feeds four and number 7 does about eight. Anything bigger than that, tell me the headcount and I'll put a person on it to price it up." },
+    { re:/(spicy|hot|mild|sauce)/,
+      a:"Mild or spicy on any of the chicken, and the wings come BBQ or jerk. Hot sauce is B$0.50 on the side." }
+  ],
+  greeting: [
+    "Yo 🍗 BFC. Open till 2.",
+    "Tell me what you want and I'll sort it out."
+  ],
+  steps: [
+    {
+      key:"order", multi:true, requireOne:true, doneLabel:"That's my food",
+      ask:"What you having tonight? Just tell me \u2014 \u201ca 5 and a 7\u201d works, or tap the numbers.",
+      short:"What you having?",
+      ack:function(o,a){
+        var n=a.order.length;
+        return o.label.split("\u2014 ")[1]+" \u2713 That's "+n+" item"+(n>1?"s":"")+" so far. Anything else, or tell me you're done.";
+      },
+      options:COMBOS,
+      retry:"No problem \u2014 the board is above. Give me the numbers you want, like \u201c5 and 7\u201d."
+    },
+    {
+      key:"sides", multi:true, doneLabel:"No more sides",
+      ask:function(a){ return "Good. One side comes with each combo, so pick "+a.order.length+"."; },
+      short:"Which sides?",
+      ack:function(o){ return o.label+" \u2713 Any more?"; },
+      options:[
+        { label:"Fries", price:0 }, { label:"Peas n rice", price:0 },
+        { label:"Mac n cheese", price:1.50 }, { label:"Coleslaw", price:0 },
+        { label:"Fried plantain", price:1.00 }
+      ]
+    },
+    {
+      key:"extras", multi:true, doneLabel:"That's it",
+      ask:"Anything extra on top?",
+      short:"Anything extra?",
+      ack:function(o){ return o.label+" \u2713 Anything else?"; },
+      options:[
+        { label:"Extra side", price:3.00 }, { label:"Extra biscuit", price:1.50 },
+        { label:"Hot sauce", price:0.50 }, { label:"Upsize the drink", price:2.00 }
+      ]
+    },
+    {
+      key:"how", ask:"Pickup or delivery?", short:"Pickup or delivery?",
+      options:[{ label:"Pickup", price:0 }, { label:"Delivery", price:6 }]
+    },
+    {
+      key:"where", when:function(a){ return a.how.label==="Delivery"; },
+      free:true, ask:"What's the address?", short:"What's the address?",
+      options:[{label:"Carmichael Road"},{label:"Sea Breeze"},{label:"Cable Beach"}]
+    },
+    {
+      key:"when", when:function(a){ return a.how.label==="Pickup"; },
+      ask:"Which BFC you collecting from?", short:"Which branch?",
+      options:[{label:"Carmichael"},{label:"Mackey Street"},{label:"Cable Beach"},{label:"Marathon"}]
+    }
+  ],
+  summarise: function(a){
+    var rows=[], total=0;
+    var seen={}, order=[];
+    a.order.forEach(function(o){
+      if(!seen[o.label]){ seen[o.label]={item:o,n:0}; order.push(o.label); }
+      seen[o.label].n++;
+    });
+    order.forEach(function(k){
+      var e=seen[k], line=e.item.price*e.n;
+      rows.push({ label:e.item.label+(e.n>1?" \u00d7 "+e.n:""), value:"B$"+line.toFixed(2) });
+      total+=line;
+    });
+    if((a.sides||[]).length){
+      var sn=a.sides.map(function(x){return x.label;}).join(", ");
+      var sc=a.sides.reduce(function(t,x){return t+x.price;},0);
+      rows.push({ label:"Sides", value:sn+(sc?" (+B$"+sc.toFixed(2)+")":"") });
+      total+=sc;
+    }
+    (a.extras||[]).forEach(function(x){
+      rows.push({ label:x.label, value:"+B$"+x.price.toFixed(2) });
+      total+=x.price;
+    });
+    if(a.how.label==="Delivery"){
+      rows.push({ label:"Delivery \u2014 "+a.where.label, value:"B$6.00" });
+      total+=6;
+      rows.push({ label:"Ready in", value:"35\u201345 min" });
+    } else {
+      rows.push({ label:"Pickup at", value:"BFC "+a.when.label });
+      rows.push({ label:"Ready in", value:"12 min" });
+    }
+    return {
+      before:["Alright, let me total that up \ud83c\udf57"],
+      title:"Your order",
+      rows:rows, total:Number(total.toFixed(2)),
+      note:"Kitchen gets this the second you confirm. Pay by transfer now, or cash when you collect.",
+      closing:"Say the word and it's on the fryer."
+    };
+  }
+});
+</script>
+</body>
+</html>

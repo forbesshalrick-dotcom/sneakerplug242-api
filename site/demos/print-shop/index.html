@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo — t-shirt printing site with a design tool and ordering bot</title>
+<meta name="description" content="A preview of a Bahamian print shop's website: design your own shirt on the page, then order it through the bot. Fictional business, working tools.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../assets/demo.css?v=20260810g">
+<style>
+  :root{
+    --d-ground:#fff; --d-surface:#F2F2F2; --d-ink:#0E0E0E; --d-ink-2:#5E5E5E;
+    --d-line:#DEDEDE; --d-accent:#0E0E0E; --d-accent-ink:#0E0E0E; --d-on-accent:#FFE600;
+    --d-display:"Anton",Impact,sans-serif; --d-body:"Archivo",sans-serif; --d-radius:0px;
+  }
+  .d-h1,.d-h2,.d-logo{ text-transform:uppercase; letter-spacing:-.01em; }
+  /* Anton's caps overshoot a sub-1 line box, so the first line loses its
+     tops. Give it a full line box plus a little headroom. */
+  .d-h1{ line-height:1.16; padding-top:.06em; }
+  .hl{ background:#FFE600; padding:0 .12em; }
+  .studio{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); gap:clamp(20px,3vw,40px); align-items:start; }
+  @media (max-width:880px){ .studio{ grid-template-columns:1fr; } }
+  .stage{ background:#F3F3F3; border:1px solid var(--d-line); display:grid; place-items:center; padding:14px; }
+  .ctrl{ display:flex; flex-direction:column; gap:8px; }
+  .ctrl > .lab{ font-family:"Plex Mono",monospace; font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--d-ink-2); }
+  .swatches{ display:flex; gap:8px; flex-wrap:wrap; }
+  .sw{ width:38px; height:38px; border:2px solid var(--d-line); cursor:pointer; padding:0; }
+  .sw[aria-pressed="true"]{ border-color:#0E0E0E; box-shadow:0 0 0 2px #FFE600 inset; }
+  .pill{ background:#fff; border:1.5px solid var(--d-line); padding:8px 14px; font-family:var(--d-body); font-size:14px; cursor:pointer; }
+  .pill[aria-pressed="true"]{ background:#0E0E0E; color:#FFE600; border-color:#0E0E0E; }
+  .pills{ display:flex; gap:7px; flex-wrap:wrap; }
+  .studio input[type=text], .studio select{
+    font-family:var(--d-body); font-size:15px; padding:11px 13px;
+    border:1.5px solid var(--d-line); background:#fff; color:var(--d-ink); width:100%;
+  }
+  .studio input[type=range]{ width:100%; accent-color:#0E0E0E; }
+  .views{ display:flex; gap:0; border:2px solid #0E0E0E; margin-bottom:12px; }
+  .views button{ flex:1; background:#fff; border:0; border-right:2px solid #0E0E0E; cursor:pointer;
+    font-family:"Anton",sans-serif; font-size:14px; letter-spacing:.06em; text-transform:uppercase; padding:11px 4px; }
+  .views button:last-child{ border-right:0; }
+  .views button[aria-pressed="true"]{ background:#0E0E0E; color:#FFE600; }
+  .stagewrap{ display:flex; flex-direction:column; gap:10px; }
+  .draghint{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--d-ink-2); }
+  .draghint b{ background:#FFE600; color:#0E0E0E; padding:2px 7px; font-weight:700; font-size:12px; }
+  .miniacts{ display:flex; gap:7px; flex-wrap:wrap; }
+  .miniacts button{ background:#fff; border:1.5px solid var(--d-line); padding:8px 13px; font-family:var(--d-body); font-size:13px; cursor:pointer; }
+  .miniacts button:hover{ border-color:#0E0E0E; }
+  .sidechips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .sidechip{ font-family:"Plex Mono",monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+    border:1px solid var(--d-line); padding:5px 10px; color:var(--d-ink-2); }
+  .sidechip.on{ background:#0E0E0E; color:#FFE600; border-color:#0E0E0E; }
+  #shirt{ cursor:grab; touch-action:none; }
+  .tiers{ display:flex; gap:0; flex-wrap:wrap; border:1px solid var(--d-line); }
+  .tiers div{ flex:1; min-width:110px; padding:14px; border-right:1px solid var(--d-line); }
+  .tiers div:last-child{ border-right:0; }
+  .tiers b{ display:block; font-family:"Anton",sans-serif; font-size:22px; }
+  .tiers span{ font-size:13px; color:var(--d-ink-2); }
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span><b>DEMO SITE</b> — “Press 242” is not a real print shop. Nothing here prints or charges anything.</span>
+  <a href="../index.html">See the other demos</a>
+</div>
+
+<header>
+  <div class="d-head">
+    <a class="d-logo" href="#">Press 242</a>
+    <nav class="d-nav">
+      <a href="#studio">Design</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#bot">Order</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="d-hero">
+    <div class="d-wrap d-stack g22">
+      <p class="d-kicker">Screen printing &amp; DTG · Nassau</p>
+      <h1 class="d-h1">Design it here.<br><span class="hl">Wear it Friday.</span></h1>
+      <p class="d-lead">Team shirts, church outings, family reunions, merch. Build it on the page below, then send it to us without a single phone call.</p>
+    </div>
+  </section>
+
+  <!-- the designer -->
+  <section class="d-section" id="studio">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">Step 1</p>
+        <h2 class="d-h2">Make your shirt</h2>
+      </div>
+
+      <div class="studio">
+        <div class="stagewrap">
+          <div class="views" role="group" aria-label="Which side of the shirt">
+            <button type="button" data-view="front" aria-pressed="true">Front</button>
+            <button type="button" data-view="back"  aria-pressed="false">Back</button>
+            <button type="button" data-view="left"  aria-pressed="false">L sleeve</button>
+            <button type="button" data-view="right" aria-pressed="false">R sleeve</button>
+          </div>
+          <div class="stage">
+            <canvas id="shirt" width="360" height="430" role="img"
+                    aria-label="Live preview of your shirt design. Drag the artwork to move it, or use the arrow keys."></canvas>
+          </div>
+          <p class="draghint"><b>Drag it</b> Move the artwork anywhere in the print area. Arrow keys nudge it.</p>
+          <div class="miniacts">
+            <button type="button" id="btn-centre">Centre it</button>
+            <button type="button" id="btn-copy">Copy front → back</button>
+            <button type="button" id="btn-clear">Clear this side</button>
+          </div>
+          <div class="sidechips" id="sidechips" aria-live="polite"></div>
+        </div>
+
+        <div class="d-stack g22">
+          <div class="ctrl">
+            <span class="lab">Shirt colour</span>
+            <div class="swatches">
+              <button class="sw" type="button" data-shirt="White" aria-pressed="false" aria-label="White shirt" style="background:#fff"></button>
+              <button class="sw" type="button" data-shirt="Black" aria-pressed="true"  aria-label="Black shirt" style="background:#1A1A1A"></button>
+              <button class="sw" type="button" data-shirt="Navy"  aria-pressed="false" aria-label="Navy shirt"  style="background:#1F3358"></button>
+              <button class="sw" type="button" data-shirt="Red"   aria-pressed="false" aria-label="Red shirt"   style="background:#B32222"></button>
+              <button class="sw" type="button" data-shirt="Sand"  aria-pressed="false" aria-label="Sand shirt"  style="background:#D9C7A7"></button>
+              <button class="sw" type="button" data-shirt="Forest" aria-pressed="false" aria-label="Forest green shirt" style="background:#22402F"></button>
+            </div>
+          </div>
+
+          <div class="ctrl">
+            <label class="lab" for="shirt-text">Your text</label>
+            <input id="shirt-text" type="text" maxlength="46" placeholder="Type something">
+          </div>
+
+          <div class="ctrl">
+            <label class="lab" for="shirt-font">Lettering</label>
+            <select id="shirt-font">
+              <option value="Anton">Anton — big and blocky</option>
+              <option value="Archivo">Archivo — clean and modern</option>
+              <option value="Cormorant">Cormorant — elegant serif</option>
+              <option value="Mono">Mono — technical</option>
+            </select>
+          </div>
+
+          <div class="ctrl">
+            <label class="lab" for="shirt-size">Text size</label>
+            <input id="shirt-size" type="range" min="14" max="44" value="30">
+          </div>
+
+          <div class="ctrl">
+            <span class="lab">Print colour</span>
+            <div class="swatches">
+              <button class="sw" type="button" data-ink="#FFFFFF" aria-pressed="true"  aria-label="White print" style="background:#fff"></button>
+              <button class="sw" type="button" data-ink="#111111" aria-pressed="false" aria-label="Black print" style="background:#111"></button>
+              <button class="sw" type="button" data-ink="#FFE600" aria-pressed="false" aria-label="Yellow print" style="background:#FFE600"></button>
+              <button class="sw" type="button" data-ink="#00A3B4" aria-pressed="false" aria-label="Teal print" style="background:#00A3B4"></button>
+              <button class="sw" type="button" data-ink="#E03C31" aria-pressed="false" aria-label="Red print" style="background:#E03C31"></button>
+            </div>
+          </div>
+
+          <div class="ctrl">
+            <label class="lab" for="shirt-gscale">Graphic size</label>
+            <input id="shirt-gscale" type="range" min="0.5" max="2" step="0.05" value="1">
+          </div>
+
+          <div class="ctrl">
+            <span class="lab">Add a graphic</span>
+            <div class="pills">
+              <button class="pill" type="button" data-graphic="242 badge" aria-pressed="true">242 badge</button>
+              <button class="pill" type="button" data-graphic="Palm" aria-pressed="false">Palm</button>
+              <button class="pill" type="button" data-graphic="Waves" aria-pressed="false">Waves</button>
+              <button class="pill" type="button" data-graphic="Star" aria-pressed="false">Star</button>
+              <button class="pill" type="button" data-graphic="Conch" aria-pressed="false">Conch</button>
+              <button class="pill" type="button" data-graphic="None" aria-pressed="false">Text only</button>
+            </div>
+          </div>
+
+          <p style="font-size:14px;color:var(--d-ink-2)">Design as many sides as you want — the bot prices each printed side. Scroll down when you are happy; it can already see what you made.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="d-section" id="pricing">
+    <div class="d-wrap d-stack g22">
+      <p class="d-kicker">Step 2</p>
+      <h2 class="d-h2">Price drops as the order grows</h2>
+      <div class="tiers">
+        <div><b>B$22</b><span>1–9 shirts</span></div>
+        <div><b>B$18</b><span>10–24 shirts</span></div>
+        <div><b>B$15</b><span>25–49 shirts</span></div>
+        <div><b>B$12</b><span>50 or more</span></div>
+      </div>
+      <p class="d-lead" style="font-size:15px">Front print included. Back print adds B$4 a shirt. Standard turnaround is 5 working days.</p>
+    </div>
+  </section>
+
+  <section class="d-section" id="bot">
+    <div class="d-wrap d-stack g34" style="max-width:640px">
+      <div class="d-stack g8">
+        <p class="d-kicker">Step 3</p>
+        <h2 class="d-h2">Send it to the press</h2>
+      </div>
+      <div class="bot-shell" id="order-bot"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="demo-foot">
+  <div class="d-wrap">
+    <h2>This is a demo. Yours would print your work.</h2>
+    <p>The designer above is real and so is the bot — it reads the shirt you just built, works out the unit price from the quantity, adds the back print and the rush fee, and quotes it. Nobody had to open a design file to give that customer a number.</p>
+    <a class="cta" href="../../contact.html">Build mine</a>
+    <p class="back">Preview built by <a href="../../index.html">Nightshift</a> · Nassau · <a href="../index.html">all four demos</a></p>
+  </div>
+</footer>
+
+<script src="../assets/designer.js?v=20260810g"></script>
+<script src="../assets/bot.js?v=20260810g"></script>
+<script>
+ShirtDesigner.init({
+  canvas: "#shirt",
+  text:   "#shirt-text",
+  font:   "#shirt-font",
+  size:   "#shirt-size",
+  gscale: "#shirt-gscale",
+  centre: "#btn-centre",
+  copy:   "#btn-copy",
+  clear:  "#btn-clear",
+  onChange: function () {
+    var box = document.getElementById("sidechips");
+    if (!box) return;
+    var sides = (window.SHIRT && window.SHIRT.sides) || {};
+    box.innerHTML = "";
+    ["front","back","left","right"].forEach(function (v) {
+      var c = document.createElement("span");
+      c.className = "sidechip" + (sides[v] ? " on" : "");
+      c.textContent = ({front:"front",back:"back",left:"L sleeve",right:"R sleeve"})[v] + (sides[v] ? " ✓" : " —");
+      box.appendChild(c);
+    });
+  }
+});
+
+function unitPrice(qty) {
+  if (qty >= 50) return 12;
+  if (qty >= 25) return 15;
+  if (qty >= 10) return 18;
+  return 22;
+}
+
+DemoBot.start({
+  mount: "#order-bot",
+  ai: "print-shop",
+  botName: "Press 242",
+  channel: "WhatsApp",
+  currency: "B$",
+  knows: [
+    { re:/(how long|turnaround|when|ready|rush|fast|friday)/,
+      a:"Standard is five working days. Rush is 48 hours for 25% on top. Tell me your date and I'll say straight whether it's doable." },
+    { re:/(artwork|file|logo|design|vector|png|ai|upload|send)/,
+      a:"Send us a PNG, PDF or vector file and we'll set it up, no charge. Or build it right here on the page — the designer above does front, back and both sleeves." },
+    { re:/(minimum|least|how few|small order|just one|single)/,
+      a:"No minimum. One shirt is B$22; the price drops at 10, 25 and 50." },
+    { re:/(colour|color|how many colours|ink)/,
+      a:"Up to four ink colours in the price for screen printing. Full-colour photo prints go DTG instead — same money at these quantities." },
+    { re:/(size|sizes|xl|xxl|kids|youth|women)/,
+      a:"Small through 3XL, plus kids and a women's cut. Mix sizes across the run at no extra cost." },
+    { re:/(proof|see it first|sample|mock)/,
+      a:"Always. We send a digital proof and nothing hits a shirt until you approve it." },
+    { re:/(deliver|delivery|collect|pickup|ship)/,
+      a:"Collection from the shop on Mackey Street, or delivery anywhere on the island for B$8." },
+    { re:/(hoodie|polo|hat|cap|tote|bag|other)/,
+      a:"Hoodies, polos, caps and totes all print the same way — tell me what you need and I'll price it." }
+  ],
+  greeting: [
+    "Nice work up there 👕 I can see the shirt you just built.",
+    "How many you printing?"
+  ],
+  steps: [
+    {
+      key: "qty",
+      ask: "Pick a quantity — the price per shirt drops as it goes up.",
+      options: [
+        { label: "5 shirts", qty: 5 },
+        { label: "12 shirts", qty: 12 },
+        { label: "30 shirts", qty: 30 },
+        { label: "60 shirts", qty: 60 }
+      ]
+    },
+    {
+      key: "sizes",
+      multi: true,
+      requireOne: true,
+      doneLabel: "That's my sizes",
+      ask: "Which sizes you need? Tap all that apply — we'll split the run evenly unless you tell us otherwise.",
+      ack: function (o) { return o.label + " ✓ Any other sizes?"; },
+      options: [
+        { label: "Small" }, { label: "Medium" }, { label: "Large" },
+        { label: "XL" }, { label: "2XL" }, { label: "Kids" }
+      ]
+    },
+    {
+      key: "confirmSides",
+      ask: function () {
+        var n = (window.SHIRT && window.SHIRT.sideCount) || 0;
+        return n <= 1
+          ? "I can see one printed side on your design. Extra sides are B$4 each if you want more."
+          : "I can see " + n + " printed sides on your design. Extra sides after the first are B$4 each.";
+      },
+      options: [{ label: "That's right" }, { label: "Add a plain second side", price: 4 }]
+    },
+    {
+      key: "speed",
+      ask: "When you need them?",
+      options: [
+        { label: "Standard — 5 days", rush: 0 },
+        { label: "Rush — 48 hours", rush: 0.25 }
+      ]
+    }
+  ],
+  summarise: function (a) {
+    var d = window.SHIRT || {};
+    var qty = a.qty.qty;
+    var unit = unitPrice(qty);
+    var rows = [];
+
+    var sides = d.sides || {};
+    var names = Object.keys(sides);
+    var front = sides.front || sides[names[0]] || {};
+    rows.push({ label: "Design", value: front.text ? "“" + front.text + "”" : "Graphic only" });
+    rows.push({ label: "Shirt", value: (d.shirt || "Black") + (front.graphic && front.graphic !== "None" ? " · " + front.graphic : "") });
+    rows.push({ label: "Lettering", value: front.font || "Anton" });
+    rows.push({ label: "Printed sides", value: names.length ? names.join(", ") : "none yet" });
+    rows.push({ label: "Sizes", value: (a.sizes || []).map(function (s) { return s.label; }).join(", ") });
+
+    var base = unit * qty;
+    rows.push({ label: qty + " shirts × B$" + unit, value: "B$" + base });
+    var total = base;
+
+    var extraSides = Math.max(0, ((d.sideCount || 1) - 1)) + (a.confirmSides.price ? 1 : 0);
+    if (extraSides > 0) {
+      var sideCost = 4 * extraSides * qty;
+      rows.push({ label: "Extra sides (" + extraSides + ") × " + qty, value: "B$" + sideCost });
+      total += sideCost;
+    }
+
+    if (a.speed.rush > 0) {
+      var rushCost = Math.round(total * a.speed.rush);
+      rows.push({ label: "Rush — 48 hours", value: "B$" + rushCost });
+      total += rushCost;
+    }
+
+    return {
+      before: ["Let me price your run."],
+      title: "Print quote",
+      rows: rows,
+      total: total,
+      totalLabel: "Total",
+      note: "50% deposit starts the run. We send a digital proof for your approval before anything hits a shirt.",
+      closing: "Want me to send the proof and the deposit details?"
+    };
+  }
+});
+</script>
+</body>
+</html>

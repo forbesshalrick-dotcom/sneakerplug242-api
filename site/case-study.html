@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case study: THE PLUG 242 — Nightshift</title>
+<meta name="description" content="How a Nassau sneaker business stopped answering every message by hand. The problem, what we built, what changed, and the numbers.">
+<link rel="canonical" href="https://nightshift.bs/case-study.html">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://nightshift.bs/case-study.html">
+<meta property="og:title" content="Case study: THE PLUG 242">
+<meta property="og:description" content="A WhatsApp bot that knows the stock, takes the order and hands it to a driver. Running live in Nassau.">
+<meta property="og:image" content="https://nightshift.bs/assets/img/og.png">
+<meta name="theme-color" content="#FF4A1C">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/site.css?v=20260810g">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="bar">
+    <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="services.html">Services</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="demos/index.html">Demos</a>
+      <a href="case-study.html" aria-current="page">Case study</a>
+      <a href="about.html">About</a>
+      <a class="btn btn-primary btn-sm" href="contact.html">Start a project</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="wrap grid">
+      <div>
+        <p class="kicker">Case study · Nassau · sneaker retail</p>
+        <h1 class="h-xl">THE PLUG<br>242<span class="dot">.</span></h1>
+        <p class="sub">The store we built this on. It is still running, and we still own it.</p>
+        <p class="under">Problem → What we built → What changed → Numbers</p>
+      </div>
+
+      <div class="chat-shell">
+        <span class="mark tl"></span><span class="mark tr"></span>
+        <span class="mark bl"></span><span class="mark br"></span>
+        <div class="chat" id="chat" data-demo="sneakers">
+          <div class="chat-hd"><span class="live-dot"></span> Live &nbsp;·&nbsp; 2:14 am &nbsp;·&nbsp; nobody awake</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- why this page exists -->
+  <section class="band band-surface">
+    <div class="wrap">
+      <div class="stack stack-md" style="max-width:760px">
+        <p class="eyebrow">Why we lead with this</p>
+        <h2 class="h-lg">Most agencies show you work they did for somebody else. We are showing you our own money.</h2>
+        <p class="lead">THE PLUG 242 is a real sneaker business in Nassau — real stock, real customers, real deliveries. We built the bot for it because we needed it, not because a client asked. Everything on the services page came out of this store first and was proven here before it was ever sold to anybody.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- the four phases -->
+  <section class="band">
+    <div class="wrap">
+
+      <div class="phase">
+        <div class="tag">Problem</div>
+        <div class="content">
+          <h2 class="h-md">Every single message was answered by a person.</h2>
+          <ul>
+            <li>The same questions all day — how much, you have my size, you have this one in a 10</li>
+            <li>Somebody had to check the stock by hand before answering, every time</li>
+            <li>Messages came in overnight and on Sundays and sat there until somebody woke up</li>
+            <li>An order could not exist until a human typed it out</li>
+            <li>Busy days were the worst days, because that is exactly when replies got slowest</li>
+          </ul>
+          <p>The business was not short on demand. It was short on the hours needed to answer it.</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="tag">What we built</div>
+        <div class="content">
+          <h2 class="h-md">Jess — a bot that knows the stock.</h2>
+          <p>Jess sits on WhatsApp and handles the conversation end to end. She reads the shoe code a customer types, checks what is actually on the shelf right now, confirms the size, quotes the real price, takes the order and passes it to delivery.</p>
+          <p>She knows the rules of the business, not just the products: which sizes convert between men's and women's, what shipping costs to which island, when a deposit is needed, and when to stop and pass the chat to a human.</p>
+
+          <h3 class="h-sm" style="margin-top:10px">The whole system, plainly</h3>
+          <div class="flow">
+            <span>WhatsApp</span>
+            <span class="arrow">→</span>
+            <span>Bot reads the message</span>
+            <span class="arrow">→</span>
+            <span>Live stock list</span>
+            <span class="arrow">→</span>
+            <span>Answer with real price and size</span>
+            <span class="arrow">→</span>
+            <span>Order</span>
+            <span class="arrow">→</span>
+            <span>Driver</span>
+          </div>
+          <p class="muted" style="font-size:15px">No new app for the customer to download. No new number to learn. They message the same WhatsApp they always did — the difference is that now it answers.</p>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="tag">What changed</div>
+        <div class="content">
+          <h2 class="h-md">The shop stopped closing when everybody went to sleep.</h2>
+          <ul>
+            <li>Repeat questions get answered instantly, at any hour, without anybody picking up a phone</li>
+            <li>Overnight messages turn into orders that are waiting in the morning instead of gone by morning</li>
+            <li>Stock answers come from the live count, so a customer is not told yes on a pair that sold an hour ago</li>
+            <li>Staff time moved off typing and onto picking, packing and delivering</li>
+            <li>The unusual conversations still reach a human — but now that is all a human handles</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="tag">Numbers</div>
+        <div class="content">
+          <h2 class="h-md">Measured, not estimated.</h2>
+          <p>These come out of the system's own logs. We are filling them in with the real figures rather than rounding something impressive — see the note underneath.</p>
+
+          <div class="stats" style="margin-top:8px">
+            <div class="stat">
+              <span class="label">Response time</span>
+              <span class="figure"><span class="slot">before → after</span></span>
+            </div>
+            <div class="stat">
+              <span class="label">Orders handled with no human touch</span>
+              <span class="figure"><span class="slot">% to confirm</span></span>
+            </div>
+            <div class="stat">
+              <span class="label">Hours a week given back</span>
+              <span class="figure"><span class="slot">hrs to confirm</span></span>
+            </div>
+            <div class="stat">
+              <span class="label">After-hours orders captured</span>
+              <span class="figure"><span class="slot">count to confirm</span></span>
+            </div>
+          </div>
+
+          <p class="muted" style="font-size:15px;margin-top:6px"><strong>On these boxes:</strong> they are deliberately empty until the real figures are pulled from the logs. We would rather show you a blank than a number we made up, and we would tell a client the same thing about their own site.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- the conversation -->
+  <section class="band band-surface">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">See it work</p>
+        <h2 class="h-lg">This is the part that sells it.</h2>
+        <p class="lead">A customer types a shoe code and a size at two in the morning. Nothing about that message is easy — it is slang, it is abbreviated, and it needs a live stock check to answer. Here is the shape of it.</p>
+      </div>
+
+      <div class="chat-shell" style="max-width:520px">
+        <span class="mark tl"></span><span class="mark tr"></span>
+        <span class="mark bl"></span><span class="mark br"></span>
+        <div class="chat" style="min-height:0">
+          <div class="chat-hd"><span class="live-dot"></span> WhatsApp &nbsp;·&nbsp; Saturday 2:14 am</div>
+          <div class="msg in" style="animation:none;opacity:1;transform:none">yo you have F6 in a 10?<span class="stamp">2:14 am</span></div>
+          <div class="msg out" style="animation:none;opacity:1;transform:none">Yes — F6, Jordan 4 Military Black. Size 10 in stock. $185.<span class="stamp">2:14 am</span></div>
+          <div class="msg in" style="animation:none;opacity:1;transform:none">my girl wear a 10 too, that same one?<span class="stamp">2:15 am</span></div>
+          <div class="msg out" style="animation:none;opacity:1;transform:none">A women's 10 is a men's 8.5 — I have that. Want both?<span class="stamp">2:15 am</span></div>
+          <div class="msg in" style="animation:none;opacity:1;transform:none">aight I want it<span class="stamp">2:16 am</span></div>
+          <div class="msg out" style="animation:none;opacity:1;transform:none">Locked in 👌 Sending bank details now. Delivery today — Nassau is free.<span class="stamp">2:16 am</span></div>
+        </div>
+      </div>
+
+      <p class="muted" style="font-size:15px;max-width:var(--measure);margin-top:20px">Three things happened there that a scripted chatbot cannot do: it understood a shoe code, it converted a women's size to a men's size on its own, and it sold a second pair nobody asked it to sell.</p>
+
+      <!-- SCREENSHOT SLOT — see docs/README-BUILD.md -->
+      <div class="spotlight" style="margin-top:34px">
+        <h3 class="h-md">Screenshots go here</h3>
+        <p>Real screen recordings of Jess handling live conversations belong in this block — they are more convincing than anything written on this page. Drop the images in <code>assets/img/</code> and they get swapped in. Nothing invented in the meantime.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band no-border">
+    <div class="wrap">
+      <div class="stack stack-md" style="max-width:660px">
+        <p class="eyebrow">Your turn</p>
+        <h2 class="h-lg">Your business is not sneakers. The leak is the same.</h2>
+        <p class="lead">Different stock, different questions, same problem — people asking things at hours when nobody is there to answer. Tell us what you sell and what you repeat all day.</p>
+        <div class="btn-row" style="margin-top:10px">
+          <a class="btn btn-primary" href="https://wa.me/1242XXXXXXX?text=Hi%2C%20I%20read%20the%20case%20study%20and%20I%27d%20like%20to%20talk%20about%20my%20business." rel="noopener">Message us on WhatsApp</a>
+          <a class="btn btn-ghost" href="pricing.html">See what it costs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+        <p>Websites and WhatsApp order bots for Bahamian businesses. Nassau, New Providence.</p>
+      </div>
+      <div class="foot-col">
+        <h3>Site</h3>
+        <ul>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="pricing.html">Pricing</a></li>
+          <li><a href="demos/index.html">Demos</a></li>
+          <li><a href="behind-the-scenes.html">Behind the message</a></li>
+          <li><a href="case-study.html">Case study</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Start a project</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h3>Reach us</h3>
+        <ul>
+          <li><a href="https://wa.me/1242XXXXXXX" rel="noopener">WhatsApp</a></li>
+          <li><a href="mailto:hello@nightshift.bs">hello@nightshift.bs</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Nightshift · Nassau, Bahamas</span>
+      <span>Replies within 4 business hours</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/site.js?v=20260810g" defer></script>
+</body>
+</html>

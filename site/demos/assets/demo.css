@@ -1,0 +1,268 @@
+/* ==========================================================================
+   Demo kit — shared skeleton for the four preview sites.
+
+   Every demo sets its OWN tokens in a <style> block on the page. That is the
+   whole point: a salon and an auto-parts counter should not look like the
+   same website wearing different words. Only the plumbing is shared.
+
+   Demos commit to a single light identity on purpose — they are previews of
+   a client's brand, not of this agency's site.
+   ========================================================================== */
+
+@font-face{ font-family:"Archivo"; src:url("../../assets/fonts/archivo-var.woff2") format("woff2-variations"); font-weight:100 900; font-display:swap; }
+@font-face{ font-family:"Plex Mono"; src:url("../../assets/fonts/ibm-plex-mono-500.woff2") format("woff2"); font-weight:500; font-display:swap; }
+@font-face{ font-family:"Oswald"; src:url("../../assets/fonts/oswald-var.woff2") format("woff2-variations"); font-weight:200 700; font-display:swap; }
+@font-face{ font-family:"Fraunces"; src:url("../../assets/fonts/fraunces-var.woff2") format("woff2-variations"); font-weight:100 900; font-display:swap; }
+@font-face{ font-family:"Cormorant"; src:url("../../assets/fonts/cormorant-var.woff2") format("woff2-variations"); font-weight:300 700; font-display:swap; }
+@font-face{ font-family:"Anton"; src:url("../../assets/fonts/anton-400.woff2") format("woff2"); font-weight:400; font-display:swap; }
+
+:root{
+  color-scheme:light;
+  --d-ground:#fff; --d-surface:#f5f5f5; --d-ink:#111; --d-ink-2:#666;
+  --d-line:#e3e3e3; --d-accent:#111; --d-accent-ink:#111; --d-on-accent:#fff;
+  --d-display:"Archivo",sans-serif; --d-body:"Archivo",sans-serif;
+  --d-radius:0px; --d-pad:clamp(18px,4vw,56px); --d-maxw:1120px;
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+body{
+  margin:0; background:var(--d-ground); color:var(--d-ink);
+  font-family:var(--d-body); font-size:17px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+img{ max-width:100%; height:auto; display:block; }
+h1,h2,h3{ margin:0; text-wrap:balance; }
+p{ margin:0; }
+a{ color:inherit; }
+:focus-visible{ outline:3px solid var(--d-accent); outline-offset:2px; }
+
+.d-wrap{ max-width:var(--d-maxw); margin:0 auto; padding-inline:var(--d-pad); }
+.d-stack{ display:flex; flex-direction:column; }
+.g8{gap:8px}.g14{gap:14px}.g22{gap:22px}.g34{gap:34px}
+
+/* --- the "this is a demo" ribbon ----------------------------------------- */
+/* Loud on purpose. Nobody should mistake a demo for a real business, or try
+   to place a real order with one. */
+.demo-bar{
+  position:sticky; top:0; z-index:80;
+  background:#14100E; color:#fff;
+  font-family:"Plex Mono",monospace; font-size:12px; letter-spacing:.04em;
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+  gap:6px 16px; padding:9px 16px; text-align:center;
+}
+.demo-bar b{ color:#FF6B3D; font-weight:500; }
+.demo-bar a{ color:#fff; text-underline-offset:3px; }
+.demo-bar a:hover{ color:#FF6B3D; }
+
+/* --- demo site chrome ----------------------------------------------------- */
+.d-head{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:18px; padding:20px var(--d-pad); max-width:var(--d-maxw); margin:0 auto;
+}
+.d-logo{ font-family:var(--d-display); font-weight:600; font-size:20px; text-decoration:none; letter-spacing:-.01em; }
+.d-nav{ display:flex; gap:22px; font-size:14.5px; }
+.d-nav a{ text-decoration:none; color:var(--d-ink-2); }
+.d-nav a:hover{ color:var(--d-ink); }
+@media (max-width:720px){ .d-nav{ display:none; } }
+
+.d-hero{ padding:clamp(30px,5vw,64px) 0 clamp(34px,5vw,72px); }
+.d-hero-grid{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(26px,4vw,56px); align-items:center; }
+@media (max-width:900px){ .d-hero-grid{ grid-template-columns:1fr; } }
+.d-kicker{ font-family:"Plex Mono",monospace; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--d-ink-2); }
+.d-h1{ font-family:var(--d-display); font-size:clamp(34px,5.5vw,60px); line-height:1.03; }
+.d-h2{ font-family:var(--d-display); font-size:clamp(24px,3.2vw,34px); line-height:1.1; }
+.d-h3{ font-family:var(--d-display); font-size:19px; line-height:1.25; }
+.d-lead{ font-size:clamp(16px,1.5vw,19px); color:var(--d-ink-2); max-width:46ch; }
+
+.d-btn{
+  display:inline-block; border:0; cursor:pointer; text-decoration:none;
+  background:var(--d-accent); color:var(--d-on-accent);
+  font-family:var(--d-body); font-weight:600; font-size:15px;
+  padding:14px 24px; border-radius:var(--d-radius);
+}
+.d-btn:hover{ filter:brightness(.92); }
+.d-btn-ghost{ background:transparent; color:var(--d-ink); border:1px solid var(--d-line); }
+.d-btn-ghost:hover{ border-color:var(--d-ink); filter:none; }
+
+.d-section{ padding-block:clamp(34px,5vw,72px); border-top:1px solid var(--d-line); }
+.d-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:clamp(14px,2vw,22px); }
+.d-card{
+  background:var(--d-surface); border-radius:var(--d-radius);
+  padding:20px; display:flex; flex-direction:column; gap:9px;
+}
+.d-card .price{ font-family:var(--d-display); font-weight:600; font-size:19px; }
+.d-card p{ color:var(--d-ink-2); font-size:14.5px; }
+.d-thumb{ aspect-ratio:4/3; border-radius:var(--d-radius); background:var(--d-line); display:grid; place-items:center; }
+/* --d-ink-2 on the thumb fill only reached 4.04:1 — use full ink */
+.d-thumb span{ font-family:"Plex Mono",monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--d-ink); }
+
+/* --- the bot -------------------------------------------------------------- */
+.bot-shell{ background:var(--d-surface); border-radius:var(--d-radius); border:1px solid var(--d-line); overflow:hidden; }
+.bot-hd{
+  display:flex; align-items:center; gap:10px; padding:13px 16px;
+  background:var(--d-accent); color:var(--d-on-accent);
+  font-family:var(--d-display); font-weight:600; font-size:15px;
+}
+.bot-hd .dot{ width:8px; height:8px; border-radius:50%; background:currentColor; opacity:.85; flex:none; }
+.bot-hd .sub{ margin-left:auto; font-family:"Plex Mono",monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; opacity:.85; font-weight:400; }
+
+.bot-log{
+  padding:16px; display:flex; flex-direction:column; gap:9px;
+  min-height:290px; max-height:460px; overflow-y:auto; background:var(--d-ground);
+}
+.bot-msg{
+  font-size:14.5px; line-height:1.45; padding:10px 13px; max-width:86%;
+  border-radius:14px; animation:bot-in .32s cubic-bezier(.2,.8,.3,1) both;
+}
+.bot-msg.in{ align-self:flex-end; background:var(--d-accent); color:var(--d-on-accent); border-bottom-right-radius:3px; }
+.bot-msg.out{ align-self:flex-start; background:var(--d-surface); color:var(--d-ink); border-bottom-left-radius:3px; }
+.bot-msg strong{ font-weight:700; }
+@keyframes bot-in{ from{ opacity:0; transform:translateY(7px); } }
+
+.bot-typing{ align-self:flex-start; background:var(--d-surface); border-radius:14px 14px 14px 3px; padding:12px 15px; display:flex; gap:4px; }
+.bot-typing i{ width:5px; height:5px; border-radius:50%; background:var(--d-ink-2); animation:bot-blink 1.1s infinite; }
+.bot-typing i:nth-child(2){ animation-delay:.18s; } .bot-typing i:nth-child(3){ animation-delay:.36s; }
+@keyframes bot-blink{ 0%,60%,100%{opacity:.25} 30%{opacity:.9} }
+
+.bot-chips{ display:flex; flex-wrap:wrap; gap:7px; padding:0 16px 14px; background:var(--d-ground); }
+.bot-chip{
+  font-family:var(--d-body); font-size:14px; cursor:pointer;
+  background:var(--d-ground); color:var(--d-accent-ink);
+  border:1.5px solid var(--d-accent); border-radius:999px; padding:8px 15px;
+}
+.bot-chip:hover{ background:var(--d-accent); color:var(--d-on-accent); }
+/* no opacity here — fading the accent put this at 4.4:1, just under AA.
+   The smaller size already separates it from the label. */
+.bot-chip .p{ font-size:12.5px; }
+
+.bot-entry{ display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--d-line); background:var(--d-ground); }
+.bot-entry input{
+  flex:1; min-width:0; font-family:var(--d-body); font-size:15px; color:var(--d-ink);
+  background:var(--d-surface); border:1px solid var(--d-line);
+  border-radius:999px; padding:11px 16px;
+}
+.bot-entry button{
+  border:0; cursor:pointer; background:var(--d-accent); color:var(--d-on-accent);
+  border-radius:999px; padding:11px 18px; font-family:var(--d-body); font-weight:600; font-size:14px;
+}
+.bot-entry button:hover{ filter:brightness(.92); }
+
+/* photo album the bot sends — one shot, one label */
+.bot-album{
+  align-self:flex-start; display:grid; grid-template-columns:1fr 1fr; gap:6px;
+  background:var(--d-surface); padding:7px; border-radius:14px 14px 14px 3px;
+  max-width:94%; animation:bot-in .34s cubic-bezier(.2,.8,.3,1) both;
+}
+.bot-album figure{ margin:0; display:flex; flex-direction:column; }
+.bot-album img{ width:100%; aspect-ratio:1; object-fit:cover; border-radius:7px 7px 0 0; display:block; }
+.bot-album figcaption{
+  background:var(--d-accent); color:var(--d-on-accent); border-radius:0 0 7px 7px;
+  padding:5px 6px 6px; text-align:center; line-height:1.25;
+}
+.bot-album figcaption b{ display:block; font-size:13px; letter-spacing:.08em; }
+.bot-album figcaption span{ display:block; font-size:10px; opacity:.85; }
+
+/* order summary the bot prints at the end */
+.bot-order{
+  align-self:stretch; background:var(--d-ground); border:2px solid var(--d-accent);
+  border-radius:12px; padding:15px 16px; display:flex; flex-direction:column; gap:9px;
+  animation:bot-in .34s cubic-bezier(.2,.8,.3,1) both;
+}
+.bot-order h4{
+  margin:0; font-family:var(--d-display); font-size:13px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--d-accent-ink);
+}
+.bot-order dl{ margin:0; display:flex; flex-direction:column; gap:6px; }
+.bot-order .row{ display:flex; justify-content:space-between; gap:14px; font-size:14.5px; }
+.bot-order .row dt{ color:var(--d-ink-2); }
+.bot-order .row dd{ margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+.bot-order .total{ border-top:1px solid var(--d-line); padding-top:9px; font-weight:700; font-size:16px; }
+.bot-order .note{ font-size:13px; color:var(--d-ink-2); }
+
+.bot-restart{
+  align-self:flex-start; background:none; border:1px solid var(--d-line);
+  border-radius:999px; padding:8px 15px; font-family:var(--d-body); font-size:13.5px;
+  color:var(--d-ink-2); cursor:pointer;
+}
+.bot-restart:hover{ border-color:var(--d-ink); color:var(--d-ink); }
+
+@media (prefers-reduced-motion:reduce){
+  .bot-msg,.bot-order{ animation:none; }
+  .bot-typing{ display:none; }
+}
+
+/* --- closing pitch strip at the bottom of every demo ---------------------- */
+.demo-foot{ background:#14100E; color:#fff; padding:clamp(34px,5vw,64px) 0; }
+.demo-foot .d-wrap{ display:flex; flex-direction:column; gap:16px; align-items:flex-start; }
+.demo-foot h2{ font-family:"Plex Mono",monospace; font-weight:600; font-size:clamp(22px,3vw,32px); letter-spacing:-.02em; line-height:1.1; }
+.demo-foot p{ color:rgba(255,255,255,.72); max-width:56ch; }
+.demo-foot .cta{
+  background:#D63F10; color:#fff; text-decoration:none; font-weight:600;
+  padding:14px 24px; font-size:15px; font-family:"Archivo",sans-serif;
+}
+.demo-foot .cta:hover{ filter:brightness(1.1); }
+.demo-foot .back{ font-family:"Plex Mono",monospace; font-size:12.5px; color:rgba(255,255,255,.6); }
+.demo-foot .back a{ color:#fff; }
+
+
+/* ==========================================================================
+   Lightbox — full-screen image viewer, shared by every demo gallery
+   ========================================================================== */
+.lb{
+  position:fixed; inset:0; z-index:200; display:none;
+  align-items:center; justify-content:center;
+  background:rgba(8,8,10,.94);
+  backdrop-filter:blur(6px);
+  padding:clamp(14px,4vw,54px);
+}
+.lb.on{ display:flex; }
+.lb-stage{ margin:0; max-width:100%; max-height:100%; display:flex; flex-direction:column; align-items:center; gap:14px; }
+.lb-stage img{
+  max-width:min(1500px,92vw); max-height:80vh; width:auto; height:auto;
+  object-fit:contain; border-radius:3px; box-shadow:0 40px 90px -30px rgba(0,0,0,.9);
+  opacity:0; transform:scale(.985); transition:opacity .32s ease, transform .32s cubic-bezier(.2,.8,.3,1);
+}
+.lb-stage img.in{ opacity:1; transform:none; }
+.lb-stage figcaption{
+  color:rgba(255,255,255,.86); font-family:"Archivo",sans-serif; font-size:14px;
+  letter-spacing:.12em; text-transform:uppercase; text-align:center; max-width:60ch;
+}
+.lb-x{
+  position:absolute; top:clamp(10px,2vw,26px); right:clamp(10px,2vw,26px);
+  width:46px; height:46px; border:0; border-radius:50%; cursor:pointer;
+  background:rgba(255,255,255,.12); color:#fff; font-size:30px; line-height:1;
+}
+.lb-x:hover{ background:rgba(255,255,255,.24); }
+.lb-nav{
+  position:absolute; top:50%; transform:translateY(-50%);
+  width:54px; height:54px; border:0; border-radius:50%; cursor:pointer;
+  background:rgba(255,255,255,.12); color:#fff; font-size:34px; line-height:1;
+}
+.lb-nav:hover{ background:rgba(255,255,255,.24); }
+.lb-prev{ left:clamp(6px,2vw,30px); }
+.lb-next{ right:clamp(6px,2vw,30px); }
+.lb-count{
+  position:absolute; bottom:clamp(12px,2.4vw,28px); left:50%; transform:translateX(-50%);
+  color:rgba(255,255,255,.6); font-family:"Plex Mono",monospace; font-size:12px; letter-spacing:.16em;
+}
+.lb-x:focus-visible,.lb-nav:focus-visible{ outline:3px solid #fff; outline-offset:2px; }
+@media (max-width:640px){ .lb-nav{ width:44px; height:44px; font-size:27px; } .lb-stage img{ max-height:70vh; } }
+@media (prefers-reduced-motion:reduce){ .lb-stage img{ transition:none; } }
+
+/* something clickable should look clickable */
+[data-lightbox]{ position:relative; }
+[data-lightbox]::after{
+  content:"⤢"; position:absolute; top:10px; right:10px;
+  width:30px; height:30px; display:grid; place-items:center;
+  background:rgba(0,0,0,.45); color:#fff; border-radius:50%;
+  font-size:14px; opacity:0; transition:opacity .22s ease; pointer-events:none;
+}
+[data-lightbox]:hover::after, [data-lightbox]:focus-visible::after{ opacity:1; }
+
+/* an album row for something with no photo — a treatment, a price tier.
+   It still carries a code so the customer can pick it the same way. */
+.bot-album figure .no-shot{
+  display:flex; align-items:center; justify-content:center;
+  aspect-ratio:1/1; background:var(--d-surface,#f0f0f0);
+  color:var(--d-ink-2,#888); font-size:20px;
+}

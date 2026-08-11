@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demos — see your own trade, Nightshift</title>
+<meta name="description" content="Four working preview sites — car rental, restaurant, hair salon and t-shirt printing — each with a bot that really takes an order. Find your trade and try it.">
+<link rel="canonical" href="https://nightshift.bs/demos/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nightshift.bs/demos/">
+<meta property="og:title" content="Demos — see your own trade">
+<meta property="og:description" content="Four working preview sites, each with a bot that really takes an order.">
+<meta property="og:image" content="https://nightshift.bs/assets/img/og.png">
+<meta name="theme-color" content="#FF4A1C">
+<link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/css/site.css?v=20260810g">
+<style>
+  .demo-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(268px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); }
+  .demo-card{ background:var(--ground); padding:clamp(22px,3vw,30px); display:flex; flex-direction:column; gap:14px; text-decoration:none; }
+  .demo-card:hover{ background:var(--surface); }
+  .demo-card .trade{ font-family:var(--display); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent-ink); }
+  .demo-card p{ color:var(--ink-2); font-size:15.5px; flex:1; }
+  .demo-card .go{ font-family:var(--display); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink); }
+  .demo-card .does{ font-family:var(--display); font-size:12.5px; color:var(--ink-2); border-top:1px solid var(--line); padding-top:12px; }
+  /* miniature identity strip so each card looks like its own brand */
+  .ident{ display:flex; height:8px; }
+  .ident span{ flex:1; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="bar">
+    <a class="logo" href="../index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="../services.html">Services</a>
+      <a href="../pricing.html">Pricing</a>
+      <a href="index.html" aria-current="page">Demos</a>
+      <a href="../case-study.html">Case study</a>
+      <a href="../about.html">About</a>
+      <a class="btn btn-primary btn-sm" href="../contact.html">Start a project</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Demos</p>
+        <h1 class="h-xl">Stop imagining it.<br>Go and use it.</h1>
+        <p class="lead">Eight preview sites, one per trade — each built to a completely different standard of finish, from a two-star dining room to a fried chicken counter. Every one has a bot that really works: it counts the days, prices the run, changes its own questions and gives you a real total. Try to break them.</p>
+      </div>
+
+      <div class="demo-grid">
+        <a class="demo-card" href="freight/index.html">
+          <span class="ident"><span style="background:#1E56E8"></span><span style="background:#FFC93C"></span><span style="background:#28C7A9"></span></span>
+          <span class="trade">Freight forwarder</span>
+          <h2 class="h-sm">Ship242</h2>
+          <p>Sign up on the page and your free Miami address appears with your own box number. Then give the bot that number and it says exactly where the package is — warehouse, in the air, with customs, or ready on Bay Street.</p>
+          <span class="does">Signs you up · tracks a package</span>
+          <span class="go">Open the demo →</span>
+        </a>
+
+        <a class="demo-card" href="rideshare/index.html">
+          <span class="ident"><span style="background:#19D3C5"></span><span style="background:#0B0F12"></span><span style="background:#233039"></span></span>
+          <span class="trade">Ride share</span>
+          <h2 class="h-sm">Ryde 242</h2>
+          <p>A live map of the cars on the island. Tell it where you are and where you're going and it works out the real fare, the drive time and which driver is closest.</p>
+          <span class="does">Prices and dispatches a ride</span>
+          <span class="go">Open the demo →</span>
+        </a>
+
+        <a class="demo-card" href="car-rental/index.html">
+          <span class="ident"><span style="background:#125E9E"></span><span style="background:#0C1E2E"></span><span style="background:#EEF2F6"></span></span>
+          <span class="trade">Car rental</span>
+          <h2 class="h-sm">Out Island Auto</h2>
+          <p>Pick a vehicle, pick your days, choose airport or hotel delivery, add insurance and a child seat. It counts the days against the daily rate and quotes you.</p>
+          <span class="does">Books a vehicle end to end</span>
+          <span class="go">Open the demo →</span>
+        </a>
+
+        <a class="demo-card" href="restaurant/index.html">
+          <span class="ident"><span style="background:#0B0B0C"></span><span style="background:#C39A5F"></span><span style="background:#2A2A2D"></span></span>
+          <span class="trade">Fine dining</span>
+          <h2 class="h-sm">Blue Hole</h2>
+          <p>Two-star tasting menu, full-bleed food photography, dark and quiet. The bot splits table from collection: covers, night, wine pairing and allergies, or a boxed order for the door.</p>
+          <span class="does">Two paths in one bot — reservation or collection</span>
+          <span class="go">Open the demo →</span>
+        </a>
+
+        <a class="demo-card" href="salon/index.html">
+          <span class="ident"><span style="background:#46614E"></span><span style="background:#F1ECE3"></span><span style="background:#C9B79C"></span></span>
+          <span class="trade">Spa &amp; salon</span>
+          <h2 class="h-sm">Verandah House</h2>
+          <p>Hair, skin, massage and half-day rituals, with the rooms and the garden doing the selling. The bot changes its treatment list to match the category you pick, then takes the deposit.</p>
+          <span class="does">Four service categories, one booking flow</span>
+          <span class="go">Open the demo →</span>
+        </a>
+
+        <a class="demo-card" href="bfc/index.html">
+          <span class="ident"><span style="background:#C8102E"></span><span style="background:#F5B301"></span><span style="background:#1B1613"></span></span>
+          <span class="trade">Fast food</span>
+          <h2 class="h-sm">BFC · Bahamas Fried Chicken</h2>
+          <p>Eight numbered combos on a photo board. Send the number, pick a side, choose pickup or delivery — the fastest ordering there is, because the customer can't get it wrong.</p>
+          <span class="does">Numbered combo ordering</span>
+          <span class="go">Open the demo →</span>
+        </a>
+
+        <a class="demo-card" href="estate/index.html">
+          <span class="ident"><span style="background:#080A0C"></span><span style="background:#B9A06A"></span><span style="background:#11161A"></span></span>
+          <span class="trade">Luxury real estate</span>
+          <h2 class="h-sm">Fitzwilliam &amp; Cay</h2>
+          <p>Private island estates at eight figures. Cinematic photography, alternating full-bleed listings, and a bot that qualifies the buyer — budget, island, timeframe — then matches them against the portfolio.</p>
+          <span class="does">Qualifies a buyer and matches listings</span>
+          <span class="go">Open the demo →</span>
+        </a>
+
+        <a class="demo-card" href="print-shop/index.html">
+          <span class="ident"><span style="background:#0E0E0E"></span><span style="background:#FFE600"></span><span style="background:#F2F2F2"></span></span>
+          <span class="trade">T-shirt printing</span>
+          <h2 class="h-sm">Press 242</h2>
+          <p>Design all four sides — front, back and both sleeves — six garment colours, five graphics, and artwork you drag into place. The bot reads every printed side and prices the run.</p>
+          <span class="does">Four-sided design tool + quote</span>
+          <span class="go">Open the demo →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wrap">
+      <div class="spotlight">
+        <h2 class="h-md">Want to see the machine room?</h2>
+        <p>The demos show the customer's side. <strong>Behind the message</strong> shows the other half — the stock search, the photos going out, the moment it stops and wakes a human to approve money, the delivery being authorised, and the item coming out of inventory with a written confirmation.</p>
+        <a class="btn btn-primary" href="../behind-the-scenes.html" style="align-self:flex-start">Watch the walkthrough</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-surface">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Why four</p>
+        <h2 class="h-lg">Because you should not have to translate.</h2>
+        <p class="lead">A hardware man looking at a sneaker website has to do the work in his head. A car rental owner looking at a car rental website does not. So each demo is built in its own colours, its own type and its own words — that is also the honest answer to "will mine look like everybody else's?"</p>
+      </div>
+
+      <div class="trust">
+        <div class="trust-item">
+          <h3 class="h-sm">The bots are real</h3>
+          <p>Not a video, not a click-through mockup. They hold state, keep a running total and print a genuine quote at the end.</p>
+        </div>
+        <div class="trust-item">
+          <h3 class="h-sm">The businesses are not</h3>
+          <p>All four are invented, and every page says so at the top. Nobody's real shop is being used as a prop and no demo takes a real order.</p>
+        </div>
+        <div class="trust-item">
+          <h3 class="h-sm">Six different looks</h3>
+          <p>Different fonts, colours, corner shapes and photography on each one. Your site is built to your trade, not stamped from a template.</p>
+        </div>
+        <div class="trust-item">
+          <h3 class="h-sm">Your trade missing?</h3>
+          <p>Tell us what you do. If there is a demand for it we will build that demo next, and you get to try yours before you commit.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band no-border">
+    <div class="wrap">
+      <div class="stack stack-md" style="max-width:640px">
+        <p class="eyebrow">Next</p>
+        <h2 class="h-lg">Seen yours? Let's price it.</h2>
+        <p class="lead">Tell us which demo came closest and what is different about your business. That is enough for a real number.</p>
+        <div class="btn-row" style="margin-top:10px">
+          <a class="btn btn-primary" href="https://wa.me/1242XXXXXXX?text=Hi%2C%20I%20tried%20one%20of%20your%20demos%20and%20I%27d%20like%20one%20for%20my%20business." rel="noopener">Message us on WhatsApp</a>
+          <a class="btn btn-ghost" href="../pricing.html">See what it costs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="logo" href="../index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+        <p>Websites and WhatsApp order bots for Bahamian businesses. Nassau, New Providence.</p>
+      </div>
+      <div class="foot-col">
+        <h3>Site</h3>
+        <ul>
+          <li><a href="../services.html">Services</a></li>
+          <li><a href="../pricing.html">Pricing</a></li>
+          <li><a href="index.html">Demos</a></li>
+          <li><a href="credits.html">Photo credits</a></li>
+          <li><a href="../behind-the-scenes.html">Behind the message</a></li>
+          <li><a href="../case-study.html">Case study</a></li>
+          <li><a href="../about.html">About</a></li>
+          <li><a href="../contact.html">Start a project</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h3>Reach us</h3>
+        <ul>
+          <li><a href="https://wa.me/1242XXXXXXX" rel="noopener">WhatsApp</a></li>
+          <li><a href="mailto:hello@nightshift.bs">hello@nightshift.bs</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Nightshift · Nassau, Bahamas</span>
+      <span>Replies within 4 business hours</span>
+    </div>
+  </div>
+</footer>
+
+<script src="../assets/js/site.js?v=20260810g" defer></script>
+</body>
+</html>

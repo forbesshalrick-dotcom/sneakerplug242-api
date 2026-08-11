@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo — fine dining site with a reservation bot</title>
+<meta name="description" content="A preview of what a high-end Bahamian restaurant's website and WhatsApp reservation bot could look like. Fictional business, working bot.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" as="image" href="img/dish-1.webp" fetchpriority="high">
+<link rel="stylesheet" href="../assets/demo.css?v=20260810g">
+<style>
+  :root{
+    --d-ground:#0B0B0C; --d-surface:#141416; --d-ink:#F3EDE3; --d-ink-2:#9C958A;
+    --d-line:#2A2A2D; --d-accent:#C39A5F; --d-accent-ink:#D9B784; --d-on-accent:#0B0B0C;
+    --d-display:"Cormorant",Georgia,serif; --d-body:"Archivo",sans-serif; --d-radius:0px;
+    color-scheme:dark;
+  }
+  body{ background:var(--d-ground); }
+
+  /* type — the restraint is the luxury */
+  .fd-eyebrow{ font-family:var(--d-body); font-size:10.5px; letter-spacing:.42em; text-transform:uppercase; color:var(--d-accent); }
+  .fd-h1{ font-family:var(--d-display); font-weight:300; font-size:clamp(46px,8vw,104px); line-height:.94; letter-spacing:-.02em; }
+  .fd-h1 em{ font-style:italic; color:var(--d-accent); }
+  .fd-h2{ font-family:var(--d-display); font-weight:300; font-size:clamp(30px,4.4vw,52px); line-height:1.04; letter-spacing:-.015em; }
+  .fd-h3{ font-family:var(--d-display); font-weight:500; font-size:24px; line-height:1.2; }
+  .fd-lead{ font-size:16.5px; line-height:1.75; color:var(--d-ink-2); max-width:46ch; }
+  .rule{ height:1px; background:linear-gradient(90deg,var(--d-accent),transparent); }
+
+  .d-logo{ font-family:var(--d-display); font-weight:400; font-size:23px; letter-spacing:.16em; text-transform:uppercase; }
+  .d-nav a{ font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:var(--d-ink-2); }
+
+  /* hero — full bleed, the plate does the talking */
+  .fd-hero{ position:relative; min-height:min(88vh,760px); display:flex; align-items:flex-end; overflow:hidden; }
+  .fd-hero img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .fd-hero img{ object-position:68% center; }
+  .fd-hero::after{
+    content:""; position:absolute; inset:0;
+    background:
+      linear-gradient(90deg,rgba(11,11,12,.94) 0%,rgba(11,11,12,.72) 38%,rgba(11,11,12,.12) 78%),
+      linear-gradient(180deg,rgba(11,11,12,.7) 0%,rgba(11,11,12,.2) 40%,rgba(11,11,12,.92) 100%);
+  }
+  .fd-hero .inner .d-wrap{ max-width:min(1120px,100%); }
+  .fd-hero .fd-lead{ max-width:38ch; }
+  .fd-hero .inner{ position:relative; z-index:1; padding-block:clamp(40px,7vw,86px); width:100%; }
+  .fd-stars{ display:flex; align-items:center; gap:9px; font-size:11px; letter-spacing:.26em; text-transform:uppercase; color:var(--d-ink-2); }
+  .fd-stars b{ color:var(--d-accent); font-size:13px; letter-spacing:.1em; }
+
+  /* menu */
+  .course{ display:grid; grid-template-columns:56px 1fr auto; gap:20px; align-items:baseline; padding:22px 0; border-bottom:1px solid var(--d-line); }
+  @media (max-width:600px){ .course{ grid-template-columns:40px 1fr; } .course .pr{ grid-column:2; } }
+  .course .no{ font-family:var(--d-display); font-size:15px; color:var(--d-accent); letter-spacing:.1em; }
+  .course .nm{ font-family:var(--d-display); font-size:23px; font-weight:500; }
+  .course .ds{ display:block; font-family:var(--d-body); font-size:13.5px; color:var(--d-ink-2); margin-top:5px; line-height:1.6; }
+  .course .pr{ font-family:var(--d-display); font-size:19px; color:var(--d-ink-2); white-space:nowrap; }
+  .course-link{ cursor:zoom-in; transition:background .2s ease, padding .2s ease; }
+  .course-link:hover{ background:rgba(195,154,95,.07); }
+  .course-link:hover .nm{ color:var(--d-accent); }
+  .course-link .pr::after{ content:"⤢"; margin-left:10px; color:var(--d-accent); opacity:0; transition:opacity .2s ease; }
+  .course-link:hover .pr::after, .course-link:focus-visible .pr::after{ opacity:1; }
+  .course-link:focus-visible{ outline:2px solid var(--d-accent); outline-offset:3px; }
+
+  /* plates gallery */
+  .plates{ display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:2px; }
+  .plate{ position:relative; overflow:hidden; aspect-ratio:4/5; }
+  .plate img{ width:100%; height:100%; object-fit:cover; transition:transform .9s cubic-bezier(.2,.7,.3,1), filter .6s ease; filter:saturate(.92) contrast(1.04); }
+  .plate:hover img{ transform:scale(1.06); filter:saturate(1.05) contrast(1.08); }
+  .plate figcaption{
+    position:absolute; inset:auto 0 0 0; padding:34px 18px 16px; color:#fff;
+    background:linear-gradient(180deg,transparent,rgba(0,0,0,.85));
+    font-family:var(--d-display); font-size:19px;
+  }
+  .plate figcaption small{ display:block; font-family:var(--d-body); font-size:10.5px; letter-spacing:.24em; text-transform:uppercase; color:var(--d-accent); margin-bottom:5px; }
+  @media (max-width:600px){ .plate{ aspect-ratio:1; } }
+
+  /* the room */
+  .room{ display:grid; grid-template-columns:1.1fr .9fr; gap:clamp(24px,4vw,56px); align-items:center; }
+  @media (max-width:820px){ .room{ grid-template-columns:1fr; } }
+  .room img{ width:100%; aspect-ratio:4/3; object-fit:cover; filter:saturate(.9); }
+  .facts{ display:flex; flex-direction:column; gap:0; margin-top:8px; }
+  .facts div{ display:flex; justify-content:space-between; gap:16px; padding:13px 0; border-bottom:1px solid var(--d-line); font-size:14px; }
+  .facts dt{ color:var(--d-ink-2); letter-spacing:.04em; }
+  .facts dd{ margin:0; font-family:var(--d-display); font-size:17px; }
+
+  .fd-section{ padding-block:clamp(48px,7vw,104px); }
+  .bot-shell{ border-color:var(--d-line); }
+  .bot-hd{ letter-spacing:.06em; }
+  .demo-foot{ background:#08080A; }
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span><b>DEMO SITE</b> — “Blue Hole” is not a real restaurant. Nothing here books a real table.</span>
+  <a href="../index.html">See the other demos</a>
+</div>
+
+<header>
+  <div class="d-head">
+    <a class="d-logo" href="#">Blue&nbsp;Hole</a>
+    <nav class="d-nav">
+      <a href="#menu">Menu</a>
+      <a href="#plates">Plates</a>
+      <a href="#room">The room</a>
+      <a href="#bot">Reserve</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- hero -->
+  <section class="fd-hero">
+    <img src="img/dish-1.webp" alt="A plated course, citrus and jus" width="960" height="1449" fetchpriority="high">
+    <div class="inner">
+      <div class="d-wrap d-stack g22">
+        <div class="fd-stars"><b>★★</b> Two stars · Nassau · est. 1998</div>
+        <h1 class="fd-h1">Twelve tables.<br><em>One seating.</em></h1>
+        <p class="fd-lead">A tasting menu built each morning around whatever came off the boat. No à la carte, no substitutions, no second sitting. When the twelve are gone, they are gone.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px">
+          <a class="d-btn" href="#bot">Reserve a table</a>
+          <a class="d-btn d-btn-ghost" href="#menu">Tonight's menu</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- menu -->
+  <section class="fd-section" id="menu">
+    <div class="d-wrap">
+      <div class="d-stack g22" style="max-width:760px">
+        <p class="fd-eyebrow">The tasting menu</p>
+        <h2 class="fd-h2">Seven courses, written this morning.</h2>
+        <p class="fd-lead" style="font-size:14px">Tap any course to see the plate.</p>
+        <div class="rule"></div>
+      </div>
+
+      <div style="max-width:820px;margin-top:34px">
+        <div class="course course-link" data-lightbox="plates" data-full="img/hero.webp" data-caption="Course I · Conch, cured — lime, scotch bonnet oil, green mango"><span class="no">I</span><span><span class="nm">Conch, cured</span><span class="ds">Lime, scotch bonnet oil, green mango</span></span><span class="pr">—</span></div>
+        <div class="course course-link" data-lightbox="plates" data-full="img/dish-4.webp" data-caption="Course II · Snapper crudo — coconut water, cucumber, finger lime"><span class="no">II</span><span><span class="nm">Snapper crudo</span><span class="ds">Coconut water, cucumber, finger lime</span></span><span class="pr">—</span></div>
+        <div class="course course-link" data-lightbox="plates" data-full="img/hero.webp" data-caption="Course III · Land crab — cassava, smoked butter, thyme flower"><span class="no">III</span><span><span class="nm">Land crab</span><span class="ds">Cassava, smoked butter, thyme flower</span></span><span class="pr">—</span></div>
+        <div class="course course-link" data-lightbox="plates" data-full="img/dish-2.webp" data-caption="Course IV · Hand-rolled pasta — spiny lobster, bisque, aged parmesan"><span class="no">IV</span><span><span class="nm">Hand-rolled pasta</span><span class="ds">Spiny lobster, bisque, aged parmesan</span></span><span class="pr">—</span></div>
+        <div class="course course-link" data-lightbox="plates" data-full="img/dish-4.webp" data-caption="Course V · Grouper — charred over pimento wood, bone jus"><span class="no">V</span><span><span class="nm">Grouper, whole</span><span class="ds">Charred over pimento wood, bone jus</span></span><span class="pr">—</span></div>
+        <div class="course course-link" data-lightbox="plates" data-full="img/dish-3.webp" data-caption="Course VI · Aged beef — fifty days, asparagus, bordelaise"><span class="no">VI</span><span><span class="nm">Aged beef</span><span class="ds">Fifty days, asparagus, bordelaise</span></span><span class="pr">—</span></div>
+        <div class="course course-link" data-lightbox="plates" data-full="img/dish-5.webp" data-caption="Course VII · Dark chocolate — guava, burnt honey, sea salt"><span class="no">VII</span><span><span class="nm">Dark chocolate</span><span class="ds">Guava, burnt honey, sea salt</span></span><span class="pr">—</span></div>
+      </div>
+
+      <div class="d-stack g8" style="margin-top:32px">
+        <p style="font-family:var(--d-display);font-size:27px">B$185 per guest</p>
+        <p style="color:var(--d-ink-2);font-size:14.5px">Wine pairing B$95 · Non-alcoholic pairing B$55 · Dietary requirements taken at booking</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- plates -->
+  <section id="plates">
+    <div class="d-wrap"><div class="d-stack g22" style="max-width:760px;padding-bottom:32px">
+      <p class="fd-eyebrow">Plates</p>
+      <h2 class="fd-h2">Close enough to see the salt.</h2>
+    </div></div>
+    <div class="plates">
+      <figure class="plate" data-lightbox="plates"><img src="img/hero.webp" alt="A plated course on dark wood" loading="lazy" width="1024" height="768"><figcaption><small>Course III</small>Land crab, cassava</figcaption></figure>
+      <figure class="plate" data-lightbox="plates"><img src="img/dish-2.webp" alt="Hand-rolled pasta" loading="lazy" width="1024" height="768"><figcaption><small>Course IV</small>Hand-rolled pasta</figcaption></figure>
+      <figure class="plate" data-lightbox="plates"><img src="img/dish-3.webp" alt="Aged beef with asparagus" loading="lazy" width="960" height="640"><figcaption><small>Course VI</small>Aged beef, asparagus</figcaption></figure>
+      <figure class="plate" data-lightbox="plates"><img src="img/dish-4.webp" alt="Sashimi on slate" loading="lazy" width="1100" height="825"><figcaption><small>Course II</small>Snapper crudo</figcaption></figure>
+      <figure class="plate" data-lightbox="plates"><img src="img/dish-5.webp" alt="Dark chocolate dessert" loading="lazy" width="1024" height="682"><figcaption><small>Course VII</small>Dark chocolate, guava</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- the room -->
+  <section class="fd-section" id="room">
+    <div class="d-wrap room">
+      <img src="img/room.webp" alt="The dining room laid for service" loading="lazy" width="960" height="640">
+      <div class="d-stack g22">
+        <p class="fd-eyebrow">The room</p>
+        <h2 class="fd-h2">One seating, seven o'clock.</h2>
+        <p class="fd-lead">Twelve tables on a covered terrace above the water. Everyone eats the same menu at the same time, so the kitchen cooks one service properly instead of three badly.</p>
+        <dl class="facts">
+          <div><dt>Seating</dt><dd>7:00 pm, one only</dd></div>
+          <div><dt>Covers</dt><dd>12 tables · 26 guests</dd></div>
+          <div><dt>Closed</dt><dd>Sunday &amp; Monday</dd></div>
+          <div><dt>Deposit</dt><dd>B$50 per guest</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- reserve -->
+  <section class="fd-section" id="bot" style="border-top:1px solid var(--d-line)">
+    <div class="d-wrap" style="max-width:640px">
+      <div class="d-stack g22" style="margin-bottom:26px">
+        <p class="fd-eyebrow">Reservations</p>
+        <h2 class="fd-h2">Book it here, not by phone.</h2>
+        <p class="fd-lead">The bot holds the table, takes your dietary requirements and asks for the deposit — at two in the morning if that is when you remembered.</p>
+      </div>
+      <div class="bot-shell" id="reserve-bot"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="demo-foot">
+  <div class="d-wrap">
+    <h2>This is a demo. Yours would have your food in it.</h2>
+    <p>Photography and a serious menu are half of it. The other half is the bot above — it really books the table, splits table from collection, records allergies and asks for the deposit, while the kitchen keeps cooking.</p>
+    <a class="cta" href="../../contact.html">Build mine</a>
+    <p class="back">Preview built by <a href="../../index.html">Nightshift</a> · Nassau · <a href="../index.html">all four demos</a></p>
+  </div>
+</footer>
+
+<script src="../assets/lightbox.js?v=20260810g"></script>
+<script src="../assets/bot.js?v=20260810g"></script>
+<script>
+/* Tonight's board — one photo, one letter, one price. The customer answers
+   with a single character instead of describing a dish. */
+var TONIGHT = [
+  { label:"A", name:"Snapper crudo",     price:38, img:"img/dish-4.webp" },
+  { label:"B", name:"Hand-rolled pasta", price:46, img:"img/dish-2.webp" },
+  { label:"C", name:"Aged beef",         price:64, img:"img/dish-3.webp" },
+  { label:"D", name:"Dark chocolate",    price:18, img:"img/dish-5.webp" }
+];
+var LOOKUP = {};
+TONIGHT.forEach(function (t) { LOOKUP[t.label] = t.name + ", B$" + t.price; });
+
+function MODE(a) {
+  if (a.intent.label === "A table") return "table";
+  if (a.intent.label === "Collection") return "collection";
+  return a.mode && a.mode.label === "Collection" ? "collection" : "table";
+}
+
+DemoBot.start({
+  mount: "#reserve-bot",
+  ai: "restaurant",
+  botName: "Blue Hole",
+  channel: "WhatsApp",
+  currency: "B$",
+  knows: [
+    { re:/(menu|what.*(serving|on tonight|do you have)|courses|tasting)/,
+      a:"It's one tasting menu, seven courses, written each morning around whatever came off the boat. B$185 a head. Tap “What's on tonight?” and I'll send the photos." },
+    { re:/(dress|dress code|what should i wear|smart|casual)/,
+      a:"No jacket needed. Most people come smart-casual — it's a terrace over the water, so nothing too formal." },
+    { re:/(park|parking|valet)/,
+      a:"There's parking on site and a valet from six o'clock." },
+    { re:/(allerg|gluten|nut|shellfish|vegetarian|vegan|diet)/,
+      a:"Tell me at booking and the kitchen works around it — they'd rather know now than at the table. I'll ask you about it as part of the reservation." },
+    { re:/(open|close|hours|what time|seating)/,
+      a:"One seating a night, seven o'clock, Tuesday through Saturday. Closed Sunday and Monday." },
+    { re:/(kids|children|child|baby|family)/,
+      a:"Over twelve in the dining room, and we're glad to have them. Under twelve we'd suggest the collection menu instead." },
+    { re:/(wine|drink|pairing|corkage|bar)/,
+      a:"Wine pairing is B$95, non-alcoholic pairing B$55. Corkage is B$60 a bottle if you'd rather bring something special." },
+    { re:/(where|location|address|find you)/,
+      a:"Western shore, above the water, about twenty minutes from town. I'll send a pin once you've booked." }
+  ],
+  greeting: [
+    "Good evening 🕯 Blue Hole.",
+    "What can I do for you?"
+  ],
+  steps: [
+    {
+      key: "intent",
+      ask: "Tap one, or just tell me.",
+      options: [
+        { label: "What's on tonight?" },
+        { label: "A table" },
+        { label: "Collection" }
+      ]
+    },
+    {
+      key: "seen",
+      when: function (a) { return a.intent.label === "What's on tonight?"; },
+      ask: "Here's tonight's board 👇 seven courses, B$185 a head.",
+      album: TONIGHT,
+      options: [
+        { label: "A" }, { label: "B" }, { label: "C" }, { label: "D" }
+      ],
+      retry: "Tap a letter under the photo you like — A, B, C or D."
+    },
+    {
+      key: "mode",
+      when: function (a) { return a.intent.label === "What's on tonight?"; },
+      ask: function (a) { return "Good choice — " + LOOKUP[a.seen.label] + ". Do you want a table, or collection from the kitchen door?"; },
+      options: [
+        { label: "A table" },
+        { label: "Collection" }
+      ]
+    },
+
+    /* ---- table path ---- */
+    {
+      key: "guests", when: function (a) { return MODE(a) === "table"; },
+      ask: "How many of you?",
+      options: [
+        { label: "2 guests", n: 2 }, { label: "4 guests", n: 4 },
+        { label: "6 guests", n: 6 }, { label: "The whole terrace (26)", n: 26 }
+      ]
+    },
+    {
+      key: "night", when: function (a) { return MODE(a) === "table"; },
+      ask: "We seat once, at seven. Which night?",
+      options: [
+        { label: "Thursday" }, { label: "Friday" }, { label: "Saturday" }, { label: "Next week" }
+      ]
+    },
+    {
+      key: "pairing", when: function (a) { return MODE(a) === "table"; },
+      ask: "The menu is B$185 a head. Pairing with that?",
+      options: [
+        { label: "Wine pairing", price: 95 },
+        { label: "Non-alcoholic pairing", price: 55 },
+        { label: "No pairing", price: 0 }
+      ]
+    },
+    {
+      key: "diet", when: function (a) { return MODE(a) === "table"; },
+      multi: true, doneLabel: "Nothing to flag",
+      ask: "Anything the kitchen needs to know? Tap all that apply.",
+      ack: function (o) { return o.label + " noted — chef sees this before service. Anything else?"; },
+      options: [
+        { label: "Shellfish allergy" }, { label: "Nut allergy" },
+        { label: "Vegetarian" }, { label: "No pork" }, { label: "Gluten free" }
+      ]
+    },
+
+    /* ---- collection path ---- */
+    {
+      key: "boxes", when: function (a) { return MODE(a) === "collection"; },
+      multi: true, requireOne: true, doneLabel: "That's my order",
+      ask: "The kitchen sends out a short list for collection. What are you having?",
+      ack: function (o, a) { return o.label + " ✓ (" + a.boxes.length + " so far). Anything else?"; },
+      options: [
+        { label: "Lobster pasta", price: 46 },
+        { label: "Whole grouper", price: 52 },
+        { label: "Aged beef", price: 64 },
+        { label: "Chocolate, guava", price: 18 }
+      ]
+    },
+    {
+      key: "when", when: function (a) { return MODE(a) === "collection"; },
+      ask: "What time are you collecting?",
+      options: [{ label: "6:30 pm" }, { label: "8:00 pm" }, { label: "9:30 pm" }]
+    },
+
+    { key: "name", free: true, ask: "Last thing — what name is it under?",
+      options: [{ label: "Mr Rolle" }, { label: "Ms Bethel" }, { label: "Dr Sands" }] }
+  ],
+
+  summarise: function (a) {
+    var rows = [], total = 0;
+
+    if (MODE(a) === "table") {
+      var n = a.guests.n;
+      rows.push({ label: "Table for", value: n + " · " + a.night.label + ", 7:00 pm" });
+      var menu = 185 * n;
+      rows.push({ label: "Tasting menu × " + n, value: "B$" + menu });
+      total += menu;
+      if (a.pairing.price > 0) {
+        var p = a.pairing.price * n;
+        rows.push({ label: a.pairing.label + " × " + n, value: "B$" + p });
+        total += p;
+      }
+      var diet = (a.diet || []).map(function (d) { return d.label; });
+      rows.push({ label: "Kitchen notes", value: diet.length ? diet.join(", ") : "None" });
+      if (a.seen) rows.push({ label: "Asked about", value: LOOKUP[a.seen.label] });
+      rows.push({ label: "Name", value: a.name.label });
+      return {
+        before: ["Let me read that back."],
+        title: "Reservation",
+        rows: rows, total: total, totalLabel: "Menu total",
+        note: "A B$50 per guest deposit holds the table and comes off the bill. Cancel free up to 48 hours before.",
+        closing: "Shall I hold it and send the deposit details?"
+      };
+    }
+
+    a.boxes.forEach(function (b) { rows.push({ label: b.label, value: "B$" + b.price }); total += b.price; });
+    rows.push({ label: "Collection", value: a.when.label + " · kitchen door" });
+    rows.push({ label: "Name", value: a.name.label });
+    return {
+      before: ["Right — collection it is."],
+      title: "Collection order",
+      rows: rows, total: total,
+      note: "Boxed to order, so it goes on when you say. Pay at the door or I can send bank details now.",
+      closing: "Want me to put it in to the kitchen?"
+    };
+  }
+});
+</script>
+</body>
+</html>

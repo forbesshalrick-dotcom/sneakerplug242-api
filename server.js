@@ -149,6 +149,21 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
+// ── Agency site (/site) ──────────────────────────────────────────────────────
+// Served from here so it has a fixed https address instead of living on a
+// laptop whose LAN IP changes every time it reconnects. Mounted on a path, so
+// it cannot shadow any of the store's own routes.
+app.use('/site', express.static(require('path').join(__dirname, 'site'), {
+  extensions: ['html'],
+  setHeaders(res, p) {
+    if (/\.(webp|png|jpg|svg|woff2|mp4|m4a)$/.test(p)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');   // assets are versioned in the URL
+    } else {
+      res.setHeader('Cache-Control', 'no-cache');                  // html always revalidates
+    }
+  }
+}));
+
 // ── Agency preview bots (/demo-chat) ─────────────────────────────────────────
 // The demo sites on the agency page used to run a keyword lookup table, which is
 // why they answered the wrong question and repeated themselves. They now talk to

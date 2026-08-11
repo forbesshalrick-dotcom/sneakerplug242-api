@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo — car rental site with a booking bot</title>
+<meta name="description" content="A preview of what a Bahamian car rental company's website and WhatsApp booking bot could look like. Fictional business, working bot.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" as="image" href="img/car-march.webp">
+<link rel="stylesheet" href="../assets/demo.css?v=20260810g">
+<style>
+  :root{
+    --d-ground:#fff; --d-surface:#EEF2F6; --d-ink:#0C1E2E; --d-ink-2:#5A6B7A;
+    --d-line:#D6DEE6; --d-accent:#125E9E; --d-accent-ink:#0E4C81; --d-on-accent:#fff;
+    --d-display:"Oswald",sans-serif; --d-body:"Archivo",sans-serif; --d-radius:4px;
+  }
+  .d-h1,.d-h2,.d-h3,.d-logo{ text-transform:uppercase; letter-spacing:.01em; }
+  .plate{
+    display:inline-flex; align-items:center; gap:9px; background:#0C1E2E; color:#fff;
+    font-family:"Plex Mono",monospace; font-size:12px; letter-spacing:.14em;
+    padding:7px 13px; border-radius:3px;
+  }
+  .plate b{ color:#F5C518; font-weight:500; }
+  .spec{ display:flex; gap:16px; flex-wrap:wrap; font-family:"Plex Mono",monospace; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--d-ink-2); }
+  .shotbox{ height:180px; overflow:hidden; border-radius:3px; background:#DCE3EA; }
+  .shotbox img{ width:100%; height:100%; object-fit:cover; transition:transform .7s cubic-bezier(.2,.7,.3,1); }
+  .d-card:hover .shotbox img{ transform:scale(1.05); }
+  .hero-shot{ width:100%; border-radius:4px; object-fit:cover; aspect-ratio:16/10; }
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span><b>DEMO SITE</b> — “Out Island Auto” is not a real company. Nothing here takes real bookings.</span>
+  <a href="../index.html">See the other demos</a>
+</div>
+
+<header>
+  <div class="d-head">
+    <a class="d-logo" href="#">Out Island Auto</a>
+    <nav class="d-nav">
+      <a href="#fleet">Fleet</a>
+      <a href="#rates">Rates</a>
+      <a href="#bot">Book</a>
+      <a href="#">Contact</a>
+    </nav>
+    <span class="plate">242 · <b>NASSAU</b></span>
+  </div>
+</header>
+
+<main>
+  <section class="d-hero">
+    <div class="d-wrap d-hero-grid">
+      <div class="d-stack g22">
+        <p class="d-kicker">Nassau &amp; Paradise Island</p>
+        <h1 class="d-h1">Keys in your hand<br>in under an hour.</h1>
+        <p class="d-lead">Airport delivery, hotel drop-off, unlimited mileage. Book the whole thing on WhatsApp without waiting for anybody to call you back.</p>
+        <div class="spec">
+          <span>✓ Free airport pickup</span>
+          <span>✓ Unlimited mileage</span>
+          <span>✓ 24-hour roadside</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="d-btn" href="#bot">Book a vehicle</a>
+          <a class="d-btn d-btn-ghost" href="#fleet">See the fleet</a>
+        </div>
+      </div>
+
+      <div class="bot-shell" id="bot"></div>
+    </div>
+  </section>
+
+  <section class="d-section" id="fleet">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">The fleet</p>
+        <h2 class="d-h2">Five vehicles, all on the lot today</h2>
+      </div>
+      <div class="d-grid">
+        <article class="d-card">
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-march.webp" alt="Nissan March" loading="lazy" width="1024" height="768"></div>
+          <h3 class="d-h3">Nissan March</h3>
+          <p>Automatic · 5 seats · A/C. Small, cheap on gas, easy to park downtown.</p>
+          <span class="price">B$50 / day</span>
+        </article>
+        <article class="d-card">
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-fit.webp" alt="Honda Fit" loading="lazy" width="1023" height="642"></div>
+          <h3 class="d-h3">Honda Fit</h3>
+          <p>Automatic · 5 seats · surprising boot space. Our most-booked car.</p>
+          <span class="price">B$55 / day</span>
+        </article>
+        <article class="d-card">
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-corolla.webp" alt="Toyota Corolla" loading="lazy" width="1024" height="768"></div>
+          <h3 class="d-h3">Toyota Corolla</h3>
+          <p>Automatic · 5 seats · full size. Comfortable for a week of driving.</p>
+          <span class="price">B$65 / day</span>
+        </article>
+        <article class="d-card">
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-wrangler.webp" alt="Jeep Wrangler" loading="lazy" width="1023" height="685"></div>
+          <h3 class="d-h3">Jeep Wrangler</h3>
+          <p>4x4 · soft top · 4 seats. Built for the back roads and the beach.</p>
+          <span class="price">B$95 / day</span>
+        </article>
+        <article class="d-card">
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-pickup.webp" alt="Crew cab pickup" loading="lazy" width="1024" height="680"></div>
+          <h3 class="d-h3">Crew pickup</h3>
+          <p>Five seats and a tray. Contractors, movers, boat runs.</p>
+          <span class="price">B$110 / day</span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="d-section" id="rates">
+    <div class="d-wrap d-stack g22">
+      <p class="d-kicker">Straight rates</p>
+      <h2 class="d-h2">No hidden counter fees</h2>
+      <p class="d-lead">Delivery to the airport is B$15. To your hotel, B$20. Downtown pickup is free. Insurance is B$18 a day and we will always ask before adding it.</p>
+      <img class="hero-shot" src="img/car-interior.webp" alt="The interior of one of the fleet" loading="lazy" width="1024" height="683" style="margin-top:18px;max-width:620px">
+    </div>
+  </section>
+</main>
+
+<footer class="demo-foot">
+  <div class="d-wrap">
+    <h2>This is a demo. Yours would have your cars in it.</h2>
+    <p>The bot above is really working — it checks the rate, adds the extras, counts the days and prints a total. Point it at your actual fleet and it books while you are driving somebody to the airport.</p>
+    <a class="cta" href="../../contact.html">Build mine</a>
+    <p class="back">Preview built by <a href="../../index.html">Nightshift</a> · Nassau · <a href="../index.html">all demos</a> · <a href="../credits.html">photo credits</a></p>
+  </div>
+</footer>
+
+<script src="../assets/lightbox.js?v=20260810g"></script>
+<script src="../assets/bot.js?v=20260810g"></script>
+<script>
+DemoBot.start({
+  mount: "#bot",
+  ai: "car-rental",
+  botName: "Out Island Auto",
+  channel: "WhatsApp",
+  currency: "B$",
+  knows: [
+    { re:/(licen[cs]e|permit|drive|driving)/,
+      a:"Your home licence is fine for up to three months. Bring it with you and we'll photograph it at collection." },
+    { re:/(age|old|young|under 2|21|25)/,
+      a:"Drivers 21 and over. Under 25 there's a small young-driver surcharge of B$10 a day." },
+    { re:/(insur|cover|damage|excess|deposit|hold)/,
+      a:"Basic cover is included. Full insurance is B$18 a day and drops the excess to zero. A B$200 refundable hold goes on your card at collection." },
+    { re:/(fuel|gas|petrol|tank)/,
+      a:"Full to full — bring it back the way you got it and there's nothing to pay." },
+    { re:/(mile|mileage|km|limit)/,
+      a:"Unlimited mileage on every vehicle, no catch." },
+    { re:/(other island|exuma|eleuthera|ferry|boat|take it off)/,
+      a:"The vehicles stay on New Providence. If you're heading to another island, tell me and I'll sort a car waiting for you at the other end." },
+    { re:/(airport|lpia|hotel|deliver|drop)/,
+      a:"We'll meet you at the airport for B$15, your hotel for B$20, or collect free from the downtown office." },
+    { re:/(open|hours|what time|late flight)/,
+      a:"Seven till nine daily, and we'll meet late flights by arrangement — just tell me the flight number." }
+  ],
+  greeting: [
+    "Hey 👋 Out Island Auto — I can book you a vehicle right here.",
+    "What you looking for?"
+  ],
+  steps: [
+    {
+      key: "vehicle",
+      ask: "Which one?",
+      options: [
+        { label: "Nissan March", price: 50 },
+        { label: "Honda Fit", price: 55 },
+        { label: "Toyota Corolla", price: 65 },
+        { label: "Jeep Wrangler", price: 95 },
+        { label: "Crew pickup", price: 110 }
+      ]
+    },
+    {
+      key: "days",
+      ask: function (a) { return "Good pick — the " + a.vehicle.label + " is B$" + a.vehicle.price + " a day. How long you need it?"; },
+      options: [
+        { label: "1 day", days: 1 },
+        { label: "3 days", days: 3 },
+        { label: "5 days", days: 5 },
+        { label: "A week", days: 7 }
+      ]
+    },
+    {
+      key: "pickup",
+      ask: "Where you want to collect it?",
+      options: [
+        { label: "Airport (LPIA)", price: 15 },
+        { label: "Your hotel", price: 20 },
+        { label: "Our downtown office", price: 0 }
+      ]
+    },
+    {
+      key: "extras",
+      multi: true,
+      requireOne: false,
+      doneLabel: "Nothing else",
+      ask: "Anything to add? Tap as many as you want.",
+      ack: function (o) { return o.label + " added ✓ Anything else?"; },
+      options: [
+        { label: "Full insurance", price: 18, perDay: true },
+        { label: "Child seat", price: 8, perDay: true },
+        { label: "Extra driver", price: 10, perDay: true },
+        { label: "GPS unit", price: 5, perDay: true }
+      ]
+    },
+    {
+      key: "when",
+      free: true,
+      ask: "Last thing — what date do you need it? Type it however you like.",
+      options: [
+        { label: "Tomorrow" },
+        { label: "This weekend" },
+        { label: "Next Monday" }
+      ]
+    }
+  ],
+  summarise: function (a) {
+    var days = a.days.days;
+    var rows = [];
+    var total = 0;
+
+    var base = a.vehicle.price * days;
+    rows.push({ label: a.vehicle.label + " × " + days + (days > 1 ? " days" : " day"), value: "B$" + base });
+    total += base;
+
+    (a.extras || []).forEach(function (x) {
+      var cost = x.perDay ? x.price * days : x.price;
+      rows.push({ label: x.label + (x.perDay ? " × " + days : ""), value: "B$" + cost });
+      total += cost;
+    });
+
+    if (a.pickup.price > 0) {
+      rows.push({ label: "Delivery — " + a.pickup.label, value: "B$" + a.pickup.price });
+      total += a.pickup.price;
+    } else {
+      rows.push({ label: "Pickup — " + a.pickup.label, value: "Free" });
+    }
+
+    rows.push({ label: "Starting", value: a.when.label });
+
+    return {
+      before: ["Got it. Let me price that up for you."],
+      title: "Booking quote",
+      rows: rows,
+      total: total,
+      totalLabel: "Total",
+      note: "Unlimited mileage and 24-hour roadside included. A B$200 refundable hold goes on your card at collection.",
+      closing: "Want me to hold this vehicle for you? I'd send the confirmation and the pickup instructions right after."
+    };
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nightshift — websites and WhatsApp order bots, Nassau</title>
+<meta name="description" content="We build websites and WhatsApp bots for Bahamian businesses that answer questions, quote prices and take orders while you sleep. Built and tested on our own store first.">
+<link rel="canonical" href="https://nightshift.bs/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nightshift.bs/">
+<meta property="og:title" content="Nightshift — get found, get orders, get paid">
+<meta property="og:description" content="Websites and WhatsApp order bots for Bahamian businesses. Built and tested on our own store first.">
+<meta property="og:image" content="https://nightshift.bs/assets/img/og.png">
+<meta property="og:locale" content="en_BS">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#FF4A1C">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" as="image" href="assets/img/hero/food-1.webp">
+<link rel="stylesheet" href="assets/css/site.css?v=20260810g">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="bar">
+    <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="services.html">Services</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="demos/index.html">Demos</a>
+      <a href="case-study.html">Case study</a>
+      <a href="about.html">About</a>
+      <a class="btn btn-primary btn-sm" href="contact.html">Start a project</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- 1. hero ------------------------------------------------------------- -->
+  <section class="hero">
+    <div class="wrap grid">
+      <div>
+        <p class="kicker">Nassau, Bahamas</p>
+        <h1 class="h-xl">Get found.<br>Get orders.<br>Get paid<span class="dot">.</span></h1>
+        <p class="sub">Without answering every message yourself.</p>
+        <div class="btn-row">
+          <a class="btn btn-primary" href="https://wa.me/1242XXXXXXX?text=Hi%2C%20I%27d%20like%20to%20talk%20about%20a%20website%20for%20my%20business." rel="noopener">Talk to us on WhatsApp</a>
+          <a class="btn btn-ghost" href="pricing.html">See what it costs</a>
+        </div>
+        <p class="under">Prices published. Deposit to start. Your domain stays in your name.</p>
+      </div>
+
+      <div class="chat-shell">
+        <span class="mark tl"></span><span class="mark tr"></span>
+        <span class="mark bl"></span><span class="mark br"></span>
+
+        <div class="chat-tabs" role="group" aria-label="Example conversations by trade">
+          <button class="chat-tab" type="button" aria-pressed="true" data-convo="0">Restaurant</button>
+          <button class="chat-tab" type="button" aria-pressed="false" data-convo="1">Salon</button>
+          <button class="chat-tab" type="button" aria-pressed="false" data-convo="2">Car hire</button>
+        </div>
+
+        <!-- rendered statically so the panel still reads with JavaScript off;
+             site.js clears it and types the same conversation back in -->
+        <div class="chat" id="chat" data-demo="trades">
+          <div class="chat-hd"><span class="live-dot"></span> Friday 11:52 pm &nbsp;·&nbsp; kitchen closed</div>
+          <div class="msg in">what y'all have tonight?<span class="stamp">11:52 pm</span></div>
+          <div class="msg out">Kitchen shut at 11 — but here's tomorrow's menu, and I can put you first 👇<span class="stamp">11:52 pm</span></div>
+          <div class="chat-album">
+            <figure><img src="assets/img/hero/food-1.webp" alt="Snapper crudo" width="190" height="190"><figcaption><b>A1</b><span>Snapper crudo · $38</span></figcaption></figure>
+            <figure><img src="assets/img/hero/food-2.webp" alt="Hand-rolled pasta" width="190" height="190"><figcaption><b>A2</b><span>Hand-rolled pasta · $46</span></figcaption></figure>
+            <figure><img src="assets/img/hero/food-3.webp" alt="Aged beef" width="190" height="190"><figcaption><b>A3</b><span>Aged beef · $64</span></figcaption></figure>
+          </div>
+          <p class="chat-gap">no reply &nbsp;·&nbsp; 14 minutes later</p>
+          <div class="msg out">Still there? 😊 Just send me the code under the one you want and I'll hold it for tomorrow.<span class="stamp">12:06 am</span></div>
+          <div class="msg in">A3 for 2<span class="stamp">12:07 am</span></div>
+          <div class="msg out">Held — 2 × aged beef, $128, collection 8pm tomorrow. I'll message you when they're up.<span class="stamp">12:07 am</span></div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. where the money leaks -------------------------------------------- -->
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Where the money leaks</p>
+        <h2 class="h-lg">You are not losing sales. You are losing replies.</h2>
+        <p class="lead">Four places it goes. You will recognise at least one.</p>
+      </div>
+
+      <div class="leaks">
+        <article class="leak">
+          <p class="when">11:40 pm, Saturday</p>
+          <h3 class="h-sm">Somebody asks the price. Nobody answers.</h3>
+          <p>They saw the post, they wanted it, they typed. By morning they have found it somewhere else. That message was money and it timed out.</p>
+        </article>
+        <article class="leak">
+          <p class="when">Every day, forty times</p>
+          <h3 class="h-sm">The same three questions.</h3>
+          <p>How much. You still have it. Where you at. You are a human search engine for your own stock, and it eats the hours you needed for actual work.</p>
+        </article>
+        <article class="leak">
+          <p class="when">Ten times a week</p>
+          <h3 class="h-sm">&ldquo;Send me pictures of what you have in a medium.&rdquo;</h3>
+          <p>Now somebody has to walk the shelf, remember what is left in that size, dig out the photos and send them one at a time. Nobody can hold a whole stockroom in their head, so the customer sees a fraction of what you actually have.</p>
+        </article>
+        <article class="leak">
+          <p class="when">Whenever you put the phone down</p>
+          <h3 class="h-sm">Nothing can be bought without you.</h3>
+          <p>No order goes through unless a person types it. Your business closes when you close your eyes, and it cannot grow past what two thumbs can handle.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. what we build ---------------------------------------------------- -->
+  <section class="band band-surface">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">What we build</p>
+        <h2 class="h-lg">Five things. Pick where you are.</h2>
+        <p class="lead">Prices are published here and on the pricing page. You will not have to ask us what it costs.</p>
+      </div>
+
+      <div class="tiers">
+        <a class="tier" href="services.html#presence">
+          <span class="from">Presence — from</span>
+          <span class="price">B$1,200</span>
+          <h3 class="h-sm">Be findable</h3>
+          <p>Four to five pages, built for a phone. Click-to-chat on WhatsApp, a contact form, and your Google listing set up properly so you show on the map.</p>
+          <span class="go">1–2 weeks →</span>
+        </a>
+        <a class="tier" href="services.html#business">
+          <span class="from">Business — from</span>
+          <span class="price">B$2,500</span>
+          <h3 class="h-sm">Show the whole operation</h3>
+          <p>Eight to twelve pages with a real catalogue or booking. Gallery, forms, and the on-page work that helps people find you by what you sell.</p>
+          <span class="go">3–4 weeks →</span>
+        </a>
+        <a class="tier" href="services.html#commerce">
+          <span class="from">Commerce — from</span>
+          <span class="price">B$5,000</span>
+          <h3 class="h-sm">Sell without touching it</h3>
+          <p>Full store with live inventory, checkout, order flow and delivery zones. Somebody buys at 3am and the order is waiting for you.</p>
+          <span class="go">4–8 weeks →</span>
+        </a>
+        <a class="tier" href="services.html#ai">
+          <span class="from">AI sales layer — from</span>
+          <span class="price">B$3,500</span>
+          <h3 class="h-sm">The one that answers</h3>
+          <p>A WhatsApp bot that knows your stock. It answers, quotes, checks what's in stock, takes the order and hands it to delivery. This is the one we run ourselves.</p>
+          <span class="go">3–6 weeks →</span>
+        </a>
+        <a class="tier" href="services.html#care">
+          <span class="from">Care plan — from</span>
+          <span class="price">B$200/mo</span>
+          <h3 class="h-sm">Keep it running</h3>
+          <p>Hosting, updates, content changes, bot tuning and a monthly report on what it did. Required on Commerce and AI builds — we explain why on the pricing page.</p>
+          <span class="go">Ongoing →</span>
+        </a>
+        <a class="tier tier-ask" href="contact.html">
+          <span class="from">Not sure?</span>
+          <span class="price">Ask us</span>
+          <h3 class="h-sm">We will tell you the cheapest one that works</h3>
+          <p>Thirty minutes on the phone, no charge. Sometimes the answer is the smallest tier, and we will say so even though it pays us less.</p>
+          <span class="go">Start here →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3b. demos ----------------------------------------------------------- -->
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">See your own trade</p>
+        <h2 class="h-lg">Don't take our word. Go and use one.</h2>
+        <p class="lead">Eight preview sites, eight completely different looks, each with a bot that really works — sends a photo menu, prices a print run, tracks a package by number, quotes a fare across the island. Find the one closest to your business and try to break it.</p>
+      </div>
+
+      <div class="tiers">
+        <a class="tier" href="demos/car-rental/index.html">
+          <span class="from">Demo</span>
+          <span class="price">Car rental</span>
+          <p>Pick a vehicle and your days, choose airport delivery, add insurance. It quotes the lot.</p>
+          <span class="go">Try it →</span>
+        </a>
+        <a class="tier" href="demos/restaurant/index.html">
+          <span class="from">Demo</span>
+          <span class="price">Restaurant</span>
+          <p>Order plates, sides and a drink, pick delivery and a time. Full bill at the end.</p>
+          <span class="go">Try it →</span>
+        </a>
+        <a class="tier" href="demos/salon/index.html">
+          <span class="from">Demo</span>
+          <span class="price">Hair salon</span>
+          <p>Service, length, treatments, stylist, slot. Prices it and asks for the deposit.</p>
+          <span class="go">Try it →</span>
+        </a>
+        <a class="tier" href="demos/bfc/index.html">
+          <span class="from">Demo</span>
+          <span class="price">Fast food</span>
+          <p>Numbered combos on a photo board. Send a number, pick a side, pickup or delivery.</p>
+          <span class="go">Try it →</span>
+        </a>
+        <a class="tier" href="demos/estate/index.html">
+          <span class="from">Demo</span>
+          <span class="price">Real estate</span>
+          <p>Eight-figure island estates. The bot qualifies the buyer and matches the portfolio.</p>
+          <span class="go">Try it →</span>
+        </a>
+        <a class="tier tier-ask" href="demos/print-shop/index.html">
+          <span class="from">Demo</span>
+          <span class="price">T-shirt printing</span>
+          <p>Design all four sides and drag the artwork where you want it. The bot reads every printed side and prices the run.</p>
+          <span class="go">Try it →</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. proof ------------------------------------------------------------ -->
+  <section class="band band-ink">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Proof</p>
+        <h2 class="h-lg">We built it on our own store first.</h2>
+        <p class="lead">THE PLUG 242 is a working sneaker business in Nassau. It runs on the exact system we are selling you — the same bot, the same live inventory, the same order flow. Not a demo account. Not a mockup in a portfolio.</p>
+        <p class="lead">The shop happens to sell sneakers. The system does not care what you sell. Swap shoes for plates, appointments or parts and it is the same four questions, asked at the same awkward hours, answered the same way.</p>
+      </div>
+
+      <div class="flow" style="margin-bottom:34px">
+        <span>Customer messages WhatsApp</span>
+        <span class="arrow">→</span>
+        <span>Bot reads what they're asking for</span>
+        <span class="arrow">→</span>
+        <span>Checks live stock</span>
+        <span class="arrow">→</span>
+        <span>Confirms price and availability</span>
+        <span class="arrow">→</span>
+        <span>Takes the order</span>
+        <span class="arrow">→</span>
+        <span>Driver</span>
+      </div>
+
+      <div class="btn-row">
+        <a class="btn btn-primary" href="case-study.html">Read how it was built</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. how it works ----------------------------------------------------- -->
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">How it works</p>
+        <h2 class="h-lg">Four steps, no hourly surprises.</h2>
+      </div>
+
+      <div class="steps">
+        <article class="step">
+          <p class="n">Step one — free</p>
+          <h3 class="h-sm">Call</h3>
+          <p>Thirty minutes. We ask what you sell, where your orders come from now, and what you repeat all day. Mostly we listen.</p>
+        </article>
+        <article class="step">
+          <p class="n">Step two — 3 days</p>
+          <h3 class="h-sm">Plan</h3>
+          <p>You get it in writing: what gets built, what it costs, when it lands, and what is not included. One fixed price. You approve before anything starts.</p>
+        </article>
+        <article class="step">
+          <p class="n">Step three</p>
+          <h3 class="h-sm">Build</h3>
+          <p>50% to start. You see it on a live link as it goes up, not at the end. Two rounds of changes are included.</p>
+        </article>
+        <article class="step">
+          <p class="n">Step four</p>
+          <h3 class="h-sm">Handover and care</h3>
+          <p>50% on launch. We hand you the logins and show you how to run it. Anything that breaks in the first 30 days, we fix free.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. trust ------------------------------------------------------------ -->
+  <section class="band band-surface">
+    <div class="wrap stack stack-lg">
+      <div class="sec-head" style="margin-bottom:0">
+        <p class="eyebrow">Straight answers</p>
+        <h2 class="h-lg">The things you were going to ask carefully.</h2>
+      </div>
+
+      <div class="spotlight">
+        <h3 class="h-md">Your domain and hosting stay in your name.</h3>
+        <p>We register them on your account, with your email, on your card. You get the logins on day one and they stay yours. If you ever want to work with somebody else, you take the whole thing and go — no phone calls, no ransom, no waiting on us. We think holding a client's domain hostage is the reason people around here are nervous about hiring anybody, so we make it impossible for ourselves to do it.</p>
+      </div>
+
+      <div class="trust">
+        <div class="trust-item">
+          <h3 class="h-sm">We reply within 4 business hours</h3>
+          <p>Not "fast turnaround." Four hours, business days. If we cannot hold it we will not print it.</p>
+        </div>
+        <div class="trust-item">
+          <h3 class="h-sm">30-day fix warranty</h3>
+          <p>Anything that breaks after launch that was ours to build, we fix free for 30 days. In writing, in the contract.</p>
+        </div>
+        <div class="trust-item">
+          <h3 class="h-sm">Registered and licensed</h3>
+          <p>Business licence and NIB, both current. We can send the numbers before you pay a dollar.</p>
+        </div>
+        <div class="trust-item">
+          <h3 class="h-sm">Real contract, fixed price</h3>
+          <p>Scope written down, price agreed up front, revisions counted. No hourly billing and no invoice you did not see coming.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. FAQ -------------------------------------------------------------- -->
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Before you ask</p>
+        <h2 class="h-lg">Questions we get every week.</h2>
+      </div>
+
+      <div class="faq">
+        <details>
+          <summary>Will the bot sound like a robot to my customers?</summary>
+          <p>It sounds like your business, because we write it in your words and your greetings. It knows your stock, your prices, your delivery areas and your rules. When it does not know something it says so and passes the chat to you instead of guessing. You can read a real conversation on the case study page and judge for yourself.</p>
+        </details>
+        <details>
+          <summary>What if it tells somebody the wrong price?</summary>
+          <p>It does not carry its own price list. It reads the same live stock record you update, so a price is only wrong if it is wrong in your own system. You can also lock any product so the bot must hand it to a human before quoting.</p>
+        </details>
+        <details>
+          <summary>I already have a website and I hate it. Can you fix that one?</summary>
+          <p>Sometimes. Send us the link before you spend anything. If it can be saved we will tell you, and if starting over is cheaper than repairing it we will tell you that too, even though it is the smaller job.</p>
+        </details>
+        <details>
+          <summary>Do I have to take the monthly plan?</summary>
+          <p>On the Presence and Business tiers, no — you can take the keys and go. On Commerce and the AI sales layer, yes, minimum six months. Those are live systems talking to customers and money. We are not handing over something we cannot keep running and then watching it break with your name on it.</p>
+        </details>
+        <details>
+          <summary>How much do I have to be involved?</summary>
+          <p>One 30-minute call, one round of gathering your photos and prices, and two review passes. Most of it is us. The part only you can do is telling us what your customers actually ask.</p>
+        </details>
+        <details>
+          <summary>Will this put me at the top of Google?</summary>
+          <p>Nobody can promise that, and anybody who does is selling you something. What we do is build the pages so search engines can read them, set up your Google Business Profile properly, and put your real service and location words where they belong. That is process, not a ranking guarantee.</p>
+        </details>
+        <details>
+          <summary>What happens if I stop paying the monthly?</summary>
+          <p>The site and your domain stay yours — they are in your name, so nothing switches off out of spite. What stops is our work: updates, monitoring and bot tuning. On AI builds we give you 30 days' notice and a handover so nothing goes dark by surprise.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. CTA -------------------------------------------------------------- -->
+  <section class="band no-border">
+    <div class="wrap">
+      <div class="stack stack-md" style="max-width:660px">
+        <p class="eyebrow">Start</p>
+        <h2 class="h-lg">Tell us what you sell and what you keep repeating.</h2>
+        <p class="lead">That is the whole first conversation. Thirty minutes, no charge, no obligation, and you will leave it knowing whether this is worth your money.</p>
+        <div class="btn-row" style="margin-top:10px">
+          <a class="btn btn-primary" href="https://wa.me/1242XXXXXXX?text=Hi%2C%20I%27d%20like%20to%20talk%20about%20a%20website%20for%20my%20business." rel="noopener">Message us on WhatsApp</a>
+          <a class="btn btn-ghost" href="contact.html">Fill in the short form</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+        <p>Websites and WhatsApp order bots for Bahamian businesses. Nassau, New Providence.</p>
+      </div>
+      <div class="foot-col">
+        <h3>Site</h3>
+        <ul>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="pricing.html">Pricing</a></li>
+          <li><a href="demos/index.html">Demos</a></li>
+          <li><a href="behind-the-scenes.html">Behind the message</a></li>
+          <li><a href="case-study.html">Case study</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Start a project</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h3>Reach us</h3>
+        <ul>
+          <li><a href="https://wa.me/1242XXXXXXX" rel="noopener">WhatsApp</a></li>
+          <li><a href="mailto:hello@nightshift.bs">hello@nightshift.bs</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Nightshift · Nassau, Bahamas</span>
+      <span>Replies within 4 business hours</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/site.js?v=20260810g" defer></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ProfessionalService",
+  "name": "Nightshift",
+  "description": "Websites and WhatsApp order bots for Bahamian businesses.",
+  "url": "https://nightshift.bs/",
+  "image": "https://nightshift.bs/assets/img/og.png",
+  "email": "hello@nightshift.bs",
+  "priceRange": "$$",
+  "areaServed": { "@type": "Country", "name": "Bahamas" },
+  "address": {
+    "@type": "PostalAddress",
+    "addressLocality": "Nassau",
+    "addressRegion": "New Providence",
+    "addressCountry": "BS"
+  },
+  "makesOffer": [
+    { "@type": "Offer", "name": "Presence website", "priceCurrency": "BSD", "price": "1200" },
+    { "@type": "Offer", "name": "Business website", "priceCurrency": "BSD", "price": "2500" },
+    { "@type": "Offer", "name": "Commerce store", "priceCurrency": "BSD", "price": "5000" },
+    { "@type": "Offer", "name": "AI sales layer (WhatsApp bot)", "priceCurrency": "BSD", "price": "3500" },
+    { "@type": "Offer", "name": "Care plan", "priceCurrency": "BSD", "price": "200" }
+  ]
+}
+</script>
+</body>
+</html>

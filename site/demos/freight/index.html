@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo — freight forwarder site with a tracking bot</title>
+<meta name="description" content="A preview of what a Bahamian freight forwarder's website and WhatsApp bot could look like — free US shipping address, live package tracking, customs clearing. Fictional business, working bot.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
+<!-- both are used above the fold; without these the hero reflows when they
+     land and the whole column jumps -->
+<link rel="preload" href="../../assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../../assets/fonts/ibm-plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../assets/demo.css?v=20260810s">
+<style>
+  /* Bright, sunny and easy. This is a service ordinary people use to get their
+     online shopping home — a grandmother, a teenager buying sneakers, somebody
+     ordering school supplies in August. It should feel cheerful and simple, not
+     like a customs office. Big round shapes, friendly blue, sunshine yellow. */
+  :root{
+    --d-ground:#FFFDF6; --d-surface:#FFF3D8; --d-ink:#13293D; --d-ink-2:#5C7488;
+    --d-line:#FFE3A8; --d-accent:#1E56E8; --d-accent-ink:#1743C4; --d-on-accent:#fff;
+    --d-display:"Archivo",sans-serif; --d-body:"Archivo",sans-serif; --d-radius:18px;
+    --sun:#FFC93C; --mint:#28C7A9; --coral:#FF7A6B;
+  }
+  .d-h1{ font-weight:800; letter-spacing:-.025em; line-height:1.04; }
+  .d-h2{ font-weight:800; letter-spacing:-.02em; }
+  .d-h3{ font-weight:700; }
+  .d-logo{ font-weight:800; letter-spacing:-.02em; }
+  .d-btn{ border-radius:99px; font-weight:700; padding:14px 24px; }
+  .d-btn-ghost{ border-radius:99px; font-weight:700; }
+  .num{ font-family:"Plex Mono",monospace; font-variant-numeric:tabular-nums; }
+
+  .pill{
+    display:inline-flex; align-items:center; gap:8px; background:var(--sun);
+    color:#4A3200; border-radius:99px; padding:7px 15px; font-weight:700; font-size:13px;
+  }
+
+  /* the three steps, as big friendly cards with a number in a circle */
+  .steps3{ display:grid; gap:14px; counter-reset:s; }
+  @media (min-width:820px){ .steps3{ grid-template-columns:repeat(3,1fr); } }
+  .steps3 article{
+    background:var(--d-ground); border:2px solid var(--d-line); border-radius:22px;
+    padding:26px 24px; position:relative;
+  }
+  .steps3 article::before{
+    counter-increment:s; content:counter(s);
+    display:flex; align-items:center; justify-content:center;
+    width:44px; height:44px; border-radius:50%; margin-bottom:16px;
+    background:var(--d-accent); color:#fff; font-weight:800; font-size:20px;
+  }
+  .steps3 article:nth-child(2)::before{ background:var(--mint); }
+  .steps3 article:nth-child(3)::before{ background:var(--coral); }
+  .steps3 h3{ margin:0 0 8px; font-size:19px; font-weight:800; }
+  .steps3 p{ margin:0; color:var(--d-ink-2); font-size:15px; }
+
+  /* sign-up — the thing that actually turns a visitor into a customer */
+  .signup{
+    background:var(--d-accent); color:#fff; border-radius:26px; padding:clamp(24px,4vw,40px);
+    display:grid; gap:22px;
+  }
+  @media (min-width:860px){ .signup{ grid-template-columns:1fr 1fr; align-items:center; } }
+  .signup h2{ color:#fff; margin:0 0 10px; }
+  .signup p{ color:#E7EDFF; margin:0; font-size:15.5px; }
+  .signup form{ display:grid; gap:11px; }
+  .signup label{ display:block; font-size:12.5px; font-weight:700; margin-bottom:5px; color:#fff; }
+  .signup input{
+    width:100%; border:0; border-radius:14px; padding:14px 16px;
+    font:inherit; font-size:16px; background:#fff; color:var(--d-ink);
+  }
+  .signup input:focus-visible{ outline:3px solid var(--sun); outline-offset:2px; }
+  .signup button{
+    border:0; border-radius:99px; padding:15px 22px; font:inherit; font-weight:800; font-size:16px;
+    background:var(--sun); color:#4A3200; cursor:pointer;
+  }
+  .signup button:hover{ filter:brightness(1.05); }
+
+  /* the address card the sign-up produces */
+  .card{
+    background:#fff; color:var(--d-ink); border-radius:20px; padding:22px 24px;
+    box-shadow:0 20px 50px -30px rgba(19,41,61,.6);
+  }
+  .card .tag{
+    display:inline-block; background:var(--mint); color:#03302A; border-radius:99px;
+    padding:5px 12px; font-size:11.5px; font-weight:800; letter-spacing:.06em;
+    text-transform:uppercase; margin-bottom:14px;
+  }
+  .card .lines{ font-family:"Plex Mono",monospace; font-size:14.5px; line-height:1.85; }
+  .card .lines .box{ background:var(--sun); border-radius:6px; padding:1px 7px; font-weight:600; }
+  .card .hint{ margin:14px 0 0; font-size:13px; color:var(--d-ink-2); }
+  .card button.copy{
+    margin-top:16px; border:2px solid var(--d-line); background:var(--d-surface); color:var(--d-ink);
+    border-radius:99px; padding:10px 18px; font:inherit; font-weight:700; font-size:14px; cursor:pointer;
+  }
+
+  /* tracking, but cheerful */
+  .track{
+    background:var(--d-ground); border:2px solid var(--d-line); border-radius:22px; padding:24px;
+  }
+  .track-top{
+    display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+  .track-ref{ font-family:"Plex Mono",monospace; font-size:16px; font-weight:600; }
+  .track-state{
+    background:var(--mint); color:#03302A; border-radius:99px; padding:6px 14px;
+    font-size:12.5px; font-weight:800;
+  }
+  .steps{ list-style:none; margin:0; padding:0; }
+  .steps li{
+    display:grid; grid-template-columns:30px 1fr auto; gap:14px; align-items:start;
+    padding:12px 0; position:relative;
+  }
+  .steps li::before{
+    content:""; grid-column:1; justify-self:center; margin-top:3px;
+    width:18px; height:18px; border-radius:50%; background:var(--d-line);
+  }
+  .steps li:not(:last-child)::after{
+    content:""; position:absolute; left:14px; top:26px; bottom:-6px; width:3px;
+    background:var(--d-line); border-radius:2px;
+  }
+  .steps li.done::before{
+    background:var(--mint);
+    box-shadow:inset 0 0 0 3px var(--mint), inset 0 0 0 5px #fff;
+  }
+  .steps li.done:not(:last-child)::after{ background:var(--mint); }
+  .steps li.now::before{ background:var(--d-accent); box-shadow:0 0 0 6px rgba(46,107,255,.18); }
+  .steps b{ font-weight:700; font-size:15.5px; }
+  .steps span{ display:block; color:var(--d-ink-2); font-size:13.5px; margin-top:2px; }
+  .steps time{ font-family:"Plex Mono",monospace; font-size:12px; color:var(--d-ink-2); white-space:nowrap; }
+  .steps li:not(.done):not(.now) b{ color:var(--d-ink-2); font-weight:600; }
+
+  table.rates{ width:100%; border-collapse:separate; border-spacing:0 8px; font-size:15px; }
+  table.rates th{
+    text-align:left; padding:0 14px 4px; font-size:12px; font-weight:700;
+    color:var(--d-ink-2); text-transform:uppercase; letter-spacing:.08em;
+  }
+  table.rates td{ background:var(--d-surface); padding:15px 14px; }
+  table.rates tr td:first-child{ border-radius:14px 0 0 14px; font-weight:700; }
+  table.rates tr td:last-child{ border-radius:0 14px 14px 0; }
+  table.rates td.n{ text-align:right; font-family:"Plex Mono",monospace; font-variant-numeric:tabular-nums; }
+  .rate-wrap{ overflow-x:auto; }
+
+  /* ── the stores ────────────────────────────────────────────────────────────
+     This is the section that actually explains the service. "You get a US
+     address" means nothing to somebody until they see the shop they already
+     browse at night sitting on the list. So it is loud, and it moves.
+
+     Names only, set in our own type — never anybody's logo. The names are a
+     plain statement of where a customer may shop; the logos are their artwork. */
+  .shops{ background:var(--d-ink); color:#fff; padding:clamp(34px,5vw,54px) 0; overflow:hidden; }
+  .shops .lead-in{ max-width:1120px; margin:0 auto clamp(22px,3vw,32px); padding:0 clamp(18px,4vw,32px); }
+  .shops .d-kicker{ color:var(--sun); }
+  .shops h2{ color:#fff; margin:6px 0 10px; }
+  .shops p{ color:#B9C6D2; max-width:56ch; margin:0; font-size:16px; }
+
+  .belt{ display:flex; gap:0; width:max-content; }
+  .belt-row{ overflow:hidden; padding:7px 0; }
+  .belt span{
+    display:inline-flex; align-items:center; gap:clamp(20px,3vw,38px);
+    padding-right:clamp(20px,3vw,38px);
+    font-weight:800; font-size:clamp(24px,4.4vw,44px); letter-spacing:-.02em;
+    white-space:nowrap;
+  }
+  .belt b{ font-weight:800; }
+  .belt i{ font-style:normal; color:var(--sun); font-size:.5em; }
+  .belt .c1{ color:#fff; }
+  .belt .c2{ color:var(--sun); }
+  .belt .c3{ color:var(--mint); }
+  .belt .c4{ color:#8FB4FF; }
+  .belt .c5{ color:var(--coral); }
+
+  @keyframes slide-l{ from{ transform:translateX(0) } to{ transform:translateX(-50%) } }
+  @keyframes slide-r{ from{ transform:translateX(-50%) } to{ transform:translateX(0) } }
+  .belt.l{ animation:slide-l 34s linear infinite; }
+  .belt.r{ animation:slide-r 40s linear infinite; }
+  @media (prefers-reduced-motion:reduce){
+    .belt{ animation:none; flex-wrap:wrap; width:auto; }
+    .belt span{ white-space:normal; }
+  }
+
+  .shops .foot{
+    max-width:1120px; margin:clamp(22px,3vw,30px) auto 0; padding:0 clamp(18px,4vw,32px);
+    color:#B9C6D2; font-size:15px;
+  }
+  .shops .foot b{ color:#fff; }
+
+  /* ── Boxy ───────────────────────────────────────────────────────────────────
+     The mascot is part of the name, not a sticker beside it. He is built from
+     three flat faces — a lit top, a front and a shaded side — which is how you
+     draw a solid object without a 3D engine: the shading does the work, and a
+     little perspective sway sells it. He blinks, he breathes, and he tips his
+     lid when you hover the logo. All of it stops dead for prefers-reduced-motion. */
+
+  .boxy{ display:inline-block; perspective:520px; vertical-align:-.22em; }
+  .boxy svg{ display:block; overflow:visible; transform-style:preserve-3d; }
+
+  .boxy .rig{ animation:boxy-float 3.6s ease-in-out infinite; transform-origin:50% 70%; }
+  @keyframes boxy-float{
+    0%,100%{ transform:translateY(0)   rotateY(-9deg) rotateX(2deg); }
+    50%    { transform:translateY(-6px) rotateY(9deg)  rotateX(-2deg); }
+  }
+
+  /* the shadow tightens as he lifts, which is most of what reads as weight */
+  .boxy .shade{ animation:boxy-shade 3.6s ease-in-out infinite; transform-origin:50% 50%; }
+  @keyframes boxy-shade{
+    0%,100%{ transform:scale(1);    opacity:.30 }
+    50%    { transform:scale(.82);  opacity:.16 }
+  }
+
+  .boxy .eye{ animation:boxy-blink 5.4s infinite; transform-origin:center; transform-box:fill-box; }
+  .boxy .eye.r{ animation-delay:.06s }
+  @keyframes boxy-blink{
+    0%,92%,100%{ transform:scaleY(1) }
+    95%,97%    { transform:scaleY(.12) }
+  }
+
+  .boxy .lid{ transform-origin:88% 100%; transform-box:fill-box; transition:transform .45s cubic-bezier(.3,1.6,.5,1); }
+  .d-logo:hover .boxy .lid, .hero-boxy:hover .lid{ transform:rotate(-17deg) translateY(-2px); }
+
+  @media (prefers-reduced-motion:reduce){
+    .boxy .rig,.boxy .shade,.boxy .eye{ animation:none }
+    .boxy .rig{ transform:rotateY(-6deg) }
+  }
+
+  .d-logo{ display:inline-flex; align-items:center; gap:9px; }
+  .d-logo .boxy svg{ width:36px; height:auto; }
+  .d-logo{ font-size:24px; }
+
+  /* the big one, floating over the hero */
+  .hero-boxy{ display:block; margin:0 auto -6px; width:min(250px,58vw); }
+  .hero-boxy .boxy{ display:block; width:100%; }
+  /* the aspect is known up front, so the space is reserved before paint */
+  .hero-boxy svg{ width:100%; height:auto; aspect-ratio:84/96; }
+  .hero-boxy svg{ width:100%; height:auto; }
+
+  /* ── motion ────────────────────────────────────────────────────────────────
+     Movement with a job: things arrive as you reach them, the timeline fills
+     itself so the eye follows the package down the page, and the cards lift
+     under the cursor so they feel like objects. Nothing loops in your face. */
+
+  @media (prefers-reduced-motion:no-preference){
+    .rise{ opacity:0; transform:translateY(22px); }
+    .rise.in{ opacity:1; transform:none; transition:opacity .6s ease, transform .6s cubic-bezier(.2,.8,.3,1); }
+    .rise.d1.in{ transition-delay:.09s } .rise.d2.in{ transition-delay:.18s } .rise.d3.in{ transition-delay:.27s }
+
+    .steps3 article{ transition:transform .35s cubic-bezier(.2,.8,.3,1), box-shadow .35s ease; }
+    .steps3 article:hover{ transform:translateY(-6px); box-shadow:0 22px 40px -26px rgba(19,41,61,.5); }
+    .steps3 article::before{ transition:transform .35s cubic-bezier(.3,1.7,.5,1); }
+    .steps3 article:hover::before{ transform:rotate(-8deg) scale(1.08); }
+
+    /* the timeline draws itself once it is on screen */
+    .track.in .steps li::after{ animation:fill .5s ease forwards; transform-origin:top; }
+    .track .steps li::after{ transform:scaleY(0); }
+    .track.in .steps li:nth-child(1)::after{ animation-delay:.05s }
+    .track.in .steps li:nth-child(2)::after{ animation-delay:.30s }
+    .track.in .steps li:nth-child(3)::after{ animation-delay:.55s }
+    .track.in .steps li:nth-child(4)::after{ animation-delay:.80s }
+    @keyframes fill{ to{ transform:scaleY(1) } }
+
+    .track.in .steps li{ opacity:0; animation:pop .45s ease forwards; }
+    .track.in .steps li:nth-child(1){ animation-delay:0s }
+    .track.in .steps li:nth-child(2){ animation-delay:.28s }
+    .track.in .steps li:nth-child(3){ animation-delay:.53s }
+    .track.in .steps li:nth-child(4){ animation-delay:.78s }
+    .track.in .steps li:nth-child(5){ animation-delay:1.02s }
+    @keyframes pop{ from{ opacity:0; transform:translateX(-8px) } to{ opacity:1; transform:none } }
+
+    /* the live dot keeps breathing after the line lands */
+    .steps li.now::before{ animation:beat 2.4s ease-in-out infinite 1.3s; }
+    @keyframes beat{
+      0%,100%{ box-shadow:0 0 0 6px rgba(30,86,232,.18) }
+      50%    { box-shadow:0 0 0 12px rgba(30,86,232,.05) }
+    }
+
+    .d-btn{ transition:transform .2s ease, filter .2s ease; }
+    .d-btn:hover{ transform:translateY(-2px); }
+    .signup button{ transition:transform .2s cubic-bezier(.3,1.6,.5,1); }
+    .signup button:hover{ transform:translateY(-2px) scale(1.02); }
+    .card{ animation:card-in .5s cubic-bezier(.2,.9,.3,1); }
+    @keyframes card-in{ from{ opacity:0; transform:translateY(14px) scale(.97) } to{ opacity:1; transform:none } }
+
+    table.rates tbody tr{ transition:transform .25s ease; }
+    table.rates tbody tr:hover{ transform:translateX(4px); }
+  }
+
+  /* invoice upload — the bit that saves the customer a morning at customs */
+  .inv{
+    background:var(--d-surface); border:2px solid var(--d-line); border-radius:24px;
+    padding:clamp(22px,3.5vw,34px); display:grid; gap:20px;
+  }
+  @media (min-width:880px){ .inv{ grid-template-columns:1.05fr 1fr; align-items:center; } }
+  .drop{
+    background:var(--d-ground); border:3px dashed var(--d-line); border-radius:20px;
+    padding:30px 22px; text-align:center; cursor:pointer; display:block;
+    transition:border-color .25s ease, background .25s ease, transform .25s ease;
+  }
+  .drop:hover, .drop.over{ border-color:var(--d-accent); background:#F4F7FF; transform:translateY(-3px); }
+  .drop:focus-within{ outline:3px solid var(--d-accent); outline-offset:3px; }
+  .drop .big{ font-size:38px; line-height:1; display:block; height:40px; margin-bottom:10px; }
+  .drop b{ display:block; font-size:17px; font-weight:800; margin-bottom:5px; }
+  .drop span{ color:var(--d-ink-2); font-size:14px; }
+  .drop input{ position:absolute; width:1px; height:1px; opacity:0; }
+  .filed{ list-style:none; margin:16px 0 0; padding:0; display:grid; gap:8px; }
+  .filed li{
+    display:flex; align-items:center; gap:11px; background:var(--d-ground);
+    border:2px solid var(--d-line); border-radius:14px; padding:11px 14px; font-size:14.5px;
+  }
+  .filed .ok{
+    margin-left:auto; background:var(--mint); color:#03302A; border-radius:99px;
+    padding:3px 11px; font-size:11.5px; font-weight:800; white-space:nowrap;
+  }
+  .filed .nm{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* the one-time ID rule, said plainly rather than hidden in terms */
+  .idnote{
+    display:flex; gap:16px; align-items:flex-start; background:var(--sun);
+    border-radius:20px; padding:20px 22px; color:#4A3200;
+  }
+  .idnote .ic{ font-size:30px; line-height:1; width:34px; height:34px; flex:none; }
+  .idnote b{ display:block; font-size:16.5px; margin-bottom:4px; }
+  .idnote p{ margin:0; font-size:14.5px; color:#5C4300; }
+
+  /* ── the explainer ─────────────────────────────────────────────────────────
+     Drawn and animated in the page rather than shipped as a video file: it is
+     ~3 KB of markup instead of a several-megabyte MP4, it stays sharp on any
+     screen, and a line of copy can be corrected without re-rendering anything.
+
+     It plays silently on its own the way a video on a phone does, and the
+     voice only comes on if somebody asks for it — nobody wants sound to
+     ambush them. Everything is timed to the narration, second by second. */
+  .film{
+    position:relative; background:var(--d-ink); border-radius:26px; overflow:hidden;
+    aspect-ratio:16/9; color:#fff;
+  }
+  .film .stage{ position:absolute; inset:0; }
+  .scene{
+    position:absolute; inset:0; display:grid; place-items:center; padding:5%;
+    opacity:0; transform:translateY(14px) scale(.985);
+    transition:opacity .5s ease, transform .6s cubic-bezier(.2,.8,.3,1);
+    pointer-events:none;
+  }
+  .scene.on{ opacity:1; transform:none; }
+  .scene .inner{ display:grid; gap:clamp(10px,2vw,20px); place-items:center; text-align:center; width:100%; }
+  .scene .sh{
+    margin:0; font-weight:800; letter-spacing:-.02em; color:#fff;
+    font-size:clamp(19px,3.4vw,40px); line-height:1.1;
+  }
+  .scene p{ margin:0; color:#C2D0DE; font-size:clamp(12px,1.5vw,17px); }
+
+  .addr-card{
+    background:#fff; color:var(--d-ink); border-radius:14px; padding:clamp(11px,1.7vw,20px) clamp(14px,2.2vw,26px);
+    font-family:"Plex Mono",monospace; font-size:clamp(10px,1.35vw,16px); line-height:1.7; text-align:left;
+    box-shadow:0 24px 50px -28px #000;
+  }
+  .addr-card .bx{ background:var(--sun); border-radius:5px; padding:1px 7px; font-weight:600; }
+
+  .logos{ display:flex; flex-wrap:wrap; gap:clamp(6px,1vw,12px); justify-content:center; }
+  .logos b{
+    background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.22);
+    border-radius:99px; padding:clamp(5px,.8vw,9px) clamp(10px,1.5vw,17px);
+    font-size:clamp(11px,1.4vw,17px); font-weight:800;
+    opacity:0; transform:translateY(10px); animation:logo-in .45s ease forwards;
+  }
+  .scene.on .logos b:nth-child(1){ animation-delay:.15s } .scene.on .logos b:nth-child(2){ animation-delay:.3s }
+  .scene.on .logos b:nth-child(3){ animation-delay:.45s } .scene.on .logos b:nth-child(4){ animation-delay:.6s }
+  .scene.on .logos b:nth-child(5){ animation-delay:.75s } .scene.on .logos b:nth-child(6){ animation-delay:.9s }
+  @keyframes logo-in{ to{ opacity:1; transform:none } }
+
+  .paper{
+    background:#fff; color:var(--d-ink); border-radius:10px; width:min(240px,34%);
+    padding:clamp(10px,1.6vw,18px); text-align:left; position:relative;
+    box-shadow:0 24px 50px -28px #000;
+  }
+  .paper .row{ height:6px; background:#E4E9EF; border-radius:3px; margin-bottom:7px; }
+  .paper .row.s{ width:58% } .paper .row.m{ width:80% }
+  .paper .stampd{
+    position:absolute; right:-8%; bottom:12%; border:3px solid var(--mint); color:var(--mint);
+    border-radius:8px; padding:5px 12px; font-weight:800; font-size:clamp(10px,1.3vw,15px);
+    transform:rotate(-11deg) scale(.4); opacity:0; letter-spacing:.06em;
+  }
+  .scene.on .paper .stampd{ animation:stamp .5s cubic-bezier(.2,1.6,.4,1) 1.1s forwards; }
+  @keyframes stamp{ to{ transform:rotate(-11deg) scale(1); opacity:1 } }
+
+  .idcard{
+    background:#fff; color:var(--d-ink); border-radius:12px; width:min(280px,40%);
+    padding:clamp(10px,1.6vw,18px); display:flex; gap:12px; align-items:center; text-align:left;
+    box-shadow:0 24px 50px -28px #000;
+  }
+  .idcard .face{ width:clamp(30px,4.5vw,52px); aspect-ratio:1; border-radius:8px; background:#DCE4EC; flex:none; }
+  .idcard .l{ display:block; height:6px; background:#E4E9EF; border-radius:3px; margin-bottom:6px; }
+  .idcard .l.a{ width:70% } .idcard .l.b{ width:45% }
+  .tick{
+    width:clamp(26px,3.4vw,40px); aspect-ratio:1; border-radius:50%; background:var(--mint);
+    display:grid; place-items:center; color:#03302A; font-weight:900;
+    font-size:clamp(14px,1.9vw,22px); flex:none;
+  }
+
+  .film .cap{
+    position:absolute; left:0; right:0; bottom:clamp(46px,6vw,60px); padding:0 6%;
+    text-align:center; font-size:clamp(11px,1.5vw,17px); color:#fff; font-weight:600;
+    text-shadow:0 2px 10px rgba(0,0,0,.7);
+  }
+  .film .bar{
+    position:absolute; left:0; right:0; bottom:0; display:flex; align-items:center; gap:12px;
+    padding:clamp(9px,1.3vw,14px) clamp(12px,1.8vw,20px);
+    background:linear-gradient(transparent,rgba(0,0,0,.72) 42%);
+  }
+  .film .bar button{
+    border:0; background:#fff; color:var(--d-ink); border-radius:99px; cursor:pointer;
+    font:inherit; font-weight:800; font-size:clamp(11px,1.3vw,14px); padding:8px 15px;
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  .film .bar button:hover{ transform:translateY(-1px); }
+  .film .track-l{ flex:1; height:4px; background:rgba(255,255,255,.24); border-radius:2px; overflow:hidden; }
+  .film .track-l i{ display:block; height:100%; width:0%; background:var(--sun); }
+  .film .tt{ font-family:"Plex Mono",monospace; font-size:12px; color:#D8E2EC; }
+
+  .sr-only{
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+  }
+  .scene .sh{ margin:0; }
+</style>
+</head>
+<body>
+
+<div class="demo-bar">
+  <span><b>DEMO SITE</b> — “Ship242” is not a real company. Nothing here ships a real package.</span>
+  <a href="../index.html">See the other demos</a>
+</div>
+
+<header>
+  <div class="d-head">
+    <a class="d-logo" href="#"><span class="boxy" aria-hidden="true"><svg viewBox="20 22 84 96" fill="none">
+  <ellipse class="shade" cx="60" cy="107" rx="30" ry="7" fill="#13293D" opacity=".3"/>
+  <g class="rig">
+    <!-- the lid, hinged at the back right -->
+    <g class="lid">
+      <path d="M24 44 L44 28 L100 28 L80 44 Z" fill="#F7D49B"/>
+      <path d="M24 44 L44 28 L100 28 L80 44 Z" stroke="#C9954B" stroke-width="1.5" stroke-linejoin="round"/>
+    </g>
+    <!-- right side, in shade -->
+    <path d="M80 44 L100 28 L100 78 L80 94 Z" fill="#CE9A50"/>
+    <!-- front face -->
+    <rect x="24" y="44" width="56" height="50" rx="5" fill="#E9B96E"/>
+    <!-- tape down the front and over the shoulder -->
+    <rect x="46" y="44" width="12" height="50" fill="#1E56E8" opacity=".92"/>
+    <path d="M58 44 L78 28 L90 28 L70 44 Z" fill="#1E56E8" opacity=".55"/>
+    <!-- face -->
+    <g fill="#fff">
+      <circle class="eye l" cx="40" cy="64" r="6.4"/>
+      <circle class="eye r" cx="64" cy="64" r="6.4"/>
+    </g>
+    <circle cx="41.4" cy="65" r="2.9" fill="#13293D"/>
+    <circle cx="65.4" cy="65" r="2.9" fill="#13293D"/>
+    <path d="M42 78 Q52 87 62 78" stroke="#13293D" stroke-width="3.4" stroke-linecap="round"/>
+    <circle cx="31" cy="76" r="4.2" fill="#FF7A6B" opacity=".5"/>
+    <circle cx="73" cy="76" r="4.2" fill="#FF7A6B" opacity=".5"/>
+  </g>
+</svg></span>Ship242</a>
+    <nav class="d-nav">
+      <a href="#shops">Shops</a>
+      <a href="#signup">Get an address</a>
+      <a href="#track">Track</a>
+      <a href="#invoices">Invoices</a>
+      <a href="#rates">Rates</a>
+      <a href="#bot">Ask us</a>
+    </nav>
+    <span class="pill">🇺🇸 → 🇧🇸 Miami to Nassau</span>
+  </div>
+</header>
+
+<main>
+  <section class="d-hero">
+    <div class="d-wrap d-hero-grid">
+      <div class="d-stack g22">
+        <p class="d-kicker">Free US address · Nassau</p>
+        <h1 class="d-h1">Shop America.<br>We bring it home.</h1>
+        <p class="d-lead">Get your own Miami address in about a minute. Shop anywhere in the States, ship it to your box, and we fly it in, clear it and hand it to you on Bay Street. It really is that simple.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="d-btn" href="#signup">Get my free address</a>
+          <a class="d-btn d-btn-ghost" href="#track">Track a package</a>
+        </div>
+        <p style="font-size:14px;color:var(--d-ink-2)">
+          ✈️ Air twice a week &nbsp;·&nbsp; 🚢 Ocean every Wednesday &nbsp;·&nbsp; 📦 14 days free storage
+        </p>
+      </div>
+
+      <div>
+        <span class="hero-boxy"><span class="boxy" aria-hidden="true"><svg viewBox="20 22 84 96" fill="none">
+  <ellipse class="shade" cx="60" cy="107" rx="30" ry="7" fill="#13293D" opacity=".3"/>
+  <g class="rig">
+    <!-- the lid, hinged at the back right -->
+    <g class="lid">
+      <path d="M24 44 L44 28 L100 28 L80 44 Z" fill="#F7D49B"/>
+      <path d="M24 44 L44 28 L100 28 L80 44 Z" stroke="#C9954B" stroke-width="1.5" stroke-linejoin="round"/>
+    </g>
+    <!-- right side, in shade -->
+    <path d="M80 44 L100 28 L100 78 L80 94 Z" fill="#CE9A50"/>
+    <!-- front face -->
+    <rect x="24" y="44" width="56" height="50" rx="5" fill="#E9B96E"/>
+    <!-- tape down the front and over the shoulder -->
+    <rect x="46" y="44" width="12" height="50" fill="#1E56E8" opacity=".92"/>
+    <path d="M58 44 L78 28 L90 28 L70 44 Z" fill="#1E56E8" opacity=".55"/>
+    <!-- face -->
+    <g fill="#fff">
+      <circle class="eye l" cx="40" cy="64" r="6.4"/>
+      <circle class="eye r" cx="64" cy="64" r="6.4"/>
+    </g>
+    <circle cx="41.4" cy="65" r="2.9" fill="#13293D"/>
+    <circle cx="65.4" cy="65" r="2.9" fill="#13293D"/>
+    <path d="M42 78 Q52 87 62 78" stroke="#13293D" stroke-width="3.4" stroke-linecap="round"/>
+    <circle cx="31" cy="76" r="4.2" fill="#FF7A6B" opacity=".5"/>
+    <circle cx="73" cy="76" r="4.2" fill="#FF7A6B" opacity=".5"/>
+  </g>
+</svg></span></span>
+        <div class="bot-shell" id="bot"></div>
+      </div>
+    </div>
+  </section>
+
+
+
+  <section class="d-section" id="film-sec" style="padding-top:clamp(20px,3vw,34px)">
+    <div class="d-wrap d-stack g22">
+      <h2 class="d-h2 sr-only">How Ship242 works</h2>
+      <div class="film" id="film">
+        <div class="stage">
+
+          <div class="scene" data-s="0"><div class="inner">
+            <p class="sh">Your own address in Miami</p>
+            <div class="addr-card">
+              Marlon Rolle — <span class="bx">Box S242-4471</span><br>
+              3901 NW 25th Street<br>Miami, FL 33142
+            </div>
+            <p>Free. Takes about a minute.</p>
+          </div></div>
+
+          <div class="scene" data-s="1"><div class="inner">
+            <p class="sh">Shop anywhere in the States</p>
+            <div class="logos">
+              <b>Amazon</b><b>Target</b><b>Levi’s</b><b>eBay</b><b>Burlington</b><b>Walmart</b>
+            </div>
+            <p>Ship it to your box. That is the whole trick.</p>
+          </div></div>
+
+          <div class="scene" data-s="2"><div class="inner">
+            <p class="sh">Upload your invoice</p>
+            <div class="paper">
+              <div class="row m"></div><div class="row s"></div><div class="row m"></div><div class="row s"></div>
+              <div class="stampd">CLEARED</div>
+            </div>
+            <p>We do the customs paperwork on your behalf.</p>
+          </div></div>
+
+          <div class="scene" data-s="3"><div class="inner">
+            <p class="sh">First pickup: bring a government ID</p>
+            <div class="idcard">
+              <span class="face"></span>
+              <span style="flex:1"><span class="l a"></span><span class="l b"></span><span class="l a" style="width:60%"></span></span>
+              <span class="tick">✓</span>
+            </div>
+            <p>Passport, driver’s licence or NIB card. Once only.</p>
+          </div></div>
+
+          <div class="scene" data-s="4"><div class="inner">
+            <p class="sh">Collect on Bay Street</p>
+            <p style="font-size:clamp(13px,1.8vw,20px);color:#fff">…or we run it straight to your door.</p>
+          </div></div>
+
+        </div>
+
+        <p class="cap" id="film-cap"></p>
+
+        <div class="bar">
+          <button type="button" id="film-btn">▶ Play with sound</button>
+          <span class="track-l"><i id="film-prog"></i></span>
+          <span class="tt" id="film-time">0:00</span>
+        </div>
+
+        <audio id="film-audio" preload="none" src="media/explainer.m4a"></audio>
+      </div>
+      <p style="color:var(--d-ink-2);font-size:13.5px;text-align:center">
+        Plays silently on its own — press play for the voice.
+      </p>
+    </div>
+  </section>
+
+  <section class="shops" id="shops">
+    <div class="lead-in">
+      <p class="d-kicker">Shop the States</p>
+      <h2 class="d-h2">All of these deliver to your box</h2>
+      <p>Any shop that ships anywhere in America now ships to you. Put your Miami address in at checkout and we do the rest.</p>
+    </div>
+
+    <div class="belt-row">
+      <div class="belt l">
+        <span><b class="c1">Amazon</b><i>◆</i><b class="c2">eBay</b><i>◆</i><b class="c1">Target</b><i>◆</i><b class="c3">Levi’s</b><i>◆</i><b class="c1">Burlington</b><i>◆</i><b class="c4">Walmart</b><i>◆</i><b class="c1">SHEIN</b><i>◆</i><b class="c5">Nike</b><i>◆</i></span><span aria-hidden="true"><b class="c1">Amazon</b><i>◆</i><b class="c2">eBay</b><i>◆</i><b class="c1">Target</b><i>◆</i><b class="c3">Levi’s</b><i>◆</i><b class="c1">Burlington</b><i>◆</i><b class="c4">Walmart</b><i>◆</i><b class="c1">SHEIN</b><i>◆</i><b class="c5">Nike</b><i>◆</i></span>
+      </div>
+    </div>
+    <div class="belt-row">
+      <div class="belt r">
+        <span><b class="c2">Best Buy</b><i>◆</i><b class="c1">Macy’s</b><i>◆</i><b class="c3">Old Navy</b><i>◆</i><b class="c1">Foot Locker</b><i>◆</i><b class="c4">Sephora</b><i>◆</i><b class="c1">Home Depot</b><i>◆</i><b class="c5">Temu</b><i>◆</i><b class="c1">Wayfair</b><i>◆</i></span><span aria-hidden="true"><b class="c2">Best Buy</b><i>◆</i><b class="c1">Macy’s</b><i>◆</i><b class="c3">Old Navy</b><i>◆</i><b class="c1">Foot Locker</b><i>◆</i><b class="c4">Sephora</b><i>◆</i><b class="c1">Home Depot</b><i>◆</i><b class="c5">Temu</b><i>◆</i><b class="c1">Wayfair</b><i>◆</i></span>
+      </div>
+    </div>
+
+    <p class="foot"><b>And every other one.</b> If a US shop will post it to Miami, we will bring it to Nassau — the little boutique with no international shipping counts too.</p>
+  </section>
+
+  <section class="d-section" id="how">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">How it works</p>
+        <h2 class="d-h2">Three steps. That's the whole thing.</h2>
+      </div>
+      <div class="steps3">
+        <article class="rise">
+          <p class="sh">Get your address</p>
+          <p>Sign up below and we hand you a Miami address with your own box number. Free, and it takes a minute.</p>
+        </article>
+        <article class="rise d1">
+          <p class="sh">Shop anywhere</p>
+          <p>Amazon, Walmart, SHEIN, a little shop that has never heard of the Bahamas. Ship it to your box and you're done.</p>
+        </article>
+        <article class="rise d2">
+          <p class="sh">Pick it up here</p>
+          <p>We clear it through customs and message you the moment it lands. Come to Bay Street, or we drop it to your door.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="d-section" id="signup">
+    <div class="d-wrap">
+      <div class="signup rise">
+        <div>
+          <p class="d-kicker" style="color:#E7EDFF">Sign up — free</p>
+          <h2 class="d-h2">Your Miami address, right now</h2>
+          <p>No card, no fee, no waiting for somebody to email you back. Fill this in and your address appears beside it, ready to paste into any US checkout.</p>
+          <p style="margin-top:14px;font-size:14px">Already have one? Just ask the bot where your package is.</p>
+        </div>
+
+        <div>
+          <form id="signup-form" novalidate>
+            <div>
+              <label for="su-name">Your full name</label>
+              <input id="su-name" name="name" type="text" autocomplete="name" placeholder="Marlon Rolle" required>
+            </div>
+            <div>
+              <label for="su-phone">WhatsApp number</label>
+              <input id="su-phone" name="phone" type="tel" autocomplete="tel" placeholder="242 555 0142" required>
+            </div>
+            <button type="submit">Create my address</button>
+          </form>
+
+          <div class="card" id="su-card" hidden>
+            <span class="tag">✓ Your address is ready</span>
+            <div class="lines" id="su-lines"></div>
+            <p class="hint">Use it exactly like that — the <b>box number</b> is how we know the package is yours. Anything that arrives without it lands with nobody's name on it.</p>
+            <button class="copy" type="button" id="su-copy">Copy address</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="d-section" id="track">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">Where is it</p>
+        <h2 class="d-h2">Every package, every step</h2>
+        <p class="d-lead">The question we get forty times a day. Ask the bot with your box number and it answers in a second — nobody has to walk out back and look.</p>
+      </div>
+
+      <div class="track">
+        <div class="track-top">
+          <span class="track-ref">📦 S242-4471</span>
+          <span class="track-state">Ready for collection</span>
+        </div>
+        <ol class="steps">
+          <li class="done">
+            <div><b>Received in Miami</b><span>Signed for at our warehouse</span></div>
+            <time>Mon 09:12</time>
+          </li>
+          <li class="done">
+            <div><b>Loaded — left Miami</b><span>Air freight · 9 lb</span></div>
+            <time>Tue 06:40</time>
+          </li>
+          <li class="done">
+            <div><b>Landed in Nassau</b><span>LPIA cargo</span></div>
+            <time>Tue 08:55</time>
+          </li>
+          <li class="done">
+            <div><b>Cleared customs</b><span>Duty settled · clearing B$15.00</span></div>
+            <time>Tue 14:20</time>
+          </li>
+          <li class="now">
+            <div><b>Ready for collection</b><span>Bay Street counter — or we deliver for B$12</span></div>
+            <time>now</time>
+          </li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="d-section" id="invoices">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">Customs, handled</p>
+        <h2 class="d-h2">Send us the receipt. We clear it for you.</h2>
+        <p class="d-lead">Customs needs to know what is in the box and what you paid for it. Upload the invoice here and we do the paperwork on your behalf — you never have to stand in that line.</p>
+      </div>
+
+      <div class="inv rise">
+        <div>
+          <label class="drop" id="drop">
+            <span class="big">🧾</span>
+            <b>Drop your invoice here</b>
+            <span>or tap to choose a file — PDF, JPG or a screenshot is fine</span>
+            <input type="file" id="inv-file" multiple accept="image/*,.pdf,.png,.jpg,.jpeg,.webp,.heic">
+          </label>
+          <ul class="filed" id="filed"></ul>
+        </div>
+
+        <div class="d-stack g22">
+          <div class="idnote">
+            <span class="ic" aria-hidden="true">🪪</span>
+            <div>
+              <b>First pickup only: bring a government ID</b>
+              <p>Passport, driver’s licence or NIB card. It is a customs requirement the first time you collect — after that we know you and you just walk in.</p>
+            </div>
+          </div>
+          <p style="color:var(--d-ink-2);font-size:14.5px">
+            No invoice? Customs will put their own value on the goods, and that is almost always more than you actually paid. A screenshot of the order confirmation counts — it does not have to be pretty.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="d-section" id="rates">
+    <div class="d-wrap d-stack g22">
+      <p class="d-kicker">Rates</p>
+      <h2 class="d-h2">Published, so nobody has to ask</h2>
+      <div class="rate-wrap">
+        <table class="rates">
+          <thead>
+            <tr><th scope="col">Service</th><th scope="col">Rate</th><th scope="col">Minimum</th><th scope="col">From Miami</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>✈️ Air freight</td><td class="n">B$3.50 / lb</td><td class="n">B$12.00</td><td class="n">2–3 days</td></tr>
+            <tr><td>🚢 Ocean freight</td><td class="n">B$1.75 / lb</td><td class="n">B$25.00</td><td class="n">7–10 days</td></tr>
+            <tr><td>📋 Customs clearing</td><td class="n">B$15.00</td><td class="n">per shipment</td><td class="n">same day</td></tr>
+            <tr><td>🚚 Delivery in Nassau</td><td class="n">B$12.00</td><td class="n">—</td><td class="n">next day</td></tr>
+            <tr><td>📦 Storage after 14 days</td><td class="n">B$1.00 / day</td><td class="n">—</td><td class="n">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="color:var(--d-ink-2);font-size:14.5px;max-width:62ch">
+        Duty and VAT are set by Bahamas Customs on the value of the goods, not by us. Bring the invoice and we sort it together at the counter. Open Monday to Friday 8 till 5, Saturday 9 till 1.
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer class="demo-foot">
+  <div class="d-wrap">
+    <h2>This is a demo. Yours would track your customers' boxes.</h2>
+    <p>The bot above really works — give it a tracking number or a box number and it tells you exactly where that package is, what it weighs and what is owed. Point it at your own warehouse and it answers “is my package here yet?” all night without you.</p>
+    <a class="cta" href="../../contact.html">Build mine</a>
+    <p class="back">Preview built by <a href="../../index.html">Nightshift</a> · Nassau · <a href="../index.html">all demos</a></p>
+  </div>
+</footer>
+
+<script src="../assets/bot.js?v=20260810s"></script>
+<script>
+/* Sign-up. Nothing leaves the page — this is a demo, so the "account" is made
+   right here in front of you. The point is to show a client how little it takes
+   to turn a visitor into somebody with a box number. */
+(function () {
+  var form = document.getElementById("signup-form");
+  if (!form) return;
+  var card = document.getElementById("su-card");
+  var lines = document.getElementById("su-lines");
+  var copy = document.getElementById("su-copy");
+  var text = "";
+
+  function tidy(s) {
+    return String(s).replace(/\s+/g, " ").trim().replace(/[<>&]/g, "");
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = tidy(form.name.value) || "Your Name";
+    var phone = tidy(form.phone.value);
+
+    /* a box number that is stable for a given person, so it does not change
+       every time somebody presses the button in a meeting */
+    var seed = 0, key = (name + phone).toLowerCase();
+    for (var i = 0; i < key.length; i++) seed = (seed * 31 + key.charCodeAt(i)) >>> 0;
+    var box = "S242-" + (1000 + (seed % 8999));
+
+    lines.innerHTML =
+      '<div><b>' + name + '</b> — <span class="box">Box ' + box + '</span></div>' +
+      '<div>3901 NW 25th Street</div>' +
+      '<div>Miami, FL 33142</div>' +
+      '<div>United States</div>';
+
+    text = name + " — Box " + box + "\n3901 NW 25th Street\nMiami, FL 33142\nUnited States";
+
+    card.hidden = false;
+    card.setAttribute("tabindex", "-1");
+    card.focus({ preventScroll: false });
+  });
+
+  copy.addEventListener("click", function () {
+    if (!text) return;
+    var done = function () {
+      copy.textContent = "Copied ✓";
+      setTimeout(function () { copy.textContent = "Copy address"; }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, done);
+    } else {
+      done();
+    }
+  });
+})();
+
+
+/* Reveal things as they come into view — one observer, no scroll handler. */
+(function () {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  var targets = document.querySelectorAll(".rise, .track");
+  if (!("IntersectionObserver" in window)) {
+    targets.forEach(function (n) { n.classList.add("in"); });
+    return;
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      e.target.classList.add("in");
+      io.unobserve(e.target);
+    });
+  }, { rootMargin: "0px 0px -12% 0px", threshold: .15 });
+  targets.forEach(function (n) { io.observe(n); });
+})();
+
+
+/* Invoice upload. Nothing is sent anywhere — this is a demo, so the file is
+   read and listed in the browser and goes no further. On a real build this is
+   where it would go to the forwarder's customs queue against the box number. */
+(function () {
+  var drop = document.getElementById("drop");
+  if (!drop) return;
+  var input = document.getElementById("inv-file");
+  var list = document.getElementById("filed");
+
+  function kb(n) {
+    return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + " KB"
+                           : (n / 1048576).toFixed(1) + " MB";
+  }
+  function add(files) {
+    Array.prototype.slice.call(files, 0, 6).forEach(function (f) {
+      var li = document.createElement("li");
+      var nm = document.createElement("span");
+      nm.className = "nm";
+      nm.textContent = f.name + " · " + kb(f.size);
+      var ok = document.createElement("span");
+      ok.className = "ok";
+      ok.textContent = "Queued for customs";
+      li.appendChild(nm); li.appendChild(ok);
+      list.appendChild(li);
+    });
+  }
+
+  input.addEventListener("change", function () { add(input.files); input.value = ""; });
+  ["dragenter", "dragover"].forEach(function (e) {
+    drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add("over"); });
+  });
+  ["dragleave", "drop"].forEach(function (e) {
+    drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.remove("over"); });
+  });
+  drop.addEventListener("drop", function (ev) {
+    if (ev.dataTransfer && ev.dataTransfer.files) add(ev.dataTransfer.files);
+  });
+})();
+
+
+/* The explainer. It runs on a clock, not on the audio, so it plays perfectly
+   well with the sound off — which is how most people will meet it. Pressing
+   play hands the clock over to the audio so the two stay locked together. */
+(function () {
+  var film = document.getElementById("film");
+  if (!film) return;
+  var scenes = [].slice.call(film.querySelectorAll(".scene"));
+  var audio = document.getElementById("film-audio");
+  var btn = document.getElementById("film-btn");
+  var prog = document.getElementById("film-prog");
+  var tt = document.getElementById("film-time");
+  var cap = document.getElementById("film-cap");
+
+  /* measured off the narration, so a scene turns exactly on its sentence */
+  var STARTS = [0, 6.75, 14.41, 18.91, 27.55];
+  var TOTAL = 32.44;
+  var CAPS = [
+    "Ship242 gives you your own address in Miami. Free, and about a minute.",
+    "Shop anywhere in the States — and ship it to your box.",
+    "Upload your invoice and we clear it through customs for you.",
+    "First pickup, bring a government ID. Passport, licence or NIB card. Just once.",
+    "Then collect on Bay Street, or we run it to your door."
+  ];
+
+  /* A ticking interval rather than requestAnimationFrame: rAF pauses the moment
+     the tab goes to the background — somebody switches apps mid-explainer and
+     comes back to a frozen frame — and it cannot be driven in a headless
+     browser, so none of this could be tested. A 100ms tick is smooth enough for
+     a five-scene sequence, because CSS is doing the actual animating. */
+  var TICK = 100;
+  var timer = null, t = 0, withSound = false, current = -1;
+
+  function show(i) {
+    scenes.forEach(function (s, n) { s.classList.toggle("on", n === i); });
+    cap.textContent = CAPS[i] || "";
+  }
+  function at(x) {
+    var i = 0;
+    for (var n = 0; n < STARTS.length; n++) if (x >= STARTS[n]) i = n;
+    return i;
+  }
+  function paint(x) {
+    prog.style.width = Math.min(100, (x / TOTAL) * 100) + "%";
+    tt.textContent = "0:" + String(Math.min(32, Math.floor(x))).padStart(2, "0");
+  }
+
+  function tick() {
+    t = withSound ? audio.currentTime : t + TICK / 1000;
+    if (t >= TOTAL) {
+      if (withSound) { stop(); return; }
+      t = 0;                       // silent runs loop, the way a hero video does
+    }
+    var i = at(t);
+    if (i !== current) { current = i; show(i); }
+    paint(t);
+  }
+
+  function run() { clearInterval(timer); timer = setInterval(tick, TICK); tick(); }
+
+  function stop() {
+    withSound = false; t = 0; current = -1;
+    audio.pause(); audio.currentTime = 0;
+    btn.textContent = "\u25B6 Play with sound";
+    run();
+  }
+
+  btn.addEventListener("click", function () {
+    if (withSound) { stop(); return; }
+    withSound = true; current = -1;
+    audio.currentTime = 0;
+    audio.play().then(function () {
+      btn.textContent = "\u25A0 Stop";
+      run();
+    }, function () {
+      /* the browser refused sound — carry on silently rather than leaving
+         somebody looking at a dead button */
+      withSound = false; run();
+    });
+  });
+  audio.addEventListener("ended", stop);
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    scenes.forEach(function (sc) { sc.style.transition = "none"; });
+    show(0);
+    return;
+  }
+  run();
+})();
+
+DemoBot.start({
+  mount: "#bot",
+  ai: "freight",
+  botName: "Ship242",
+  channel: "WhatsApp",
+  currency: "B$",
+  greeting: [
+    "Ship242 📦",
+    "Chasing a package, or setting up an address?"
+  ],
+  /* the fallback path, only used if the endpoint is unreachable */
+  knows: [
+    { re:/(track|where|package|box|arrive|come in|reach)/,
+      a:"Send me your box number or the US tracking number and I'll tell you exactly where it is." },
+    { re:/(rate|cost|how much|price|per pound|lb)/,
+      a:"Air is B$3.50 a pound, B$12 minimum. Ocean is B$1.75 a pound, B$25 minimum. Clearing is B$15 a shipment." },
+    { re:/(address|miami|sign up|signup|us address|register)/,
+      a:"Takes a minute and it's free — fill in the form on this page and your Miami address appears right there with your box number." },
+    { re:/(duty|customs|vat|tax)/,
+      a:"Customs set the duty on the value of the goods, not us. Bring the invoice and we settle it together. Our clearing charge is B$15." },
+    { re:/(storage|hold|keep)/,
+      a:"Free for 14 days after it lands, then B$1 a day." },
+    { re:/(deliver|drop|bring)/,
+      a:"Collection is free at our Bay Street counter, or we deliver anywhere in Nassau for B$12." },
+    { re:/(open|hours|what time|close)/,
+      a:"Counter is open Monday to Friday 8 till 5, and Saturday 9 till 1." }
+  ],
+  steps: [
+    { key: "what", ask: "What can I do for you?",
+      options: [{ label: "Track a package" }, { label: "Price a shipment" }, { label: "Get a US address" }] },
+    { key: "ref", free: true, ask: "What's the box number or tracking number?",
+      options: [{ label: "S242-4471" }, { label: "Don't have it" }] }
+  ],
+  summarise: function (a) {
+    return {
+      before: ["Let me look that up."],
+      title: "Shipment",
+      rows: [
+        { label: "Reference", value: a.ref.label },
+        { label: "Status", value: "Cleared — ready for collection" },
+        { label: "Collect at", value: "Bay Street counter" }
+      ],
+      note: "Free storage for 14 days from landing. Delivery in Nassau is B$12.",
+      closing: "Want me to send a driver with it instead?"
+    };
+  }
+});
+</script>
+</body>
+</html>
