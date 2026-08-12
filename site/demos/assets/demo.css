@@ -66,8 +66,14 @@ a{ color:inherit; }
 @media (max-width:720px){ .d-nav{ display:none; } }
 
 .d-hero{ padding:clamp(30px,5vw,64px) 0 clamp(34px,5vw,72px); }
-.d-hero-grid{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(26px,4vw,56px); align-items:center; }
-@media (max-width:900px){ .d-hero-grid{ grid-template-columns:1fr; } }
+.d-hero-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:clamp(26px,4vw,56px); align-items:center; }
+@media (max-width:900px){ .d-hero-grid{ grid-template-columns:minmax(0,1fr); } }
+/* A grid item is min-width:auto by default, so anything wide inside it — a chat
+   panel, a table, a long unbroken string — can push the whole page wider than
+   the phone. Everything else then gets squeezed and the browser zooms out. */
+.d-hero-grid > *{ min-width:0; }
+.d-grid > *{ min-width:0; }
+.bot-shell{ min-width:0; max-width:100%; }
 .d-kicker{ font-family:"Plex Mono",monospace; font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--d-ink-2); }
 .d-h1{ font-family:var(--d-display); font-size:clamp(34px,5.5vw,60px); line-height:1.03; }
 .d-h2{ font-family:var(--d-display); font-size:clamp(24px,3.2vw,34px); line-height:1.1; }
@@ -275,3 +281,8 @@ a{ color:inherit; }
   letter-spacing:.14em; text-transform:uppercase; color:var(--d-ink-2);
 }
 .bot-gap::before,.bot-gap::after{ content:""; flex:1; height:1px; background:var(--d-line); }
+
+
+/* long unbroken strings — account numbers, plate numbers, references — must be
+   allowed to wrap rather than widen the page */
+.bot-msg, .bot-order, .bot-album figcaption{ overflow-wrap:anywhere; }

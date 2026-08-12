@@ -143,3 +143,9 @@
   font-size:14px; line-height:1.55; white-space:pre-line;
 }
 .staff .wa b{ color:#fff; font-weight:700; }
+
+
+/* same trap in the message previews and the staff panel */
+.msgs > *, .staff .grid > *, .opts > *, .cost > *{ min-width:0; }
+.msgs .wa, .staff .wa{ overflow-wrap:anywhere; }
+.cost dd, .opt .p{ overflow-wrap:anywhere; }
