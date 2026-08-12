@@ -596,7 +596,7 @@ select option{background:var(--surface2);}
     <button onclick="adsNav(1)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.6);border:1px solid var(--border);color:var(--text);width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:16px">›</button>
   </div>
   <div class="filter-bar">
-    <input class="search-input" id="search-input" placeholder="Search brand, model, color…" oninput="_sfx.search();renderInventory()"/>
+    <input class="search-input" id="search-input" placeholder="Search brand, model, color…" oninput="_sfx.search();queueSearchRender()"/>
     <select class="filter-select" id="filter-brand" onchange="renderInventory()"><option value="">All Brands</option></select>
     <select class="filter-select" id="filter-size" onchange="renderInventory()">
       <option value="">All Sizes</option>
@@ -2394,7 +2394,26 @@ function _wordHit(hay,hayWords,w){
   return false;
 }
 
+// ⌨️ SEARCH TYPING SPEED (Rodney 2026-08-12 — "very slow on her iPhone even when typing").
+// The search box used to call renderInventory() on EVERY keystroke. That is not a cheap
+// call: it bumps the render generation, tears down and rebuilds the 360°-spin registry and
+// its IntersectionObserver, then fuzzy-matches (bounded Levenshtein) across all ~357 shoes
+// and rebuilds every card's DOM. Typing "jordan" fired that six times in a row, so the
+// keyboard visibly lagged behind her finger on an iPhone.
+// Now the keystroke only schedules the render, and only the LAST one in a burst actually
+// runs. Typing feels instant; results land a moment after you stop.
+var _searchRenderTimer = null;
+function queueSearchRender(){
+  if (_searchRenderTimer) clearTimeout(_searchRenderTimer);
+  _searchRenderTimer = setTimeout(function(){
+    _searchRenderTimer = null;
+    renderInventory();
+  }, 200);
+}
+
 function renderInventory(){
+  // a queued keystroke render is now redundant — this call supersedes it
+  if (_searchRenderTimer) { clearTimeout(_searchRenderTimer); _searchRenderTimer = null; }
   _renderGen++; // cancel all orphaned RAF spin loops from previous renders
   _resetSpinRegistry(); // drop the old viewers + observer; init360 rebuilds them
   _lastRenderedShoeIds = shoes.map(function(s){ return s.id; }).sort().join(",");
@@ -2540,7 +2559,7 @@ function renderInventory(){
         <div class="shoe-name" onclick="_sfx.tap();openShoeDetail('${shoe.id}')" style="cursor:pointer;touch-action:manipulation;">${shoe.name}${shoe.nickname?' <span style="color:var(--accent);font-weight:600;">('+shoe.nickname+')</span>':''}</div>
         ${shoe.color?`<div class="shoe-color">${shoe.color}</div>`:''}
         ${isLow&&!shoe.sold?'<span class="badge-low">⚠ Low Stock</span>':''}
-        <div class="sizes-label">AVAILABLE SIZES ${!shoe.sold&&shoe.sizes.length?`<span style="color:var(--accent);font-weight:800;">· Total: ${shoe.sizes.length} pair${shoe.sizes.length!==1?'s':''}</span>`:''}</div>
+        <div class="sizes-label">AVAILABLE SIZES ${(typeof currentRole!=='undefined'&&currentRole==='employee')&&!shoe.sold&&shoe.sizes.length?`<span style="color:var(--accent);font-weight:800;">· Total: ${shoe.sizes.length} pair${shoe.sizes.length!==1?'s':''}</span>`:''}</div>
         <div class="sizes-row">${(function(){
   if(typeof currentRole !== 'undefined' && currentRole === 'employee'){
     // Count each size
@@ -4878,7 +4897,11 @@ let currentUser = null;    // account name
 // Regular staff can SELL and ADD NEW stock (they receive & count new shipments),
 // but must NOT be able to edit, delete, re-price, or change ads on EXISTING shoes.
 // Only these owner accounts get that power. Add a name here to make someone an owner.
-const OWNER_ACCOUNTS = ['Manager','Owner','Deashinique']; // Rodney 2026-07-25: gave Deashinique full edit access
+// Rodney 2026-07-25 added 'Deashinique' here to give her full edit access; 2026-08-12 he
+// asked for the Edit button off staff phones again, so she is back to line staff. She keeps
+// selling, adding new stock and restocking — this list only controls EDIT an existing shoe,
+// DELETE a shoe, VOID a sale, view deleted shoes, and change the homepage ads.
+const OWNER_ACCOUNTS = ['Manager','Owner'];
 function isManager(){ return currentRole==='employee' && OWNER_ACCOUNTS.indexOf(currentUser)>-1; }
 // Rodney 2026-07-25: "employees can add but not delete, for security" — a narrower tier than
 // OWNER_ACCOUNTS. Deashinique gets edit/re-price/ads (isManager) but NOT delete — deleting a
