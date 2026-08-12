@@ -246,7 +246,7 @@ ul,ol{ margin:0; }
 .chat{
   background:var(--surface); border:1px solid var(--line); box-shadow:var(--shadow);
   padding:18px 16px 16px; display:flex; flex-direction:column; gap:10px;
-  min-height:360px; justify-content:flex-end;
+  min-height:360px;
   /* The conversation now runs long enough to need a window rather than a wall.
      Capping it and scrolling as it plays keeps the panel a sensible height on a
      phone — and it reads like a real thread instead of a tall empty box waiting
@@ -254,6 +254,7 @@ ul,ol{ margin:0; }
   max-height:min(560px, 72vh); overflow-y:auto; scrollbar-width:none;
 }
 .chat::-webkit-scrollbar{ display:none; }
+.chat > :first-child{ margin-top:auto; }
 /* trade selector above the hero conversation — the visitor is a restaurant
    or a salon, so they should be able to see themselves in it */
 .chat-tabs{

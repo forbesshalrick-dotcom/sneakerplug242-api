@@ -30,19 +30,25 @@
     trades: [
       {
         tab: "Restaurant",
-        header: "Friday 11:52 pm &nbsp;·&nbsp; kitchen closed",
+        header: "Friday 10:38 pm &nbsp;·&nbsp; kitchen closes at 11",
         lines: [
-          { side: "in",  text: "what y'all have tonight?", stamp: "11:52 pm" },
-          { side: "out", text: "Kitchen shut at 11 — but here's tomorrow's menu, and I can put you first 👇", stamp: "11:52 pm", think: 900 },
+          { side: "in",  text: "y'all still open?", stamp: "10:38 pm" },
+          { side: "out", text: "Twenty minutes left on the kitchen — here's what's still going 👇", stamp: "10:38 pm", think: 800 },
           { album: [
               { img: "assets/img/hero/food-1.webp", label: "A1", name: "Snapper crudo", price: "$38" },
               { img: "assets/img/hero/food-2.webp", label: "A2", name: "Hand-rolled pasta", price: "$46" },
               { img: "assets/img/hero/food-3.webp", label: "A3", name: "Aged beef", price: "$64" }
             ] },
-          { gap: "no reply &nbsp;·&nbsp; 14 minutes later" },
-          { side: "out", text: "Still there? 😊 Just send me the code under the one you want and I'll hold it for tomorrow.", stamp: "12:06 am", think: 900 },
-          { side: "in",  text: "A3 for 2", stamp: "12:07 am" },
-          { side: "out", text: "Held — 2 × aged beef, $128, collection 8pm tomorrow. I'll message you when they're up.", stamp: "12:07 am", think: 1000 }
+          { side: "in",  text: "A3 for 2", stamp: "10:40 pm" },
+          { side: "out", text: "2 × aged beef, $128. Ready in about 25 minutes. Pay now or when you collect?", stamp: "10:40 pm", think: 900 },
+          { side: "in",  text: "what do you accept", stamp: "10:41 pm" },
+          { side: "out", text: "Card on our site, CIBC or Scotiabank transfer, or cash at the door — whichever's easiest.", stamp: "10:41 pm", think: 800 },
+          { side: "in",  text: "scotia", stamp: "10:41 pm" },
+          { side: "out", text: "Scotiabank 👍 Blue Hole Ltd, account 8033-1174. Send the receipt back here and I'll have it boxed and waiting.", stamp: "10:41 pm", think: 900 },
+          { side: "in",  text: "sent it", stamp: "10:44 pm" },
+          { side: "out", text: "Got it — payment in ✅ Kitchen has your order. I'll message you the moment it's ready.", stamp: "10:44 pm", think: 800 },
+          { gap: "25 minutes later" },
+          { side: "out", text: "Ready 🍽 come to the kitchen door and somebody will bring it straight out.", stamp: "11:06 pm", think: 800 }
         ]
       },
       {
