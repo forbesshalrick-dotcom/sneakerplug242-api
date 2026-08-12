@@ -67,9 +67,13 @@ const CATALOGUE = {
   ],
 
   'car-rental': [
-    { id: 1, name: 'Nissan March',   price: 50,  cat: 'small',  img: 'img/car-march.webp',    tags: 'nissan march small cheap economy gas town parking cheapest' },
+    { id: 1, name: 'Nissan March',   price: 50,  cat: 'small',  img: 'img/car-march.webp',    tags: 'nissan march micra small cheap economy gas town parking cheapest' },
     { id: 2, name: 'Honda Fit',      price: 55,  cat: 'small',  img: 'img/car-fit.webp',      tags: 'honda fit hatchback boot luggage popular most booked' },
+    /* Rodney, 12 Aug 2026: "nissan cube also known in the Bahamas" — it is
+       everywhere here, so a Nassau lot without one does not look like a Nassau lot */
+    { id: 6, name: 'Nissan Cube',    price: 60,  cat: 'small',  img: 'img/car-cube.webp',     tags: 'nissan cube boxy tall headroom roomy square four door popular island' },
     { id: 3, name: 'Toyota Corolla', price: 65,  cat: 'saloon', img: 'img/car-corolla.webp',  tags: 'toyota corolla full size sedan comfortable week family' },
+    { id: 7, name: 'Honda CR-V',     price: 85,  cat: 'suv',    img: 'img/car-crv.webp',      tags: 'honda crv cr-v suv big large family seven luggage high seat tall' },
     { id: 4, name: 'Jeep Wrangler',  price: 95,  cat: '4x4',    img: 'img/car-wrangler.webp', tags: 'jeep wrangler 4x4 soft top beach back road offroad fun' },
     { id: 5, name: 'Crew pickup',    price: 110, cat: 'truck',  img: 'img/car-pickup.webp',   tags: 'crew pickup truck tray cab contractor moving boat haul' }
   ],

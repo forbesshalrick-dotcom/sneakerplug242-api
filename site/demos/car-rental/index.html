@@ -8,8 +8,8 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" as="image" href="img/car-march.webp">
-<link rel="stylesheet" href="../assets/preview.css?v=20260812h">
-<link rel="stylesheet" href="../assets/demo.css?v=20260812h">
+<link rel="stylesheet" href="../assets/preview.css?v=20260812i">
+<link rel="stylesheet" href="../assets/demo.css?v=20260812i">
 <style>
   :root{
     --d-ground:#fff; --d-surface:#EEF2F6; --d-ink:#0C1E2E; --d-ink-2:#5A6B7A;
@@ -78,7 +78,7 @@
     <div class="d-wrap d-stack g34">
       <div class="d-stack g8">
         <p class="d-kicker">The fleet</p>
-        <h2 class="d-h2">Five vehicles, all on the lot today</h2>
+        <h2 class="d-h2">Seven vehicles, all on the lot today</h2>
       </div>
       <div class="d-grid">
         <article class="d-card">
@@ -88,10 +88,16 @@
           <span class="price">B$50 / day</span>
         </article>
         <article class="d-card">
-          <div class="shotbox" data-lightbox="fleet"><img src="img/car-fit.webp" alt="Honda Fit" loading="lazy" width="1023" height="642"></div>
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-fit.webp" alt="Honda Fit" loading="lazy" width="1024" height="768"></div>
           <h3 class="d-h3">Honda Fit</h3>
           <p>Automatic · 5 seats · surprising boot space. Our most-booked car.</p>
           <span class="price">B$55 / day</span>
+        </article>
+        <article class="d-card">
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-cube.webp" alt="Nissan Cube" loading="lazy" width="1024" height="768"></div>
+          <h3 class="d-h3">Nissan Cube</h3>
+          <p>Automatic · 5 seats · square and tall. Head room for days and easy to load.</p>
+          <span class="price">B$60 / day</span>
         </article>
         <article class="d-card">
           <div class="shotbox" data-lightbox="fleet"><img src="img/car-corolla.webp" alt="Toyota Corolla" loading="lazy" width="1024" height="768"></div>
@@ -100,13 +106,19 @@
           <span class="price">B$65 / day</span>
         </article>
         <article class="d-card">
-          <div class="shotbox" data-lightbox="fleet"><img src="img/car-wrangler.webp" alt="Jeep Wrangler" loading="lazy" width="1023" height="685"></div>
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-crv.webp" alt="Honda CR-V" loading="lazy" width="1024" height="768"></div>
+          <h3 class="d-h3">Honda CR-V</h3>
+          <p>Big SUV · 5 seats · high seat, real boot. The one for a family with luggage.</p>
+          <span class="price">B$85 / day</span>
+        </article>
+        <article class="d-card">
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-wrangler.webp" alt="Jeep Wrangler" loading="lazy" width="1024" height="768"></div>
           <h3 class="d-h3">Jeep Wrangler</h3>
           <p>4x4 · soft top · 4 seats. Built for the back roads and the beach.</p>
           <span class="price">B$95 / day</span>
         </article>
         <article class="d-card">
-          <div class="shotbox" data-lightbox="fleet"><img src="img/car-pickup.webp" alt="Crew cab pickup" loading="lazy" width="1024" height="680"></div>
+          <div class="shotbox" data-lightbox="fleet"><img src="img/car-pickup.webp" alt="Crew cab pickup" loading="lazy" width="1024" height="768"></div>
           <h3 class="d-h3">Crew pickup</h3>
           <p>Five seats and a tray. Contractors, movers, boat runs.</p>
           <span class="price">B$110 / day</span>
@@ -291,8 +303,8 @@ Tick them off here as you go.</p>
   </div>
 </footer>
 
-<script src="../assets/lightbox.js?v=20260812h"></script>
-<script src="../assets/bot.js?v=20260812h"></script>
+<script src="../assets/lightbox.js?v=20260812i"></script>
+<script src="../assets/bot.js?v=20260812i"></script>
 <script>
 DemoBot.start({
   mount: "#bot",
@@ -329,7 +341,9 @@ DemoBot.start({
       options: [
         { label: "Nissan March", price: 50 },
         { label: "Honda Fit", price: 55 },
+        { label: "Nissan Cube", price: 60 },
         { label: "Toyota Corolla", price: 65 },
+        { label: "Honda CR-V", price: 85 },
         { label: "Jeep Wrangler", price: 95 },
         { label: "Crew pickup", price: 110 }
       ]
