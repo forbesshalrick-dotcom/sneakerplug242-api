@@ -65,6 +65,9 @@ nav::-webkit-scrollbar{display:none;}
    while a card is skipped, so the scrollbar and scroll position stay honest. Browsers that
    don't know content-visibility simply ignore both lines and behave exactly as before. */
 .shoe-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color 0.2s;display:flex;flex-direction:column;content-visibility:auto;contain-intrinsic-size:auto 420px;}
+/* staff-only marker on cards that have an identical-looking twin */
+.twin-tag{font-size:9px;letter-spacing:0.3px;color:#e0a33a;background:rgba(224,163,58,0.1);border:1px solid rgba(224,163,58,0.35);border-radius:5px;padding:2px 6px;margin-top:3px;display:inline-block;line-height:1.4;}
+.twin-tag b{color:#ffc86e;font-family:'Space Mono',monospace;font-weight:700;}
 /* the scrub glow, now only while a slider is actually being dragged */
 @keyframes thumbScrub{0%,100%{box-shadow:0 0 3px rgba(200,241,53,0.4);}50%{box-shadow:0 0 10px rgba(200,241,53,0.95);}}
 .viewer-slider-thumb.is-scrubbing{animation:thumbScrub 1.2s ease-in-out infinite;}
@@ -2573,8 +2576,23 @@ function renderInventory(){
   const grid=document.getElementById('shoes-grid');
   checkReorderAlerts();
   if(!filtered.length){grid.innerHTML=`<div class="empty-state"><div class="icon">👟</div><h3>${currentTab==='available'?'No shoes in stock':'No results'}</h3></div>`;return;}
+  // ⚠️ LOOK-ALIKE LISTINGS (Rodney 2026-08-12). 11 pairs of shoes are a different real pair
+  // each but render an identical card — same brand, model, colour and nickname (e.g. the two
+  // "Nike Air Max 95 — Black/Blue"). That is exactly how the wrong card gets edited and why
+  // a count can look like it "reverted" when in fact the other twin was changed. Staff cards
+  // now carry the shoe's own id so the two can be told apart at a glance. Computed over ALL
+  // shoes, not the filtered list, so the tag doesn't appear and vanish while searching.
+  const _twinKey = s => ((s.brand||'')+'|'+(s.name||'')+'|'+(s.color||'')+'|'+(s.nickname||'')).toLowerCase();
+  const _twins = (function(){
+    const seen=Object.create(null), dup=Object.create(null);
+    shoes.forEach(s=>{ const k=_twinKey(s); if(seen[k]) dup[k]=true; else seen[k]=1; });
+    return dup;
+  })();
+  const _isStaff = (typeof currentRole!=='undefined' && currentRole==='employee');
+
   grid.innerHTML=filtered.map(shoe=>{
     const frames=shoe.frames360&&shoe.frames360.length>0?shoe.frames360:null;
+    const twin = _isStaff && _twins[_twinKey(shoe)];
     const dispSizes=uniqueSizes(shoe.sizes);
     const isLow=!shoe.sold&&shoe.sizes.length<=2;
     return `<div class="shoe-card${shoe.sold?' sold':''}">
@@ -2595,6 +2613,7 @@ function renderInventory(){
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;"><div class="shoe-brand">${shoe.brand}</div><button onclick="event.stopPropagation();copyShoeLink('${shoe.id}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:11px;padding:0;">🔗</button></div>
         <div class="shoe-name" onclick="_sfx.tap();openShoeDetail('${shoe.id}')" style="cursor:pointer;touch-action:manipulation;">${shoe.name}${shoe.nickname?' <span style="color:var(--accent);font-weight:600;">('+shoe.nickname+')</span>':''}</div>
         ${shoe.color?`<div class="shoe-color">${shoe.color}</div>`:''}
+        ${twin?`<div class="twin-tag" title="Another listing looks exactly like this one — check the code before editing">⚠ look-alike listing · this one is <b>${shoe.id}</b></div>`:''}
         ${isLow&&!shoe.sold?'<span class="badge-low">⚠ Low Stock</span>':''}
         <div class="sizes-label">AVAILABLE SIZES ${(typeof currentRole!=='undefined'&&currentRole==='employee')&&!shoe.sold&&shoe.sizes.length?`<span style="color:var(--accent);font-weight:800;">· Total: ${shoe.sizes.length} pair${shoe.sizes.length!==1?'s':''}</span>`:''}</div>
         <div class="sizes-row">${(function(){
