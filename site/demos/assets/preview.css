@@ -114,3 +114,32 @@
   margin:12px 0 0; font-family:"Plex Mono",monospace; font-size:10.5px;
   letter-spacing:.12em; text-transform:uppercase; color:var(--d-ink-2);
 }
+
+/* ── the other half of the job ─────────────────────────────────────────────
+   Everything above is what the customer sees. This is what the business sees,
+   and it is usually the part that sells the whole thing — an owner who has been
+   ringing round his own staff every night recognises it instantly. Dark, so
+   nobody confuses an internal alert with a customer message. */
+.staff{ background:#12181D; border-radius:var(--d-radius,12px); padding:clamp(20px,3vw,30px); }
+.staff .hd{ display:grid; gap:6px; margin-bottom:18px; }
+.staff .hd p{ margin:0; }
+.staff .hd .k{
+  font-family:"Plex Mono",monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:#5FD0BE;
+}
+.staff .hd h3{ margin:0; color:#fff; font-size:clamp(19px,2.4vw,26px); font-weight:700; letter-spacing:-.015em; }
+.staff .hd .sub{ color:#9FB0BD; font-size:14.5px; max-width:60ch; }
+.staff .grid{ display:grid; gap:12px; }
+@media (min-width:820px){ .staff .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (min-width:1180px){ .staff .grid{ grid-template-columns:repeat(4,minmax(0,1fr)); } }
+.staff figure{ margin:0; display:grid; gap:8px; align-content:start; }
+.staff figcaption{
+  font-family:"Plex Mono",monospace; font-size:10px; letter-spacing:.13em;
+  text-transform:uppercase; color:#7E909E;
+}
+.staff .wa{
+  background:#1D2A32; color:#E8F0F4; border:1px solid #293A44;
+  border-radius:12px 2px 12px 12px; padding:12px 14px;
+  font-size:14px; line-height:1.55; white-space:pre-line;
+}
+.staff .wa b{ color:#fff; font-weight:700; }
