@@ -592,10 +592,21 @@ function runTool(demo, name, input) {
   if (name === 'quote_fare')    return fare((input || {}).from, (input || {}).to, (input || {}).type);
 
   if (name === 'search_catalogue') {
-    const found = search(demo, input || {});
-    if (!found.length) return { found: 0, note: 'Nothing matched. Search a wider word before saying you do not have it.' };
+    let found = search(demo, input || {});
+    let note;
+    /* A miss is never a dead end — Kiki's oldest rule. Rather than hand back an
+       empty result and let the bot say "we don't have that" and stop, hand back
+       the whole list clearly LABELLED as a miss, so it can be honest about the
+       thing they asked for and still put the nearest options on screen. */
+    if (!found.length) {
+      const all = search(demo, {});
+      if (!all.length) return { found: 0, note: 'This business has no catalogue. Answer from your brief.' };
+      found = all;
+      note = 'NO MATCH for what they asked for. Say so honestly first — do not pretend these are it — then offer the nearest of these instead, with the pictures.';
+    }
     return {
       found: found.length,
+      ...(note ? { note } : {}),
       items: found.map(i => ({
         id: i.id, name: i.name, price: i.price,
         ...(i.mins ? { minutes: i.mins } : {}),

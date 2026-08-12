@@ -129,6 +129,24 @@ function close(a, b) {
   return a.slice(0, 4) === b.slice(0, 4);        // dye/dyed, braid/braiding, wing/wings
 }
 
+/* "What's on the menu?" is not a search for the word MENU. Nobody tags a plate of
+   grouper with "menu", so the honest match is nothing at all — and the bot then
+   goes hunting for a narrower word and shows two dishes out of five. Words that
+   only mean "show me the lot" get thrown away; if that empties the query, the
+   answer is the whole list, which is what was actually asked for. */
+const SHOW_ME_EVERYTHING = new Set([
+  'menu', 'board', 'list', 'catalogue', 'catalog', 'selection', 'range', 'lineup',
+  'lot', 'fleet', 'stock', 'inventory', 'shelf', 'counter', 'store', 'shop',
+  'everything', 'anything', 'something', 'all', 'options', 'option', 'choices',
+  'stuff', 'things', 'thing', 'available', 'offer', 'offers', 'sell', 'sells',
+  'have', 'has', 'got', 'get', 'show', 'see', 'send', 'pics', 'pictures', 'photos',
+  'what', 'whats', 'you', 'your', 'yall', 'the', 'and', 'for', 'any', 'today',
+  'tonight', 'now', 'currently', 'do', 'does', 'is', 'are', 'on',
+  'me', 'us', 'it', 'some', 'more', 'want', 'like', 'look', 'looking', 'need',
+  'can', 'could', 'would', 'please', 'pls', 'plz', 'there', 'here', 'else',
+  'other', 'others', 'kind', 'kinds', 'type', 'types', 'sort'
+]);
+
 function search(demo, { query, cat, max_price, min_price } = {}) {
   let items = (CATALOGUE[demo] || []).slice();
 
@@ -136,7 +154,9 @@ function search(demo, { query, cat, max_price, min_price } = {}) {
   if (max_price != null) items = items.filter(i => i.price <= max_price);
   if (min_price != null) items = items.filter(i => i.price >= min_price);
 
-  const words = norm(query).split(' ').filter(w => w.length > 1);
+  const words = norm(query).split(' ')
+    .filter(w => w.length > 1)
+    .filter(w => !SHOW_ME_EVERYTHING.has(w));
   if (!words.length) return items;
 
   const scored = items.map(i => {
