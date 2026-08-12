@@ -29,6 +29,7 @@
   var DEMOS = {
     trades: [
       {
+        tab: "Restaurant",
         header: "Friday 11:52 pm &nbsp;·&nbsp; kitchen closed",
         lines: [
           { side: "in",  text: "what y'all have tonight?", stamp: "11:52 pm" },
@@ -45,6 +46,24 @@
         ]
       },
       {
+        tab: "Fast food",
+        header: "Saturday 1:47 am &nbsp;·&nbsp; last orders",
+        lines: [
+          { side: "in",  text: "wa y'all still open", stamp: "1:47 am" },
+          { side: "out", text: "Till 2 🍗 kitchen takes its last order in about ten minutes. Here's the board 👇", stamp: "1:47 am", think: 800 },
+          { album: [
+              { img: "assets/img/hero/bfc-1.webp", label: "A2", name: "Family Bucket", price: "$34" },
+              { img: "assets/img/hero/bfc-2.webp", label: "A5", name: "Sticky Wings", price: "$13.50" },
+              { img: "assets/img/hero/bfc-3.webp", label: "A7", name: "Wing Party", price: "$29" }
+            ] },
+          { side: "in",  text: "a 5 and a 7, fries with both, sea breeze", stamp: "1:49 am" },
+          { side: "out", text: "Got it — Sticky Wings and a Wing Party, both fries, delivery to Sea Breeze. $49.00. BBQ or jerk on the wings?", stamp: "1:49 am", think: 900 },
+          { gap: "order in &nbsp;·&nbsp; 9 minutes later" },
+          { side: "out", text: "Food's boxed and the driver just pulled off 🛵 he'll call you when he's outside.", stamp: "1:58 am", think: 800 }
+        ]
+      },
+      {
+        tab: "Salon",
         header: "Sunday 7:04 am &nbsp;·&nbsp; salon closed",
         lines: [
           { side: "in",  text: "yall open today?", stamp: "7:04 am" },
@@ -57,10 +76,11 @@
           { gap: "no reply &nbsp;·&nbsp; 20 minutes later" },
           { side: "out", text: "No rush at all 🌿 whenever you're ready, send me the code and I'll hold Tuesday for you.", stamp: "7:26 am", think: 900 },
           { side: "in",  text: "A1 tuesday", stamp: "7:27 am" },
-          { side: "out", text: "Booked — colour & gloss, Tuesday 9am with Keva. $45 deposit holds the room, sending details now.", stamp: "7:27 am", think: 1000 }
+          { side: "out", text: "Booked — colour & gloss, Tuesday 9am with Keva. A $45 deposit makes it a priority reservation, sending the details now.", stamp: "7:27 am", think: 1000 }
         ]
       },
       {
+        tab: "Car hire",
         header: "Wednesday 2:40 pm &nbsp;·&nbsp; counter is slammed",
         lines: [
           { side: "in",  text: "you got anything for the week?", stamp: "2:40 pm" },
@@ -71,9 +91,61 @@
               { img: "assets/img/hero/car-3.webp", label: "A3", name: "Jeep Wrangler", price: "$95/day" }
             ] },
           { gap: "no reply &nbsp;·&nbsp; 11 minutes later" },
-          { side: "out", text: "Still looking? 🚗 Send the code and I'll hold it — airport pickup is $15.", stamp: "2:52 pm", think: 900 },
-          { side: "in",  text: "A2 for 5 days from the airport", stamp: "2:53 pm" },
-          { side: "out", text: "Held — Corolla, 5 days, airport pickup. $340 all in. Confirmation coming now.", stamp: "2:53 pm", think: 1000 }
+          { side: "out", text: "Still looking? 🚗 Send the code and I'll hold it — we bring it to you and collect it after, $15 flat.", stamp: "2:52 pm", think: 900 },
+          { side: "in",  text: "A2 for 5 days, bring it to my house. island luck", stamp: "2:53 pm" },
+          { side: "out", text: "Held — Corolla, 5 days, delivered and collected. $340 all in. Island Luck: name Out Island Auto, account 448192.", stamp: "2:53 pm", think: 1000 }
+        ]
+      },
+      {
+        tab: "Ride share",
+        header: "Sunday 1:12 am &nbsp;·&nbsp; nobody at the desk",
+        lines: [
+          { side: "in",  text: "how much from the airport to atlantis", stamp: "1:12 am" },
+          { side: "out", text: "Airport Run to Atlantis is $33 flat, about 26 min 🚗 We meet you at arrivals — got a flight number?", stamp: "1:12 am", think: 900 },
+          { side: "in",  text: "yeah BA253", stamp: "1:13 am" },
+          { side: "out", text: "Tracking it — if you're late the car waits. Sending one now.", stamp: "1:13 am", think: 800 },
+          { side: "out", text: "Car's on the way ✅ Marlon, red Toyota Corolla, plate 242-1487. 3 minutes away.", stamp: "1:14 am", think: 900 },
+          { gap: "5 minutes later" },
+          { side: "out", text: "He's caught a bit of traffic — give him two more minutes 🙏 he's nearly there.", stamp: "1:19 am", think: 800 }
+        ]
+      },
+      {
+        tab: "Shipping",
+        header: "Tuesday 9:31 pm &nbsp;·&nbsp; counter closed at 5",
+        lines: [
+          { side: "in",  text: "is my package here yet? S242-4471", stamp: "9:31 pm" },
+          { side: "out", text: "Cleared and ready ✅ 9 lb, air freight $31.50 plus $15 clearing. We're shut now — come by Bay Street from 8am, or I can send it to you for $12.", stamp: "9:31 pm", think: 1000 },
+          { side: "in",  text: "send it", stamp: "9:32 pm" },
+          { side: "out", text: "Done. One thing — first collection needs a government photo ID 🪪 passport, licence or NIB card. Just the once.", stamp: "9:32 pm", think: 900 },
+          { gap: "next morning &nbsp;·&nbsp; 10:04 am" },
+          { side: "out", text: "On the van 🚚 the driver will call you when he's close — no tracking number for a local run, he just rings you.", stamp: "10:04 am", think: 900 }
+        ]
+      },
+      {
+        tab: "Print shop",
+        header: "Monday 8:12 pm &nbsp;·&nbsp; shop closed",
+        lines: [
+          { side: "in",  text: "30 shirts by wednesday possible?", stamp: "8:12 pm" },
+          { side: "out", text: "Wednesday's under 48 hours from when we open, so that's rush — 25% on top. Doable though. 30 shirts puts you at $15 each.", stamp: "8:12 pm", think: 1000 },
+          { side: "in",  text: "front and back", stamp: "8:14 pm" },
+          { side: "out", text: "Front and back is $4 more a shirt. So $570 all in, ready Wednesday. Send the artwork or build it on the site and I'll get you on the run.", stamp: "8:14 pm", think: 1000 },
+          { gap: "artwork in &nbsp;·&nbsp; next morning" },
+          { side: "out", text: "Digital proof coming over now 👀 nothing touches a shirt until you say yes.", stamp: "9:20 am", think: 900 }
+        ]
+      },
+      {
+        tab: "Real estate",
+        header: "Thursday 10:48 pm &nbsp;·&nbsp; office closed at nine",
+        lines: [
+          { side: "in",  text: "looking for a private cay, under 10", stamp: "10:48 pm" },
+          { side: "out", text: "Two in the portfolio fit that. One is not published anywhere.", stamp: "10:48 pm", think: 1000 },
+          { album: [
+              { img: "assets/img/hero/est-1.webp", label: "A1", name: "Over-water pavilion", price: "$14.5m" },
+              { img: "assets/img/hero/est-2.webp", label: "A2", name: "Palm court villa", price: "$6.75m" },
+              { img: "assets/img/hero/est-3.webp", label: "A3", name: "Cliff terrace", price: "$9.4m" }
+            ] },
+          { side: "in",  text: "the unpublished one", stamp: "10:51 pm" },
+          { side: "out", text: "That one is released under NDA only. I can have a partner send it across tomorrow morning, or arrange a viewing — there is a boat for the cays.", stamp: "10:51 pm", think: 1100 }
         ]
       }
     ],
@@ -93,7 +165,27 @@
   var chat = document.getElementById("chat");
   if (chat) {
     var convos = DEMOS[chat.dataset.demo] || DEMOS.sneakers;
-    var tabs = Array.prototype.slice.call(document.querySelectorAll(".chat-tab"));
+    var tabStrip = document.querySelector(".chat-tabs");
+    var tabs = [];
+
+    /* The strip is written by the data, not by hand — there are eight trades
+       now and the markup only ever listed three. Adding a ninth is one entry
+       in DEMOS, nothing else. */
+    if (tabStrip && convos.length && convos[0].tab) {
+      tabStrip.innerHTML = "";
+      convos.forEach(function (c, i) {
+        var b = document.createElement("button");
+        b.className = "chat-tab";
+        b.type = "button";
+        b.textContent = c.tab;
+        b.setAttribute("aria-pressed", String(i === 0));
+        b.setAttribute("data-convo", String(i));
+        tabStrip.appendChild(b);
+        tabs.push(b);
+      });
+    } else {
+      tabs = Array.prototype.slice.call(document.querySelectorAll(".chat-tab"));
+    }
     var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     var timers = [];
 
@@ -157,7 +249,10 @@
       chat.scrollTop = chat.scrollHeight;
     }
 
+    var active = 0;
+
     function play(index) {
+      active = index;
       timers.forEach(clearTimeout);
       timers = [];
 
@@ -168,6 +263,12 @@
       tabs.forEach(function (t, i) {
         t.setAttribute("aria-pressed", String(i === index));
       });
+      /* on a phone the strip scrolls, so drag the live tab into view */
+      if (tabs[index] && tabStrip && tabStrip.scrollWidth > tabStrip.clientWidth) {
+        var t = tabs[index], strip = tabStrip;
+        var left = t.offsetLeft - (strip.clientWidth - t.offsetWidth) / 2;
+        strip.scrollTo({ left: Math.max(0, left), behavior: reduced ? "auto" : "smooth" });
+      }
 
       if (reduced) {
         convo.lines.forEach(bubble);
@@ -215,6 +316,39 @@
         play(parseInt(tab.dataset.convo, 10) || 0);
       });
     });
+
+
+    /* Swipe the conversation to change trade. A visitor on a phone should be
+       able to flick through the eight the way they flick through anything
+       else — the tab strip alone means hunting for a small target. */
+    (function () {
+      var x0 = null, y0 = null, locked = false;
+      chat.addEventListener("touchstart", function (e) {
+        x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; locked = false;
+      }, { passive: true });
+      chat.addEventListener("touchmove", function (e) {
+        if (x0 === null || locked) return;
+        var dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0;
+        /* only claim the gesture once it is clearly sideways, so scrolling
+           the page down the screen still works normally */
+        if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(dy) * 1.6) {
+          locked = true;
+          go(dx < 0 ? 1 : -1);
+        }
+      }, { passive: true });
+      chat.addEventListener("touchend", function () { x0 = null; }, { passive: true });
+
+      chat.setAttribute("tabindex", "0");
+      chat.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+        else if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+      });
+
+      function go(d) {
+        var next = (active + d + convos.length) % convos.length;
+        play(next);
+      }
+    })();
 
     play(0);
   }
