@@ -15,7 +15,7 @@
 <link rel="icon" href="../assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="../assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="../assets/css/site.css?v=20260811b">
+<link rel="stylesheet" href="../assets/css/site.css?v=20260812a">
 <style>
   .demo-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(268px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); }
   .demo-card{ background:var(--ground); padding:clamp(22px,3vw,30px); display:flex; flex-direction:column; gap:14px; text-decoration:none; }
@@ -27,6 +27,12 @@
   /* miniature identity strip so each card looks like its own brand */
   .ident{ display:flex; height:8px; }
   .ident span{ flex:1; }
+  .demo-card .price-tag{
+    display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    border-top:1px solid var(--line); padding-top:12px; margin-top:2px;
+  }
+  .demo-card .price-tag b{ font-family:var(--display); font-size:17px; color:var(--ink); }
+  .demo-card .price-tag span{ font-family:var(--display); font-size:11.5px; color:var(--ink-2); }
 </style>
 </head>
 <body>
@@ -64,6 +70,7 @@
           <h2 class="h-sm">Ship242</h2>
           <p>Sign up on the page and your free Miami address appears with your own box number. Then give the bot that number and it says exactly where the package is — warehouse, in the air, with customs, or ready on Bay Street.</p>
           <span class="does">Signs you up · tracks a package</span>
+          <span class="price-tag"><b>B$8,800</b><span>+ B$350/mo care</span></span>
           <span class="go">Open the demo →</span>
         </a>
 
@@ -73,6 +80,7 @@
           <h2 class="h-sm">Ryde 242</h2>
           <p>A live map of the cars on the island. Tell it where you are and where you're going and it works out the real fare, the drive time and which driver is closest.</p>
           <span class="does">Prices and dispatches a ride</span>
+          <span class="price-tag"><b>B$8,600</b><span>+ B$400/mo care</span></span>
           <span class="go">Open the demo →</span>
         </a>
 
@@ -82,6 +90,7 @@
           <h2 class="h-sm">Out Island Auto</h2>
           <p>Pick a vehicle, pick your days, choose airport or hotel delivery, add insurance and a child seat. It counts the days against the daily rate and quotes you.</p>
           <span class="does">Books a vehicle end to end</span>
+          <span class="price-tag"><b>B$7,200</b><span>+ B$250/mo care</span></span>
           <span class="go">Open the demo →</span>
         </a>
 
@@ -91,6 +100,7 @@
           <h2 class="h-sm">Blue Hole</h2>
           <p>Two-star tasting menu, full-bleed food photography, dark and quiet. The bot splits table from collection: covers, night, wine pairing and allergies, or a boxed order for the door.</p>
           <span class="does">Two paths in one bot — reservation or collection</span>
+          <span class="price-tag"><b>B$8,200</b><span>+ B$300/mo care</span></span>
           <span class="go">Open the demo →</span>
         </a>
 
@@ -100,6 +110,7 @@
           <h2 class="h-sm">Verandah House</h2>
           <p>Hair, skin, massage and half-day rituals, with the rooms and the garden doing the selling. The bot changes its treatment list to match the category you pick, then takes the deposit.</p>
           <span class="does">Four service categories, one booking flow</span>
+          <span class="price-tag"><b>B$8,400</b><span>+ B$300/mo care</span></span>
           <span class="go">Open the demo →</span>
         </a>
 
@@ -109,6 +120,7 @@
           <h2 class="h-sm">BFC · Bahamas Fried Chicken</h2>
           <p>Eight numbered combos on a photo board. Send the number, pick a side, choose pickup or delivery — the fastest ordering there is, because the customer can't get it wrong.</p>
           <span class="does">Numbered combo ordering</span>
+          <span class="price-tag"><b>B$5,900</b><span>+ B$250/mo care</span></span>
           <span class="go">Open the demo →</span>
         </a>
 
@@ -118,6 +130,7 @@
           <h2 class="h-sm">Fitzwilliam &amp; Cay</h2>
           <p>Private island estates at eight figures. Cinematic photography, alternating full-bleed listings, and a bot that qualifies the buyer — budget, island, timeframe — then matches them against the portfolio.</p>
           <span class="does">Qualifies a buyer and matches listings</span>
+          <span class="price-tag"><b>B$8,900</b><span>+ B$350/mo care</span></span>
           <span class="go">Open the demo →</span>
         </a>
 
@@ -127,6 +140,7 @@
           <h2 class="h-sm">Press 242</h2>
           <p>Design all four sides — front, back and both sleeves — six garment colours, five graphics, and artwork you drag into place. The bot reads every printed side and prices the run.</p>
           <span class="does">Four-sided design tool + quote</span>
+          <span class="price-tag"><b>B$8,200</b><span>+ B$300/mo care</span></span>
           <span class="go">Open the demo →</span>
         </a>
       </div>
@@ -223,6 +237,6 @@
   </div>
 </footer>
 
-<script src="../assets/js/site.js?v=20260811b" defer></script>
+<script src="../assets/js/site.js?v=20260812a" defer></script>
 </body>
 </html>

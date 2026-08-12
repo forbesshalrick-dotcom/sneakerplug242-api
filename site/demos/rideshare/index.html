@@ -7,8 +7,8 @@
 <meta name="description" content="A preview of what a Bahamian ride-share service's website and WhatsApp bot could look like — real fares, airport runs, driver on the way. Fictional business, working bot.">
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../assets/preview.css?v=20260811b">
-<link rel="stylesheet" href="../assets/demo.css?v=20260811b">
+<link rel="stylesheet" href="../assets/preview.css?v=20260812a">
+<link rel="stylesheet" href="../assets/demo.css?v=20260812a">
 <style>
   /* Night shift on the island — this is a service people use at 5am and at
      midnight, so the page lives in the dark. Turquoise because that is the
@@ -161,6 +161,7 @@
   <div class="d-head">
     <a class="d-logo" href="#">Ryde 242</a>
     <nav class="d-nav">
+      <a href="#cost">Price</a>
       <a href="#messages">Messages</a>
       <a href="#fares">Fares</a>
       <a href="#map">Drivers</a>
@@ -471,6 +472,47 @@ Plate <b>242-1487</b> · 3 min away</p>
     </div>
   </section>
 
+  <section class="d-section" id="cost">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">What this one costs</p>
+        <h2 class="d-h2">This exact build, priced</h2>
+        <p class="d-lead">Not a range and not "contact us for a quote" — the actual sum for the site you are looking at, added up from our published prices.</p>
+      </div>
+
+      <div class="cost">
+        <dl>
+          <div class="row">
+            <dt>Site — Business tier<small>Fares, ride types, safety, the whole promise above the fold.</small></dt>
+            <dd>B$2,800</dd>
+          </div>
+          <div class="row">
+            <dt>Live driver map<small>Every driver&#x27;s real vehicle, colour and plate — the transparency argument.</small></dt>
+            <dd>B$1,600</dd>
+          </div>
+          <div class="row">
+            <dt>Fare &amp; dispatch bot<small>Prices any trip on the island, drive time, nearest car, sends it.</small></dt>
+            <dd>B$4,200</dd>
+          </div>
+          <div class="row sum">
+            <dt>To start</dt>
+            <dd>B$8,600</dd>
+          </div>
+        </dl>
+
+        <div class="d-stack g22">
+          <p class="care"><b>B$400/month</b> care plan — hosting, the domain in your name, backups, updates, and the running cost of the bot's conversations. Required while the bot is live, because it is talking to your customers about money.</p>
+          <p class="note">Real driver positions need your dispatch system feeding the map. Fares and booking work on day one either way.</p>
+          <p class="note">Half to start, half on launch. Fixed price, written down before anything begins.</p>
+          <div class="cta-row">
+            <a class="d-btn" href="../../contact.html">Get this built</a>
+            <a class="d-btn d-btn-ghost" href="../../pricing.html">See all prices</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <footer class="demo-foot">
@@ -482,7 +524,7 @@ Plate <b>242-1487</b> · 3 min away</p>
   </div>
 </footer>
 
-<script src="../assets/bot.js?v=20260811b"></script>
+<script src="../assets/bot.js?v=20260812a"></script>
 <script>
 DemoBot.start({
   mount: "#bot",

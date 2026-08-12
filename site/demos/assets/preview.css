@@ -28,3 +28,37 @@
   font-family:"Plex Mono",monospace; font-size:10.5px; color:var(--d-ink-2);
   justify-self:end; margin-top:-4px;
 }
+
+/* ── what this exact build costs ───────────────────────────────────────────
+   Every demo carries its own number, added up from the published tiers rather
+   than plucked out of the air — a visitor should be able to see the sum, not
+   just the total. The honest line at the bottom matters as much as the price:
+   where a feature needs something on the client's side, it says so. */
+.cost{
+  background:var(--d-surface); border:1px solid var(--d-line);
+  border-radius:var(--d-radius,12px); padding:clamp(20px,3vw,30px);
+  display:grid; gap:18px;
+}
+@media (min-width:860px){ .cost{ grid-template-columns:1.15fr 1fr; align-items:start; } }
+.cost dl{ margin:0; display:grid; gap:0; }
+.cost .row{
+  display:flex; justify-content:space-between; align-items:baseline; gap:14px;
+  padding:11px 0; border-bottom:1px solid var(--d-line);
+}
+.cost .row:last-child{ border-bottom:0; }
+.cost dt{ font-size:15px; }
+.cost dt small{ display:block; color:var(--d-ink-2); font-size:13px; margin-top:2px; }
+.cost dd{
+  margin:0; font-family:"Plex Mono",monospace; font-variant-numeric:tabular-nums;
+  font-size:15px; white-space:nowrap;
+}
+.cost .row.sum{ border-top:2px solid var(--d-ink); border-bottom:0; margin-top:4px; padding-top:14px; }
+.cost .row.sum dt{ font-weight:700; font-size:16.5px; }
+.cost .row.sum dd{ font-size:22px; font-weight:600; }
+.cost .care{
+  background:var(--d-ground); border:1px solid var(--d-line); border-radius:10px;
+  padding:14px 16px; font-size:14px; color:var(--d-ink-2);
+}
+.cost .care b{ color:var(--d-ink); font-family:"Plex Mono",monospace; }
+.cost .note{ margin:0; font-size:13.5px; color:var(--d-ink-2); line-height:1.55; }
+.cost .cta-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:2px; }
