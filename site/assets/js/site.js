@@ -87,7 +87,11 @@
           { gap: "no reply &nbsp;·&nbsp; 20 minutes later" },
           { side: "out", text: "No rush at all 🌿 whenever you're ready, send me the code and I'll hold Tuesday for you.", stamp: "7:26 am", think: 900 },
           { side: "in",  text: "A1 tuesday", stamp: "7:27 am" },
-          { side: "out", text: "Booked — colour & gloss, Tuesday 9am with Keva. A $45 deposit makes it a priority reservation, sending the details now.", stamp: "7:27 am", think: 1000 }
+          { side: "out", text: "Booked — colour & gloss, Tuesday 9am with Keva 💫 A $45 deposit makes it a priority reservation. Card on our website, CIBC or Scotiabank?", stamp: "7:27 am", think: 1000 },
+          { side: "in",  text: "scotia", stamp: "7:28 am" },
+          { side: "out", text: "Scotiabank 👍 Sunset Hair & Spa · account 800471629. Send the screenshot back here and I'll lock Tuesday in.", stamp: "7:28 am", think: 900 },
+          { side: "in",  text: "[receipt]", stamp: "7:31 am" },
+          { side: "out", text: "Got it ✅ Deposit received, Tuesday 9am is yours. I'll remind you Monday evening.", stamp: "7:31 am", think: 900 }
         ]
       },
       {
@@ -103,8 +107,10 @@
             ] },
           { gap: "no reply &nbsp;·&nbsp; 11 minutes later" },
           { side: "out", text: "Still looking? 🚗 Send the code and I'll hold it — we bring it to you and collect it after, $15 flat.", stamp: "2:52 pm", think: 900 },
-          { side: "in",  text: "A2 for 5 days, bring it to my house. island luck", stamp: "2:53 pm" },
-          { side: "out", text: "Held — Corolla, 5 days, delivered and collected. $340 all in. Island Luck: name Out Island Auto, account 448192.", stamp: "2:53 pm", think: 1000 }
+          { side: "in",  text: "A2 for 5 days, bring it to my house", stamp: "2:53 pm" },
+          { side: "out", text: "Held ✅ Corolla, 5 days, delivered and collected — $340 all in. How you prefer to pay? Card on our site, CIBC or Scotiabank.", stamp: "2:53 pm", think: 1000 },
+          { side: "in",  text: "you accept island luck?", stamp: "2:54 pm" },
+          { side: "out", text: "Yes we do 👍 Island Luck — name Out Island Auto, account 448192. Send the receipt back here and I'll confirm right away.", stamp: "2:54 pm", think: 900 }
         ]
       },
       {
