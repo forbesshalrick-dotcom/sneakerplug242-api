@@ -83,3 +83,34 @@
 }
 .cost .lean-note{ margin:0; font-size:13.5px; color:var(--d-ink-2); line-height:1.55; }
 .cost .lean-note b{ color:var(--d-ink); }
+
+/* Two prices, equal weight. A single headline number with the cheaper one as a
+   footnote reads like a discount you have to ask for; two options side by side
+   read like a choice, which is what it actually is. */
+.opts{ display:grid; gap:14px; }
+@media (min-width:760px){ .opts{ grid-template-columns:1fr 1fr; } }
+.opt{
+  background:var(--d-ground); border:1px solid var(--d-line);
+  border-radius:var(--d-radius,12px); padding:22px 22px 24px;
+  display:grid; gap:4px; align-content:start;
+}
+.opt.ai{ border-color:var(--d-accent); border-width:2px; position:relative; }
+.opt .k{
+  font-family:"Plex Mono",monospace; font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--d-ink-2); margin:0;
+}
+.opt.ai .k{ color:var(--d-accent-ink); }
+.opt .p{
+  margin:2px 0 0; font-family:"Plex Mono",monospace; font-variant-numeric:tabular-nums;
+  font-size:clamp(26px,3.4vw,34px); font-weight:600; letter-spacing:-.02em;
+}
+.opt .m{ margin:0 0 12px; font-size:13px; color:var(--d-ink-2); }
+.opt ul{ margin:0; padding:0; list-style:none; display:grid; gap:7px; }
+.opt li{ font-size:14px; line-height:1.45; padding-left:20px; position:relative; }
+.opt li::before{
+  content:"\2713"; position:absolute; left:0; top:0; color:var(--d-accent-ink); font-weight:700;
+}
+.opt .plus{
+  margin:12px 0 0; font-family:"Plex Mono",monospace; font-size:10.5px;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--d-ink-2);
+}
