@@ -60,7 +60,20 @@ nav::-webkit-scrollbar{display:none;}
 .shoes-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
 @media(min-width:768px){.shoes-grid{grid-template-columns:repeat(4,1fr);}}
 @media(min-width:1200px){.shoes-grid{grid-template-columns:repeat(7,1fr);}}
-.shoe-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color 0.2s;display:flex;flex-direction:column;}
+/* ⚡ Off-screen cards cost nothing to lay out or paint. With ~357 cards on one page that
+   is most of the scrolling work skipped. contain-intrinsic-size is the height guess used
+   while a card is skipped, so the scrollbar and scroll position stay honest. Browsers that
+   don't know content-visibility simply ignore both lines and behave exactly as before. */
+.shoe-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color 0.2s;display:flex;flex-direction:column;content-visibility:auto;contain-intrinsic-size:auto 420px;}
+/* the scrub glow, now only while a slider is actually being dragged */
+@keyframes thumbScrub{0%,100%{box-shadow:0 0 3px rgba(200,241,53,0.4);}50%{box-shadow:0 0 10px rgba(200,241,53,0.95);}}
+.viewer-slider-thumb.is-scrubbing{animation:thumbScrub 1.2s ease-in-out infinite;}
+/* ⚡ Respect the phone's "reduce motion" setting — and give every device a way out of the
+   decorative loops without touching the ones that carry meaning (the 360 spin, tickers). */
+@media (prefers-reduced-motion: reduce){
+  .nav-logo,.stat-num,.viewer-slider-thumb.is-scrubbing{animation:none !important;}
+  *{scroll-behavior:auto !important;}
+}
 .shoe-card .shoe-body{padding:10px 10px 10px;display:flex;flex-direction:column;flex:1;}
 .shoe-card .shoe-brand{font-size:9px;letter-spacing:1.5px;}
 .shoe-card .shoe-name{font-size:12px;line-height:1.3;margin-bottom:4px;}
@@ -97,7 +110,13 @@ body:not(.is-manager) .mgr-only{display:none !important;}
 .viewer-slider-section{background:transparent;padding:5px 12px 4px;border-bottom:none;}
 .viewer-slider-track{position:relative;width:100%;height:20px;display:flex;align-items:center;cursor:pointer;touch-action:none;user-select:none;}
 .viewer-slider-track::before{content:'';position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);height:1px;background:rgba(255,255,255,0.2);border-radius:1px;}
-.viewer-slider-thumb{position:absolute;width:20px;height:8px;border-radius:4px;background:var(--accent);left:0;transform:translateX(-50%);cursor:grab;animation:sliderGlow 2.5s ease-in-out infinite;transition:transform 0.1s;flex-shrink:0;}
+/* ⚡ SPEED (Rodney 2026-08-12 "make it snappy"): this thumb used to run
+   `animation:sliderGlow 2.5s infinite`, and there is ONE PER CARD — with ~357 shoes that
+   was ~357 elements repainting a box-shadow every frame, forever, on-screen AND off. It
+   was the single biggest reason the phone felt sluggish. The glow now only runs on the
+   slider you are actually dragging (.is-scrubbing), which is the only one you can see
+   move anyway. */
+.viewer-slider-thumb{position:absolute;width:20px;height:8px;border-radius:4px;background:var(--accent);left:0;transform:translateX(-50%);cursor:grab;box-shadow:0 0 5px rgba(200,241,53,0.5);transition:transform 0.1s;flex-shrink:0;}
 .viewer-slider-thumb:active{cursor:grabbing;transform:translateX(-50%) scaleX(1.1) scaleY(1.15);}
 .viewer-hint-text{text-align:center;font-size:9px;color:#444;margin-top:3px;letter-spacing:0.5px;text-transform:uppercase;}
 
@@ -1359,11 +1378,29 @@ function _getSpinIO(){
   }, { rootMargin: '120px 0px' }); // wake a card just before it scrolls into view
   return _spinIO;
 }
+// The slider glow follows the finger: only the thumb being dragged animates, so we are
+// never painting a pulsing shadow on hundreds of cards nobody is touching.
+// Exactly one thumb may glow at a time. Clearing any stragglers first means a drag that
+// moves straight from one card to another (or a touchend the browser never delivered)
+// can't leave a thumb pulsing forever on a card nobody is holding.
+function _setScrubGlow(id, on){
+  try{
+    if (on) {
+      var stuck = document.querySelectorAll('.viewer-slider-thumb.is-scrubbing');
+      for (var i = 0; i < stuck.length; i++) stuck[i].classList.remove('is-scrubbing');
+    }
+    var t = id && document.getElementById('slthumb-' + id);
+    if (t) t.classList.toggle('is-scrubbing', !!on);
+  }catch(e){}
+}
 function _pauseOtherSpins(exceptId){
   _activeScrubId = exceptId;
+  _setScrubGlow(exceptId, true);
   for(var id in _spinViewers){ if(id!==exceptId && _spinViewers[id].st._pause) _spinViewers[id].st._pause(); }
 }
 function _resumeVisibleSpins(exceptId){
+  if (_activeScrubId) _setScrubGlow(_activeScrubId, false);
+  _setScrubGlow(exceptId, false);
   _activeScrubId = null;
   for(var id in _spinViewers){
     if(id===exceptId) continue;
@@ -2543,7 +2580,7 @@ function renderInventory(){
     return `<div class="shoe-card${shoe.sold?' sold':''}">
       <div class="viewer-outer">
         <div class="viewer-wrap" id="vw-${shoe.id}" style="cursor:pointer;">
-          <img class="viewer-img" src="${shoe.image||''}" alt="${shoe.name}" style="cursor:${frames?'grab':'default'}"/>
+          <img class="viewer-img" src="${shoe.image||''}" alt="${shoe.name}" loading="lazy" decoding="async" fetchpriority="low" style="cursor:${frames?'grab':'default'}"/>
           ${shoe.condition==='New'?'<div class="media-badge">New</div>':''}
         </div>
         ${frames?`<div class="viewer-slider-section"><div class="viewer-slider-track" id="sl-${shoe.id}"><div class="viewer-slider-thumb" id="slthumb-${shoe.id}"></div></div></div>`:''}
@@ -6777,7 +6814,13 @@ initAdCarousel();
     }, 80);
   }
   showQuote();
-  setInterval(showQuote, 4000);
+  // ⚡ Only rotate while someone is actually looking. A hidden tab (phone locked, app
+  // switched away) used to keep swapping the quote and repainting every 4 seconds.
+  var _quoteIv = setInterval(showQuote, 4000);
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) { clearInterval(_quoteIv); _quoteIv = null; }
+    else if (!_quoteIv) { _quoteIv = setInterval(showQuote, 4000); }
+  });
 })();
 
 // ── NOTIFICATIONS + AUDIT LOG ─────────────────────────────────
