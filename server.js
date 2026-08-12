@@ -3274,13 +3274,25 @@ function pickDailySocialShoes(dateKey, n = 7) {
   savePostRotation();
   return chosen;
 }
+// 📏 The label the staff member gets for a shoe she has to post (Rodney 2026-08-12):
+// name + the sizes that are actually in stock, so she can type them straight into the
+// caption without opening the site. Sizes ONLY — sizesOf() already de-duplicates, so
+// three size 8s read as one "8". Rodney does not want per-size counts or a pair total
+// going out in a post; that is private stock information, same reason the storefront's
+// "Total: N pairs" is staff-only.
+function postLabel(shoe) {
+  let sizes = '';
+  try { sizes = sizesOf(shoe); } catch (_) {}
+  return displayName(shoe) + (sizes ? ` — sizes: ${sizes}` : ' — (no sizes in stock)');
+}
+
 // Recurring extra tasks Rodney wants bundled into every evening's reminder —
 // just ask Claude to add a line here whenever a new recurring task comes up.
 const DAILY_TASKS = [];
 function buildTaskSection(shoes, dateKey) {
   let msg = '';
   if (shoes.length) {
-    const list = shoes.map((s, i) => `${i + 1}. ${displayName(s)}`).join('\n');
+    const list = shoes.map((s, i) => `${i + 1}. ${postLabel(s)}`).join('\n');
     msg += `\n\n📋 *Tomorrow's tasks:*\n📱 Post these ${shoes.length} shoes to Instagram/Facebook — photos coming right after this so you know exactly which pair:\n${list}`;
   }
   // One-off tasks Rodney typed into the website's Tasks page for THIS date (Rodney
@@ -3323,7 +3335,7 @@ const shiftTick = setInterval(async () => {
         for (let i = 0; i < socialShoes.length; i++) {
           const s = socialShoes[i];
           if (!s.image) continue;
-          await sendChunk(known.sub, [{ type: 'image', url: s.image }, { type: 'text', text: `${i + 1}. ${displayName(s)}` }], tk);
+          await sendChunk(known.sub, [{ type: 'image', url: s.image }, { type: 'text', text: `${i + 1}. ${postLabel(s)}` }], tk);
         }
         sent = true;
       } catch (_) {}
@@ -3344,9 +3356,9 @@ app.get('/post-picks', async (req, res) => {
     ? req.query.date
     : new Date(nassauNow().getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
   const shoes = pickDailySocialShoes(day, Number(req.query.n) || 7);
-  const list = shoes.map((s, i) => ({ n: i + 1, id: s.id, name: displayName(s), image: s.image }));
+  const list = shoes.map((s, i) => ({ n: i + 1, id: s.id, name: displayName(s), sizes: (() => { try { return sizesOf(s); } catch (_) { return ''; } })(), label: postLabel(s), image: s.image }));
   if (req.query.send !== '1') return res.json({ date: day, count: list.length, shoes: list });
-  const text = '📱 *POST THESE TO INSTAGRAM / FACEBOOK*\n' + shoes.map((s, i) => `${i + 1}. ${displayName(s)}`).join('\n') + '\n\n📸 Photos coming right after this 👇';
+  const text = '📱 *POST THESE TO INSTAGRAM / FACEBOOK*\n' + shoes.map((s, i) => `${i + 1}. ${postLabel(s)}`).join('\n') + '\n\n📸 Photos coming right after this 👇';
   let staffWa = [];
   try { staffWa = await require('./shop').blastEmployees(text, null); } catch (_) {}
   // Photos go to each staff member we have a live subscriber id for.
@@ -3363,7 +3375,7 @@ app.get('/post-picks', async (req, res) => {
       const s = shoes[i];
       if (!s.image) continue;
       try {
-        const r = await sendChunk(known.sub, [{ type: 'image', url: s.image }, { type: 'text', text: `${i + 1}. ${displayName(s)}` }], tk);
+        const r = await sendChunk(known.sub, [{ type: 'image', url: s.image }, { type: 'text', text: `${i + 1}. ${postLabel(s)}` }], tk);
         if (r && r.ok) sent++; else failed++;
       } catch (_) { failed++; }
     }
