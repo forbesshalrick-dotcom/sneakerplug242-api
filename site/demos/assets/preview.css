@@ -62,3 +62,24 @@
 .cost .care b{ color:var(--d-ink); font-family:"Plex Mono",monospace; }
 .cost .note{ margin:0; font-size:13.5px; color:var(--d-ink-2); line-height:1.55; }
 .cost .cta-row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:2px; }
+
+/* the cheaper build — same site, nothing answering */
+
+.cost .lean{
+  grid-column:1 / -1; border-top:1px dashed var(--d-line); padding-top:18px;
+  display:grid; gap:9px;
+}
+.cost .lean-h{
+  margin:0; font-family:"Plex Mono",monospace; font-size:10.5px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--d-ink-2);
+}
+.cost .lean-row{
+  display:flex; justify-content:space-between; align-items:baseline; gap:14px;
+}
+.cost .lean-row span{ font-size:15.5px; }
+.cost .lean-row b{
+  font-family:"Plex Mono",monospace; font-variant-numeric:tabular-nums;
+  font-size:19px; font-weight:600;
+}
+.cost .lean-note{ margin:0; font-size:13.5px; color:var(--d-ink-2); line-height:1.55; }
+.cost .lean-note b{ color:var(--d-ink); }
