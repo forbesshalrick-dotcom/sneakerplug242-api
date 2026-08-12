@@ -18,7 +18,7 @@
 <link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" href="assets/img/hero/food-1.webp">
-<link rel="stylesheet" href="assets/css/site.css?v=20260812g">
+<link rel="stylesheet" href="assets/css/site.css?v=20260812h">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -232,6 +232,37 @@
     </div>
   </section>
 
+  <!-- 3c. languages -------------------------------------------------------- -->
+  <section class="band band-surface">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">However they type it</p>
+        <h2 class="h-lg">It answers back in the language they wrote in.</h2>
+        <p class="lead">Nobody has to switch to English to buy from you. The customer types in whatever they speak, the bot reads it and answers in that same language — same price, same stock, same answer. One question, three languages, below.</p>
+      </div>
+
+      <div class="langs">
+        <article class="lang">
+          <p class="lang-name">English</p>
+          <p class="msg in">how much for the family bucket?</p>
+          <p class="msg out">Family Bucket is <b>$34</b> — 8 pieces, two sides and rolls 🍗 Ready in 15 minutes.</p>
+        </article>
+        <article class="lang">
+          <p class="lang-name">Kreyòl Ayisyen</p>
+          <p class="msg in">konbyen family bucket la koute?</p>
+          <p class="msg out">Family Bucket la koute <b>$34</b> — 8 moso poul, de akonpayman ak ti pen 🍗 L ap pare nan 15 minit.</p>
+        </article>
+        <article class="lang">
+          <p class="lang-name">Español</p>
+          <p class="msg in">¿cuánto cuesta el family bucket?</p>
+          <p class="msg out">El Family Bucket cuesta <b>$34</b> — 8 piezas, dos acompañamientos y panecillos 🍗 Listo en 15 minutos.</p>
+        </article>
+      </div>
+
+      <p class="lang-note">No menu, no &ldquo;press 2 for Spanish&rdquo;, nothing for the customer to choose. It works out what they wrote and stays in it for the whole conversation — the questions, the prices, the payment details, the message when the driver is on his way. Included on every build with the AI sales layer.</p>
+    </div>
+  </section>
+
   <!-- 4. proof ------------------------------------------------------------ -->
   <section class="band band-ink">
     <div class="wrap">
@@ -343,6 +374,10 @@
           <p>It sounds like your business, because we write it in your words and your greetings. It knows your stock, your prices, your delivery areas and your rules. When it does not know something it says so and passes the chat to you instead of guessing. You can read a real conversation on the case study page and judge for yourself.</p>
         </details>
         <details>
+          <summary>Half my customers write in Creole. Can it handle that?</summary>
+          <p>Yes, and nobody has to ask it to. The bot reads what they wrote, works out the language and answers in that same one — English, Haitian Creole or Spanish — with the same prices, the same stock and the same payment details. It stays in that language for the rest of the conversation, right through to the message saying the driver is outside. There is no menu and nothing for the customer to pick.</p>
+        </details>
+        <details>
           <summary>What if it tells somebody the wrong price?</summary>
           <p>It does not carry its own price list. It reads the same live stock record you update, so a price is only wrong if it is wrong in your own system. You can also lock any product so the bot must hand it to a human before quoting.</p>
         </details>
@@ -421,7 +456,7 @@
   </div>
 </footer>
 
-<script src="assets/js/site.js?v=20260812g" defer></script>
+<script src="assets/js/site.js?v=20260812h" defer></script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
