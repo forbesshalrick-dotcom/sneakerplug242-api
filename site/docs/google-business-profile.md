@@ -104,35 +104,118 @@ See eight working demos on our site — every one is priced.
 
 ## 7. Services
 
-Four. Not nine. Somebody listing nine services has no specialty, and that is the
-gap you are exploiting — do not walk into it yourself.
+List everything you genuinely do. On a Business Profile each service is another
+search you can appear in, so a short list costs you reach for no benefit. The
+rule is simply that you can actually deliver it — never list work you would have
+to learn on someone's money.
+
+Say what makes each one different in the description. Never mention anybody else;
+just describe what you do, plainly, and let the comparison happen in their head.
 
 **Website Design**
 ```
-Phone-first websites for Bahamian businesses. Four pages or forty, built to load
-on a weak signal and to be found on Google. Prices published, fixed quote in
-writing, your domain in your name.
+Phone-first websites for Bahamian businesses, built to load on a weak signal and
+be found on Google. Prices published rather than hidden behind a quote form.
+Fixed number in writing before anything starts. Your domain, in your name.
+```
+
+**Web Development**
+```
+Custom-built, not a template with your logo dropped in. Fast enough to score 100
+on Google's own speed test, and built so you can change your own prices, photos
+and stock without calling us.
 ```
 
 **AI Systems & WhatsApp Bots**
 ```
-A bot on your live stock that answers at 2am, sends photo options, quotes a
-price, takes the order and follows up when somebody goes quiet. Alerts your
-staff, tracks the delivery, and hands over to a person the moment it should.
+A bot on your live stock that answers at 2am, sends photo options with codes,
+quotes a price, takes the order and follows up when somebody goes quiet. Alerts
+your staff, tracks the delivery, and hands over to a person the moment it should.
+Running on our own store first, with real customers, before we sell it to you.
 ```
 
-**Business Apps**
+**Software Development**
 ```
-The internal tools nobody sells off the shelf: shared inventory across your
-staff's phones, sales logged with proof, tasks, rosters, delivery tracking,
-alerts when something needs a human.
+The systems behind the shop: live inventory, order handling, delivery tracking,
+staff alerts, payment records. Built for how a Bahamian business actually runs —
+cash, bank transfer, Island Luck, and a driver who calls when he is close.
 ```
 
-**Online Stores**
+**App Development**
 ```
-Full catalogue and checkout, local payment methods, live stock that cannot
-drift, and a bot on the front of it selling while you are closed.
+Internal tools nobody sells off the shelf. Shared inventory across your staff's
+phones, sales logged with photo proof, tasks, rosters, live delivery tracking.
+Works on the phones your staff already have.
 ```
+
+**E-Commerce & Online Stores**
+```
+Full catalogue and checkout with local payment methods, stock that cannot drift
+out of sync, and a bot on the front of it selling while you are closed.
+```
+
+**Digital Marketing**
+```
+Getting found and getting replies. Google listing set up properly, the on-page
+work that puts you on the map, and honest reporting on what an ad actually
+returned rather than how many people saw it.
+```
+
+**Social Media Marketing**
+```
+Instagram and Facebook that lead somewhere. Automated replies to comments and
+DMs so an enquiry at midnight still becomes an order, and a catalogue that stays
+in step with what you actually have in stock.
+```
+
+**Graphic Design**
+```
+Logos, product photography, menu boards, price cards and the artwork your posts
+and your site need. Built to match the site so everything looks like one
+business rather than four.
+```
+
+**Brand Strategy**
+```
+Naming, voice and a look that fits the business you actually are — a chicken
+shop and a private brokerage should not sound alike. Everything we build for you
+then speaks in that voice, including the bot.
+```
+
+---
+
+## 7b. What we do better — for the description, posts and the Q&A
+
+Never name anybody. Just state what you do; a customer who has shopped around
+will do the comparing without help. Every line below has to stay true, which is
+the point — each one is something you can show on a phone in thirty seconds.
+
+**We publish our prices.** Every tier, and every demo shows what that exact
+build costs. No "contact us for a quote".
+
+**You can try it before you buy it.** Eight working demo sites, one for each kind
+of business, each with a real bot you can argue with. Not screenshots — the
+actual thing.
+
+**We run it ourselves first.** Our own store's bot answers hundreds of customers
+a week, sends the photos, takes the order and alerts the driver. Nothing gets
+sold to you that has not already survived our own customers.
+
+**It does not stop at "contact us".** Most sites take a message and wait for a
+human. Ours answers, prices it, takes the order and tells your staff.
+
+**It keeps working after the sale.** Order confirmed, driver on the way, and the
+honest message when he is running late — before the customer has to ask.
+
+**It is built for here.** Bank transfer, Island Luck, cash on delivery, a driver
+who calls when he is close because there is no tracking number for a local run.
+Written for how people actually talk, in English, Creole or Spanish.
+
+**Somebody is still watching it next year.** Hosting, updates and a person to
+call. Not handed over and forgotten.
+
+**It is fast.** 100 out of 100 on Google's own speed test, because a slow site
+loses people on a weak signal before they ever see it.
 
 ---
 
