@@ -63,9 +63,14 @@
               { img: "assets/img/hero/bfc-3.webp", label: "A7", name: "Wing Party", price: "$29" }
             ] },
           { side: "in",  text: "a 5 and a 7, fries with both, sea breeze", stamp: "1:49 am" },
-          { side: "out", text: "Got it — Sticky Wings and a Wing Party, both fries, delivery to Sea Breeze. $49.00. BBQ or jerk on the wings?", stamp: "1:49 am", think: 900 },
+          { side: "out", text: "Got it — Sticky Wings and a Wing Party, both fries. BBQ or jerk on the wings?", stamp: "1:49 am", think: 900 },
+          { side: "in",  text: "jerk", stamp: "1:50 am" },
+          { side: "out", text: "$49.00 with delivery 🛵 Sea Breeze is a big area though — drop me a pin 📍 so the driver comes straight to you.", stamp: "1:50 am", think: 900 },
+          { side: "in",  text: "📍 Location", stamp: "1:50 am" },
+          { side: "out", text: "Got you — off Prince Charles by the pink church. Kitchen's on it. Cash to the driver or transfer now?", stamp: "1:50 am", think: 900 },
+          { side: "in",  text: "cash", stamp: "1:51 am" },
           { gap: "order in &nbsp;·&nbsp; 9 minutes later" },
-          { side: "out", text: "Food's boxed and the driver just pulled off 🛵 he'll call you when he's outside.", stamp: "1:58 am", think: 800 }
+          { side: "out", text: "Food's boxed and the driver just pulled off 🛵 $49 cash — he'll call you when he's outside.", stamp: "1:59 am", think: 800 }
         ]
       },
       {

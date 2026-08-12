@@ -8,8 +8,8 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" as="image" href="img/hero.webp" fetchpriority="high">
-<link rel="stylesheet" href="../assets/preview.css?v=20260812f">
-<link rel="stylesheet" href="../assets/demo.css?v=20260812f">
+<link rel="stylesheet" href="../assets/preview.css?v=20260812g">
+<link rel="stylesheet" href="../assets/demo.css?v=20260812g">
 <style>
   :root{
     --d-ground:#FFFFFF; --d-surface:#FFF6E8; --d-ink:#1B1613; --d-ink-2:#6B5F55;
@@ -196,7 +196,7 @@ Send the receipt here when it's gone through and I'll put it straight in the kit
           <p class="wa">Order's in ✅
 5 — Sticky Wings · 7 — Wing Party
 Both with fries · hot sauce
-Delivery to Sea Breeze
+Delivery — pin received 📍 off Prince Charles
 <b>B$49.00</b></p>
           <span class="stamp">7:41 pm</span>
         </figure>
@@ -249,7 +249,7 @@ Delivery to Sea Breeze
         </figure>
         <figure>
           <figcaption>To the driver</figcaption>
-          <p class="wa">Sea Breeze run ready in 10. Two boxes. Customer's expecting your call when you're outside.</p>
+          <p class="wa">Sea Breeze run ready in 10. Two boxes. <b>Pin attached</b> — off Prince Charles by the pink church. Customer's expecting your call when you're outside.</p>
         </figure>
         <figure>
           <figcaption>Tomorrow&#x27;s shift, sent tonight</figcaption>
@@ -330,8 +330,8 @@ Tick them here.</p>
   </div>
 </footer>
 
-<script src="../assets/lightbox.js?v=20260812f"></script>
-<script src="../assets/bot.js?v=20260812f"></script>
+<script src="../assets/lightbox.js?v=20260812g"></script>
+<script src="../assets/bot.js?v=20260812g"></script>
 <script>
 var COMBOS = [
   { label:"1 — The Two-Piece",   price:9.50 },
@@ -415,8 +415,8 @@ DemoBot.start({
     },
     {
       key:"where", when:function(a){ return a.how.label==="Delivery"; },
-      free:true, ask:"What's the address?", short:"What's the address?",
-      options:[{label:"Carmichael Road"},{label:"Sea Breeze"},{label:"Cable Beach"}]
+      free:true, ask:"Drop me a pin 📍 so the driver comes straight to you \u2014 or give me the street and a landmark. Sea Breeze and Carmichael are big.", short:"Pin or street and landmark?",
+      options:[{label:"📍 Send location"},{label:"Type the street"}]
     },
     {
       key:"when", when:function(a){ return a.how.label==="Pickup"; },
