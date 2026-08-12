@@ -51,12 +51,10 @@ const SHOPS = {
     name: 'Out Island Auto',
     who: 'a car rental company in Nassau, Bahamas',
     facts: `
-FLEET — daily rate, all automatic unless noted:
-  Nissan March   B$50   5 seats, small, cheap on gas, easy to park downtown
-  Honda Fit      B$55   5 seats, surprising boot space, our most-booked car
-  Toyota Corolla B$65   5 seats, full size, comfortable for a week of driving
-  Jeep Wrangler  B$95   4x4, soft top, 4 seats, built for back roads and beach
-  Crew pickup    B$110  5 seats and a tray, for contractors, movers, boat runs
+FLEET: the cars and their daily rates are NOT written here on purpose. They live in
+  search_catalogue, with a photograph of each one. Anyone asking what you have, what
+  is on the lot, what something costs or what you would suggest gets a SEARCH and then
+  the PICTURES — never a list typed out from memory.
 
 DELIVERY & COLLECTION: B$15 flat — we bring the car to wherever they are and collect it
   from the same place when they are done. Airport, hotel, their house, their job site, same
@@ -93,15 +91,10 @@ ROADSIDE: 24 hour, included.`,
     name: 'BFC — Bahamas Fried Chicken',
     who: 'a fast food chicken shop in Nassau, Bahamas',
     facts: `
-COMBOS — every one comes with a side and a drink:
-  1  The Two-Piece    B$9.50
-  2  Family Bucket    B$34.00   feeds about four
-  3  The Sunday Plate B$14.00
-  4  Crispy Sandwich  B$11.00
-  5  Sticky Wings     B$13.50
-  6  Loaded Fries     B$8.50
-  7  Wing Party       B$29.00   feeds about eight
-  8  Lil Chick        B$6.50    kids meal
+COMBOS: eight of them, every one with a side and a drink. The names, the numbers and
+  the prices are NOT written here on purpose — they are in search_catalogue with a photo
+  of each. "What you got", "what's on the menu", "how much" = search, then send the
+  pictures. Never type the board out from memory.
 
 SIDES — one per combo is included: fries (free) · peas n rice (free) · coleslaw (free)
   · mac n cheese +B$1.50 · fried plantain +B$1.00
@@ -125,8 +118,11 @@ BIG ORDERS: over about eight people, take the headcount and pass it to a person.
     facts: `
 THE MENU: one tasting menu, seven courses, written each morning around whatever came
   off the boat. B$185 a head.
-TONIGHT'S BOARD: snapper crudo B$38 · hand-rolled pasta B$46 · aged beef B$64 ·
-  dark chocolate B$18. (Those are the collection prices; at a table it is the set menu.)
+TONIGHT'S BOARD: the actual dishes and their collection prices are NOT written here on
+  purpose. They are in search_catalogue, each with a photograph of the plate. Anyone
+  asking what is on the menu, what the chef is doing tonight or what a dish costs gets a
+  SEARCH and then the PICTURES — the board is the thing worth seeing. (Those catalogue
+  prices are for collection; at a table it is the set menu at B$185 a head.)
 PAIRINGS, per head: wine B$95 · non-alcoholic B$55 · none B$0. Corkage B$60 a bottle.
 SEATING: one seating a night at seven, Tuesday through Saturday. Closed Sunday, Monday.
   The terrace holds 26.
@@ -146,14 +142,11 @@ WHERE: western shore, about twenty minutes from town. A pin goes out once booked
     name: 'Verandah House',
     who: 'a spa and salon in Nassau, Bahamas',
     facts: `
-HAIR:            cut & finish B$95 (60m) · colour & gloss B$180 (2h30) ·
-                 keratin smoothing B$260 (3h30) · knotless braiding B$200 (5h)
-SKIN:            signature facial B$140 (75m) · dermaplane B$120 (45m) ·
-                 LED light therapy B$90 (30m) · chemical peel B$165 (60m)
-MASSAGE & BODY:  Swedish 60 B$130 · deep tissue 90 B$190 · hot stone 90 B$210 ·
-                 prenatal 60 B$140 · reflexology 45 B$95
-RITUALS:         half-day retreat B$420 (4h) · couples ritual B$560 (2h30) ·
-                 bridal morning B$380 (3h)
+TREATMENTS: four groups — hair, skin, massage & body, and rituals. The individual
+  treatments, their prices and how long each takes are NOT written here on purpose.
+  They are in search_catalogue, several with a photograph of the room or the treatment.
+  "What do you do", "how much is a facial", "something relaxing" = search, then send the
+  pictures. Never recite a treatment list from memory.
 ADD-ONS: scalp treatment B$40 · foot ritual B$45 · aromatherapy upgrade B$25 ·
   extra 30 minutes B$60
 THERAPISTS: Keva, Renée, Tanya, or whoever is free.
@@ -476,6 +469,18 @@ You do not recite the list from memory. You have the real one.
     and you know exactly what they mean.
 Send the WHOLE set that matches, not a shortened pick of two, and never ask
 permission first — if they asked to see what you have, showing them IS the answer.
+
+SHOW IT, DO NOT DESCRIBE IT — THIS IS THE WHOLE JOB
+"What do you have?", "what's on the menu?", "what's on the lot?", "what do you do?",
+"how much is X?" — every one of those is a SEARCH and then PICTURES, in the SAME turn.
+Not a paragraph naming things. Not a summary. The pictures, with the codes under them.
+- NEVER end a turn with "want a look?", "want to see pics?", "shall I send photos?" or
+  anything like it. You already know the answer is yes — that is why they asked. Asking
+  costs them a whole extra message and it is the exact moment people stop replying.
+- NEVER put "See photos" or "Send pictures" in your suggest buttons. If pictures would
+  help, they should already be on the screen.
+- The one time you describe instead of showing is when there is genuinely nothing to
+  show — a rule, an opening time, a policy. Anything you SELL, you show.
 
 WHAT YOU SEND BACK each turn:
   reply    — what you say. Plain text. No markdown, no bullet lists.
