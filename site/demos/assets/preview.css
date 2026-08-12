@@ -1,0 +1,30 @@
+/* ── "what your customers actually receive" ────────────────────────────────
+   A demo proves the bot can hold a conversation. This proves what LANDS on a
+   customer's phone — the confirmation, the bank details, the driver notice,
+   the nudge. Owners buy the messages, not the machinery. */
+.msgs{ display:grid; gap:14px; }
+@media (min-width:820px){ .msgs{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (min-width:1180px){ .msgs{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+
+.msgs figure{
+  margin:0; background:var(--d-surface); border:1px solid var(--d-line);
+  border-radius:var(--d-radius,12px); padding:16px; display:grid; gap:10px; align-content:start;
+}
+.msgs figcaption{
+  font-family:"Plex Mono",monospace; font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--d-ink-2);
+}
+.msgs .wa{
+  background:var(--d-accent); color:var(--d-on-accent,#fff);
+  border-radius:12px 2px 12px 12px; padding:11px 14px;
+  font-size:14.5px; line-height:1.5; white-space:pre-line;
+}
+.msgs .wa.them{
+  background:var(--d-ground); color:var(--d-ink); border:1px solid var(--d-line);
+  border-radius:2px 12px 12px 12px; justify-self:start; max-width:88%;
+}
+.msgs .wa b{ font-weight:700; }
+.msgs .stamp{
+  font-family:"Plex Mono",monospace; font-size:10.5px; color:var(--d-ink-2);
+  justify-self:end; margin-top:-4px;
+}
