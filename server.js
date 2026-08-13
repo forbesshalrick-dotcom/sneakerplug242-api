@@ -3761,6 +3761,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const turnSizeSearchBrands = [];      // the brand filter on each of those searches ('' = none)
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
   let turnGenericSizeAlbum = false;     // an album went out with a size-only lead-in (no brand/model/colour)
+  let turnTopUpMerged = false;          // the "rest of your size" was folded into the FIRST album, so don't send it again after
   // 🔒 STAFF PHOTO = float/receipt, NEVER a shoe (2026-07-17): the photo→shoe machinery is so
   // strong the model kept SEARCHING a staff member's cash photo. Remove the shoe tools entirely
   // for a staff photo turn — now it CAN'T search or send shoes; only count cash / log a receipt.
@@ -4036,6 +4037,44 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             said: String(lastIncomingText.get(sub) || '').slice(0, 120) });
           if (recent.length > 120) recent.length = 120;
         }
+        // 📦 ONE ALBUM, NOT TWO (Rodney 2026-08-13: "why not send all the pictures together,
+        // many times I notice after sending pics she says here's more in the same category").
+        // The "rest we've got in your size" used to be a SECOND send fired after Kiki's album
+        // finished, because only then did the server know which shoes she'd left out. That is
+        // why a size-8 browse arrived at 10:03 and then again at 10:09 with a fresh lead-in.
+        // The set is knowable BEFORE she sends — same size searches, same conditions — so it
+        // is folded into this one call instead. Same photos, one album, no interruption.
+        // Conditions are deliberately identical to the old post-send top-up, so this widens
+        // in exactly the cases that already widened and no others.
+        try {
+          const _cust = [String(userText || '')].concat(
+            (history || []).filter(m => m && m.role === 'user').slice(-2).map(m =>
+              typeof m.content === 'string' ? m.content
+                : (Array.isArray(m.content) ? m.content.filter(bl => bl && bl.type === 'text').map(bl => bl.text || '').join(' ') : ''))
+          ).join(' ');
+          const _brandKeys = [...new Set(turnSizeSearchBrands)];
+          if (!staffName && turnGenericSizeAlbum && !turnHadRestrictiveSearch
+              && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1) {
+            const _onlyBrand = _brandKeys[0] ? _brandKeys[0].split('+') : null;
+            const _full = searchInventory(Object.assign(
+              { sizes: [...new Set(turnSizeSearchSizes)], size_match: 'any', exact_sizes: true },
+              _onlyBrand ? { brands: _onlyBrand } : {}
+            ));
+            const _have = new Set([].concat(inp.ids || [], ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).map(String));
+            const _extra = _full.map(r => String(r.id)).filter(id => !_have.has(id) && !turnSentIds.has(id));
+            if (_extra.length) {
+              // Appended with NO label, so it flows on as part of the same album rather than
+              // announcing itself as a second batch.
+              if (Array.isArray(inp.groups) && inp.groups.length) inp.groups.push({ ids: _extra, label: '' });
+              else inp.ids = [].concat(inp.ids || [], _extra);
+              turnTopUpMerged = true;
+              record(req, { endpoint: 'size-topup-merged', sub, sizes: [...new Set(turnSizeSearchSizes)],
+                brand: _onlyBrand || null, kikiSent: _have.size, added: _extra.length,
+                note: 'rest-of-size folded into the first album instead of a second "here is the rest" send' });
+            }
+          }
+        } catch (e) { record(req, { endpoint: 'size-topup-merge-error', sub, error: String(e).slice(0, 120) }); }
+
         // The single lead-in before the album is kept — it sits ahead of the photos and
         // doesn't break them up. What ruins a forwardable album is bubbles BETWEEN the
         // pictures, and those are handled inside sendShoePhotos.
@@ -4441,7 +4480,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text || '').join(' ') : ''))
   ).join(' ');
   const customerNamedSpecific = BRAND_WORD_RE.test(_recentCust);
-  if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !customerNamedSpecific && turnSizeSearchSizes.length) {
+  // turnTopUpMerged: the rest-of-your-size was already folded into the album Kiki just sent
+  // (see size-topup-merged above), so there is nothing left to append — firing here too would
+  // re-send the very "and here's the rest 👇" second batch that merging exists to remove.
+  if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !customerNamedSpecific && turnSizeSearchSizes.length && !turnTopUpMerged) {
     try {
       const wantSizes = [...new Set(turnSizeSearchSizes)];
       // 🏷️ STAY INSIDE THE BRAND SHE SEARCHED (Rodney 2026-08-04: "customer only asked for
