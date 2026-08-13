@@ -1188,6 +1188,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // for them the error might actually be true.
   if (last && !last.timedOut && GHOST_ERROR_RE.test(body) && isProvenAlive(subscriberId)) {
     saveRecent();
+    markShakyDelivery(subscriberId);
     recent.unshift({ at: new Date().toISOString(), endpoint: 'send-ghost-error-assumed-delivered', sub: subscriberId,
       note: 'ManyChat said "Subscriber does not exist" for a sub we already delivered to minutes ago — NOT re-sent (believing it is what sent photos twice)',
       tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 80)).join(' | ').slice(0, 300) });
@@ -1196,6 +1197,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   }
   if (last && last.timedOut) {
     saveRecent();
+    markShakyDelivery(subscriberId);
     recent.unshift({ at: new Date().toISOString(), endpoint: 'send-timeout-assumed-delivered', sub: subscriberId,
       note: 'ManyChat did not answer in time — NOT re-sent (it usually lands anyway; re-sending is what caused doubles)',
       tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 80)).join(' | ').slice(0, 300) });
@@ -1304,7 +1306,12 @@ const FOLLOWUP_MSG = "Hey! Just following up 😊 See one you like? Just send me
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
 const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min after the nudge
-const CLOSER_MSG = "Okay, I guess you didn't find anything this time 🙂 Maybe next time! We're open every day from 7 AM to 11 PM. Just text your size whenever you're ready 👟";
+// Deliberately says NOTHING about what the customer decided (Rodney 2026-08-13). It used
+// to open "Okay, I guess you didn't find anything this time" — and it sent that to a man who
+// had already replied three times with the code for the pair he wanted; his messages never
+// reached us. Kiki cannot see whether a reply was swallowed, so she must not narrate the
+// customer's mind. This version reads fine whether they went quiet or we simply never got it.
+const CLOSER_MSG = "Still here whenever you're ready 🙂 We're open every day, 7 AM to 11 PM. Send me the code under any pair — or your size — and I'll sort you out 👟 (If you already replied and I missed it, send it once more 🙏)";
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
 const THIRD_MSG = "Let me know if you'd like to see the catalog or what we have in stock 👟";
@@ -1319,6 +1326,33 @@ const WELCOME_NUDGE_MSG = "Let me know if you'd like to see the catalog or what 
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
 // English customer never gets Spanish/Creole auto-messages by mistake.
 const subLang = new Map(); // sub -> 'en' | 'es' | 'ht' | 'fr'
+
+// ── 🚩 SHAKY DELIVERY (Rodney 2026-08-13) ────────────────────────────────────
+// Proven case: customer "Ben" asked for the catalogue at 00:59. His album went out with
+// 8 ghost errors and 2 timeouts between 01:01 and 01:08. He then replied THREE times —
+// "A3 4 Retro", "A3", "Yes i dis A3 jordans" — and not one of them reached this server;
+// the log has nothing from him between 01:08 and 08:20. Because nothing arrived to cancel
+// them, our own scheduled nudges fired on time, and at 01:26 the closer told a customer who
+// was actively trying to buy: "I guess you didn't find anything this time."
+//
+// We cannot make ManyChat deliver his messages. We CAN stop the bot asserting something it
+// has no way of knowing. When a subscriber's sends have been ghosting or timing out, silence
+// afterwards is not evidence of disinterest — it is evidence the pipe is unreliable in BOTH
+// directions. So: no closer, and a human gets told to go look at the thread instead.
+const subName = new Map();       // sub -> the customer's name, so an alert can say WHO to go and read
+const shakyDelivery = new Map(); // sub -> { n, at }
+function markShakyDelivery(sub) {
+  if (!sub) return;
+  const cur = shakyDelivery.get(String(sub)) || { n: 0, at: 0 };
+  cur.n++; cur.at = Date.now();
+  shakyDelivery.set(String(sub), cur);
+}
+function deliveryWasShaky(sub) {
+  const r = shakyDelivery.get(String(sub));
+  // only counts as shaky if it happened recently — an error hours ago says nothing about now
+  return !!(r && r.n > 0 && Date.now() - r.at < 60 * 60 * 1000);
+}
+function clearShakyDelivery(sub) { shakyDelivery.delete(String(sub)); }
 function detectLang(text, prev) {
   const t = (text || '').toLowerCase();
   if (!t.trim()) return prev || 'en';
@@ -1355,9 +1389,9 @@ const FOLLOWUP_T = {
 };
 const CLOSER_T = {
   en: CLOSER_MSG,
-  es: "Bueno, parece que no encontraste nada esta vez 🙂 ¡Quizás la próxima! Abrimos todos los días de 7 AM a 11 PM. Escríbeme tu talla cuando estés listo 👟",
-  ht: "Oke, sanble ou pa jwenn anyen fwa sa a 🙂 Petèt pwochèn fwa! Nou louvri chak jou depi 7 AM rive 11 PM. Ekri m gwosè w lè ou pare 👟",
-  fr: "Bon, on dirait que tu n'as rien trouvé cette fois 🙂 Peut-être la prochaine ! On est ouverts tous les jours de 7h à 23h. Écris-moi ta pointure quand tu es prêt 👟",
+  es: "Aquí sigo cuando estés listo 🙂 Abrimos todos los días de 7 AM a 11 PM. Mándame el *código* de cualquier par — o tu talla — y te ayudo 👟 (Si ya respondiste y no me llegó, mándalo otra vez 🙏)",
+  ht: "M la toujou lè ou pare 🙂 Nou louvri chak jou depi 7 AM rive 11 PM. Voye *kòd* ki anba nenpòt pè — oswa gwosè w — epi m ap ede w 👟 (Si ou te deja reponn e li pa rive m, voye l yon fwa ankò 🙏)",
+  fr: "Je suis là quand tu es prêt 🙂 On est ouverts tous les jours de 7h à 23h. Envoie-moi le *code* sous n'importe quelle paire — ou ta pointure — et je m'occupe de toi 👟 (Si tu as déjà répondu et que je ne l'ai pas reçu, renvoie-le 🙏)",
 };
 const END_OF_PHOTOS_T = {
   en: END_OF_PHOTOS_MSG,
@@ -2988,7 +3022,7 @@ const DEFER_RE = /\b(get(ting)?\s*back\s*to\s*(you|u|ya|yah)|i'?ll?\s*(let|lmk)\
 // and the plural 's', both word chars) — a customer saying "you got jordans?" was ALSO
 // silently missed before this fix, same bug class as the "j's" gap above.
 const BRAND_WORD_RE = /\b(jordans?|j'?s|jays?|nike|air ?max|air ?force|af1s?|dunks?|vapor|scorpion|shox|huaraches?|new ?balance|\bnb\b|9060|1906|990|550|yeezys?|adidas|asics|crocs?|puma|reebok|slippers?|mules?|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i;
-function scheduleNudge(sub, token, text, ms, next) {
+function scheduleNudge(sub, token, text, ms, next, isCloser) {
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
     followUps.delete(sub);
@@ -2997,13 +3031,32 @@ function scheduleNudge(sub, token, text, ms, next) {
     if (isHumanPaused(sub)) return;
     // 🙅 They told us they'd get back to us — don't chase them. Kill the whole chain.
     if (DEFER_RE.test(lastIncomingText.get(sub) || '')) { clearFollowUp(sub); return; }
+    // 🚩 Don't tell someone they weren't interested when we can't trust the line.
+    // If this subscriber's sends have been ghosting/timing out, their silence is just as
+    // likely to be ManyChat swallowing their replies (proven 2026-08-13: three "A3" replies
+    // never arrived, and the closer went out anyway). Kill the chain and put a HUMAN on it.
+    if (isCloser && deliveryWasShaky(sub)) {
+      clearFollowUp(sub);
+      const info = shakyDelivery.get(String(sub)) || { n: 0 };
+      const who = (subName.get(sub) || '').trim();
+      try {
+        require('./shop').addAlert(
+          `🚩 *CHECK THIS CHAT BY HAND*\n${who ? who + ' ' : ''}(id ${sub}) went quiet after photos, but ${info.n} message${info.n === 1 ? '' : 's'} to them ghosted or timed out.\n` +
+          `Their replies may not be reaching Kiki — this is exactly how a real buyer looks like a lost lead.\n` +
+          `Open WhatsApp and read the thread yourself before assuming they left.`, 'Kiki 🤖');
+      } catch (_) {}
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'closer-suppressed-shaky-delivery', sub,
+        note: 'closer NOT sent — ' + info.n + ' ghosted/timed-out sends to this subscriber, so silence is not proof of disinterest; owner alerted to read the thread by hand' });
+      if (recent.length > 120) recent.length = 120;
+      return;
+    }
     // Register the follow-on stage (e.g. the closing message) BEFORE we send/await
     // this one. Sending takes a moment, and the nudge invites a reply — if we waited
     // until after the send to schedule the closer, a customer who replies during that
     // window couldn't cancel it (clearFollowUp would find nothing) and would still get
     // the closer. Scheduling first (synchronously) means their reply always cancels it.
     // It only fires if the customer stays quiet; after the last stage there's no `next`.
-    if (next && next.text) scheduleNudge(sub, token, next.text, next.ms, next.next);
+    if (next && next.text) scheduleNudge(sub, token, next.text, next.ms, next.next, next.isCloser);
     try {
       await sendChunk(sub, [{ type: 'text', text }], token);
       const h = convos.get(sub) || [];
@@ -3018,7 +3071,7 @@ function scheduleNudge(sub, token, text, ms, next) {
 // Chain ends at the CLOSER ("Okay, I guess you didn't find anything") — that is the
 // LAST follow-up. Rodney 2026-07-17: the old 4th "Let me know if you'd like the catalog"
 // nudge read like the chat was STARTING OVER; Kiki should never sound like a restart.
-function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS }); }
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS, isCloser: true }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, L(ASKME_T, sub), WELCOME_NUDGE_MS); }
 
@@ -4596,6 +4649,11 @@ function handleChat(req, res) {
   const turnAt = Date.now(); // when THIS message arrived — albums born from this turn ignore nothing after it
   lastIncoming.set(sub, turnAt); // stamps "they just spoke" (albums check this + the text below)
   lastIncomingText.set(sub, userText || ''); // so the album knows if it was a STOP or just a question
+  // A message actually reached us, so the line is working again — drop any shaky-delivery
+  // flag, and remember who this is so a "go read this thread" alert can name them.
+  clearShakyDelivery(sub);
+  try { const _n = getName(req); if (_n) subName.set(sub, _n); } catch (_) {}
+  if (subName.size > 500) { const f = subName.keys().next().value; subName.delete(f); }
   if (lastIncoming.size > 500) { const f = lastIncoming.keys().next().value; lastIncoming.delete(f); lastIncomingText.delete(f); }
 
   // CUSTOMER OPTED OUT ("stop"/"unsubscribe" — 2026-07-13): ManyChat swallows the literal
