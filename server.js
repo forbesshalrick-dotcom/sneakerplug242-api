@@ -2400,7 +2400,13 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       const chosen = dedupe(g.ids, seenAcrossGroups);
       requested += (g.ids || []).length;
       if (!chosen.length) continue;
-      if (g.label && String(g.label).trim()) {
+      // A group label is a text bubble sitting BETWEEN batches of photos, which is exactly
+      // what pictures-only mode exists to avoid — it forces the person forwarding the album
+      // to share the pictures a few at a time instead of in one tap. showLabels is already
+      // false in that mode for the per-shoe labels; group labels were missed (Rodney
+      // 2026-08-13: "And here's the rest we've got in 10 and 10.5 👇" landed mid-album on a
+      // pictures-only request).
+      if (showLabels && g.label && String(g.label).trim()) {
         try { await sendChunk(sub, [{ type: 'text', text: String(g.label).trim() }], token); } catch (e) {}
       }
       for (const s of chosen) {
@@ -3022,6 +3028,31 @@ const DEFER_RE = /\b(get(ting)?\s*back\s*to\s*(you|u|ya|yah)|i'?ll?\s*(let|lmk)\
 // and the plural 's', both word chars) — a customer saying "you got jordans?" was ALSO
 // silently missed before this fix, same bug class as the "j's" gap above.
 const BRAND_WORD_RE = /\b(jordans?|j'?s|jays?|nike|air ?max|air ?force|af1s?|dunks?|vapor|scorpion|shox|huaraches?|new ?balance|\bnb\b|9060|1906|990|550|yeezys?|adidas|asics|crocs?|puma|reebok|slippers?|mules?|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i;
+
+// 📸 "PICS ONLY" IS A RULE, NOT A JUDGEMENT CALL (Rodney 2026-08-13).
+// photos_only was left entirely to Kiki's discretion from the prompt. On 13 Aug Rodney sent
+// the SAME words to both accounts one minute apart — "size 8 pics only" to Trendy Kicks and
+// "size 10 pics only" to Official Sneaker Crew. Trendy Kicks sent a clean album; Official
+// Sneaker Crew sent lead-in text AND the labelled cards ("🟢 A1 · Air Jordan 11 Retro …").
+// Same instruction, same minute, two different answers — because a model was deciding it
+// afresh each time. Staff forward these albums to their own customers, and one label bubble
+// between the photos forces them to share the pictures one at a time.
+// So: if the words plainly say pictures-only, the flag is forced on no matter what the model
+// chose. Kiki can still turn it on for phrasings this doesn't cover; it can never turn it off.
+const PICS_ONLY_RE = new RegExp(
+  '(?:' +
+    // "pics only" / "photos only" / "just pictures" / "images only" …
+    '\\b(?:pic|pics|picture|pictures|photo|photos|image|images|foto|fotos)\\b[^.!?\\n]{0,14}\\bonly\\b' +
+    '|\\bonly\\b[^.!?\\n]{0,14}\\b(?:pic|pics|picture|pictures|photo|photos|image|images)\\b' +
+    '|\\bjust\\b[^.!?\\n]{0,14}\\b(?:pic|pics|picture|pictures|photo|photos|image|images)\\b' +
+    // "no info" / "without the text" / "no words" / "no captions" — only words that can
+    // ONLY mean the writing around the photo. Bare "no sizes" / "no prices" are deliberately
+    // NOT here: a customer asking "no sizes?" means "are you out of stock", and answering
+    // that with a wall of unlabelled photos would be worse than the bug this fixes. Kiki can
+    // still switch the mode on for those phrasings herself — this rule only ever forces it ON.
+    '|\\b(?:no|without|w\\/o)\\b[^.!?\\n]{0,14}\\b(?:info|information|text|texts|words|writing|caption|captions|label|labels|descriptions?)\\b' +
+  ')', 'i');
+function wantsPicsOnly(text) { return PICS_ONLY_RE.test(String(text || '')); }
 function scheduleNudge(sub, token, text, ms, next, isCloser) {
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
@@ -3994,7 +4025,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             turnGenericSizeAlbum = true;
           }
         } catch (_) {}
-        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, inp.photos_only === true, !!staffName, ctx.turnAt || 0, inp.size);
+        // 📸 Force photos-only when the words plainly asked for it, whatever the model chose.
+        // One-way: it can be switched ON here, never off — a model that spots a phrasing this
+        // regex misses still gets its way.
+        const _askedPicsOnly = wantsPicsOnly(lastIncomingText.get(sub) || '');
+        const _picsOnly = inp.photos_only === true || _askedPicsOnly;
+        if (_askedPicsOnly && inp.photos_only !== true) {
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'pics-only-forced', sub,
+            note: 'customer said pictures-only but Kiki left photos_only off — forced on so no label bubbles break up the album',
+            said: String(lastIncomingText.get(sub) || '').slice(0, 120) });
+          if (recent.length > 120) recent.length = 120;
+        }
+        // The single lead-in before the album is kept — it sits ahead of the photos and
+        // doesn't break them up. What ruins a forwardable album is bubbles BETWEEN the
+        // pictures, and those are handled inside sendShoePhotos.
+        result = await sendShoePhotos(sub, inp.ids, token, includeSizes, inp.groups, leadIn, inp.womens === true, _picsOnly, !!staffName, ctx.turnAt || 0, inp.size);
         // 👠 Tell her the truth about the women's album she just sent, so her words match
         // the labels the customer is reading (Rodney 2026-08-04).
         if (womensExactCount != null && womensTotalCount > 0) {
