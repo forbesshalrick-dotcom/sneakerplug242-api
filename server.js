@@ -172,6 +172,13 @@ app.use('/site', express.static(require('path').join(__dirname, 'site'), {
 try { require('./demo-chat').mount(app); }
 catch (e) { console.error('[demo-chat] not mounted:', e && e.message); }
 
+// ── Page counter (/px) ───────────────────────────────────────────────────────
+// First-party, no cookie, no third-party script. Read it at
+// GET /px/report?key=<VISITS_TOKEN>. See visits.js for what it does and does
+// not store.
+try { require('./visits').mount(app); }
+catch (e) { console.error('[visits] not mounted:', e && e.message); }
+
 // ── Request recorder ──────────────────────────────────────────────────────────
 // Keeps the last few raw requests in memory so we can SEE exactly what ManyChat
 // sends. View at GET /last?key=<DEBUG_KEY> . Purely diagnostic.

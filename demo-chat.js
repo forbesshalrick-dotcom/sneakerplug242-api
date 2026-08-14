@@ -34,11 +34,29 @@ const API = 'https://api.anthropic.com/v1/messages';
    Set DEMO_AI_MODEL=claude-haiku-4-5 on Railway to halve that if it ever bites. */
 const MODEL = process.env.DEMO_AI_MODEL || 'claude-sonnet-5';
 
+/* ── whose money is this? ───────────────────────────────────────────────────
+   The demo bots and Kiki were pointed at the SAME Anthropic key. That is fine
+   until it isn't: a busy day on the agency site — or one bored person hammering
+   a demo — spends the balance that answers real sneaker customers, and Kiki
+   goes quiet at 2am with nobody watching. Rodney knows that failure as "the
+   hiccup".
+
+   So: give the demos their OWN key (DEMO_ANTHROPIC_KEY on Railway) and they get
+   the full allowance. Leave it unset and they still work — sharing Kiki's key —
+   but on a deliberately small daily ration, so the worst a demo day can do to
+   the real shop is a rounding error.
+
+   Either way, running out is not a broken demo: the widget falls back to the
+   scripted flow, which is what a prospect saw before any of this existed. */
+const OWN_KEY   = !!process.env.DEMO_ANTHROPIC_KEY;
+const SHARED_CAP = 250;   // sharing Kiki's key — small ration
+const OWN_CAP    = 1200;  // its own key — spend what it likes
+
 const MAX_TURNS      = Number(process.env.DEMO_MAX_TURNS)   || 40;    // messages kept per conversation
 const MAX_CHARS      = Number(process.env.DEMO_MAX_CHARS)   || 500;   // per customer message
 const PER_IP_MSGS    = Number(process.env.DEMO_PER_IP)      || 40;    // per visitor
 const PER_IP_WINDOW  = Number(process.env.DEMO_IP_WINDOW)   || 15 * 60 * 1000;
-const DAILY_CAP      = Number(process.env.DEMO_DAILY_CAP)   || 1200;  // replies per day, whole site
+const DAILY_CAP      = Number(process.env.DEMO_DAILY_CAP)   || (OWN_KEY ? OWN_CAP : SHARED_CAP);
 
 /* ── the businesses ─────────────────────────────────────────────────────────
    Each block is the whole world the bot is allowed to know. Prices and rules
@@ -656,7 +674,7 @@ function overDailyCap() {
 
 function mount(app) {
   app.post('/demo-chat', async (req, res) => {
-    const key = process.env.ANTHROPIC_API_KEY;
+    const key = process.env.DEMO_ANTHROPIC_KEY || process.env.ANTHROPIC_API_KEY;
     if (!key) return res.status(503).json({ ok: false, reason: 'no-key' });
 
     const body = req.body || {};
@@ -789,7 +807,9 @@ function mount(app) {
     res.json({
       ok: true,
       model: MODEL,
-      hasKey: !!process.env.ANTHROPIC_API_KEY,
+      hasKey: !!(process.env.DEMO_ANTHROPIC_KEY || process.env.ANTHROPIC_API_KEY),
+      /* which purse it is spending out of — never the key itself */
+      wallet: OWN_KEY ? 'own' : 'shared-with-kiki',
       demos: Object.keys(SHOPS),
       today: day, usedToday: used, dailyCap: DAILY_CAP
     });

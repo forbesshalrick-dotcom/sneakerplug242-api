@@ -14,6 +14,42 @@ window.DemoBot = (function () {
 
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  /* ---- the page counter ---------------------------------------------------
+     The demo pages do not load the main site script, and they are the pages
+     worth counting: which trade a visitor opened, and — the number that
+     actually matters — whether they typed anything to the bot or just looked
+     at it. Fire-and-forget to our own server, no cookie, no third party. */
+  var PX = "https://242plug.com/px";
+  var counted = {};
+
+  function px(payload) {
+    try {
+      payload.p = payload.p || location.pathname;
+      var body = JSON.stringify(payload);
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(PX, new Blob([body], { type: "application/json" }));
+      } else {
+        fetch(PX, { method: "POST", headers: { "Content-Type": "application/json" },
+                    body: body, keepalive: true }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+
+  function whichDemo() {
+    var m = location.pathname.match(/demos\/([a-z-]+)\//);
+    return m ? m[1] : "unknown";
+  }
+
+  /* once per page, not once per message — otherwise a chatty visitor reads as
+     twenty visitors */
+  function countOnce(event) {
+    if (counted[event]) return;
+    counted[event] = true;
+    px({ e: event, d: whichDemo(), r: document.referrer || "" });
+  }
+
+  px({ d: whichDemo(), r: document.referrer || "" });
+
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -171,6 +207,9 @@ window.DemoBot = (function () {
     }
 
     function quoteCard(q) {
+      /* a finished quote means the demo carried a whole order through — the
+         closest thing this site has to a conversion */
+      countOnce("finished-order");
       var card = el("div", "bot-order");
       card.appendChild(el("h4", null, q.title || "Your order"));
       var dl = el("dl");
@@ -722,6 +761,7 @@ window.DemoBot = (function () {
     /* Everything the customer types comes through here, so there is one place
        that decides whether the brain or the rules answer it. */
     function send(text) {
+      countOnce("used-bot");        // they actually tried it, not just looked
       if (AI && AI.live) aiTurn(text);
       else typed(text);
     }

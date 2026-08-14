@@ -1,6 +1,7 @@
 /* Nightshift — site behaviour.
-   Three jobs: the mobile nav, the hero conversation, the contact form.
-   Everything is optional — nothing here is required for the page to work. */
+   Four jobs: the mobile nav, the hero conversation, the contact form, and a
+   one-line page counter. Everything is optional — nothing here is required for
+   the page to work. */
 
 (function () {
   "use strict";
@@ -409,4 +410,36 @@
       }
     });
   }
+  /* ---- 4. the page counter ---------------------------------------------- */
+  /* One beacon per page view to our own server. No cookie, no third-party
+     script, nothing that can block the page — it is fire-and-forget, and if the
+     endpoint is down nobody ever knows. See visits.js on the API for what is
+     actually stored (short answer: a count, and a number that stands in for a
+     visitor for one day). */
+  var PX = "https://242plug.com/px";
+
+  function px(payload) {
+    try {
+      payload.p = payload.p || location.pathname;
+      var body = JSON.stringify(payload);
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(PX, new Blob([body], { type: "application/json" }));
+      } else {
+        fetch(PX, { method: "POST", headers: { "Content-Type": "application/json" },
+                    body: body, keepalive: true }).catch(function () {});
+      }
+    } catch (e) { /* never worth breaking a page over */ }
+  }
+
+  px({ r: document.referrer || "" });
+  window.nsCount = px;               // demo pages call this for their own events
+
+  /* Which demo somebody actually opened is the number worth having — it says
+     which trade to chase next. */
+  document.addEventListener("click", function (e) {
+    var a = e.target && e.target.closest && e.target.closest("a[href*='demos/']");
+    if (!a) return;
+    var m = a.getAttribute("href").match(/demos\/([a-z-]+)\//);
+    if (m) px({ e: "open-demo", d: m[1] });
+  }, true);
 })();
