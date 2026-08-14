@@ -4239,10 +4239,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // active", 2026-07-14: two order alerts silently never reached Rodney): flag it
         // loudly on the task board so the app push still wakes someone.
         if (!waOk) { try { require('./shop').addAlert('⚠️ The WhatsApp owner-alert for the order above BOUNCED — text the store line from the owner phone to reopen the 24h window.', 'Kiki 🤖'); } catch (_) {} }
-        // Also best-effort WhatsApp every on-duty staff number so whoever's around gets it
-        // (each still subject to WhatsApp's 24h window). MANYCHAT_TOKEN drives the send.
+        // WhatsApp ONLY the staff actually rostered on this slot (Rodney 2026-08-14) — an
+        // off-duty phone should not buzz for a delivery. Nobody rostered = the Manager covers
+        // it; outside opening hours it goes to the Manager, not to someone asleep.
         let staffWa = [];
-        try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
+        try { staffWa = await require('./shop').blastOnDuty(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
         record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', remindH: inp.remind_in_hours || null, waOk, staffWa, staffOk });
         // FUTURE ORDER → also re-alert the owner when the day the customer named arrives
@@ -4472,8 +4473,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         let waOk = false;
         try { waOk = await waSendManager(lines, token); } catch (_) {}
         try { require('./shop').addAlert(lines, 'Kiki 🤖'); } catch (_) {} // website Tasks board
+        // A customer waiting in a chat needs whoever is ON the floor right now, not everyone.
         let staffWa = [];
-        try { staffWa = await require('./shop').blastEmployees(lines, null); } catch (_) {}
+        try { staffWa = await require('./shop').blastOnDuty(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
         record(req, { endpoint: 'get-agent', sub, store: ctx.store, waOk, staffOk });
         result = { ok: true, agent_alerted: true };

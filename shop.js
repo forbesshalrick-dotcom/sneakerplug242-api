@@ -915,6 +915,56 @@ async function waSend(phoneDigits, text, name) {
   return (await waSendDetailed(phoneDigits, text, name)).ok;
 }
 
+// ── 🛵 WHO IS ACTUALLY ON THE FLOOR RIGHT NOW ────────────────────────────────
+// Rodney 2026-08-14: "Can I stop Deashinique from getting delivery messages when she's
+// not at work? Each employee that's on duty at the time should get delivery messages —
+// when she's at work only." The call site had said "every on-duty staff number" since it
+// was written, but blastEmployees never looked at the rota, so every delivery pinged
+// everyone around the clock. Now it reads the shared schedule (see dayRoster / state.shifts).
+const NASSAU_OFFSET_H = -4;   // Bahamas summer time (EDT). Winter is -5 — same note as server.js.
+function nassauNow() { return new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000); }
+function currentSlot(d) {
+  const h = d.getUTCHours();                 // shifted above, so this IS the Nassau hour
+  if (h >= 8 && h < 15) return 'morning';    // 8am–3pm
+  if (h >= 15 && h < 22) return 'evening';   // 3pm–10pm
+  return null;                               // shop shut
+}
+// The names to ring right now. Same rule as the website and the shift reminder: whoever is
+// rostered on this slot; nobody rostered = the Manager covers it. Outside opening hours it
+// is the Manager's problem, NOT a staff member's phone at 2am — which is the whole point of
+// this change.
+function onDutyNames(at) {
+  const n = at || nassauNow();
+  const slot = currentSlot(n);
+  if (!slot) return ['Manager'];
+  const date = n.toISOString().slice(0, 10);
+  const on = getShifts().filter(s => s && s.date === date && s.type === slot).map(s => s.employee);
+  return on.length ? [...new Set(on)] : ['Manager'];
+}
+
+// Like blastEmployees, but only the people actually working this slot. Never silently
+// reaches nobody: if the rostered person has no WhatsApp number stored we fall back to the
+// Manager, and only if even that is missing do we fall back to the whole team — losing a
+// delivery alert is far worse than one extra buzz.
+async function blastOnDuty(text, exceptName) {
+  const nums = state.employees || {};
+  const duty = onDutyNames().filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase());
+  let targets = duty.filter(n => nums[n]);
+  let scope = 'on-duty';
+  if (!targets.length && nums.Manager) { targets = ['Manager']; scope = 'manager-fallback (nobody rostered has a number)'; }
+  if (!targets.length) { targets = Object.keys(nums).filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase()); scope = 'everyone-fallback (no numbers for the rota)'; }
+  const results = [];
+  for (const name of targets) {
+    const digits = String(nums[name] || '').replace(/[^0-9]/g, '');
+    const r = await waSendDetailed(digits, text, name);
+    results.push({ name, ok: r.ok, via: r.via || undefined, why: r.why, onDuty: true });
+  }
+  const skipped = Object.keys(nums).filter(n => targets.indexOf(n) === -1);
+  console.log('[shop] on-duty alert →', targets.join(', ') || '(nobody)', '| scope:', scope, '| not rung (off duty):', skipped.join(', ') || 'none');
+  results.scope = scope; results.skipped = skipped;
+  return results;
+}
+
 async function blastEmployees(text, exceptName) {
   const nums = state.employees || {};
   const results = [];
@@ -1769,4 +1819,4 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
+module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, onDutyNames, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
