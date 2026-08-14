@@ -12,12 +12,12 @@ The **name is settled — Nightshift**, confirmed 9 Aug 2026. Three things are s
 |---|---|---|
 | Agency name | `Nightshift` | ✅ **Confirmed.** Brand mark is a clock (hands at 2 o'clock). |
 | Domain | `nightshift.bs` | Placeholder |
-| WhatsApp number | `1242XXXXXXX` | **Deliberately broken.** See below. |
+| WhatsApp number | `19295564851` | Live as of 14 Aug 2026. Swap with the command below if a 242 number replaces it. |
 | Email | `hello@nightshift.bs` | Placeholder |
 
 ### About the WhatsApp number
 
-I used `1242XXXXXXX` — an invalid number — on purpose. A realistic-looking fake would mean a stranger's phone starts receiving business enquiries meant for you. An invalid one just fails harmlessly. **The site should not go live until this is replaced.**
+This was `1242XXXXXXX` — an invalid number on purpose, so a stranger's phone never started receiving Rodney's enquiries. It is now the real number, **+1 929 556 4851**. Note it is a US (New York) number, not a 242; if a Bahamian number replaces it later, the swap is one command.
 
 ### Swapping them — run these from inside the site folder
 
@@ -33,8 +33,8 @@ grep -rl "nightshift.bs" . --include="*.html" --include="*.xml" --include="*.txt
   | xargs sed -i '' 's/nightshift\.bs/yourdomain.com/g'
 
 # 3. WhatsApp number  (digits only, country code first, no + and no spaces)
-grep -rl "1242XXXXXXX" . --include="*.html" \
-  | xargs sed -i '' 's/1242XXXXXXX/12423581234/g'
+grep -rl "19295564851" . --include="*.html" \
+  | xargs sed -i '' 's/19295564851/<the new number>/g'
 
 # 4. Email
 grep -rl "hello@" . --include="*.html" \
