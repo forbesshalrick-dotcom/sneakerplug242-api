@@ -149,11 +149,24 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-// ── Agency site (/site) ──────────────────────────────────────────────────────
-// Served from here so it has a fixed https address instead of living on a
-// laptop whose LAN IP changes every time it reconnects. Mounted on a path, so
-// it cannot shadow any of the store's own routes.
-app.use('/site', express.static(require('path').join(__dirname, 'site'), {
+// ── Agency site ──────────────────────────────────────────────────────────────
+// Nightshift lives in the same box as the store because it is the same server
+// bill. It answers on two addresses:
+//
+//   nightshift242.com/...        its own domain, site at the ROOT (14 Aug 2026)
+//   242plug.com/site/...         the old path, kept so nothing already shared
+//                                 or bookmarked breaks
+//
+// The host check runs BEFORE the store's own routes, so on the Nightshift
+// domain "/" is the agency home page. On any other host it does nothing and
+// the store carries on as before.
+const AGENCY_DIR = require('path').join(__dirname, 'site');
+const AGENCY_HOSTS = new Set(
+  (process.env.AGENCY_HOSTS || 'nightshift242.com,www.nightshift242.com')
+    .split(',').map(h => h.trim().toLowerCase()).filter(Boolean)
+);
+
+const agencyStatic = express.static(AGENCY_DIR, {
   extensions: ['html'],
   setHeaders(res, p) {
     if (/\.(webp|png|jpg|svg|woff2|mp4|m4a)$/.test(p)) {
@@ -162,7 +175,19 @@ app.use('/site', express.static(require('path').join(__dirname, 'site'), {
       res.setHeader('Cache-Control', 'no-cache');                  // html always revalidates
     }
   }
-}));
+});
+
+app.use((req, res, next) => {
+  const host = String(req.hostname || '').toLowerCase();
+  if (!AGENCY_HOSTS.has(host)) return next();
+  /* The endpoints the agency pages call by absolute URL must still reach the
+     store's handlers even when the visitor arrived on the Nightshift domain. */
+  if (/^\/(demo-chat|px|health)\b/.test(req.path)) return next();
+  return agencyStatic(req, res, next);
+});
+
+// the original path, still live so old links keep working
+app.use('/site', agencyStatic);
 
 // ── Agency preview bots (/demo-chat) ─────────────────────────────────────────
 // The demo sites on the agency page used to run a keyword lookup table, which is

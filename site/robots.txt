@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://nightshift.bs/sitemap.xml
+Sitemap: https://nightshift242.com/sitemap.xml
