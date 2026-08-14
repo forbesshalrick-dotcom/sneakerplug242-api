@@ -15,7 +15,7 @@
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/site.css?v=20260814a">
+<link rel="stylesheet" href="assets/css/site.css?v=20260814b">
 <style>
   .bts{ display:grid; grid-template-columns:minmax(0,368px) minmax(0,1fr); gap:clamp(18px,2.5vw,32px); align-items:start; }
   /* minmax(0,1fr), not 1fr: a bare 1fr is minmax(auto,1fr), so the inventory
@@ -121,6 +121,103 @@
   .legend div{ background:var(--ground); padding:18px 20px; display:flex; flex-direction:column; gap:7px; }
   .legend h3{ font-family:var(--display); font-size:14px; font-weight:600; }
   .legend p{ color:var(--ink-2); font-size:14.5px; }
+
+  /* ---------- the owner's side ----------------------------------------------
+     Everything above is the customer's half. This is the half a brochure site
+     cannot show, and it is the half that decides whether somebody buys from us
+     or from whoever is cheaper: the shop still has to be run in the morning.
+     Drawn as real interface rather than described in a paragraph — a screen a
+     person recognises sells better than a sentence about "management tools". */
+  .o-wrap{ display:grid; grid-template-columns:minmax(0,1fr); gap:22px; }
+  @media (min-width:900px){ .o-wrap{ grid-template-columns:minmax(0,1fr) minmax(0,330px); align-items:start; } }
+
+  .o-app{ border:1px solid var(--line); background:var(--ground); overflow:hidden; box-shadow:var(--shadow); min-width:0; }
+  .o-top{ display:flex; align-items:center; gap:9px; padding:12px 15px; background:#14100E; color:#fff; }
+  .o-top .o-dot{ width:8px; height:8px; border-radius:50%; background:#7BD88F; flex:none; }
+  .o-top .o-nm{ font-family:var(--display); font-size:13px; letter-spacing:.06em; }
+  .o-top .o-who{ margin-left:auto; font-size:11.5px; color:rgba(255,255,255,.6); }
+
+  .o-tabs{ display:flex; gap:0; overflow-x:auto; scrollbar-width:none; border-bottom:1px solid var(--line); background:var(--surface); }
+  .o-tabs::-webkit-scrollbar{ display:none; }
+  .o-tabs button{
+    flex:none; border:0; background:none; cursor:pointer; padding:12px 15px;
+    font-family:var(--display); font-size:11.5px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--ink-2); border-bottom:2px solid transparent; white-space:nowrap;
+  }
+  .o-tabs button:hover{ color:var(--ink); }
+  .o-tabs button[aria-selected="true"]{ color:var(--ink); border-bottom-color:var(--accent); }
+  .o-tabs button:focus-visible{ outline:2px solid var(--accent); outline-offset:-3px; }
+  /* On a phone a sideways scroller hides the last tab and nobody goes looking
+     for it. Six of them wrap into two tidy rows instead. */
+  @media (max-width:620px){
+    .o-tabs{ flex-wrap:wrap; overflow-x:visible; }
+    .o-tabs button{ flex:1 1 33%; padding-inline:8px; text-align:center; }
+  }
+
+  .o-panel{ padding:16px; min-height:352px; }
+  .o-panel[hidden]{ display:none; }
+  .o-note{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); color:var(--ink-2); font-size:13.5px; line-height:1.6; }
+
+  /* today */
+  .o-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(124px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); margin-bottom:16px; }
+  .o-stat{ background:var(--ground); padding:13px 14px; display:flex; flex-direction:column; gap:3px; }
+  .o-stat .k{ font-family:var(--display); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2); }
+  .o-stat .v{ font-family:var(--display); font-size:25px; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .o-stat .v small{ font-size:13px; font-weight:400; color:var(--ink-2); }
+  .o-stat.hot .v{ color:var(--accent-ink); }
+
+  .o-row{ display:flex; align-items:center; gap:11px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+  .o-row:last-child{ border-bottom:0; }
+  .o-row .o-ic{ width:26px; height:26px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:12px; background:var(--surface); }
+  .o-row .o-main{ flex:1; min-width:0; line-height:1.4; }
+  .o-row .o-main b{ font-weight:600; }
+  .o-row .o-sub{ display:block; color:var(--ink-2); font-size:12.5px; margin-top:1px; }
+  .o-row .o-amt{ font-family:var(--display); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .o-row .o-when{ font-family:var(--display); font-size:11px; color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  .o-chip{ display:inline-block; font-family:var(--display); font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border:1px solid var(--line); color:var(--ink-2); }
+  .o-chip.ok{ border-color:#7BD88F; color:#2E7D4F; }
+  .o-chip.hot{ border-color:var(--accent); color:var(--accent-ink); }
+
+  /* stock */
+  .o-item{ padding:11px 0; border-bottom:1px solid var(--line); }
+  .o-item:last-child{ border-bottom:0; }
+  .o-item .o-nm{ font-size:14.5px; font-weight:600; display:flex; gap:9px; align-items:baseline; }
+  .o-item .o-nm span{ font-family:var(--display); font-size:11px; color:var(--ink-2); font-weight:400; margin-left:auto; }
+  .o-sizes{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .o-sz{ font-family:var(--display); font-size:11.5px; border:1px solid var(--line); padding:3px 8px; display:flex; gap:6px; align-items:baseline; font-variant-numeric:tabular-nums; }
+  .o-sz b{ font-weight:600; }
+  .o-sz.low{ border-color:var(--accent); color:var(--accent-ink); }
+  .o-sz.gone{ opacity:.4; text-decoration:line-through; }
+
+  /* tasks */
+  .o-task{ display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+  .o-task:last-child{ border-bottom:0; }
+  .o-box{ width:17px; height:17px; flex:none; border:1.5px solid var(--ink-2); border-radius:3px; margin-top:2px; display:grid; place-items:center; font-size:11px; color:#fff; }
+  .o-task.done .o-box{ background:var(--accent); border-color:var(--accent); }
+  .o-task.done .o-main{ color:var(--ink-2); }
+  .o-task .o-main{ flex:1; line-height:1.4; }
+
+  /* roster */
+  table.o-week{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:0; }
+  table.o-week th, table.o-week td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  table.o-week th{ font-family:var(--display); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); font-weight:400; }
+  table.o-week td:first-child, table.o-week th:first-child{ padding-left:0; font-weight:600; }
+  table.o-week .off{ color:var(--ink-2); }
+  table.o-week .fill{ color:var(--accent-ink); }
+
+  /* the messages that go out */
+  .o-msg{ background:#DCF8C6; color:#111; border-radius:8px; border-top-right-radius:2px; padding:9px 12px; font-size:13.5px; line-height:1.5; white-space:pre-line; margin-bottom:9px; box-shadow:0 1px 1px rgba(0,0,0,.1); }
+  .o-msg:last-child{ margin-bottom:0; }
+  .o-msg .to{ display:block; font-family:var(--display); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#4B6B4B; margin-bottom:5px; }
+  .o-msgs{ background:#ECE5DD; padding:12px; border:1px solid var(--line); }
+
+  /* the aside */
+  .o-points{ display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line); }
+  .o-points div{ background:var(--ground); padding:15px 16px; display:flex; flex-direction:column; gap:6px; }
+  .o-points h3{ font-family:var(--display); font-size:13.5px; font-weight:600; }
+  .o-points p{ color:var(--ink-2); font-size:14px; line-height:1.55; }
+
   @media (prefers-reduced-motion:reduce){ .pb,.ev,.album{ animation:none; } .tile{ transition:none; } }
 </style>
 </head>
@@ -216,6 +313,203 @@
     </div>
   </section>
 
+  <!-- ── the owner's side ──────────────────────────────────────────────────
+       Rodney's ask, 11 Aug: "behind the scenes should now show business owner
+       UI — tasks, sales, inventory, logs, employee schedules that are messaged
+       to employees weekly, notifications of a delivery via the bot."
+       This is the half a competitor cannot show, because they are selling a
+       website and this is a business running. -->
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">The other half</p>
+        <h2 class="h-lg">The chat is the front door.<br>This is the shop.</h2>
+        <p class="lead">A bot that takes an order and drops it into nothing is a toy. Every order above lands in a system your staff work from on the phones they already own — takings, stock, the day's jobs, next week's roster, and the messages that go out without anybody typing them. These are real screens, not a promise.</p>
+      </div>
+
+      <div class="o-wrap">
+        <div class="o-app">
+          <div class="o-top">
+            <span class="o-dot"></span>
+            <span class="o-nm">THE SHOP</span>
+            <span class="o-who">Signed in — Rodney (owner)</span>
+          </div>
+
+          <div class="o-tabs" role="tablist" aria-label="What the owner sees">
+            <button type="button" role="tab" id="ot-0" aria-controls="op-0" aria-selected="true">Today</button>
+            <button type="button" role="tab" id="ot-1" aria-controls="op-1" aria-selected="false">Sales</button>
+            <button type="button" role="tab" id="ot-2" aria-controls="op-2" aria-selected="false">Stock</button>
+            <button type="button" role="tab" id="ot-3" aria-controls="op-3" aria-selected="false">Jobs</button>
+            <button type="button" role="tab" id="ot-4" aria-controls="op-4" aria-selected="false">Roster</button>
+            <button type="button" role="tab" id="ot-5" aria-controls="op-5" aria-selected="false">Alerts</button>
+          </div>
+
+          <!-- TODAY -->
+          <div class="o-panel" role="tabpanel" id="op-0" aria-labelledby="ot-0" tabindex="0">
+            <div class="o-stats">
+              <div class="o-stat"><span class="k">Taken today</span><span class="v">$1,284</span></div>
+              <div class="o-stat"><span class="k">Orders</span><span class="v">9 <small>· 2 waiting</small></span></div>
+              <div class="o-stat hot"><span class="k">Low stock</span><span class="v">4 <small>sizes</small></span></div>
+              <div class="o-stat"><span class="k">On today</span><span class="v">2 <small>staff</small></span></div>
+            </div>
+
+            <div class="o-row">
+              <span class="o-ic">🛵</span>
+              <span class="o-main"><b>Order #4471 out for delivery</b><span class="o-sub">Marlon left 8 min ago · Sea Breeze, pin on the order</span></span>
+              <span class="o-amt">$180</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">💬</span>
+              <span class="o-main"><b>Order #4472 waiting on payment</b><span class="o-sub">Bot sent the account 3 min ago · nothing back yet</span></span>
+              <span class="o-amt">$130</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">⚠️</span>
+              <span class="o-main"><b>Down to one pair</b><span class="o-sub">Jordan 4 Red Thunder · size 9 · last one on the shelf</span></span>
+              <span class="o-chip hot">Reorder</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">🙋</span>
+              <span class="o-main"><b>Handed to a person</b><span class="o-sub">Customer says a sole came apart — waiting on you, not the bot</span></span>
+              <span class="o-when">11:02</span>
+            </div>
+
+            <p class="o-note">Everything on this screen wrote itself. Nobody opened a spreadsheet, and nobody had to remember to tell you.</p>
+          </div>
+
+          <!-- SALES -->
+          <div class="o-panel" role="tabpanel" id="op-1" aria-labelledby="ot-1" tabindex="0" hidden>
+            <div class="o-row">
+              <span class="o-ic">📎</span>
+              <span class="o-main"><b>#4470 · Air Max 95, size 10</b><span class="o-sub">Kiki took it · bank transfer · receipt attached · logged by Jess</span></span>
+              <span class="o-amt">$130</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">📎</span>
+              <span class="o-main"><b>#4469 · Jordan 4 Bred, size 9.5</b><span class="o-sub">Cash on delivery · driver photographed the money · logged by Marlon</span></span>
+              <span class="o-amt">$180</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">📎</span>
+              <span class="o-main"><b>#4468 · New Balance 9060, size 8</b><span class="o-sub">Card on the website · paid before it left the shelf</span></span>
+              <span class="o-amt">$130</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">🧾</span>
+              <span class="o-main"><b>Float counted — start of shift</b><span class="o-sub">Jess counted $340 · the app did the adding, a person did the counting</span></span>
+              <span class="o-when">09:04</span>
+            </div>
+
+            <p class="o-note">Every sale carries who logged it, how it was paid, and a photograph of the proof. Not because anybody is under suspicion — because in six months, when a payment is queried, the answer is one tap away instead of an argument.</p>
+          </div>
+
+          <!-- STOCK -->
+          <div class="o-panel" role="tabpanel" id="op-2" aria-labelledby="ot-2" tabindex="0" hidden>
+            <div class="o-item">
+              <div class="o-nm">Jordan 4 · Red Thunder <span>$180</span></div>
+              <div class="o-sizes">
+                <span class="o-sz">7 <b>2</b></span><span class="o-sz">8 <b>3</b></span>
+                <span class="o-sz low">9 <b>1</b></span><span class="o-sz">10 <b>4</b></span>
+                <span class="o-sz gone">11 <b>0</b></span>
+              </div>
+            </div>
+            <div class="o-item">
+              <div class="o-nm">Air Max 95 · Neon <span>$130</span></div>
+              <div class="o-sizes">
+                <span class="o-sz">8 <b>2</b></span><span class="o-sz">9 <b>5</b></span>
+                <span class="o-sz">10 <b>2</b></span><span class="o-sz low">10.5 <b>1</b></span>
+              </div>
+            </div>
+            <div class="o-item">
+              <div class="o-nm">New Balance 9060 · Grey <span>$130</span></div>
+              <div class="o-sizes">
+                <span class="o-sz">7.5 <b>2</b></span><span class="o-sz">8 <b>4</b></span>
+                <span class="o-sz">9 <b>3</b></span><span class="o-sz">9.5 <b>2</b></span>
+              </div>
+            </div>
+
+            <p class="o-note">Staff change these from their own phones while standing at the shelf, and the bot is reading the same numbers a second later. There is one count, not a shop count and a website count that drift apart by Friday.</p>
+          </div>
+
+          <!-- JOBS -->
+          <div class="o-panel" role="tabpanel" id="op-3" aria-labelledby="ot-3" tabindex="0" hidden>
+            <div class="o-task done"><span class="o-box">✓</span><span class="o-main">Count the float and photograph it<span class="o-sub">Jess · 9:04am</span></span></div>
+            <div class="o-task done"><span class="o-box">✓</span><span class="o-main">Restock the front shelf from the back room<span class="o-sub">Jess · 9:40am</span></span></div>
+            <div class="o-task done"><span class="o-box">✓</span><span class="o-main">Post the day's picks to the story<span class="o-sub">Marlon · 10:15am</span></span></div>
+            <div class="o-task"><span class="o-box"></span><span class="o-main">Check the two orders waiting on payment<span class="o-sub">Due 2:00pm</span></span></div>
+            <div class="o-task"><span class="o-box"></span><span class="o-main">Bag tomorrow's island shipments — boat sails Thursday<span class="o-sub">Due 4:30pm</span></span></div>
+            <div class="o-task"><span class="o-box"></span><span class="o-main">Count back the float and close off<span class="o-sub">End of shift</span></span></div>
+
+            <p class="o-note">The same six jobs land every morning without you sending a single message, and you can see from anywhere which ones are actually done — and by whom.</p>
+          </div>
+
+          <!-- ROSTER -->
+          <div class="o-panel" role="tabpanel" id="op-4" aria-labelledby="ot-4" tabindex="0" hidden>
+            <div class="table-scroll">
+              <table class="o-week">
+                <thead><tr><th>Day</th><th>Opening</th><th>Closing</th><th>Driver</th></tr></thead>
+                <tbody>
+                  <tr><td>Mon</td><td>Jess</td><td>Marlon</td><td>Marlon</td></tr>
+                  <tr><td>Tue</td><td>Jess</td><td>Jess</td><td>Marlon</td></tr>
+                  <tr><td>Wed</td><td>Marlon</td><td>Jess</td><td class="fill">Manager</td></tr>
+                  <tr><td>Thu</td><td>Jess</td><td>Marlon</td><td>Marlon</td></tr>
+                  <tr><td>Fri</td><td>Marlon</td><td>Marlon</td><td>Marlon</td></tr>
+                  <tr><td>Sat</td><td>Jess</td><td>Marlon</td><td>Marlon</td></tr>
+                  <tr><td>Sun</td><td class="off">Closed</td><td class="off">Closed</td><td class="off">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p class="o-note">Written once, then messaged to every member of staff on Sunday evening. Nobody can say they never saw it, and any shift left empty falls to the manager rather than quietly going unstaffed.</p>
+          </div>
+
+          <!-- ALERTS -->
+          <div class="o-panel" role="tabpanel" id="op-5" aria-labelledby="ot-5" tabindex="0" hidden>
+            <div class="o-msgs">
+              <div class="o-msg"><span class="to">→ Marlon, on delivery</span>Order #4471 ready 🛵
+Jordan 4 Red Thunder, size 9 · $180 cash on arrival
+Sea Breeze — pin is on the order. Call her when you're close.</div>
+              <div class="o-msg"><span class="to">→ Rodney, owner</span>💰 Sale confirmed — $180
+#4471 · Jordan 4 Red Thunder, size 9
+Paid: cash on delivery · Marlon out at 11:14</div>
+              <div class="o-msg"><span class="to">→ Jess, on shift</span>⚠️ Down to the last pair
+Jordan 4 Red Thunder, size 9 — one left after this order.
+Pull it from the site or reorder.</div>
+              <div class="o-msg"><span class="to">→ Everybody, Sunday 7pm</span>📅 Next week's schedule is up.
+You're opening Mon, Tue, Thu and Sat.
+Anything you can't make, say now, not Monday morning 🙏</div>
+            </div>
+
+            <p class="o-note">These go out on their own. That is the whole point — you are not the wire that every message has to travel down.</p>
+          </div>
+        </div>
+
+        <div class="o-points">
+          <div>
+            <h3>One count, not four</h3>
+            <p>The shelf, the website, the bot and the staff phones all read the same number. Nothing to reconcile on a Sunday night.</p>
+          </div>
+          <div>
+            <h3>Proof, not memory</h3>
+            <p>Payment screenshots pin to the sale they belong to. Money questions get answered by a photograph, not by two people remembering differently.</p>
+          </div>
+          <div>
+            <h3>Humans count the cash</h3>
+            <p>A person counts, the system does the arithmetic and keeps the photo. It never quietly decides what is in the drawer.</p>
+          </div>
+          <div>
+            <h3>It works on their phones</h3>
+            <p>No tablets to buy, no terminal on a counter. Whatever your staff already carry in their pocket is the equipment.</p>
+          </div>
+          <div>
+            <h3>You can be asleep</h3>
+            <p>An order at 2am still alerts a driver, still drops the stock, still logs itself. You read what happened in the morning.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="band band-surface">
     <div class="wrap">
       <div class="sec-head">
@@ -283,7 +577,33 @@
   </div>
 </footer>
 
-<script src="assets/js/site.js?v=20260814a" defer></script>
+<script>
+/* The owner panel's tabs. Plain buttons + hidden panels, so with JavaScript
+   off the visitor still gets every screen stacked down the page rather than a
+   dead widget. */
+(function () {
+  var tabs = document.querySelectorAll('.o-tabs [role="tab"]');
+  if (!tabs.length) return;
+  function show(i) {
+    tabs.forEach(function (t, n) {
+      var panel = document.getElementById(t.getAttribute("aria-controls"));
+      t.setAttribute("aria-selected", String(n === i));
+      if (panel) panel.hidden = n !== i;
+    });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { show(i); });
+    t.addEventListener("keydown", function (e) {
+      var d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      var n = (i + d + tabs.length) % tabs.length;
+      tabs[n].focus(); show(n);
+    });
+  });
+})();
+</script>
+<script src="assets/js/site.js?v=20260814b" defer></script>
 <script>
 (function () {
   "use strict";
