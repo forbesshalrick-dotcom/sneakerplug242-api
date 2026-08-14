@@ -12,7 +12,7 @@ The **name is settled — Nightshift**, confirmed 9 Aug 2026. Three things are s
 |---|---|---|
 | Agency name | `Nightshift` | ✅ **Confirmed.** Brand mark is a clock (hands at 2 o'clock). |
 | Domain | `nightshift.bs` | Placeholder |
-| WhatsApp number | `19295564851` | Live as of 14 Aug 2026. Swap with the command below if a 242 number replaces it. |
+| WhatsApp number | `19412930496` | Nightshift's own Quo line, live 14 Aug 2026. (The 929 it replaced went to the SneakerInventory wholesale shop.) Swap with the command below if a 242 arrives. |
 | Email | `hello@nightshift.bs` | Placeholder |
 
 ### About the WhatsApp number
@@ -33,8 +33,8 @@ grep -rl "nightshift.bs" . --include="*.html" --include="*.xml" --include="*.txt
   | xargs sed -i '' 's/nightshift\.bs/yourdomain.com/g'
 
 # 3. WhatsApp number  (digits only, country code first, no + and no spaces)
-grep -rl "19295564851" . --include="*.html" \
-  | xargs sed -i '' 's/19295564851/<the new number>/g'
+grep -rl "19412930496" . --include="*.html" \
+  | xargs sed -i '' 's/19412930496/<the new number>/g'
 
 # 4. Email
 grep -rl "hello@" . --include="*.html" \
