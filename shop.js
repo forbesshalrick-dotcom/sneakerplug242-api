@@ -517,7 +517,11 @@ function keepManualRestock(id, beforeShoe, incomingShoe) {
   for (const row of state.shoeAudit) {
     if (row.id !== String(id)) continue;
     if (new Date(row.at).getTime() < cutoff) break;      // audit is newest-first
-    if (row.via !== 'manual-edit') continue;
+    // A staff member restocking through Kiki is deliberately adding stock, exactly like a
+    // hand edit on the website — so it earns the same protection from a stale phone's shrink
+    // (Rodney 2026-08-14). The audit still records WHERE it came from ('kiki-restock' vs
+    // 'manual-edit'); this only decides whether it is defended.
+    if (row.via !== 'manual-edit' && row.via !== 'kiki-restock') continue;
     const bC = count(row.beforeSizes), aC = count(row.afterSizes);
     for (const s of shrank) if ((aC[s] || 0) > (bC[s] || 0)) manuallyAdded.add(s);
   }
@@ -753,9 +757,15 @@ function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
   if (!Array.isArray(shoe.sizes)) shoe.sizes = (baseSizes || []).slice();
   const idx = shoe.sizes.findIndex(x => String(parseFloat(x)) === sz);
   if (idx === -1) return { error: 'size ' + size + ' is not in stock for this shoe', sizes: shoe.sizes.slice() };
+  const _beforeS = { sizes: (shoe.sizes || []).slice(), sold: !!shoe.sold };
   shoe.sizes.splice(idx, 1);
   if (!shoe.sizes.length) shoe.sold = true;
   shoe.updatedAt = Date.now();
+  // Same reason as the restock above — a sale rung up through Kiki must leave the same
+  // trail as one rung up on the website, or "when did this change?" has a blind spot
+  // exactly where staff do most of their work.
+  try { auditShoe({ headers: {}, body: { by: by || 'staff' } }, shoeId, 'accepted',
+    _beforeS, { sizes: shoe.sizes, sold: shoe.sold }, { via: 'kiki-sale', by: by || 'staff', size: sz }); } catch (_) {}
   const uid = 'jess-' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
   // Write BOTH dialects: the bot's fields (at/shoeLabel/by) AND the website sales
   // page's native fields (date/dateStr/timeStr/name/soldBy, Bahamas clock) so a
@@ -805,10 +815,21 @@ function recordStaffRestock(shoeId, size, count, by, label, baseSizes) {
     state.shoes.push(shoe);
   }
   if (!Array.isArray(shoe.sizes)) shoe.sizes = (baseSizes || []).slice();
+  const _beforeR = JSON.parse(JSON.stringify({ sizes: (shoe.sizes || []).slice(), sold: !!shoe.sold }));
   for (let i = 0; i < n; i++) shoe.sizes.push(sz);
   shoe.sold = false;
   shoe.updatedAt = Date.now();
   persist('shoes.json'); bump();
+  // 🔍 Write it to the shoe audit like every other stock change (Rodney 2026-08-14, asking
+  // whether staff editing through Kiki is safer than the website). It IS safer in one way —
+  // this writes straight to the server with a fresh updatedAt, so an older phone loses the
+  // newest-wins check. But it used to leave NO audit row, and that had two costs:
+  //   1. keepManualRestock protects a hand-added size from a stale phone's shrink by looking
+  //      it up IN THE AUDIT — a size added through Kiki was invisible to it, so the one
+  //      protection built for exactly this could never fire for a Kiki restock;
+  //   2. "when did this revert and why?" was unanswerable for anything done through the bot.
+  try { auditShoe({ headers: {}, body: { by: by || 'staff' } }, shoeId, 'accepted',
+    _beforeR, { sizes: shoe.sizes, sold: shoe.sold }, { via: 'kiki-restock', by: by || 'staff', size: sz, count: n }); } catch (_) {}
   addAlert('📦 RESTOCK — ' + (label || shoeId) + ' — size ' + sz + ' x' + n + ' added (by ' + (by || 'staff') + ' via Kiki)', by || 'Kiki 🤖');
   addLogEntry('Restock (via Kiki)', (label || shoeId) + ' — size ' + sz + ' x' + n, 'inventory', shoeId, by || 'staff');
   return { ok: true, added: n, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes) };
