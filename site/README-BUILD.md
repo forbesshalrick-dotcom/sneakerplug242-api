@@ -12,7 +12,7 @@ The **name is settled — Nightshift**, confirmed 9 Aug 2026. Three things are s
 |---|---|---|
 | Agency name | `Nightshift` | ✅ **Confirmed.** Brand mark is a clock (hands at 2 o'clock). |
 | Domain | `nightshift.bs` | Placeholder |
-| WhatsApp number | `19295564851` | Nightshift's line — the Quo number that stayed on the ordinary WhatsApp app, so wa.me works and Rodney answers by hand. The 941 went to SneakerInventory (wholesale) on the Meta API via ManyChat. Do NOT put this number through Meta unless you first delete WhatsApp from it. |
+| WhatsApp number | `12424481632` | Nightshift's line — a real 242 Bahamian number, on the ordinary WhatsApp app so wa.me works and Rodney answers by hand. Do NOT put it through Meta's setup; that would lock it out of the app. |
 | Email | `hello@nightshift.bs` | Placeholder |
 
 ### About the WhatsApp number
@@ -33,8 +33,8 @@ grep -rl "nightshift.bs" . --include="*.html" --include="*.xml" --include="*.txt
   | xargs sed -i '' 's/nightshift\.bs/yourdomain.com/g'
 
 # 3. WhatsApp number  (digits only, country code first, no + and no spaces)
-grep -rl "19295564851" . --include="*.html" \
-  | xargs sed -i '' 's/19295564851/<the new number>/g'
+grep -rl "12424481632" . --include="*.html" \
+  | xargs sed -i '' 's/12424481632/<the new number>/g'
 
 # 4. Email
 grep -rl "hello@" . --include="*.html" \
