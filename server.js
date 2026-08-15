@@ -2944,6 +2944,10 @@ try {
 // This is the longer, Inbox-triggered sibling of the existing 20s chatMuted typing-pause.
 const inboxThreads = new Map();   // `${account}|${sub}` -> {account, sub, name, phone, msgs:[{id,dir,sender,text,ts}], lastTs, unread}
 const inboxSubIndex = new Map();  // sub -> threadKey (so an outbound send finds its thread without the account)
+// Guards the inbox against firing the SAME album at the same customer twice — see the note
+// in POST /inbox/send-shoe. Keyed `sub|id,id,id` so a different album is never blocked.
+const inboxAlbumSentAt = new Map();
+const INBOX_ALBUM_REPEAT_MS = 3 * 60 * 1000;
 // Shoe Box (SB, the direct Meta line) is hidden from the Inbox until it's verified with Meta.
 // Threads/locations are still recorded in the background; this just hides them from the list +
 // the New-chat picker. Flip on with SHOW_SHOE_BOX=1 in Railway (or change the default) once verified.
@@ -7058,6 +7062,23 @@ app.post('/inbox/send-shoe', async (req, res) => {
   // Quick message typed by the owner overrides the auto lead-in and rides in with the photos.
   const note = String(b.note || '').trim().slice(0, 300);
   const leadIn = note || (what ? ('This is what we have in ' + what + ' rite now 👇 Ready to Order!') : 'This is what we have rite now 👇 Ready to Order!');
+  // 🔁 ONE ALBUM PER CUSTOMER AT A TIME (Rodney 2026-08-15). He sent an 86-shoe album from
+  // the inbox to +1 242 468-0734 and the SAME 86 went out twice, 42 seconds apart — 172
+  // images queued at ManyChat for one person, every one answered 200 success, and the chat
+  // showed nothing. A double-tap on the send button, or the browser retrying the POST, was
+  // enough: there was no guard here at all. An album is slow (a 12-photo test took ~6 minutes
+  // to trickle out) and it BLOCKS everyone queued behind it, so a duplicate is not just
+  // noise — it doubles the outage for every other customer waiting. Refuse a repeat of the
+  // same album to the same person inside the window; a genuinely different album still goes.
+  const albumKey = sub + '|' + results.map(x => x.id).join(',');
+  const lastFired = inboxAlbumSentAt.get(albumKey) || 0;
+  if (Date.now() - lastFired < INBOX_ALBUM_REPEAT_MS) {
+    const waited = Math.round((INBOX_ALBUM_REPEAT_MS - (Date.now() - lastFired)) / 1000);
+    record(req, { endpoint: 'inbox-send-shoe-duplicate-blocked', sub, account, what, found: results.length, agoSec: Math.round((Date.now() - lastFired) / 1000) });
+    return res.json({ ok: false, duplicate: true, found: results.length, sent: 0,
+      error: 'You already sent these ' + results.length + ' photos to this customer moments ago — still going out. Give it ' + waited + 's before sending again.' });
+  }
+  inboxAlbumSentAt.set(albumKey, Date.now());
   setHumanPause(sub); clearFollowUp(sub);
   try {
     const r = await sendShoePhotos(sub, results.map(x => x.id), token, true, null, leadIn);
