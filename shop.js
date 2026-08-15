@@ -406,6 +406,10 @@ function auditShoe(req, id, decision, before, after, extra) {
 // the number of rows we still hold.
 const REVERT_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
 const revertAlertAt = new Map();          // shoeId -> ts of last alert (don't nag)
+// Repeat pushes of a tombstoned shoe get logged at most once an hour per shoe — see the
+// note on the deleted branch in POST /shop/shoe.
+const deletedPushAudited = new Map();     // shoeId -> ts of last audited deleted-push
+const DELETED_AUDIT_GAP_MS = 60 * 60 * 1000;
 const REVERT_ALERT_GAP_MS = 10 * 60 * 1000;
 function shoeLabel(id) {
   const c = CATALOG_BASE[id];
@@ -1576,7 +1580,21 @@ function mount(app) {
     if (!sh || sh.id == null) return res.status(400).json({ error: 'bad shoe' });
     // NEVER resurrect a deleted shoe: if it's tombstoned, reject the push. This is
     // the key guard — a device with stale data can otherwise re-add a deleted shoe.
-    if (state.deleted.includes(sh.id)) { auditShoe(req, sh.id, 'skipped-deleted', null, sh); return res.json({ ok: true, skipped: 'deleted' }); }
+    // 🧹 DON'T LET REFUSED-DELETED PUSHES DROWN THE AUDIT (Rodney 2026-08-15). Old cached
+    // apps re-push tombstoned shoes on every sync; blocking them is right, but writing an
+    // audit row each time cost 963 of the last 1000 rows and cut the usable write history
+    // to about 3 days — so when a shoe genuinely went wrong, the evidence had already rolled
+    // off. Record the FIRST one per shoe per hour (enough to spot a device stuck on old data)
+    // and drop the repeats. The storefront now filters the graveyard out of its push too, so
+    // this only has to cover phones still running an old cached copy of the app.
+    if (state.deleted.includes(sh.id)) {
+      const lastAt = deletedPushAudited.get(sh.id) || 0;
+      if (Date.now() - lastAt > DELETED_AUDIT_GAP_MS) {
+        deletedPushAudited.set(sh.id, Date.now());
+        auditShoe(req, sh.id, 'skipped-deleted', null, sh);
+      }
+      return res.json({ ok: true, skipped: 'deleted' });
+    }
     if (!Array.isArray(state.shoes)) state.shoes = [];
     const i = state.shoes.findIndex(x => x.id === sh.id);
     const _before = i > -1 ? JSON.parse(JSON.stringify(state.shoes[i])) : null;

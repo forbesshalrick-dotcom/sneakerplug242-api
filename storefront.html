@@ -3013,7 +3013,15 @@ function _pushToCloud() {
     lastUpdated: new Date().toISOString(),
     pushedBy: _deviceId,          // lets other devices know who pushed
     deletedIds: deletedIds,        // graveyard travels with every push
-    shoes: shoes.map(function(s){
+    // 🧹 NEVER PUSH A SHOE WE ALREADY BURIED (Rodney 2026-08-15). The graveyard travelled
+    // with every push but the shoe list itself was never filtered by it, so all 49 deleted
+    // shoes were re-sent on EVERY sync from EVERY device. The server refused each one
+    // (skipped-deleted) and wrote an audit row saying so — 963 of the last 1000 audit rows
+    // were this noise, which burned the write history down to ~3 days and made it useless
+    // for proving what happened to a shoe. They come back on each load because they are
+    // CATALOG shoes and the seed list rebuilds them, so the graveyard has to be applied
+    // here on the way out, not just merged on the way in.
+    shoes: shoes.filter(function(s){ return deletedIds.indexOf(s.id) === -1; }).map(function(s){
       return catIds.includes(s.id)
         ? (function(){var _lc={id:s.id,_catalog:true,sizes:s.sizes,sold:s.sold,price:s.price,reorder:s.reorder||false,advertised:s.advertised||false,updatedAt:s.updatedAt||0};var _ov=catalogOverrides[s.id];if(_ov&&Object.keys(_ov).length)_lc._ov=_ov;return _lc;})()
         : (function(shoe){
