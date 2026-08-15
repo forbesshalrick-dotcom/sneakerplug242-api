@@ -1358,6 +1358,7 @@ const WELCOME_NUDGE_MSG = "Let me know if you'd like to see the catalog or what 
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
 // English customer never gets Spanish/Creole auto-messages by mistake.
 const subLang = new Map(); // sub -> 'en' | 'es' | 'ht' | 'fr'
+const nonTextAlertAt = new Map(); // sub -> last time we nudged staff about a swallowed photo/pin
 
 // ── 🚩 SHAKY DELIVERY (Rodney 2026-08-13) ────────────────────────────────────
 // Proven case: customer "Ben" asked for the catalogue at 00:59. His album went out with
@@ -4847,6 +4848,24 @@ function handleChat(req, res) {
     // Tell Kiki so she treats it as "pin/attachment landed", not as fresh words.
     if (nonTextReplay) {
       record(req, { endpoint: 'non-text-replay', sub, q: text.slice(0, 40) });
+      // 📎 TELL A HUMAN (Rodney 2026-08-15). A re-delivery means the customer sent a PHOTO or
+      // a LOCATION PIN and ManyChat could not hand it over — so it is sitting in WhatsApp and
+      // this server will never see it. Until now that was only a line in the log, so a
+      // swallowed pin was silent: on 14 Aug a customer's pin vanished ~60 seconds after Rodney
+      // asked them for it, and nothing said so. Rate-limited to one nudge per customer per 10
+      // minutes so a burst of attachments can't spam the staff.
+      try {
+        const _k = 'ntr|' + sub;
+        const _last = nonTextAlertAt.get(_k) || 0;
+        if (Date.now() - _last > 10 * 60 * 1000) {
+          nonTextAlertAt.set(_k, Date.now());
+          if (nonTextAlertAt.size > 500) nonTextAlertAt.delete(nonTextAlertAt.keys().next().value);
+          const _who = (ctx && ctx.name) ? ctx.name : ('customer ' + sub);
+          require('./shop').addAlert(
+            '📎 *SOMETHING DIDN\'T COME THROUGH*\n' + _who + ' just sent a photo or a location pin and WhatsApp could not pass it to Kiki.\n' +
+            'It IS in the WhatsApp thread — open it and look. Kiki cannot see it.', 'Kiki 🤖', { sub, account: ctx && ctx.store });
+        }
+      } catch (_) {}
       text += '\n\n(SYSTEM NOTE: this text is a WhatsApp RE-DELIVERY of the customer\'s previous message — they just sent something non-text that can\'t be shown to you. WHICH thing depends entirely on context: ✅ TREAT IT AS THE PIN **ONLY IF** the customer has ALREADY CONFIRMED a specific shoe AND their size AND agreed to the meet-up — a REAL, locked-in order — and the only thing you were waiting on was their location. THEN confirm warmly ("Got your pin! 📍") and call notify_manager stage "delivery_ready". ❌ In EVERY other case it is almost certainly a PHOTO (usually a picture of the shoe they want) — and this INCLUDES these traps you MUST NOT fall for: you GUESSED a shoe from a photo but they never said "yes"; you asked for a location before they actually confirmed the shoe/size; they\'re still browsing or correcting which shoe. A shoe photo is NOT a location pin (2026-07-14 AND 2026-07-19: a customer sent a SHOE PHOTO to fix Kiki\'s wrong guess and got "Got your pin!" + "driver\'s heading out" with NO confirmed order — trust-killing). ⚠️ If no order is truly confirmed, NEVER say "Got your pin", NEVER say a driver is heading out, and NEVER call notify_manager. Instead treat it as the photo it is: never claim you can\'t see pictures (you CAN — it just didn\'t come through), say "hmm that pic didn\'t come through on my end 🙈 — fire it over one more time?" (or, if the surrounding words already say what they want, just keep helping). Do NOT answer the repeated words as if freshly typed, and do NOT re-confirm an already-confirmed order.)';
     }
     // 🔴 OWNER "." MESSAGE — a message that starts with "." or "-" is Rodney/staff jumping in.

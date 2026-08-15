@@ -1318,7 +1318,10 @@ function mount(app) {
     } else {
       const label = note.kind === 'shoe' && note.shoeLabel ? `\n👟 ${note.shoeLabel}` : '';
       const msg = `📋 New task from ${note.by}:\n${note.text}${label}\n\nOpen the app to see it. ✅`;
-      try { delivery = await blastEmployees(msg, note.by); } catch (_) {}
+      // Only the staff actually rostered on this slot (Rodney 2026-08-15) — deliveries moved
+      // to the rota on 14 Aug and he asked for tasks to follow. The author is still excluded,
+      // and blastOnDuty falls back to the Manager rather than reaching nobody.
+      try { delivery = await blastOnDuty(msg, note.by); } catch (_) {}
       // Web push to installed staff phones (works when the app is closed).
       const pushBody = note.kind === 'shoe' && note.shoeLabel ? `${note.text} — ${note.shoeLabel}` : note.text;
       sendPush(`New task from ${note.by}`, pushBody, '/').catch(() => {});
