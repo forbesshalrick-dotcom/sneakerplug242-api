@@ -352,7 +352,10 @@ function dayRoster(dateStr) {
 // Record EVERY attempted change to a shoe, accepted or not. `grew` is the one that
 // matters most: a size count going UP is a size coming BACK — i.e. a revert. Kept to
 // the last MAX_SHOE_AUDIT entries and persisted, so it survives a redeploy.
-const MAX_SHOE_AUDIT = 3000;
+// Raised with the lookback above. The protections scan this newest-first and stop at the
+// cutoff, so the real limit on how far back they can see is whichever runs out first —
+// the 14 days or these rows. Writes are debounced, so the bigger file costs little.
+const MAX_SHOE_AUDIT = 8000;
 const sizeCount = (arr) => (Array.isArray(arr) ? arr.length : 0);
 function reqSource(req) {
   try {
@@ -396,7 +399,12 @@ function auditShoe(req, id, decision, before, after, extra) {
 // unmistakable: a size that was REMOVED from this very shoe within the last 48h has
 // come BACK. That we can prove from the audit itself, so that's the only thing we shout
 // about. (Rodney 2026-07-29, after years of reverts that nobody could catch in the act.)
-const REVERT_LOOKBACK_MS = 48 * 60 * 60 * 1000;
+// How far back the revert/restock protections read the audit. 48 hours was too short:
+// a size hand-added on Monday lost its protection by Thursday, so a stale phone could
+// quietly delete a restock that was only three days old (Rodney 2026-08-15). Raised to
+// 14 days, and the audit depth below raised with it — the window is only ever as good as
+// the number of rows we still hold.
+const REVERT_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
 const revertAlertAt = new Map();          // shoeId -> ts of last alert (don't nag)
 const REVERT_ALERT_GAP_MS = 10 * 60 * 1000;
 function shoeLabel(id) {
@@ -428,6 +436,16 @@ function maybeAlertRevert(entry) {
       for (const s of added) if ((aC[s] || 0) < (bC[s] || 0) && !cameBack.includes(s)) cameBack.push(s);
       for (const s of lost)  if ((aC[s] || 0) > (bC[s] || 0) && !wentAway.includes(s)) wentAway.push(s);
     }
+    // 💰 A SALE IS NOT AN UNDO (Rodney 2026-08-15). He hand-added a Cave Stone 8.5 that had
+    // never been entered, then recorded the sale of it — and got "YOUR EDIT WAS UNDONE ❌ Size
+    // 8.5 you added has DISAPPEARED" for his trouble. Nothing was undone: he added it, it
+    // sold, the stock is right. But `wentAway` only asks "was this size added in the last 48h
+    // and is it now gone?", which is exactly what a sell-through of a fresh restock looks
+    // like. applySaleToStock already stamps the audit row `via:'sale'`, so the alarm just has
+    // to read it. Selling a pair can never resurrect a size or un-sell a shoe, so cameBack and
+    // unSold are untouched — only the "your edit vanished" half is silenced.
+    // False alarms are worse than none: he stops trusting the one message that matters.
+    if (entry.via === 'sale' && wentAway.length) wentAway.length = 0;
     if (!cameBack.length && !wentAway.length && !unSold) return;   // genuine restock or sale — stay quiet
     const last = revertAlertAt.get(entry.id) || 0;
     if (Date.now() - last < REVERT_ALERT_GAP_MS) return;
@@ -1772,12 +1790,37 @@ function mount(app) {
     res.json({ ok: true, count: state.shoes.length });
   });
 
+  // 🗑️ DELETE — the most destructive path in the whole shop, and until 15 Aug 2026 it was
+  // the least defended: no staleness check and no audit row. The app pushes a delete
+  // whenever a shoe disappears from its local list, so one confused device could take a
+  // pair out of the shop and leave nothing behind explaining why.
+  //
+  // Two changes. First, the same per-shoe staleness test the edit path uses: if what we
+  // hold is newer than what this device last saw, it does not know enough about this shoe
+  // to be deleting it. Second, always write an audit row — deleting used to keep only the
+  // bare id, which is why /shop/deleted-detail has to go digging through older rows to
+  // work out what a tombstone even refers to.
   app.post('/shop/shoe/delete', (req, res) => {
     if (!auth(req, res)) return;
     const id = req.body && req.body.id;
     if (id == null) return res.status(400).json({ error: 'bad id' });
+    const i = Array.isArray(state.shoes) ? state.shoes.findIndex(x => x.id === id) : -1;
+    const _before = i > -1 ? JSON.parse(JSON.stringify(state.shoes[i])) : null;
+
+    if (i > -1) {
+      const exT = (state.shoes[i].updatedAt || state.shoes[i].createdAt || 0);
+      const baseUpd = Number(req.body.baseUpdatedAt);
+      if (Number.isFinite(baseUpd) && baseUpd > 0 && exT > baseUpd) {
+        auditShoe(req, id, 'skipped-stale', _before, null,
+                  { why: 'delete from a device that had not seen this shoe change — it saw '
+                         + new Date(baseUpd).toISOString() + ', stored is ' + new Date(exT).toISOString() });
+        return res.json({ ok: true, skipped: 'stale' });
+      }
+    }
+
     if (Array.isArray(state.shoes)) state.shoes = state.shoes.filter(x => x.id !== id);
     if (!state.deleted.includes(id)) state.deleted.push(id);
+    auditShoe(req, id, 'deleted', _before, null);
     persist('shoes.json'); persist('deleted.json'); bump();
     res.json({ ok: true });
   });

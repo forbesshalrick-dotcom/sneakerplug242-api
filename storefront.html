@@ -7497,7 +7497,17 @@ function _pushInvChanges(){
       }
     }).catch(function(){ showToast('⚠️ Change didn\'t reach the server — check your internet and redo it.', true); });
     _lastInvSnap[id]=j; } });
-  Object.keys(_lastInvSnap).forEach(function(id){ if(!(id in cur)){ shopPost('/shop/shoe/delete',{id:id}).catch(function(){}); delete _lastInvSnap[id]; } });
+  Object.keys(_lastInvSnap).forEach(function(id){ if(!(id in cur)){
+    // Deleting is the one action there is no undo for from the customer's side, so it gets
+    // the same honesty as an edit: say what version of this shoe we were looking at, and if
+    // the server refuses because it knows something we don't, SAY SO rather than shrug.
+    shopPost('/shop/shoe/delete',{id:id,baseUpdatedAt:_lastSeenUpd(id)}).then(function(res){
+      if(res && res.skipped==='stale'){
+        showToast('⚠️ A shoe did NOT get removed — this phone has an old copy. Refresh the app and check the inventory.', true);
+        try{ syncInventory(); }catch(e){}
+      }
+    }).catch(function(){});
+    delete _lastInvSnap[id]; } });
 }
 // Apply the server's shoe deltas + deletions onto our local inventory.
 function applyServerShoes(serverShoes, deletedIds){
