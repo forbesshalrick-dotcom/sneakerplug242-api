@@ -1590,8 +1590,19 @@ function mount(app) {
       // keep the old behaviour — they are the very devices causing this, and they cannot be
       // made to send anything. This closes the hole for every client from here on, and the
       // existing guards still cover the ones that never update.
-      const baseRev = Number(req.body && req.body.baseRev);
-      const revStale = Number.isFinite(baseRev) && baseRev < state.rev.n;
+      // ⚠️ PER-SHOE, NOT GLOBAL (corrected the same day it shipped). The first cut of this
+      // compared the client's global revision against the server's, which is far too coarse:
+      // the revision bumps on ANY write — a sale on another shoe, a note, a log line. So a
+      // manager editing shoe A would be refused because Kiki had just sold shoe B. Rodney
+      // already sees "did NOT save" from time to time; that version would have made it
+      // constant, and a refusal people learn to ignore is worse than no refusal at all.
+      //
+      // The real question is narrower: has THIS shoe moved under this device since it last
+      // saw it? The client sends the updatedAt it last received for this exact shoe, and if
+      // what we hold is newer, its copy is out of date — regardless of clocks, and regardless
+      // of what happened to any other shoe.
+      const baseUpd = Number(req.body && req.body.baseUpdatedAt);
+      const revStale = Number.isFinite(baseUpd) && baseUpd > 0 && exT > baseUpd;
 
       if (inT === 0 || inT < exT || revStale) {
         // A HAND EDIT FROM A STALE APP IS REFUSED OUTRIGHT, NOT HALF-APPLIED. Someone typed
@@ -1603,7 +1614,7 @@ function mount(app) {
         if (revStale && sh._manualEdit) {
           delete sh._manualEdit;
           auditShoe(req, sh.id, 'skipped-stale', _before, sh,
-                    { why: 'hand edit from a client on rev ' + baseRev + ', server is on ' + state.rev.n });
+                    { why: 'hand edit against a stale copy of this shoe — device last saw ' + new Date(baseUpd).toISOString() + ', stored is ' + new Date(exT).toISOString() });
           return res.json({ ok: true, skipped: 'stale' });
         }
         // A SALE MUST NEVER BE DROPPED (2026-07-14, the Foamposite revert): a timeless/older

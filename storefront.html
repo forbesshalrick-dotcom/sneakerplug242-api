@@ -2780,7 +2780,7 @@ function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))re
   // kept silently stripping it back out because it looked identical to the exact stale-sync revert
   // the guard exists to stop).
   if(typeof shopPost==='function'&&typeof liteShoe==='function'){
-    try{ shopPost('/shop/shoe',{shoe:Object.assign({},liteShoe(shoe),{_manualEdit:true}),baseRev:_shopLastRev}).then(function(res){
+    try{ shopPost('/shop/shoe',{shoe:Object.assign({},liteShoe(shoe),{_manualEdit:true}),baseUpdatedAt:_lastSeenUpd(shoe.id)}).then(function(res){
       if(res&&res.skipped==='stale'){ showToast('⚠️ "'+shoe.name+'" did NOT save — refresh the app and redo the change.', true); try{syncInventory();}catch(e){} }
       else if(typeof _lastInvSnap==='object'&&_lastInvSnap) _lastInvSnap[shoe.id]=JSON.stringify(liteShoe(shoe));
     }).catch(function(){ showToast('⚠️ Change didn\'t reach the server — check your internet and redo it.', true); }); }catch(e){}
@@ -7472,15 +7472,24 @@ function liteShoe(s){
   if(Array.isArray(c.frames360) && c.frames360[0] && String(c.frames360[0]).indexOf('data:')===0) c.frames360=[];
   return c;
 }
+// What updatedAt did the server last hand us for this shoe? _lastInvSnap holds the exact
+// JSON we last synced, so this is the version our edit was actually made against — not the
+// fresh stamp we are about to put on it.
+function _lastSeenUpd(id){
+  try{ var j=_lastInvSnap && _lastInvSnap[id]; if(!j) return 0;
+       var o=JSON.parse(j); return Number(o && (o.updatedAt||o.createdAt)) || 0; }
+  catch(e){ return 0; }
+}
 function _rebuildInvSnap(){ _lastInvSnap={}; shoes.forEach(function(s){ _lastInvSnap[s.id]=JSON.stringify(liteShoe(s)); }); }
 function _pushInvChanges(){
   var cur={}; shoes.forEach(function(s){ cur[s.id]=liteShoe(s); });
   Object.keys(cur).forEach(function(id){ var j=JSON.stringify(cur[id]); if(_lastInvSnap[id]!==j){
     // LOUD ON REFUSAL (2026-07-14, the Foamposite silent revert): if the server refuses this
     // change as stale, SAY SO and re-sync — never let a save silently un-happen.
-    // Tell the server which revision this device last saw. If we are behind, our copy is
-    // stale no matter what our clock says, and the server will refuse to take our word for it.
-    shopPost('/shop/shoe',{shoe:cur[id],baseRev:_shopLastRev}).then(function(res){
+    // Tell the server the updatedAt we last saw FOR THIS SHOE. If the server holds something
+    // newer, our copy is stale no matter what our clock says — and unrelated changes to other
+    // shoes never make our edit look stale.
+    shopPost('/shop/shoe',{shoe:cur[id],baseUpdatedAt:_lastSeenUpd(id)}).then(function(res){
       if(res && res.skipped==='stale'){
         var s=cur[id];
         showToast('⚠️ "'+((s&&s._ov&&s._ov.name)||id)+'" did NOT save — this phone has an old copy of the app. Refresh the app (close it fully and reopen) and redo the change.', true);
