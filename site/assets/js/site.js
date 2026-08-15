@@ -85,7 +85,7 @@
               { img: "assets/img/hero/salon-2.webp", label: "A2", name: "Signature facial", price: "$140" },
               { img: "assets/img/hero/salon-3.webp", label: "A3", name: "Hot stone 90", price: "$210" }
             ] },
-          { gap: "no reply &nbsp;·&nbsp; 20 minutes later" },
+          { gap: "no reply &nbsp;·&nbsp; follow-up, 20 minutes later" },
           { side: "out", text: "No rush at all 🌿 whenever you're ready, send me the code and I'll hold Tuesday for you.", stamp: "7:26 am", think: 900 },
           { side: "in",  text: "A1 tuesday", stamp: "7:27 am" },
           { side: "out", text: "Booked — colour & gloss, Tuesday 9am with Keva 💫 A $45 deposit makes it a priority reservation. Card on our website, CIBC or Scotiabank?", stamp: "7:27 am", think: 1000 },
@@ -106,12 +106,16 @@
               { img: "assets/img/hero/car-2.webp", label: "A2", name: "Toyota Corolla", price: "$65/day" },
               { img: "assets/img/hero/car-3.webp", label: "A3", name: "Jeep Wrangler", price: "$95/day" }
             ] },
-          { gap: "no reply &nbsp;·&nbsp; 11 minutes later" },
+          { gap: "no reply &nbsp;·&nbsp; follow-up, 11 minutes later" },
           { side: "out", text: "Still looking? 🚗 Send the code and I'll hold it — we bring it to you and collect it after, $15 flat.", stamp: "2:52 pm", think: 900 },
           { side: "in",  text: "A2 for 5 days, bring it to my house", stamp: "2:53 pm" },
           { side: "out", text: "Held ✅ Corolla, 5 days, delivered and collected — $340 all in. How you prefer to pay? Card on our site, CIBC or Scotiabank.", stamp: "2:53 pm", think: 1000 },
           { side: "in",  text: "you accept island luck?", stamp: "2:54 pm" },
-          { side: "out", text: "Yes we do 👍 Island Luck — name Out Island Auto, account 448192. Send the receipt back here and I'll confirm right away.", stamp: "2:54 pm", think: 900 }
+          { side: "out", text: "Yes we do 👍 Island Luck — name Out Island Auto, account 448192. Send the receipt back here and I'll confirm right away.", stamp: "2:54 pm", think: 900 },
+          { gap: "no receipt yet &nbsp;·&nbsp; follow-up, 40 minutes later" },
+          { side: "out", text: "No rush 🚗 just checking the Corolla's still yours — it's held till the end of the day, then it goes back on the lot.", stamp: "3:34 pm", think: 900 },
+          { side: "in",  text: "[receipt]", stamp: "3:36 pm" },
+          { side: "out", text: "Payment in ✅ Keys are set aside in your name. Friday 8am at your place — the driver calls when he's outside.", stamp: "3:36 pm", think: 900 }
         ]
       },
       {
@@ -124,19 +128,31 @@
           { side: "out", text: "Tracking it — if you're late the car waits. Sending one now.", stamp: "1:13 am", think: 800 },
           { side: "out", text: "Car's on the way ✅ Marlon, red Toyota Corolla, plate 242-1487. 3 minutes away.", stamp: "1:14 am", think: 900 },
           { gap: "5 minutes later" },
-          { side: "out", text: "He's caught a bit of traffic — give him two more minutes 🙏 he's nearly there.", stamp: "1:19 am", think: 800 }
+          { side: "out", text: "He's caught a bit of traffic — give him two more minutes 🙏 he's nearly there.", stamp: "1:19 am", think: 800 },
+          { side: "out", text: "He's outside now — red Corolla, 242-1487, by the arrivals doors 🚗", stamp: "1:22 am", think: 800 },
+          { gap: "trip finished &nbsp;·&nbsp; follow-up, 40 minutes later" },
+          { side: "out", text: "Hope Marlon got you there safe 🙏 $33 paid, receipt's in the app. Want me to book the run back to the airport now?", stamp: "2:02 am", think: 900 }
         ]
       },
       {
         tab: "Shipping",
-        header: "Tuesday 9:31 pm &nbsp;·&nbsp; counter closed at 5",
+        header: "Tuesday 6:12 pm &nbsp;·&nbsp; counter closed at 5",
         lines: [
-          { side: "in",  text: "is my package here yet? S242-4471", stamp: "9:31 pm" },
-          { side: "out", text: "Cleared and ready ✅ 9 lb, air freight $31.50 plus $15 clearing. We're shut now — come by Bay Street from 8am, or I can send it to you for $12.", stamp: "9:31 pm", think: 1000 },
-          { side: "in",  text: "send it", stamp: "9:32 pm" },
-          { side: "out", text: "Done. One thing — first collection needs a government photo ID 🪪 passport, licence or NIB card. Just the once.", stamp: "9:32 pm", think: 900 },
-          { gap: "next morning &nbsp;·&nbsp; 10:04 am" },
-          { side: "out", text: "On the van 🚚 the driver will call you when he's close — no tracking number for a local run, he just rings you.", stamp: "10:04 am", think: 900 }
+          /* The forwarder speaks FIRST. A customer waiting on a package they
+             already paid for does not want a portal — they want to be told it
+             arrived, and to see it. So: the photo of the actual box, then the
+             one thing customs needs. */
+          { side: "out", text: "Your box landed in Miami 📦 S242-4471, 9 lb — going on Friday's air run.", stamp: "6:12 pm", think: 900 },
+          { photo: { img: "assets/img/hero/ship-parcel.webp", alt: "The package that arrived, labelled S242-4471", cap: "Photographed at the Miami warehouse" } },
+          { side: "out", text: "One thing before customs 🧾 snap the order page from Amazon — the bit with the price — and send it here. I clear it for you so you're not standing at customs yourself.", stamp: "6:13 pm", think: 1000 },
+          { gap: "no reply &nbsp;·&nbsp; follow-up, next morning" },
+          { side: "out", text: "Morning 🙂 still need that receipt for S242-4471. Without it customs values the box themselves, and that's nearly always dearer.", stamp: "8:40 am", think: 900 },
+          { side: "in",  text: "[screenshot]", stamp: "8:52 am" },
+          { side: "out", text: "Perfect 👍 that's all I need. Cleared and paid: freight $31.50 plus $15 clearing. Bay Street from 8am, or I send it to you for $12.", stamp: "8:52 am", think: 1000 },
+          { side: "in",  text: "send it", stamp: "8:54 am" },
+          { side: "out", text: "Done. One thing — first collection needs a government photo ID 🪪 passport, licence or NIB card. Just the once.", stamp: "8:54 am", think: 900 },
+          { gap: "same day &nbsp;·&nbsp; 2:20 pm" },
+          { side: "out", text: "On the van 🚚 the driver will call you when he's close — no tracking number for a local run, he just rings you.", stamp: "2:20 pm", think: 900 }
         ]
       },
       {
@@ -148,7 +164,11 @@
           { side: "in",  text: "front and back", stamp: "8:14 pm" },
           { side: "out", text: "Front and back is $4 more a shirt. So $570 all in, ready Wednesday. Send the artwork or build it on the site and I'll get you on the run.", stamp: "8:14 pm", think: 1000 },
           { gap: "artwork in &nbsp;·&nbsp; next morning" },
-          { side: "out", text: "Digital proof coming over now 👀 nothing touches a shirt until you say yes.", stamp: "9:20 am", think: 900 }
+          { side: "out", text: "Digital proof coming over now 👀 nothing touches a shirt until you say yes.", stamp: "9:20 am", think: 900 },
+          { gap: "no reply &nbsp;·&nbsp; follow-up, 3 hours later" },
+          { side: "out", text: "Still need a yes on that proof 🖨 the press is free this afternoon — after that Wednesday gets tight.", stamp: "12:18 pm", think: 900 },
+          { side: "in",  text: "yes go ahead", stamp: "12:25 pm" },
+          { side: "out", text: "On the press 🔥 30 shirts, front and back, $570. Ready Wednesday — I'll message you when they're boxed.", stamp: "12:25 pm", think: 900 }
         ]
       },
       {
@@ -163,7 +183,11 @@
               { img: "assets/img/hero/est-3.webp", label: "A3", name: "Cliff terrace", price: "$9.4m" }
             ] },
           { side: "in",  text: "the unpublished one", stamp: "10:51 pm" },
-          { side: "out", text: "That one is released under NDA only. I can have a partner send it across tomorrow morning, or arrange a viewing — there is a boat for the cays.", stamp: "10:51 pm", think: 1100 }
+          { side: "out", text: "That one is released under NDA only. I can have a partner send it across tomorrow morning, or arrange a viewing — there is a boat for the cays.", stamp: "10:51 pm", think: 1100 },
+          { side: "in",  text: "send the NDA", stamp: "10:53 pm" },
+          { side: "out", text: "Sent to your email. A partner will call once it is back — he handles the cays himself.", stamp: "10:53 pm", think: 1000 },
+          { gap: "not signed &nbsp;·&nbsp; follow-up, next afternoon" },
+          { side: "out", text: "No pressure at all. The NDA is still open, and the boat goes out Thursday if you would rather see it before reading anything.", stamp: "2:40 pm", think: 1000 }
         ]
       }
     ],
@@ -234,6 +258,24 @@
       follow();
     }
 
+    /* One photo on its own, not a 3-up album. The forwarder sends a picture of
+       the actual box that landed, which is the moment a customer relaxes. */
+    function photoOf(it) {
+      var fig = document.createElement("figure");
+      fig.className = "chat-photo";
+      var im = document.createElement("img");
+      im.src = it.img; im.alt = it.alt || ""; im.width = 380; im.height = 380;
+      im.loading = "lazy"; im.decoding = "async";
+      fig.appendChild(im);
+      if (it.cap) {
+        var c = document.createElement("figcaption");
+        c.textContent = it.cap;
+        fig.appendChild(c);
+      }
+      chat.appendChild(fig);
+      follow();
+    }
+
     /* the silence. This is the bit business owners recognise instantly —
        the customer stops replying, and normally that is where the sale dies. */
     function gapOf(html) {
@@ -246,6 +288,7 @@
 
     function bubble(line) {
       if (line.album) return albumOf(line.album);
+      if (line.photo) return photoOf(line.photo);
       if (line.gap) return gapOf(line.gap);
       var el = document.createElement("div");
       el.className = "msg " + line.side;
@@ -304,7 +347,7 @@
           timers.push(setTimeout(step, 1400));
           return;
         }
-        if (line.album) {
+        if (line.album || line.photo) {
           bubble(line);
           timers.push(setTimeout(step, 1100));
           return;

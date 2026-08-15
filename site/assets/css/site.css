@@ -335,6 +335,22 @@ ul,ol{ margin:0; }
 }
 .chat-album figcaption span{ color:var(--ink-2); }
 
+/* A single photo the business sends — the parcel that landed, a proof, a
+   damaged part. Sits on the bot's side like a real WhatsApp image. */
+.chat-photo{
+  align-self:flex-end; margin:0; max-width:62%;
+  opacity:0; transform:translateY(8px);
+  animation:msg-in .42s cubic-bezier(.2,.8,.3,1) forwards;
+}
+.chat-photo img{
+  display:block; width:100%; height:auto; aspect-ratio:1/1; object-fit:cover;
+  border-radius:9px 2px 9px 9px; background:var(--bubble-in);
+}
+.chat-photo figcaption{
+  margin-top:5px; font-family:var(--ui); font-size:11px; color:var(--ink-2); line-height:1.35;
+}
+@media (max-width:420px){ .chat-photo{ max-width:74%; } }
+
 /* The silence. Every owner reading this page knows this moment — the customer
    goes quiet and that is normally where the sale dies. Here it is where the
    bot follows up on its own. */
@@ -363,7 +379,7 @@ ul,ol{ margin:0; }
 @keyframes blink{ 0%,60%,100%{opacity:.25} 30%{opacity:.9} }
 
 @media (prefers-reduced-motion:reduce){
-  .msg{ animation:none; opacity:1; transform:none; }
+  .msg,.chat-photo{ animation:none; opacity:1; transform:none; }
   .typing{ display:none; }
 }
 
