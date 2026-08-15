@@ -542,4 +542,65 @@
     var m = a.getAttribute("href").match(/demos\/([a-z-]+)\//);
     if (m) px({ e: "open-demo", d: m[1] });
   }, true);
+
+  /* ---- 5. the quote page -------------------------------------------------
+     Somebody who has just spent five minutes arguing with the BFC bot should
+     not land on a blank form. The demo tells us which build they were looking
+     at, so the page opens with that price, and offers the three ways people
+     actually start: message now, be called back, or answer the long form. */
+  var BUILDS = {
+    "bfc":         { name: "Fast food — BFC",            simple: "B$1,800", simpleMo: "B$150/month", ai: "B$5,900", aiMo: "B$250/month" },
+    "salon":       { name: "Spa & salon — Verandah House", simple: "B$3,500", simpleMo: "B$150/month", ai: "B$8,400", aiMo: "B$300/month" },
+    "restaurant":  { name: "Restaurant — Blue Hole",      simple: "B$3,200", simpleMo: "B$150/month", ai: "B$8,200", aiMo: "B$300/month" },
+    "car-rental":  { name: "Car rental — Out Island Auto", simple: "B$2,800", simpleMo: "B$150/month", ai: "B$7,200", aiMo: "B$250/month" },
+    "estate":      { name: "Real estate — Fitzwilliam & Cay", simple: "B$4,400", simpleMo: "B$150/month", ai: "B$8,900", aiMo: "B$350/month" },
+    "print-shop":  { name: "T-shirt printing — Press 242", simple: "B$5,000", simpleMo: "B$200/month", ai: "B$8,200", aiMo: "B$300/month" },
+    "freight":     { name: "Shipping — Ship242",          simple: "B$4,800", simpleMo: "B$150/month", ai: "B$8,800", aiMo: "B$350/month" },
+    "rideshare":   { name: "Ride share — Ryde 242",       simple: "B$4,400", simpleMo: "B$150/month", ai: "B$8,600", aiMo: "B$400/month" }
+  };
+
+  (function quotePage() {
+    var card = document.getElementById("quote-card");
+    if (!card) return;
+    var which = (location.search.match(/[?&]demo=([a-z-]+)/) || [])[1];
+    var b = which && BUILDS[which];
+
+    if (b) {
+      card.hidden = false;
+      var set = function (id, v) { var e = document.getElementById(id); if (e) e.textContent = v; };
+      set("q-name", b.name);
+      set("q-simple", b.simple); set("q-simple-mo", "+ " + b.simpleMo);
+      set("q-ai", b.ai);         set("q-ai-mo", "+ " + b.aiMo);
+      set("q-title", "That build, priced.");
+      set("q-lead", "This is the exact site you were just using, with what it costs. Pick how you would like to start.");
+
+      /* the WhatsApp message already says which one they mean — they should
+         never have to explain what they were looking at */
+      var wa = document.getElementById("wa-link");
+      if (wa) {
+        wa.href = "https://wa.me/12424481632?text=" +
+          encodeURIComponent("Hi — I was looking at the " + b.name + " demo (" + b.simple + " simple / " + b.ai + " with AI). I'd like to talk about one for my business.");
+      }
+    }
+
+    /* the call-back form: three fields, straight to WhatsApp so it is in writing */
+    var cf = document.getElementById("call-form");
+    if (cf) {
+      cf.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var g = function (n) { var el = cf.elements[n]; return el && el.value ? el.value.trim() : ""; };
+        var lines = [
+          "Please call me back.",
+          "",
+          "Name: " + g("cbname"),
+          "Business: " + g("cbbiz"),
+          "Number: " + g("cbnum")
+        ];
+        if (b) lines.push("Looking at: " + b.name + " (" + b.simple + " / " + b.ai + ")");
+        window.open("https://wa.me/" + cf.dataset.number + "?text=" + encodeURIComponent(lines.join("\n")), "_blank", "noopener");
+        var done = document.getElementById("call-done");
+        if (done) { done.hidden = false; done.focus(); }
+      });
+    }
+  })();
 })();

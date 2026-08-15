@@ -15,7 +15,7 @@
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="assets/css/site.css?v=20260815b">
+<link rel="stylesheet" href="assets/css/site.css?v=20260815c">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -41,13 +41,70 @@
     <div class="wrap">
       <div class="sec-head">
         <p class="eyebrow">Start a project</p>
-        <h1 class="h-xl">Six questions.</h1>
-        <p class="lead">Enough for us to know whether we can help and what it would cost. We reply within 4 business hours. If you would rather just talk, the WhatsApp button is right there — most people use that.</p>
+        <h1 class="h-xl" id="q-title">Three ways to start.</h1>
+        <p class="lead" id="q-lead">Pick whichever suits you. A message is usually answered in about five minutes; a call-back is arranged the same day.</p>
+      </div>
+
+      <!-- Filled in from ?demo= when somebody arrives from a demo, so the page
+           opens by telling them the price of the exact thing they just used
+           instead of asking them six questions first (Rodney 15 Aug 2026). -->
+      <div class="quote-card" id="quote-card" hidden>
+        <div class="quote-head">
+          <p class="eyebrow">The build you were just looking at</p>
+          <h2 class="h-md" id="q-name">—</h2>
+        </div>
+        <div class="quote-prices">
+          <div class="quote-price">
+            <span class="k">Simple</span>
+            <span class="v" id="q-simple">—</span>
+            <span class="s" id="q-simple-mo">—</span>
+            <span class="n">Nothing answers. Messages wait for you.</span>
+          </div>
+          <div class="quote-price hot">
+            <span class="k">With AI</span>
+            <span class="v" id="q-ai">—</span>
+            <span class="s" id="q-ai-mo">—</span>
+            <span class="n">It answers, prices it, takes the order, follows up.</span>
+          </div>
+        </div>
+        <p class="quote-terms">
+          <b>How you pay:</b> half to start, half on launch. Bank transfer (CIBC or Scotiabank),
+          cash, or card on request. Fixed price in writing before anything begins — that number
+          does not move. The monthly starts the day the site goes live, not before.
+        </p>
       </div>
 
       <div class="contact-grid">
 
         <div>
+          <!-- ROUTE 1: they want to be phoned. Three fields, nothing else — asking a
+               busy shop owner six questions before you have even spoken is how you
+               lose the ones who were ready. -->
+          <form class="form callback" id="call-form" data-number="12424481632">
+            <p class="eyebrow" style="margin-bottom:4px">Rather talk?</p>
+            <h2 class="h-md" style="margin-bottom:6px">We call you.</h2>
+            <p class="hint" style="margin-bottom:14px">Three things and we ring you back today. No charge, no pitch — mostly us listening.</p>
+            <div class="field">
+              <label for="cb-name">Your name</label>
+              <input id="cb-name" name="cbname" type="text" required autocomplete="name">
+            </div>
+            <div class="field">
+              <label for="cb-biz">Business name</label>
+              <input id="cb-biz" name="cbbiz" type="text" required autocomplete="organization">
+            </div>
+            <div class="field">
+              <label for="cb-num">Number to call</label>
+              <input id="cb-num" name="cbnum" type="tel" required autocomplete="tel" placeholder="242 …">
+            </div>
+            <button class="btn btn-primary" type="submit">Ask for a call</button>
+            <p class="hint">Sends us your details on WhatsApp so we have them in writing. Nothing is stored on this website.</p>
+            <p id="call-done" tabindex="-1" hidden class="hint" style="color:var(--accent-ink)">
+              Sent 👍 press send in WhatsApp and we will ring you back today.
+            </p>
+          </form>
+
+          <details class="more-form">
+            <summary>Or answer six questions and we will quote it in writing</summary>
           <form class="form" id="start-form" name="start" method="POST"
                 data-mode="whatsapp" data-number="12424481632"
                 data-netlify="true" netlify-honeypot="company-website">
@@ -106,14 +163,15 @@
               WhatsApp should have opened in a new tab with your answers filled in — press send there and we have got it.
             </p>
           </form>
+          </details>
         </div>
 
         <aside class="stack stack-lg">
           <div class="stack stack-sm">
-            <p class="eyebrow">Faster</p>
-            <h2 class="h-md">Skip the form.</h2>
-            <p class="muted" style="font-size:15.5px">One message is enough to start. Say what you sell and we will take it from there.</p>
-            <a class="btn btn-primary" href="https://wa.me/12424481632?text=Hi%2C%20I%27d%20like%20to%20talk%20about%20a%20website%20for%20my%20business." rel="noopener" style="align-self:flex-start">Message us on WhatsApp</a>
+            <p class="eyebrow">Fastest</p>
+            <h2 class="h-md">Just message us.</h2>
+            <p class="muted" style="font-size:15.5px">One message is enough to start. Most are answered in about <b>five minutes</b> — and if it is the middle of the night, first thing in the morning.</p>
+            <a class="btn btn-primary" id="wa-link" href="https://wa.me/12424481632?text=Hi%2C%20I%27d%20like%20to%20talk%20about%20a%20website%20for%20my%20business." rel="noopener" style="align-self:flex-start">Message us on WhatsApp</a>
           </div>
 
           <div class="stack stack-sm">
@@ -124,7 +182,7 @@
           <div class="stack stack-sm">
             <p class="eyebrow">What happens next</p>
             <ol class="muted" style="padding-left:1.2em;font-size:15.5px;display:flex;flex-direction:column;gap:8px">
-              <li>We reply within 4 business hours.</li>
+              <li>We answer — usually within about five minutes.</li>
               <li>A 30-minute call, no charge, mostly us listening.</li>
               <li>A written proposal with one fixed price and a date.</li>
               <li>You say yes or no. No follow-up pestering either way.</li>
@@ -185,6 +243,6 @@
   </div>
 </footer>
 
-<script src="assets/js/site.js?v=20260815b" defer></script>
+<script src="assets/js/site.js?v=20260815c" defer></script>
 </body>
 </html>
