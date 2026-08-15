@@ -1572,7 +1572,40 @@ function mount(app) {
       // brand-new shoes, never overwrite an existing one. This closes the last revert hole.
       const exT = (state.shoes[i].updatedAt || state.shoes[i].createdAt || 0);
       const inT = (sh.updatedAt || sh.createdAt || 0);
-      if (inT === 0 || inT < exT) {
+
+      // 🧭 THE ROOT CURE (Rodney 2026-08-15): stop trusting the pushing device's clock.
+      //
+      // Every guard above this line is a patch on one symptom, and they exist because the
+      // staleness test itself was unreliable: a phone that has been sitting open all day
+      // still stamps Date.now() at push time, so its ANCIENT data arrives wearing a fresh
+      // timestamp and walks straight through "newest wins". The device is the only witness
+      // to its own freshness, and it is not a reliable one.
+      //
+      // The server already hands every client a revision number with /shop/state, and the
+      // app already remembers it. So ask for it back. A client that last synced at rev 400
+      // and is pushing while the server is on 412 is provably eleven revisions behind, no
+      // matter what its clock says. That is a staleness signal the stale device cannot fake.
+      //
+      // Backwards compatible on purpose: old cached copies of the app send no baseRev and
+      // keep the old behaviour — they are the very devices causing this, and they cannot be
+      // made to send anything. This closes the hole for every client from here on, and the
+      // existing guards still cover the ones that never update.
+      const baseRev = Number(req.body && req.body.baseRev);
+      const revStale = Number.isFinite(baseRev) && baseRev < state.rev.n;
+
+      if (inT === 0 || inT < exT || revStale) {
+        // A HAND EDIT FROM A STALE APP IS REFUSED OUTRIGHT, NOT HALF-APPLIED. Someone typed
+        // this into the edit form on a device showing old data — so their "correct" list is
+        // built on stock that has since moved. Quietly taking the shrink would delete whatever
+        // changed in between; quietly dropping it would be the silent revert we are trying to
+        // kill. The app already knows what to do with skipped:'stale' — it shouts at the user
+        // to refresh and redo, which is the only honest outcome.
+        if (revStale && sh._manualEdit) {
+          delete sh._manualEdit;
+          auditShoe(req, sh.id, 'skipped-stale', _before, sh,
+                    { why: 'hand edit from a client on rev ' + baseRev + ', server is on ' + state.rev.n });
+          return res.json({ ok: true, skipped: 'stale' });
+        }
         // A SALE MUST NEVER BE DROPPED (2026-07-14, the Foamposite revert): a timeless/older
         // push that only SHRINKS stock — same-or-fewer sizes and/or flips sold ON — is a human
         // marking a sale on a phone running an old cached app. Silently skipping it meant the

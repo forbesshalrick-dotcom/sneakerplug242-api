@@ -2780,7 +2780,7 @@ function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))re
   // kept silently stripping it back out because it looked identical to the exact stale-sync revert
   // the guard exists to stop).
   if(typeof shopPost==='function'&&typeof liteShoe==='function'){
-    try{ shopPost('/shop/shoe',{shoe:Object.assign({},liteShoe(shoe),{_manualEdit:true})}).then(function(res){
+    try{ shopPost('/shop/shoe',{shoe:Object.assign({},liteShoe(shoe),{_manualEdit:true}),baseRev:_shopLastRev}).then(function(res){
       if(res&&res.skipped==='stale'){ showToast('⚠️ "'+shoe.name+'" did NOT save — refresh the app and redo the change.', true); try{syncInventory();}catch(e){} }
       else if(typeof _lastInvSnap==='object'&&_lastInvSnap) _lastInvSnap[shoe.id]=JSON.stringify(liteShoe(shoe));
     }).catch(function(){ showToast('⚠️ Change didn\'t reach the server — check your internet and redo it.', true); }); }catch(e){}
@@ -3743,7 +3743,7 @@ function openBrandList(){
       {id:'jordan4blackred001',brand:'Jordan',name:'Air Jordan 4 Retro',color:'Black/Red',price:180,sizes:['5.5','5.5','6.5','6.5','7','8','8.5','8.5','9','9','9.5','9.5','9.5','10','10','10.5','13','13'],nickname:'Bred Reimagined',dropDate:'2024',styleCode:'',notes:'Black-based Bred variant'},
       {id:'jordan4military001',brand:'Jordan',name:'Air Jordan 4 Retro',color:'White/Black/Gold',price:180,sizes:['7','8','8.5','9.5','12','12','13'],nickname:'Military Blue',dropDate:'May 11, 2024',styleCode:'FV5029-141',notes:'First OG retro ever — massive release'},
       {id:'jordan11grey001',brand:'Jordan',name:'Air Jordan 11 Retro',color:'Cool Grey/White',price:180,sizes:['7','8','10.5','12','13'],nickname:'Cool Grey',dropDate:'Dec 2021',styleCode:'CT8012-005',notes:'Holiday 2021 release'},
-      {id:'jordan4taupe001',brand:'Jordan',name:'Air Jordan 4 Retro',color:'Taupe/Grey',price:180,sizes:['5.5','5.5','6.5','6.5','7','7','8','8','9','9','9.5','9.5','9.5','10','10','10.5','10.5','10.5','12','12','13','13'],nickname:'Cave Stone',dropDate:'2024',styleCode:'',notes:'Earthy neutral colorway'},
+      {id:'jordan4taupe001',brand:'Jordan',name:'Air Jordan 4 Retro',color:'Taupe/Grey',price:180,sizes:['5.5','5.5','6.5','6.5','7','7','8','8','8.5','9','9','9.5','9.5','9.5','10','10.5','10.5','12','12','13','13'],nickname:'Cave Stone',dropDate:'2024',styleCode:'',notes:'Earthy neutral colorway'},
       {id:'jordan11tan001',brand:'Jordan',name:'Air Jordan 11 Retro',color:'Tan/Wheat',price:180,sizes:['7','8','10.5','12','13'],nickname:'H Town',dropDate:'Dec 2023',styleCode:'DV1723-200',notes:'Holiday 2023 — Designed by Michael and Jeffrey Jordan'},
       {id:'jordan4purple002',brand:'Jordan',name:'Air Jordan 4 Retro',color:'White/Purple',price:180,sizes:['7','7','7','8','8','9','9.5'],nickname:'Hyper Violet',dropDate:'2024',styleCode:'',notes:"Women's/GS colorway"},
       {id:'jordan4blackcat001',brand:'Jordan',name:'Air Jordan 4 Retro',color:'All Black',price:180,sizes:['7','7','8','8','8.5','9','12'],nickname:'Black Cat',dropDate:'Nov 28, 2025',styleCode:'FV5029-010',notes:'Black Friday 2025 — Nike Air branding on heel'},
@@ -3901,7 +3901,7 @@ function openBrandList(){
       {id:'asicspink001',brand:'Asics',name:'Asics',color:'Pink',price:130,sizes:["11.5"],nickname:'',dropDate:'',styleCode:'',notes:''},
       {id:'asicspnksuede001',brand:'Asics',name:'Asics',color:'Pink Suede',price:130,sizes:["7","11"],nickname:'',dropDate:'',styleCode:'',notes:''},
       {id:'asicsred001',brand:'Asics',name:'Asics',color:'Red',price:130,sizes:["6.5","7"],nickname:'',dropDate:'',styleCode:'',notes:''},
-      {id:'asicsblk001',brand:'Asics',name:'Asics',color:'All Black',price:130,sizes:["5.5","6.5","7","7","7.5","7.5","7.5","7.5","8","8","8","8","8","8","8","9","9.5","11.5","11.5","11.5","11.5"],nickname:'',dropDate:'',styleCode:'',notes:''},
+      {id:'asicsblk001',brand:'Asics',name:'Asics',color:'All Black',price:130,sizes:["5.5","7","7","7.5","7.5","7.5","7.5","8","8","8","8","8","8","8.5","8.5","8.5","8.5","8.5","11.5","11.5"],nickname:'',dropDate:'',styleCode:'',notes:''},
       {id:'nb1906black001',brand:'New Balance',name:'New Balance 1906',color:'All Black',price:130,sizes:["5.5","5.5"],nickname:'',dropDate:'',styleCode:'',notes:''},
       {id:'nb1000fgreen001',brand:'New Balance',name:'New Balance 1000',color:'Forest Green',price:130,sizes:["5.5","6.5","7","7.5"],nickname:'',dropDate:'',styleCode:'',notes:''},
       {id:'nb9060white001',brand:'New Balance',name:'New Balance 9060',color:'White',price:130,sizes:["9.5","10.5","11","11","11"],nickname:'',dropDate:'',styleCode:'',notes:''},
@@ -7478,7 +7478,9 @@ function _pushInvChanges(){
   Object.keys(cur).forEach(function(id){ var j=JSON.stringify(cur[id]); if(_lastInvSnap[id]!==j){
     // LOUD ON REFUSAL (2026-07-14, the Foamposite silent revert): if the server refuses this
     // change as stale, SAY SO and re-sync — never let a save silently un-happen.
-    shopPost('/shop/shoe',{shoe:cur[id]}).then(function(res){
+    // Tell the server which revision this device last saw. If we are behind, our copy is
+    // stale no matter what our clock says, and the server will refuse to take our word for it.
+    shopPost('/shop/shoe',{shoe:cur[id],baseRev:_shopLastRev}).then(function(res){
       if(res && res.skipped==='stale'){
         var s=cur[id];
         showToast('⚠️ "'+((s&&s._ov&&s._ov.name)||id)+'" did NOT save — this phone has an old copy of the app. Refresh the app (close it fully and reopen) and redo the change.', true);
