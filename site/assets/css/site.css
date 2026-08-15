@@ -257,6 +257,27 @@ ul,ol{ margin:0; }
 .chat > :first-child{ margin-top:auto; }
 /* trade selector above the hero conversation — the visitor is a restaurant
    or a salon, so they should be able to see themselves in it */
+/* the language switch above the hero thread */
+.lang-line{
+  display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;
+  margin:0 0 10px; font-size:14px; color:var(--ink-2); line-height:1.5;
+}
+.lang-line #lang-now{ color:var(--ink); font-weight:600; }
+.lang-switch{
+  font:inherit; font-weight:600; cursor:pointer;
+  background:none; border:0; padding:2px 8px;
+  color:var(--accent-ink);
+  border:1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius:999px;
+  transition:background .15s ease, border-color .15s ease;
+}
+.lang-switch::before{ content:"↻ "; opacity:.7; }
+.lang-switch:hover{
+  background:color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color:var(--accent);
+}
+.lang-switch:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
 .chat-tabs{
   display:flex; gap:1px; background:var(--line);
   border:1px solid var(--line); border-bottom:none;

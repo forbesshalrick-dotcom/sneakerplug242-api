@@ -18,7 +18,7 @@
 <link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" as="image" href="assets/img/hero/food-1.webp">
-<link rel="stylesheet" href="assets/css/site.css?v=20260814h">
+<link rel="stylesheet" href="assets/css/site.css?v=20260814i">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -57,6 +57,15 @@
       <div class="chat-shell">
         <span class="mark tl"></span><span class="mark tr"></span>
         <span class="mark bl"></span><span class="mark br"></span>
+
+        <!-- The multilingual claim, proved rather than described. The button
+             cycles the WHOLE hero — every trade, every message — through
+             Spanish and Haitian Creole and back. -->
+        <p class="lang-line">
+          It answers in whatever language the customer writes in —
+          right now <span id="lang-now">English</span>.
+          <button type="button" id="lang-switch" class="lang-switch" data-lang="en">Spanish</button>
+        </p>
 
         <div class="chat-tabs" role="group" aria-label="Example conversations by trade">
           <button class="chat-tab" type="button" aria-pressed="true" data-convo="0">Restaurant</button>
@@ -457,7 +466,7 @@
   </div>
 </footer>
 
-<script src="assets/js/site.js?v=20260814h" defer></script>
+<script src="assets/js/site.js?v=20260814i" defer></script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
