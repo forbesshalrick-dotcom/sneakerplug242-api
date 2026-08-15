@@ -8,8 +8,8 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" as="image" href="img/hero.webp" fetchpriority="high">
-<link rel="stylesheet" href="../assets/preview.css?v=20260815a">
-<link rel="stylesheet" href="../assets/demo.css?v=20260815a">
+<link rel="stylesheet" href="../assets/preview.css?v=20260815b">
+<link rel="stylesheet" href="../assets/demo.css?v=20260815b">
 <style>
   :root{
     --d-ground:#FBF9F5; --d-surface:#F1ECE3; --d-ink:#2B2822; --d-ink-2:#6B6459;
@@ -76,7 +76,18 @@
 
   .menu-cols{ display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:clamp(26px,4vw,54px); }
   .menu-block h3{ font-family:var(--d-display); font-size:27px; font-weight:400; padding-bottom:12px; border-bottom:1px solid var(--d-line); }
-  .svc{ display:flex; justify-content:space-between; align-items:baseline; gap:14px; padding:14px 0; border-bottom:1px solid var(--d-line); }
+  .svc{
+    display:flex; justify-content:space-between; align-items:baseline; gap:14px;
+    padding:14px 2px; border-bottom:1px solid var(--d-line);
+    width:100%; text-align:left; background:none; border-top:0; border-inline:0;
+    font:inherit; color:inherit; cursor:pointer;
+    transition:background .15s ease, padding-inline .15s ease;
+  }
+  .svc:hover, .svc:focus-visible{ background:var(--d-surface); padding-inline:10px; }
+  .svc:focus-visible{ outline:2px solid var(--d-accent); outline-offset:-2px; }
+  /* a quiet affordance — it should read as tappable without shouting */
+  .svc .pr::after{ content:" →"; color:var(--d-accent); opacity:0; transition:opacity .15s ease; }
+  .svc:hover .pr::after, .svc:focus-visible .pr::after{ opacity:1; }
   .svc .nm{ font-size:15.5px; }
   .svc .nm small{ display:block; color:var(--d-ink-2); font-size:13px; margin-top:3px; }
   .svc .pr{ font-family:var(--d-display); font-size:19px; white-space:nowrap; }
@@ -168,34 +179,34 @@
       <div class="menu-cols">
         <div class="menu-block">
           <h3>Hair</h3>
-          <div class="svc"><span class="nm">Cut &amp; finish<small>Consultation, wash, blow out</small></span><span class="pr">95</span></div>
-          <div class="svc"><span class="nm">Colour &amp; gloss<small>Full head, toner, treatment</small></span><span class="pr">180</span></div>
-          <div class="svc"><span class="nm">Keratin smoothing<small>Three to four hours</small></span><span class="pr">260</span></div>
-          <div class="svc"><span class="nm">Knotless braiding<small>From mid-back length</small></span><span class="pr">200</span></div>
+          <button type="button" class="svc" data-book="Cut & finish"><span class="nm">Cut &amp; finish<small>Consultation, wash, blow out</small></span><span class="pr">95</span></button>
+          <button type="button" class="svc" data-book="Colour & gloss"><span class="nm">Colour &amp; gloss<small>Full head, toner, treatment</small></span><span class="pr">180</span></button>
+          <button type="button" class="svc" data-book="Keratin smoothing"><span class="nm">Keratin smoothing<small>Three to four hours</small></span><span class="pr">260</span></button>
+          <button type="button" class="svc" data-book="Knotless braiding"><span class="nm">Knotless braiding<small>From mid-back length</small></span><span class="pr">200</span></button>
         </div>
 
         <div class="menu-block">
           <h3>Skin</h3>
-          <div class="svc"><span class="nm">Signature facial<small>75 minutes, deep cleanse</small></span><span class="pr">140</span></div>
-          <div class="svc"><span class="nm">Dermaplane<small>Resurfacing, 45 minutes</small></span><span class="pr">120</span></div>
-          <div class="svc"><span class="nm">LED light therapy<small>Add on or stand alone</small></span><span class="pr">90</span></div>
-          <div class="svc"><span class="nm">Chemical peel<small>Consultation required</small></span><span class="pr">165</span></div>
+          <button type="button" class="svc" data-book="Signature facial"><span class="nm">Signature facial<small>75 minutes, deep cleanse</small></span><span class="pr">140</span></button>
+          <button type="button" class="svc" data-book="Dermaplane"><span class="nm">Dermaplane<small>Resurfacing, 45 minutes</small></span><span class="pr">120</span></button>
+          <button type="button" class="svc" data-book="LED light therapy"><span class="nm">LED light therapy<small>Add on or stand alone</small></span><span class="pr">90</span></button>
+          <button type="button" class="svc" data-book="Chemical peel"><span class="nm">Chemical peel<small>Consultation required</small></span><span class="pr">165</span></button>
         </div>
 
         <div class="menu-block">
           <h3>Massage &amp; body</h3>
-          <div class="svc"><span class="nm">Swedish<small>60 minutes, in the garden room</small></span><span class="pr">130</span></div>
-          <div class="svc"><span class="nm">Deep tissue<small>90 minutes</small></span><span class="pr">190</span></div>
-          <div class="svc"><span class="nm">Hot stone<small>90 minutes</small></span><span class="pr">210</span></div>
-          <div class="svc"><span class="nm">Prenatal<small>60 minutes, side-lying</small></span><span class="pr">140</span></div>
-          <div class="svc"><span class="nm">Reflexology<small>45 minutes</small></span><span class="pr">95</span></div>
+          <button type="button" class="svc" data-book="Swedish"><span class="nm">Swedish<small>60 minutes, in the garden room</small></span><span class="pr">130</span></button>
+          <button type="button" class="svc" data-book="Deep tissue"><span class="nm">Deep tissue<small>90 minutes</small></span><span class="pr">190</span></button>
+          <button type="button" class="svc" data-book="Hot stone"><span class="nm">Hot stone<small>90 minutes</small></span><span class="pr">210</span></button>
+          <button type="button" class="svc" data-book="Prenatal"><span class="nm">Prenatal<small>60 minutes, side-lying</small></span><span class="pr">140</span></button>
+          <button type="button" class="svc" data-book="Reflexology"><span class="nm">Reflexology<small>45 minutes</small></span><span class="pr">95</span></button>
         </div>
 
         <div class="menu-block">
           <h3>Rituals</h3>
-          <div class="svc"><span class="nm">Half-day retreat<small>Facial, massage, lunch on the verandah</small></span><span class="pr">420</span></div>
-          <div class="svc"><span class="nm">Couples ritual<small>Side by side, two therapists</small></span><span class="pr">560</span></div>
-          <div class="svc"><span class="nm">Bridal morning<small>Party of four and up</small></span><span class="pr">380</span></div>
+          <button type="button" class="svc" data-book="Half-day retreat"><span class="nm">Half-day retreat<small>Facial, massage, lunch on the verandah</small></span><span class="pr">420</span></button>
+          <button type="button" class="svc" data-book="Couples ritual"><span class="nm">Couples ritual<small>Side by side, two therapists</small></span><span class="pr">560</span></button>
+          <button type="button" class="svc" data-book="Bridal morning"><span class="nm">Bridal morning<small>Party of four and up</small></span><span class="pr">380</span></button>
         </div>
       </div>
     </div>
@@ -449,8 +460,8 @@ Tick them here as you go.</p>
   restart();
 })();
 </script>
-<script src="../assets/lightbox.js?v=20260815a"></script>
-<script src="../assets/bot.js?v=20260815a"></script>
+<script src="../assets/lightbox.js?v=20260815b"></script>
+<script src="../assets/bot.js?v=20260815b"></script>
 <script>
 var TREATMENTS = {
   "Hair": [
@@ -479,7 +490,7 @@ var TREATMENTS = {
   ]
 };
 
-DemoBot.start({
+var salonBot = DemoBot.start({
   mount: "#book-bot",
   ai: "salon",
   botName: "Verandah House",
@@ -590,6 +601,19 @@ DemoBot.start({
     };
   }
 });
+</script>
+<script>
+/* Tap a treatment, start booking it. The list was decoration until now — sixteen
+   prices nobody could act on. This is the difference between a brochure and the
+   thing we are actually selling. */
+(function(){
+  document.querySelectorAll('.svc[data-book]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var t = b.getAttribute('data-book');
+      if (salonBot && salonBot.send) salonBot.send(t);
+    });
+  });
+})();
 </script>
 </body>
 </html>

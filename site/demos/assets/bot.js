@@ -170,6 +170,11 @@ window.DemoBot = (function () {
        so a customer answers with two characters instead of a description. */
     function album(items) {
       var wrap = el("div", "bot-album");
+      /* A two-column grid with one thing in it leaves a hole where the second
+         photo should be, and it reads as a picture that failed to load — Rodney
+         reported exactly that as "only 1 picture came thru" (15 Aug 2026). Let
+         the album know how many it is showing and size itself accordingly. */
+      if (items.length === 1) wrap.classList.add("one");
       items.forEach(function (it) {
         var fig = el("figure");
         /* not everything has a photo — a treatment or a price tier still gets
@@ -179,7 +184,7 @@ window.DemoBot = (function () {
           im.src = it.img; im.alt = it.name || it.label; im.loading = "lazy";
           fig.appendChild(im);
         } else {
-          fig.appendChild(el("div", "no-shot", "—"));
+          fig.appendChild(el("div", "no-shot", it.name || it.label || ""));
         }
         var cap = el("figcaption");
         cap.appendChild(el("b", null, it.label));
@@ -820,7 +825,19 @@ window.DemoBot = (function () {
     }
 
     run();
-    return { restart: run, answers: function () { return answers; } };
+    /* Let the PAGE talk to the bot. A price list that just sits there is a menu;
+       a price list where tapping a line starts booking that exact thing is the
+       product we are selling (Rodney 15 Aug 2026 — he tapped the salon treatments
+       and nothing happened, because nothing was listening). */
+    return {
+      restart: run,
+      answers: function () { return answers; },
+      send: function (text) {
+        var mountEl = document.querySelector(cfg.mount);
+        if (mountEl && mountEl.scrollIntoView) mountEl.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+        setTimeout(function () { send(text); }, reduced ? 0 : 420);
+      }
+    };
   }
 
   return { start: start };

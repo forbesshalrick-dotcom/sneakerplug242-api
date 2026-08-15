@@ -159,6 +159,9 @@ a{ color:inherit; }
   background:var(--d-surface); padding:7px; border-radius:14px 14px 14px 3px;
   max-width:94%; animation:bot-in .34s cubic-bezier(.2,.8,.3,1) both;
 }
+/* one photo on its own: a single column, and not stretched to the full bubble
+   width — a lone square blown up looks like a mistake too */
+.bot-album.one{ grid-template-columns:minmax(0,1fr); max-width:62%; }
 .bot-album figure{ margin:0; display:flex; flex-direction:column; }
 .bot-album img{ width:100%; aspect-ratio:1; object-fit:cover; border-radius:7px 7px 0 0; display:block; }
 .bot-album figcaption{
@@ -268,9 +271,19 @@ a{ color:inherit; }
 /* an album row for something with no photo — a treatment, a price tier.
    It still carries a code so the customer can pick it the same way. */
 .bot-album figure .no-shot{
-  display:flex; align-items:center; justify-content:center;
-  aspect-ratio:1/1; background:var(--d-surface,#f0f0f0);
-  color:var(--d-ink-2,#888); font-size:20px;
+  display:flex; align-items:center; justify-content:center; text-align:center;
+  aspect-ratio:1/1; padding:8px;
+  /* NOT --d-surface: the album wrap is already that colour, so the placeholder
+     was invisible and read as a hole in the message — which is exactly what
+     Rodney saw as "only 1 picture came through" (15 Aug 2026). It now reads as
+     a deliberate text card, and carries the name instead of a dash. */
+  background:var(--d-ground,#fff);
+  border:1px solid var(--d-line,#e3e3e3);
+  border-radius:7px 7px 0 0;
+  color:var(--d-ink,#222);
+  font-family:var(--d-display,inherit);
+  font-size:13px; line-height:1.25; font-weight:600;
+  overflow:hidden;
 }
 
 /* the wait between an order going in and the driver reaching — shown, because
