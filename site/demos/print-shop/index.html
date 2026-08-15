@@ -7,8 +7,8 @@
 <meta name="description" content="A preview of a Bahamian print shop's website: design your own shirt on the page, then order it through the bot. Fictional business, working tools.">
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="../assets/preview.css?v=20260815c">
-<link rel="stylesheet" href="../assets/demo.css?v=20260815c">
+<link rel="stylesheet" href="../assets/preview.css?v=20260815d">
+<link rel="stylesheet" href="../assets/demo.css?v=20260815d">
 <style>
   :root{
     --d-ground:#fff; --d-surface:#F2F2F2; --d-ink:#0E0E0E; --d-ink-2:#5E5E5E;
@@ -57,6 +57,83 @@
   .tiers div:last-child{ border-right:0; }
   .tiers b{ display:block; font-family:"Anton",sans-serif; font-size:22px; }
   .tiers span{ font-size:13px; color:var(--d-ink-2); }
+
+  /* ── the shopfront ──────────────────────────────────────────────────────── */
+  .cat-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
+  .cat-chip{
+    font:inherit; font-size:13.5px; cursor:pointer; padding:8px 15px;
+    border:1px solid var(--d-line); background:var(--d-ground); color:var(--d-ink-2);
+    border-radius:999px; transition:all .15s ease;
+  }
+  .cat-chip:hover{ color:var(--d-ink); border-color:var(--d-ink-2); }
+  .cat-chip[aria-pressed="true"]{ background:var(--d-ink); color:var(--d-ground); border-color:var(--d-ink); }
+
+  .gcards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:14px; }
+  .gcard{
+    font:inherit; text-align:left; cursor:pointer; padding:0 0 15px;
+    background:var(--d-ground); border:1px solid var(--d-line); border-radius:var(--d-radius);
+    display:flex; flex-direction:column; gap:4px; overflow:hidden;
+    transition:border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+  }
+  .gcard:hover{ border-color:var(--d-accent); transform:translateY(-3px); box-shadow:0 12px 26px -18px rgba(0,0,0,.5); }
+  .gcard-shot{ background:var(--d-surface); display:grid; place-items:center; padding:10px 0; }
+  .gcard-shot svg{ display:block; }
+  .gcard-name{ font-weight:700; font-size:15px; padding:8px 14px 0; }
+  .gcard-spec{ font-size:12.5px; color:var(--d-ink-2); padding:0 14px; line-height:1.45; }
+  .gcard-foot{ display:flex; justify-content:space-between; align-items:baseline; gap:8px; padding:6px 14px 0; font-size:12px; color:var(--d-ink-2); }
+  .gcard-foot b{ color:var(--d-accent); font-size:14px; }
+
+  .backlink{ font:inherit; font-size:13.5px; background:none; border:0; color:var(--d-ink-2); cursor:pointer; padding:0 0 16px; }
+  .backlink:hover{ color:var(--d-ink); }
+
+  .prod{ display:grid; grid-template-columns:minmax(0,1fr); gap:26px; }
+  @media (min-width:820px){ .prod{ grid-template-columns:minmax(0,420px) minmax(0,1fr); align-items:start; } }
+  .prod-shot{ background:var(--d-surface); border-radius:var(--d-radius); padding:20px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .prod-shot svg{ display:block; }
+  .prod-colourname{ font-size:12.5px; color:var(--d-ink-2); }
+  .prod-side{ display:flex; flex-direction:column; gap:16px; }
+  .prod-spec{ font-size:13.5px; color:var(--d-ink-2); margin-top:-8px; }
+  .prod-blurb{ font-size:15px; line-height:1.6; }
+  .fieldset{ display:flex; flex-direction:column; gap:8px; }
+  .flabel{ font-family:var(--d-display); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--d-ink-2); }
+
+  .swatches{ display:flex; flex-wrap:wrap; gap:7px; }
+  .swatch{
+    width:30px; height:30px; border-radius:50%; cursor:pointer;
+    border:1px solid rgba(0,0,0,.22); padding:0; transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .swatch:hover{ transform:scale(1.1); }
+  .swatch[aria-pressed="true"]{ box-shadow:0 0 0 2px var(--d-ground), 0 0 0 4px var(--d-accent); }
+
+  .techs{ display:flex; flex-direction:column; gap:7px; }
+  .tech{
+    font:inherit; text-align:left; cursor:pointer; padding:11px 13px;
+    border:1px solid var(--d-line); background:var(--d-ground); border-radius:9px;
+    display:flex; flex-direction:column; gap:3px; transition:border-color .15s ease, background .15s ease;
+  }
+  .tech:hover{ border-color:var(--d-ink-2); }
+  .tech[aria-pressed="true"]{ border-color:var(--d-accent); background:var(--d-surface); }
+  .tech b{ font-size:14.5px; }
+  .tech span{ font-size:12.5px; color:var(--d-ink-2); line-height:1.45; }
+  .tech em{ font-style:normal; font-size:12px; color:var(--d-accent); font-weight:700; }
+
+  .sizes{ display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:7px; }
+  .sizerow{ display:flex; align-items:center; gap:7px; border:1px solid var(--d-line); border-radius:8px; padding:6px 9px; }
+  .sizerow span{ font-family:var(--d-display); font-size:12.5px; color:var(--d-ink-2); min-width:26px; }
+  .sizerow input{ width:100%; border:0; background:none; font:inherit; font-size:15px; color:var(--d-ink); min-width:0; }
+  .sizerow input:focus{ outline:none; }
+  .sizerow:focus-within{ border-color:var(--d-accent); }
+
+  .pricebox{ border:1px solid var(--d-line); border-radius:var(--d-radius); padding:14px 16px; display:flex; flex-direction:column; gap:6px; }
+  .pricebox > div{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .pricebox .k{ font-size:13px; color:var(--d-ink-2); }
+  .pricebox .v{ font-family:var(--d-display); font-weight:700; font-size:16px; font-variant-numeric:tabular-nums; }
+  .pricebox .tot{ border-top:1px solid var(--d-line); padding-top:8px; margin-top:2px; }
+  .pricebox .tot .v{ font-size:24px; color:var(--d-accent); }
+  .pricebox .brk{ font-size:12px; color:var(--d-ink-2); }
+
+  .pickline{ font-size:14.5px; color:var(--d-ink-2); }
+  .pickline b{ color:var(--d-ink); }
 </style>
 </head>
 <body>
@@ -89,11 +166,73 @@
   </section>
 
   <!-- the designer -->
-  <section class="d-section" id="studio">
+  <!-- ── the shop, in front of the designer ────────────────────────────────
+       Rodney, 15 Aug 2026, with Printify open next to this: a print shop opens
+       with a catalogue — category, garment, then colour and printing method —
+       and only then a canvas. We were dropping people straight into the canvas
+       with nothing chosen and no idea what they were printing on. -->
+  <section class="d-section" id="shop">
     <div class="d-wrap d-stack g34">
       <div class="d-stack g8">
         <p class="d-kicker">Step 1</p>
+        <h2 class="d-h2">Pick what you are printing on</h2>
+        <p class="bf-lead" style="max-width:52ch">Eleven garments, ten colours, three ways to print. Prices drop at 10, 25 and 50 — you will see it move as you fill in the sizes.</p>
+      </div>
+
+      <div id="cat-screen">
+        <div class="cat-chips" id="cat-chips" role="group" aria-label="Category"></div>
+        <div class="gcards" id="gcards"></div>
+      </div>
+
+      <div id="prod-screen" hidden>
+        <button type="button" class="backlink" id="prod-back">← All products</button>
+
+        <div class="prod">
+          <div class="prod-shot">
+            <div id="prod-svg"></div>
+            <p class="prod-colourname">Colour: <b id="prod-cname">White</b></p>
+          </div>
+
+          <div class="prod-side">
+            <h3 class="d-h3" id="prod-name">—</h3>
+            <p class="prod-spec" id="prod-spec">—</p>
+            <p class="prod-blurb" id="prod-blurb">—</p>
+
+            <div class="fieldset">
+              <p class="flabel">Colour</p>
+              <div class="swatches" id="prod-swatches" role="group" aria-label="Garment colour"></div>
+            </div>
+
+            <div class="fieldset">
+              <p class="flabel">How it is printed</p>
+              <div class="techs" id="prod-techs" role="group" aria-label="Printing method"></div>
+            </div>
+
+            <div class="fieldset">
+              <p class="flabel">How many, by size</p>
+              <div class="sizes" id="prod-sizes"></div>
+            </div>
+
+            <div class="pricebox">
+              <div><span class="k">Per shirt</span><span class="v" id="p-unit">—</span></div>
+              <div><span class="k">Quantity</span><span class="v" id="p-qty">—</span></div>
+              <div class="tot"><span class="k">Total</span><span class="v" id="p-total">—</span></div>
+              <p class="brk" id="p-breaks">Price drops at 10, 25 and 50</p>
+            </div>
+
+            <button type="button" class="d-btn" id="prod-design">Start designing →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="d-section" id="studio">
+    <div class="d-wrap d-stack g34">
+      <div class="d-stack g8">
+        <p class="d-kicker">Step 2</p>
         <h2 class="d-h2">Make your shirt</h2>
+        <p class="pickline" id="pickline" hidden></p>
       </div>
 
       <div class="studio">
@@ -186,7 +325,7 @@
 
   <section class="d-section" id="pricing">
     <div class="d-wrap d-stack g22">
-      <p class="d-kicker">Step 2</p>
+      <p class="d-kicker">Step 3</p>
       <h2 class="d-h2">Price drops as the order grows</h2>
       <div class="tiers">
         <div><b>B$22</b><span>1–9 shirts</span></div>
@@ -362,9 +501,36 @@ Tick them here.</p>
   </div>
 </footer>
 
-<script src="../assets/designer.js?v=20260815c"></script>
-<script src="../assets/bot.js?v=20260815c"></script>
+<script src="../assets/garments.js?v=20260815d"></script>
+<script src="../assets/shopfront.js?v=20260815d"></script>
+<script src="../assets/designer.js?v=20260815d"></script>
+<script src="../assets/bot.js?v=20260815d"></script>
 <script>
+Shopfront.init({
+  cats: "cat-chips", grid: "gcards",
+  cat_screen: "cat-screen", prod_screen: "prod-screen",
+  shot: "prod-svg", pname: "prod-name", pspec: "prod-spec", pblurb: "prod-blurb",
+  swatches: "prod-swatches", cname: "prod-cname", techs: "prod-techs", sizes: "prod-sizes",
+  unit: "p-unit", qty: "p-qty", total: "p-total", breaks: "p-breaks",
+  back: "prod-back", design: "prod-design",
+  /* the choice carries into the canvas — picking navy upstairs and getting a
+     white shirt downstairs is the kind of thing that makes a demo feel fake */
+  onDesign: function (pick) {
+    var studio = document.getElementById("studio");
+    var match = document.querySelector('[data-shirt="' + pick.colour.name + '"]');
+    if (match) match.click();
+    window.PICK = pick;
+    var line = document.getElementById("pickline");
+    if (line) {
+      line.hidden = false;
+      line.innerHTML = "Designing a <b>" + pick.colour.name.toLowerCase() + " " +
+        pick.product.name.toLowerCase() + "</b> · " + pick.tech +
+        (pick.qty ? " · " + pick.qty + " shirts, " + "B$" + (pick.unit).toFixed(2).replace(/\.00$/,"") + " each" : "");
+    }
+    if (studio) studio.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+
 ShirtDesigner.init({
   canvas: "#shirt",
   text:   "#shirt-text",
