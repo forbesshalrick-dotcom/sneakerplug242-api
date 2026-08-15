@@ -121,6 +121,33 @@ window.DemoBot = (function () {
       return m;
     }
 
+    /* A DROPPED PIN LOOKS LIKE A MAP, NOT LIKE THE WORDS "SENT THE PIN" (Rodney,
+       15 Aug 2026). On a real phone, tapping Location sends a little map card —
+       so when the customer picks a pin option here, show one. It is drawn rather
+       than a map image: no key, no tiles to load, no third-party request, and it
+       matches whatever colour the demo is themed in. */
+    function isPinLabel(t) {
+      return /\b(pin|location|send location|drop pin|sent the pin|📍)\b/i.test(String(t || ""));
+    }
+
+    function pinBubble(label) {
+      var m = el("div", "bot-msg in bot-pin");
+      m.innerHTML =
+        '<svg viewBox="0 0 120 74" role="img" aria-label="A dropped location pin">' +
+          '<rect width="120" height="74" class="pin-land"/>' +
+          '<path d="M0 50 H120" class="pin-road"/><path d="M0 26 H120" class="pin-road"/>' +
+          '<path d="M34 0 V74" class="pin-road"/><path d="M84 0 V74" class="pin-road"/>' +
+          '<path d="M0 62 H120" class="pin-road thin"/><path d="M58 0 V74" class="pin-road thin"/>' +
+          '<circle cx="59" cy="35" r="13" class="pin-halo"/>' +
+          '<path d="M59 25c-4.4 0-8 3.6-8 8 0 6 8 14 8 14s8-8 8-14c0-4.4-3.6-8-8-8z" class="pin-mark"/>' +
+          '<circle cx="59" cy="33" r="2.8" class="pin-dot"/>' +
+        '</svg>' +
+        '<span class="pin-cap">📍 ' + escapeHtml(label || "Location") + '</span>';
+      log.appendChild(m);
+      log.scrollTop = log.scrollHeight;
+      return m;
+    }
+
     function say(html, delay) {
       return new Promise(function (resolve) {
         if (reduced) { bubble("out", html); return resolve(); }
@@ -233,7 +260,7 @@ window.DemoBot = (function () {
 
     /* One turn of a real conversation. */
     function aiTurn(text) {
-      bubble("in", escapeHtml(text));
+      if (isPinLabel(text)) pinBubble(text); else bubble("in", escapeHtml(text));
       history.push({ role: "user", content: text });
       chips.innerHTML = "";
 
@@ -359,7 +386,7 @@ window.DemoBot = (function () {
     }
 
     function choose(step, opt, silent) {
-      if (!silent) bubble("in", escapeHtml(opt.label));   // already echoed if they typed it
+      if (!silent) { if (isPinLabel(opt.label)) pinBubble(opt.label); else bubble("in", escapeHtml(opt.label)); }   // already echoed if they typed it
       chips.innerHTML = "";
 
       if (step.multi) {
@@ -569,7 +596,7 @@ window.DemoBot = (function () {
     }
 
     function typed(text) {
-      bubble("in", escapeHtml(text));
+      if (isPinLabel(text)) pinBubble(text); else bubble("in", escapeHtml(text));
       var step = currentStep();
       if (!step) { say(cfg.afterDone || "That order is already in — tap restart to run it again."); return; }
 

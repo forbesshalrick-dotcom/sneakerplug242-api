@@ -8,8 +8,8 @@
 <meta name="robots" content="noindex">
 <link rel="icon" href="../../assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preload" as="image" href="img/car-march.webp">
-<link rel="stylesheet" href="../assets/preview.css?v=20260814j">
-<link rel="stylesheet" href="../assets/demo.css?v=20260814j">
+<link rel="stylesheet" href="../assets/preview.css?v=20260815a">
+<link rel="stylesheet" href="../assets/demo.css?v=20260815a">
 <style>
   :root{
     --d-ground:#fff; --d-surface:#EEF2F6; --d-ink:#0C1E2E; --d-ink-2:#5A6B7A;
@@ -303,8 +303,8 @@ Tick them off here as you go.</p>
   </div>
 </footer>
 
-<script src="../assets/lightbox.js?v=20260814j"></script>
-<script src="../assets/bot.js?v=20260814j"></script>
+<script src="../assets/lightbox.js?v=20260815a"></script>
+<script src="../assets/bot.js?v=20260815a"></script>
 <script>
 DemoBot.start({
   mount: "#bot",
@@ -365,6 +365,15 @@ DemoBot.start({
         { label: "Bring it to me", price: 15 },
         { label: "Our downtown office", price: 0 }
       ]
+    },
+    {
+      /* Only asked when they chose delivery — collecting from the office needs no pin.
+         Same rule the bots follow: an area name is not an address (Rodney 15 Aug 2026). */
+      key: "where",
+      when: function (a) { return /bring it to me/i.test(a.pickup || ""); },
+      free: true,
+      ask: "Where should we bring it? Drop a pin 📍 and the driver comes straight to you.",
+      options: [{ label: "📍 Drop pin" }, { label: "Type the street" }]
     },
     {
       key: "extras",

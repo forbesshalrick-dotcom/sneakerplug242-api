@@ -11,8 +11,8 @@
      land and the whole column jumps -->
 <link rel="preload" href="../../assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="../../assets/fonts/ibm-plex-mono-500.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="../assets/preview.css?v=20260814j">
-<link rel="stylesheet" href="../assets/demo.css?v=20260814j">
+<link rel="stylesheet" href="../assets/preview.css?v=20260815a">
+<link rel="stylesheet" href="../assets/demo.css?v=20260815a">
 <style>
   /* Bright, sunny and easy. This is a service ordinary people use to get their
      online shopping home — a grandmother, a teenager buying sneakers, somebody
@@ -922,7 +922,7 @@ Tick them off here.</p>
   </div>
 </footer>
 
-<script src="../assets/bot.js?v=20260814j"></script>
+<script src="../assets/bot.js?v=20260815a"></script>
 <script>
 /* Sign-up. Nothing leaves the page — this is a demo, so the "account" is made
    right here in front of you. The point is to show a client how little it takes
@@ -1157,7 +1157,17 @@ DemoBot.start({
     { key: "what", ask: "What can I do for you?",
       options: [{ label: "Track a package" }, { label: "Price a shipment" }, { label: "Get a US address" }] },
     { key: "ref", free: true, ask: "What's the box number or tracking number?",
-      options: [{ label: "S242-4471" }, { label: "Don't have it" }] }
+      options: [{ label: "S242-4471" }, { label: "Don't have it" }] },
+    /* We offer to deliver for B$12 and then never asked where to. A forwarder needs
+       an address a driver can actually find, same as everyone else (15 Aug 2026). */
+    { key: "drop",
+      ask: "Collecting from Bay Street, or want it brought to you for B$12?",
+      options: [{ label: "I'll collect" }, { label: "Bring it to me", price: 12 }] },
+    { key: "where",
+      when: function (a) { return /bring it to me/i.test(a.drop || ""); },
+      free: true,
+      ask: "Drop a pin 📍 and the driver comes straight to you — no tracking number for a local run, he just rings you.",
+      options: [{ label: "📍 Drop pin" }, { label: "Type the street" }] }
   ],
   afterOrder: [
     { wait: 1300, text: "Logged \u2705 I'll message you the moment it's cleared and ready." },
