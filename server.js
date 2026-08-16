@@ -4033,11 +4033,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // ✅ "DONE 3" / "NO 3" — a delivery answer. Handled in CODE, before the model gets a turn,
   // because this moves real stock and must not depend on Kiki interpreting it. Answering also
   // books the sale, so neither Rodney nor the employee has to open the website.
-  if (staffName && userText) {
-    const reply = handleDeliveryAnswer(userText, staffName);
+  // Rodney's own line (4324406) is deliberately a TEST CUSTOMER so his chats stay visible in
+  // the Inbox, which makes staffNameFor() return null for him. So Kiki sent him the chase on a
+  // number she was built to ignore the answer from: he replied "Done 2", it fell through to the
+  // model, the album-code matcher read the 2 as A2, and she tried to sell her own boss a shoe
+  // (real transcript 2026-08-16 17:25-17:43). managerNameForNumber ignores that override — which
+  // is precisely what it was written for.
+  //
+  // NOT done by adding DONE n to STAFF_ACTION_RE: that elevates on TEXT ALONE, and the album
+  // script tells customers to "reply with the code under it", so a real buyer typing "done 2"
+  // would have been flipped into staff mode and handed the stock tools. Gated on identity AND on
+  // an outstanding chase existing, so neither a customer nor a stray message can reach it.
+  const _deliveryAnswerBy = staffName
+    || (pendingDeliveries().length ? managerNameForNumber(req) : null);
+  if (_deliveryAnswerBy && userText) {
+    const reply = handleDeliveryAnswer(userText, _deliveryAnswerBy);
     if (reply) {
       try { await sendChunk(sub, [{ type: 'text', text: reply }], token); } catch (_) {}
-      record(req, { endpoint: 'delivery-answer', sub, by: staffName, said: String(userText).slice(0, 40) });
+      record(req, { endpoint: 'delivery-answer', sub, by: _deliveryAnswerBy, said: String(userText).slice(0, 40) });
       return;
     }
   }
