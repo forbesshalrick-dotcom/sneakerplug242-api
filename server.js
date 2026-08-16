@@ -1,4 +1,6 @@
 const express = require('express');
+const SI = require('./sneaker-inventory');
+const { HOUSE_RULES } = require('./bot-core');
 const cors = require('cors');
 const catalog = require('./catalog.json');
 
@@ -816,6 +818,7 @@ function getStore(req) {
   const acct = tok.split(':')[0];
   if (acct === '3732738') return 'Trendy Kicks';
   if (acct === '3732170') return 'Official Sneaker Crew';
+  if (acct === SI.MANYCHAT_ACCOUNT) return SI.STORE;
   return null;
 }
 
@@ -1495,6 +1498,24 @@ function buildCustomerReceiptText(sale) {
 function buildSystemPrompt({ store, name, greet = true } = {}) {
   const storeName = store || STORE_DEFAULT;
   const who = name && name.trim() ? name.trim() : '';
+
+  // Sneaker Inventory is a wholesale business, not the shop. Same manners,
+  // different trade: shops buying stock, a three-pair minimum, and a link to a
+  // filtered catalog instead of an album. Cloning the retail prompt would tell
+  // Kiki about delivery drivers and meet-ups that don't exist here.
+  if (storeName === SI.STORE) {
+    return [
+      `You are Kiki, the WhatsApp assistant for ${SI.STORE}.`,
+      who ? `The person you are talking to is called ${who}.` : '',
+      greet ? 'This is their first message — greet them once, briefly.' :
+              'You have already greeted this person. Do NOT greet them again.',
+      '',
+      HOUSE_RULES,
+      '',
+      SI.facts(),
+    ].filter(Boolean).join('\n');
+  }
+
   // Greeting is decided in CODE (only the customer's very FIRST message), not left to Kiki —
   // that's what stops the double / triple "Welcome!" when someone fires "yo", "hello", "sup".
   const siteGreetLine = SITE_LIVE ? `\n\nOr shop the full lineup anytime on our site 👉 ${WEBSITE}` : '';
@@ -3171,6 +3192,10 @@ function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, L(ASKME_T,
 const MANAGER_SUB_BY_STORE = {
   'Trendy Kicks': '2002253438',          // Driplomatics on TK
   'Official Sneaker Crew': '318550271',  // Driplomatics on OSC
+  // Sneaker Inventory: set SI_MANAGER_SUB once Rodney has messaged that number
+  // from his own phone and read his subscriber id off the contact in ManyChat.
+  // Phone lookup is not an option — WhatsApp subscribers come back phone:null.
+  ...(process.env.SI_MANAGER_SUB ? { [SI.STORE]: process.env.SI_MANAGER_SUB } : {}),
 };
 
 // 🚨 MANYCHAT WATCHDOG (Rodney 2026-07-28). Until now he only found out ManyChat was
@@ -3954,9 +3979,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       let result;
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
-        const found = searchInventory(p);
+        let found;
+        if (ctx.store === SI.STORE) {
+          // 10,000+ styles that change when stock lands, on another host. The
+          // reply carries the filtered catalog link, which is what Kiki sends
+          // instead of photos — an album of this inventory is hopeless.
+          const r = await SI.search({ query: p.query || p.color || '', brand: p.brand, limit: 6 });
+          found = r.shoes;
+          lastSearchCount = found.length;
+          result = r.ok
+            ? { shoes: found, matched: r.matched, link: r.link,
+                minimum_order_pairs: r.minOrderPairs,
+                how_to_reply: 'Send the link. Do not send photos. Say how many matched.' }
+            : { shoes: [], error: 'search unavailable' };
+        } else {
+        found = searchInventory(p);
         lastSearchCount = found.length;
         result = { shoes: found };
+        }
         // Remember the customer's size (a single concrete size search = their size) so we can
         // reuse it later without re-asking. Skip "all"/ranges/matching (sizes array).
         if (p.size != null && String(p.size).trim() !== '' && !/all/i.test(String(p.size)))
