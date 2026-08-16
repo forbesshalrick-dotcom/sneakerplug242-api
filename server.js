@@ -1829,7 +1829,7 @@ const AI_TOOLS = [
       type: 'object',
       properties: {
         customer_name: { type: 'string', description: "The customer's name, if known." },
-        shoe_id: { type: 'string', description: "The ordered shoe's id from THIS conversation's search_inventory results — its PICTURE is then attached to the owner's alert (and the reminder). Include it whenever you know which shoe the order is for." },
+        shoe_id: { type: 'string', description: "⚠️ ALWAYS include this whenever you know which shoe the order is for — an order alert without it is a job left half-done. It attaches the shoe's PICTURE to the owner's alert, AND it is what lets the pair come off the website automatically when the driver confirms the delivery. Without shoe_id (and `size`) nobody can book the sale but a human, by hand, later — which is exactly what this bot exists to avoid (Rodney 2026-08-16: a real delivery went out with neither, so it could not be logged). Use the id from THIS conversation's search_inventory results." },
         customer_phone: { type: 'string', description: "The customer's callback number IF they typed one in the chat (e.g. 'call me at 359-1234'). Leave blank otherwise — the system fills in their WhatsApp number automatically." },
         shoe: { type: 'string', description: 'The shoe(s) they are buying — colour/model.' },
         size: { type: 'string', description: 'Their size.' },
@@ -3459,14 +3459,44 @@ if (reminderTick.unref) reminderTick.unref();
 // never reconciled — and Rodney reckons a lot of them are false alarms. At 9 PM Nassau the
 // person ON SHIFT is asked to name the ones that did NOT happen; silence means they all did.
 // Goes to the rota (blastOnDuty), so it lands on Rodney only when nobody is working.
-const deliveriesToday = [];   // { day, n, at, who, what, sub, shoeId, size, price, store, confirmed, asks }
+// ⚠️ MUST SURVIVE A RESTART (Rodney 2026-08-16). This started as a plain in-memory array and
+// that cost him the very first real delivery: it was logged at 16:17, a deploy restarted the
+// server minutes later, the pending confirmation vanished, and nobody was ever asked. Every
+// push restarts this server, and pushes happen several times a day from several sessions —
+// so anything holding an unfinished job has to be on disk, exactly like reminders are.
+const DELIVERIES_FILE = REMINDERS_FILE ? REMINDERS_FILE.replace('reminders.json', 'deliveries.json') : null;
+let deliveriesToday = [];   // { day, n, at, who, what, sub, shoeId, size, price, store, confirmed, asks }
 let deliveryCounter = 0;
+try {
+  if (DELIVERIES_FILE && require('fs').existsSync(DELIVERIES_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(DELIVERIES_FILE, 'utf8')) || {};
+    const today = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+    if (saved.day === today) {
+      deliveriesToday = Array.isArray(saved.rows) ? saved.rows : [];
+      deliveryCounter = Number(saved.counter) || deliveriesToday.length;
+      console.log('[deliveries] restored', deliveriesToday.length, 'from disk —', deliveriesToday.filter(d => d.confirmed === null).length, 'still unanswered');
+    }
+  }
+} catch (e) { console.log('[deliveries] restore failed:', e.message); }
+let deliverySaveT = null;
+function saveDeliveries() {
+  if (!DELIVERIES_FILE) return;
+  clearTimeout(deliverySaveT);
+  deliverySaveT = setTimeout(() => {
+    try {
+      const day = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+      require('fs').writeFileSync(DELIVERIES_FILE, JSON.stringify({ day, counter: deliveryCounter, rows: deliveriesToday }));
+    } catch (_) {}
+  }, 800);
+  if (deliverySaveT.unref) deliverySaveT.unref();
+}
 function noteDeliveryForCheck(entry) {
   const day = nassauNow().toISOString().slice(0, 10);
   if (deliveriesToday.length && deliveriesToday[0].day !== day) { deliveriesToday.length = 0; deliveryCounter = 0; }
   const rec = Object.assign({ day, n: ++deliveryCounter, confirmed: null, asks: 0, askedAt: 0 }, entry);
   deliveriesToday.unshift(rec);
   if (deliveriesToday.length > 60) deliveriesToday.length = 60;
+  saveDeliveries();
   return rec;
 }
 
@@ -3482,7 +3512,10 @@ function noteDeliveryForCheck(entry) {
 // reply can only ever affect the one pair that alert was already about.
 function pendingDeliveries() {
   const day = nassauNow().toISOString().slice(0, 10);
-  return deliveriesToday.filter(d => d.day === day && d.confirmed === null && d.shoeId);
+  // NOTE the absence of a shoeId check. Requiring one is what made Rodney's 16:17 delivery
+  // invisible to the chaser. Whether we can auto-book it is a separate question, answered
+  // later in handleDeliveryAnswer — it must never decide whether we ask at all.
+  return deliveriesToday.filter(d => d.day === day && d.confirmed === null);
 }
 function askAboutDelivery(rec) {
   const line = `#${rec.n} — ${rec.what}${rec.who ? ' for ' + rec.who : ''}`;
@@ -3501,8 +3534,10 @@ function askAboutDelivery(rec) {
 const deliveryChaseTick = setInterval(() => {
   const now = Date.now();
   for (const rec of pendingDeliveries()) {
-    const wait = rec.asks === 0 ? 25 * 60 * 1000 : 40 * 60 * 1000;
-    if (rec.asks < 4 && now - (rec.askedAt || rec.createdAt || 0) > wait) askAboutDelivery(rec);
+    // 8 minutes, then every 20. Rodney had finished the drop and started the next one before
+    // the old 25-minute first ask was even due — by then he'd already noticed the silence.
+    const wait = rec.asks === 0 ? 8 * 60 * 1000 : 20 * 60 * 1000;
+    if (rec.asks < 5 && now - (rec.askedAt || rec.createdAt || 0) > wait) { askAboutDelivery(rec); saveDeliveries(); }
   }
 }, 5 * 60 * 1000);
 if (deliveryChaseTick.unref) deliveryChaseTick.unref();
@@ -3523,9 +3558,18 @@ function handleDeliveryAnswer(text, staffName) {
   const yes = /^(done|yes|delivered|deliver|del)$/.test(word);
   rec.confirmed = yes;
   rec.confirmedBy = staffName || 'staff';
+  saveDeliveries();
   if (!yes) {
     try { require('./shop').addAlert(`🚫 *NOT DELIVERED* — #${num} ${rec.what}${rec.who ? ' for ' + rec.who : ''}\nMarked as a false alarm by ${rec.confirmedBy}. Stock untouched.`, 'Kiki 🤖'); } catch (_) {}
     return `Got it — #${num} didn't happen. I've left the stock alone and logged it as a false alarm 👍`;
+  }
+  // Delivered, but the alert never carried a shoe id/size (Kiki didn't pass them) — we cannot
+  // book it automatically. Say so plainly and ask for the one detail that fixes it, rather
+  // than pretending it's handled.
+  if (!(rec.shoeId && rec.size)) {
+    try { require('./shop').addAlert(`✅ *DELIVERED* — #${num} ${rec.what}${rec.who ? ' for ' + rec.who : ''}\nConfirmed by ${rec.confirmedBy}. ⚠️ Kiki couldn't take it off the website automatically (the order alert didn't say which shoe/size) — mark it sold when you get a second.`, 'Kiki 🤖'); } catch (_) {}
+    saveDeliveries();
+    return `Great ✅ #${num} marked delivered. I couldn't tell which pair and size it was from the order, so I haven't touched the website — reply with the shoe and size and I'll take it off.`;
   }
   // Delivered → the server books the sale from the ORIGINAL alert's shoe id and size.
   try {
@@ -4577,8 +4621,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               price: inp.price || null,
               store: ctx.store || null,
             });
-            // Only chase deliveries we can actually book: we need the shoe and the size.
-            if (!(_rec.shoeId && _rec.size)) _rec.confirmed = undefined;
+            // Chase EVERY delivery. The first live run (2026-08-16) proved the old rule wrong:
+            // Kiki called notify_manager with no shoe_id and no size, so Rodney's delivery was
+            // silently never chased — exactly the "left blank" he complained about. Knowing the
+            // shoe only decides whether the sale can be booked AUTOMATICALLY; it must never
+            // decide whether we bother asking.
           } catch (_) {}
         }
         let waOk = false;
