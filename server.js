@@ -3687,6 +3687,50 @@ const shiftTick = setInterval(async () => {
   const scheduled = Array.from(byName.entries());
   const socialShoes = scheduled.length ? pickDailySocialShoes(tomorrow, 7) : [];
   const taskMsg = buildTaskSection(socialShoes, tomorrow);
+
+  // 🌴 WHO IS OFF TOMORROW (Rodney 2026-08-16). He asked for this after a delivery went to
+  // him instead of Deashinique and he assumed something had broken — she was simply off, and
+  // nothing had ever told him that. Silence looks identical whether the rota is right or the
+  // sheet is stale. So at the same moment the reminders go out, he's told who ISN'T working,
+  // and each of them gets a warm message rather than nothing at all.
+  try {
+    const working = new Set(scheduled.map(([nm]) => nm));
+    const everyone = Object.keys(require('./shop').getEmployees() || {})
+      .filter(nm => nm !== 'Manager' && nm !== 'Owner');
+    const offTomorrow = everyone.filter(nm => !working.has(nm));
+
+    for (const nm of offTomorrow) {
+      const key = 'off@' + nm + '@' + tomorrow;
+      if (shiftSent[key]) continue;
+      shiftSent[key] = Date.now();
+      try { if (SHIFT_SENT_FILE) require('fs').writeFileSync(SHIFT_SENT_FILE, JSON.stringify(shiftSent)); } catch (_) {}
+      const known = staffSubs[nm];
+      if (known && known.sub) {
+        const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+        const msg = `🌴 No shift for you tomorrow, ${nm} — enjoy the day off, you've earned it 🙌\n` +
+          `Rest up and we'll catch you when you're back 👟`;
+        try { await sendChunk(known.sub, [{ type: 'text', text: msg }], tk); } catch (_) {}
+      }
+    }
+    // One line to Rodney so an empty rota is never mistaken for a broken system.
+    const offKey = 'offsummary@' + tomorrow;
+    if (offTomorrow.length && !shiftSent[offKey]) {
+      shiftSent[offKey] = Date.now();
+      try { if (SHIFT_SENT_FILE) require('fs').writeFileSync(SHIFT_SENT_FILE, JSON.stringify(shiftSent)); } catch (_) {}
+      const who = offTomorrow.join(', ');
+      const cover = scheduled.length
+        ? scheduled.map(([nm, hrs]) => `${nm} (${hrs.join(' and ')})`).join(', ')
+        : 'nobody — every slot falls to you';
+      try {
+        require('./shop').addAlert(
+          `🌴 *OFF TOMORROW (${tomorrow}):* ${who}\n` +
+          `👷 Working: ${cover}\n\n` +
+          `So if a delivery alert comes to you tomorrow instead of them, that's why — not a fault. ` +
+          `If someone's actually covering, add the shift on the Schedule page and alerts will follow them.`,
+          'Kiki 🤖');
+      } catch (_) {}
+    }
+  } catch (_) {}
   for (const [nm, hourList] of scheduled) {
     const hours = hourList.join(' and ');
     const key = nm + '@' + tomorrow;
