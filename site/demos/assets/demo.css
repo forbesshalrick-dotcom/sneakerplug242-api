@@ -318,3 +318,8 @@ a{ color:inherit; }
   font-size:12.5px; line-height:1.3; opacity:.9; padding-inline:3px;
 }
 @media (prefers-reduced-motion:reduce){ .bot-msg.bot-pin{ animation:none; } }
+
+.d-nav a.nav-contact{
+  color:var(--d-accent); font-weight:700;
+}
+.d-nav a.nav-contact::after{ content:" ↗"; font-size:.85em; opacity:.75; }
