@@ -3558,14 +3558,34 @@ function handleDeliveryAnswer(text, staffName) {
   const core = t.replace(/^[^a-z0-9]+/i, '').replace(/[^a-z0-9]+$/i, '');
   const m = /^(done|yes|delivered|deliver|del|no|nope|didn'?t|did not|failed|cancel(?:led)?)[^0-9]{0,12}(\d{1,3})$/i.exec(core)
          || /^(\d{1,3})[^a-z0-9]{0,6}(done|yes|delivered|no|nope|failed|cancel(?:led)?)$/i.exec(core);
-  if (!m) return null;
-  const wordFirst = /^[a-z]/i.test(m[1]);
-  const word = (wordFirst ? m[1] : m[2]).toLowerCase();
-  const num = parseInt(wordFirst ? m[2] : m[1], 10);
+  let word, num;
+  if (m) {
+    const wordFirst = /^[a-z]/i.test(m[1]);
+    word = (wordFirst ? m[1] : m[2]).toLowerCase();
+    num = parseInt(wordFirst ? m[2] : m[1], 10);
+  } else {
+    // NO NUMBER GIVEN. Rodney asked for this in as many words (2026-08-16): "I can report as
+    // done by saying yes sold or done and she knows which 1 instead of switching the shoe."
+    // He's driving a route — reading a number back off a message is the part that fails.
+    // Only ever safe when exactly ONE delivery is outstanding. With two open she MUST ask,
+    // because a wrong guess books the wrong pair and takes it off the website.
+    const bare = /^(done|yes|yeah|yep|delivered|deliver|del|sold|done deal|went through)$/i.exec(core)
+              || /^(no|nope|didn'?t|did not|not delivered|failed|cancel(?:led)?)$/i.exec(core);
+    if (!bare) return null;
+    const open = pendingDeliveries();
+    if (!open.length) return null;   // nothing outstanding → not an answer, let the model have it
+    if (open.length > 1) {
+      return `Which one? 🤔 I've got ${open.length} waiting:\n`
+        + open.map(d => `#${d.n} — ${d.what}`).join('\n')
+        + `\n\nReply *DONE ${open[0].n}* or *NO ${open[0].n}* with the number.`;
+    }
+    word = bare[1].toLowerCase();
+    num = open[0].n;
+  }
   const rec = deliveriesToday.find(d => d.n === num && d.day === nassauNow().toISOString().slice(0, 10));
   if (!rec) return `I don't have a delivery #${num} for today 🤔 Send me the number from the message I sent you.`;
   if (rec.confirmed !== null) return `#${num} was already marked ${rec.confirmed ? 'delivered' : 'not delivered'} 👍`;
-  const yes = /^(done|yes|delivered|deliver|del)$/.test(word);
+  const yes = /^(done|yes|yeah|yep|delivered|deliver|del|sold|done deal|went through)$/.test(word);
   rec.confirmed = yes;
   rec.confirmedBy = staffName || 'staff';
   saveDeliveries();
@@ -3585,7 +3605,9 @@ function handleDeliveryAnswer(text, staffName) {
   try {
     const out = require('./shop').recordStaffSale(rec.shoeId, rec.size, rec.confirmedBy, rec.price, rec.what, null);
     if (out && out.ok) {
-      return `Nice one ✅ #${num} logged as sold and the size ${rec.size} is off the website — nothing else for you to do.\n${out.remaining_summary || ''}`.trim();
+      // Name the shoe back. He may not have given a number at all, so this is how he catches
+      // it if she picked the wrong one — before the stock write matters.
+      return `Nice one ✅ #${num} — ${rec.what} — logged as sold and the size ${rec.size} is off the website. Nothing else for you to do.\n${out.remaining_summary || ''}`.trim();
     }
     try { require('./shop').addAlert(`⚠️ #${num} confirmed DELIVERED by ${rec.confirmedBy} but the stock write failed: ${(out && out.error) || 'unknown'}. Take the pair off by hand.`, 'Kiki 🤖'); } catch (_) {}
     return `Thanks — I've marked #${num} delivered, but I couldn't take it off the website (${(out && out.error) || 'write refused'}). I've flagged it for the manager.`;
