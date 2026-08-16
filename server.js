@@ -3546,8 +3546,18 @@ if (deliveryChaseTick.unref) deliveryChaseTick.unref();
 // Deliberately plain string-matching, not a model call: this moves real stock.
 function handleDeliveryAnswer(text, staffName) {
   const t = String(text || '').trim();
-  const m = /\b(done|yes|delivered|deliver|del|no|nope|didn'?t|did not|failed|cancel(?:led)?)\b[^0-9]{0,12}(\d{1,3})\b/i.exec(t)
-         || /\b(\d{1,3})\b[^a-z0-9]{0,6}\b(done|yes|delivered|no|nope|failed|cancel(?:led)?)\b/i.exec(t);
+  // ANCHORED TO THE WHOLE MESSAGE ON PURPOSE (2026-08-16). The old pattern found the shape
+  // ANYWHERE and ignored everything after the number, so ordinary staff sentences were eaten:
+  // "no 3 left in that size" was read as "delivery #3 didn't happen", Kiki replied "I don't
+  // have a delivery #3", and the real message never reached the model. That has been live for
+  // every recognised staff member, not just Rodney.
+  // Kiki's own prompt asks for exactly "DONE 2" / "NO 2", so a bare answer is the contract and
+  // anything with prose around it belongs to the model. Anchoring keeps the fat-finger
+  // correction working for a bare "DONE 5" — which falling through would have thrown away.
+  if (t.length > 24) return null;
+  const core = t.replace(/^[^a-z0-9]+/i, '').replace(/[^a-z0-9]+$/i, '');
+  const m = /^(done|yes|delivered|deliver|del|no|nope|didn'?t|did not|failed|cancel(?:led)?)[^0-9]{0,12}(\d{1,3})$/i.exec(core)
+         || /^(\d{1,3})[^a-z0-9]{0,6}(done|yes|delivered|no|nope|failed|cancel(?:led)?)$/i.exec(core);
   if (!m) return null;
   const wordFirst = /^[a-z]/i.test(m[1]);
   const word = (wordFirst ? m[1] : m[2]).toLowerCase();
