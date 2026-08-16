@@ -3457,12 +3457,85 @@ if (reminderTick.unref) reminderTick.unref();
 // never reconciled — and Rodney reckons a lot of them are false alarms. At 9 PM Nassau the
 // person ON SHIFT is asked to name the ones that did NOT happen; silence means they all did.
 // Goes to the rota (blastOnDuty), so it lands on Rodney only when nobody is working.
-const deliveriesToday = [];   // { at, who, what, sub }
+const deliveriesToday = [];   // { day, n, at, who, what, sub, shoeId, size, price, store, confirmed, asks }
+let deliveryCounter = 0;
 function noteDeliveryForCheck(entry) {
   const day = nassauNow().toISOString().slice(0, 10);
-  if (deliveriesToday.length && deliveriesToday[0].day !== day) deliveriesToday.length = 0;
-  deliveriesToday.unshift(Object.assign({ day }, entry));
+  if (deliveriesToday.length && deliveriesToday[0].day !== day) { deliveriesToday.length = 0; deliveryCounter = 0; }
+  const rec = Object.assign({ day, n: ++deliveryCounter, confirmed: null, asks: 0, askedAt: 0 }, entry);
+  deliveriesToday.unshift(rec);
   if (deliveriesToday.length > 60) deliveriesToday.length = 60;
+  return rec;
+}
+
+// ── ✅ DID IT ACTUALLY GO? (Rodney 2026-08-16) ───────────────────────────────
+// "Kiki should ensure the driver says if it was delivered or not. Just don't leave it like
+// that without getting the answer back. And Kiki could be the one that logs it into the
+// website… that way me, not the employee, would have to touch the back end."
+//
+// So each delivery is chased until somebody answers, and the ANSWER does the bookkeeping.
+// Critically the stock write is done by the SERVER from the shoe id captured in the original
+// order alert — not by the model re-deciding what was sold. That means the photo-confirm
+// guard on record_sale stays exactly where it is for ordinary staff sales, and a mistyped
+// reply can only ever affect the one pair that alert was already about.
+function pendingDeliveries() {
+  const day = nassauNow().toISOString().slice(0, 10);
+  return deliveriesToday.filter(d => d.day === day && d.confirmed === null && d.shoeId);
+}
+function askAboutDelivery(rec) {
+  const line = `#${rec.n} — ${rec.what}${rec.who ? ' for ' + rec.who : ''}`;
+  const msg = (rec.asks === 0
+      ? '🛵 *DID THIS ONE GO THROUGH?*\n'
+      : '🛵 *STILL NEED AN ANSWER ON THIS ONE*\n') +
+    line + '\n\n' +
+    `Reply *DONE ${rec.n}* if it was delivered, or *NO ${rec.n}* if it didn't happen.\n` +
+    "If it's done I'll take the pair off the website myself — you don't have to touch anything.";
+  rec.asks++; rec.askedAt = Date.now();
+  require('./shop').blastOnDuty(msg, null).catch(() => {});
+}
+// Chase anything still unanswered: first ask ~25 min after the alert, then every ~40 min,
+// giving up after 4 asks so nobody is nagged all night. Whatever is still open by 9 PM lands
+// in the end-of-day list instead.
+const deliveryChaseTick = setInterval(() => {
+  const now = Date.now();
+  for (const rec of pendingDeliveries()) {
+    const wait = rec.asks === 0 ? 25 * 60 * 1000 : 40 * 60 * 1000;
+    if (rec.asks < 4 && now - (rec.askedAt || rec.createdAt || 0) > wait) askAboutDelivery(rec);
+  }
+}, 5 * 60 * 1000);
+if (deliveryChaseTick.unref) deliveryChaseTick.unref();
+
+// A staff member's reply. Returns a sentence to send back, or null if it wasn't an answer.
+// Deliberately plain string-matching, not a model call: this moves real stock.
+function handleDeliveryAnswer(text, staffName) {
+  const t = String(text || '').trim();
+  const m = /\b(done|yes|delivered|deliver|del|no|nope|didn'?t|did not|failed|cancel(?:led)?)\b[^0-9]{0,12}(\d{1,3})\b/i.exec(t)
+         || /\b(\d{1,3})\b[^a-z0-9]{0,6}\b(done|yes|delivered|no|nope|failed|cancel(?:led)?)\b/i.exec(t);
+  if (!m) return null;
+  const wordFirst = /^[a-z]/i.test(m[1]);
+  const word = (wordFirst ? m[1] : m[2]).toLowerCase();
+  const num = parseInt(wordFirst ? m[2] : m[1], 10);
+  const rec = deliveriesToday.find(d => d.n === num && d.day === nassauNow().toISOString().slice(0, 10));
+  if (!rec) return `I don't have a delivery #${num} for today 🤔 Send me the number from the message I sent you.`;
+  if (rec.confirmed !== null) return `#${num} was already marked ${rec.confirmed ? 'delivered' : 'not delivered'} 👍`;
+  const yes = /^(done|yes|delivered|deliver|del)$/.test(word);
+  rec.confirmed = yes;
+  rec.confirmedBy = staffName || 'staff';
+  if (!yes) {
+    try { require('./shop').addAlert(`🚫 *NOT DELIVERED* — #${num} ${rec.what}${rec.who ? ' for ' + rec.who : ''}\nMarked as a false alarm by ${rec.confirmedBy}. Stock untouched.`, 'Kiki 🤖'); } catch (_) {}
+    return `Got it — #${num} didn't happen. I've left the stock alone and logged it as a false alarm 👍`;
+  }
+  // Delivered → the server books the sale from the ORIGINAL alert's shoe id and size.
+  try {
+    const out = require('./shop').recordStaffSale(rec.shoeId, rec.size, rec.confirmedBy, rec.price, rec.what, null);
+    if (out && out.ok) {
+      return `Nice one ✅ #${num} logged as sold and the size ${rec.size} is off the website — nothing else for you to do.\n${out.remaining_summary || ''}`.trim();
+    }
+    try { require('./shop').addAlert(`⚠️ #${num} confirmed DELIVERED by ${rec.confirmedBy} but the stock write failed: ${(out && out.error) || 'unknown'}. Take the pair off by hand.`, 'Kiki 🤖'); } catch (_) {}
+    return `Thanks — I've marked #${num} delivered, but I couldn't take it off the website (${(out && out.error) || 'write refused'}). I've flagged it for the manager.`;
+  } catch (e) {
+    return `Thanks — #${num} is marked delivered, but the stock update errored (${String(e.message || e).slice(0, 60)}). Flagged for the manager.`;
+  }
 }
 let lastDeliveryCheckDay = '';
 const deliveryCheckTick = setInterval(async () => {
@@ -3867,6 +3940,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // gains the sale-reporting flow (photo-confirm first, then record_sale).
   const staffName = _isStaffChat;
   if (staffName) rememberStaffSub(staffName, sub, ctx.store);
+  // ✅ "DONE 3" / "NO 3" — a delivery answer. Handled in CODE, before the model gets a turn,
+  // because this moves real stock and must not depend on Kiki interpreting it. Answering also
+  // books the sale, so neither Rodney nor the employee has to open the website.
+  if (staffName && userText) {
+    const reply = handleDeliveryAnswer(userText, staffName);
+    if (reply) {
+      try { await sendChunk(sub, [{ type: 'text', text: reply }], token); } catch (_) {}
+      record(req, { endpoint: 'delivery-answer', sub, by: staffName, said: String(userText).slice(0, 40) });
+      return;
+    }
+  }
   // 🔒 HARD OVERRIDE (2026-07-17): even with staff detected AND the staff rules present,
   // the model kept running the CUSTOMER photo script on a staff cash/receipt photo —
   // pitching sneakers, calling a stack of Bahamian bills "an Air Max Plus". So when a
@@ -4434,12 +4518,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // the same false alarm in a different costume.
         if (!forLater) {
           try {
-            noteDeliveryForCheck({
+            const _rec = noteDeliveryForCheck({
               at: nassauNow().toISOString().slice(11, 16),
+              createdAt: Date.now(),
               who: inp.customer_name || '',
               what: (inp.shoe ? inp.shoe + (inp.size ? ' size ' + inp.size : '') : 'order') + (inp.price ? ' — ' + inp.price : ''),
               sub: String(sub),
+              // Captured HERE so the later confirmation writes the pair the alert was about,
+              // rather than anyone re-deciding it from memory.
+              shoeId: inp.shoe_id || null,
+              size: inp.size != null ? String(inp.size) : null,
+              price: inp.price || null,
+              store: ctx.store || null,
             });
+            // Only chase deliveries we can actually book: we need the shoe and the size.
+            if (!(_rec.shoeId && _rec.size)) _rec.confirmed = undefined;
           } catch (_) {}
         }
         let waOk = false;
