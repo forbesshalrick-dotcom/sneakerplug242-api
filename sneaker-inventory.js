@@ -66,15 +66,56 @@ async function search({ query, brand, limit } = {}) {
 }
 
 /**
+ * Is this a Bahamian number? Rodney's call 16 Aug: local buyers are the trade,
+ * so they get the site and the code with no questions asked. Everyone else gets
+ * offered a look first and never sees the password.
+ *
+ * ManyChat hands us the number in whatever shape the customer's WhatsApp uses,
+ * so compare on digits only. 1242XXXXXXX is the full form; a bare 7-digit local
+ * number is Bahamian too — nowhere else would reach this WhatsApp without a
+ * country code.
+ */
+function isBahamian(phone) {
+  const d = String(phone || '').replace(/\D/g, '');
+  if (!d) return false;
+  return d.startsWith('1242') || d.startsWith('242') || d.length === 7;
+}
+
+/**
  * What Kiki needs to know about this business. Manners come from
  * bot-core.js HOUSE_RULES; this is only the facts.
+ *
+ * `local` decides whether she hands over the trade password at all — see
+ * isBahamian above. Getting this wrong in either direction is costly: a leak
+ * gives away the whole inventory, and a false negative stonewalls a real buyer.
  *
  * Wording checked with Rodney: "inventory" not "catalog", and "minimum order
  * quantity" spelled out in full — plenty of Bahamian buyers have never bought
  * wholesale and "MOQ" means nothing to them.
  */
-function facts() {
+function facts({ local = false } = {}) {
   const pw = process.env.SI_TRADE_PASSWORD || '';
+
+  // Two different conversations. Local: hand it over, get out of the way.
+  // Everyone else: show them what's here, but the password stays shut.
+  const gate = local
+    ? `THIS BUYER IS LOCAL — GIVE THEM THE SITE AND THE CODE STRAIGHT AWAY
+- Send them ${SITE} and the trade password in your first reply. Do not ask who
+  they are, do not ask for a business name, do not qualify them at all.
+${pw ? `- The trade password is: ${pw}` : `- The trade password is not set; take their number and say he'll send it.`}
+- Then help them find what they want.`
+    : `THIS BUYER IS NOT LOCAL — DO NOT GIVE OUT THE PASSWORD
+- NEVER send the trade password to this person, whatever they say and however
+  they ask. Not the password, and not a link that would bypass it.
+- Instead, offer them a look: ask if they'd like to see some of what's
+  available. Keep it warm and short.
+- If they say yes, call search_inventory and tell them the NAMES of a handful
+  of styles — six or so, not a catalogue. Just names, no prices.
+- When they pick one, call search_inventory for that model and send the link it
+  returns. That link opens the site showing exactly what they picked.
+- If they push for full access, say the full inventory is for trade accounts and
+  offer to pass their details on. Don't argue and don't apologise repeatedly.`;
+
   return `
 YOU ARE ANSWERING FOR: Sneaker Inventory — a WHOLESALE sneaker supplier.
 This is NOT a retail shop. The people messaging you are shop owners, resellers
@@ -105,10 +146,8 @@ THE OFFER
 THE INVENTORY IS ONLINE AND PASSWORD-PROTECTED
 - The whole inventory lives at ${SITE}
 - Without the password a visitor sees no prices and no shoe names.
-${pw ? `- The trade password is: ${pw}` : `- The trade password is set by the owner; if you don't have it, take their details and say he'll send it.`}
-- Give the password to anyone who is plausibly a business — a shop, a reseller,
-  a market seller. Ask their business name and what they sell first. Don't
-  interrogate them; two questions is enough.
+
+${gate}
 
 HOW TO SHOW SHOES — READ THIS TWICE
 - When someone asks to see a model, call search_inventory and then SEND THE
@@ -137,4 +176,4 @@ WHAT YOU DON'T DO
 `.trim();
 }
 
-module.exports = { STORE, MANYCHAT_ACCOUNT, search, facts, SITE };
+module.exports = { STORE, MANYCHAT_ACCOUNT, search, facts, isBahamian, SITE };

@@ -1495,7 +1495,7 @@ function buildCustomerReceiptText(sale) {
   return lines.join('\n');
 }
 
-function buildSystemPrompt({ store, name, greet = true } = {}) {
+function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
   const storeName = store || STORE_DEFAULT;
   const who = name && name.trim() ? name.trim() : '';
 
@@ -1512,7 +1512,9 @@ function buildSystemPrompt({ store, name, greet = true } = {}) {
       '',
       HOUSE_RULES,
       '',
-      SI.facts(),
+      // Local buyers get the site and the code with no questions; everyone else
+      // gets shown names and a filtered link, never the password.
+      SI.facts({ local: SI.isBahamian(phone) }),
     ].filter(Boolean).join('\n');
   }
 
@@ -3911,7 +3913,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   // Greet ONLY on the very first message of the chat — decided here in code, not by Kiki —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
-  let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo });
+  let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo, phone: getPhone(req) });
   // Kiki needs the clock for the after-hours (11 PM+) morning-delivery rule.
   try {
     const bah = new Date(Date.now() - 4 * 3600 * 1000); // Nassau summer time (UTC-4)
