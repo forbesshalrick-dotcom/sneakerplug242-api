@@ -1736,7 +1736,7 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - 📍 HOW A DROPPED PIN ACTUALLY REACHES YOU (IMPORTANT): when the customer sends a pin (or any non-text thing), WhatsApp can't hand you the pin itself — instead the system RE-DELIVERS their PREVIOUS text word-for-word, marked with a SYSTEM NOTE saying a non-text message probably arrived. So if you were waiting on a location pin and their last message suddenly repeats (with that note), that is PROBABLY the pin arriving — say "Got your pin! 📍 (if that was a photo or something else, just say so!)" and treat the location as received. ⚠️ The replay can also be a PHOTO or sticker WhatsApp couldn't deliver (2026-07-14: a shoe photo got a "Got your pin!"), so always include that little escape hatch, and if the customer corrects you ("that was a picture"), apologize lightly, handle what they actually sent, and ask for the pin again. Do NOT answer the repeated words as if they typed them again, and do NOT re-confirm the order.
 - Once the location is sent/described: call notify_manager with stage "delivery_ready" (name, shoe + size, and location = the landmark they gave OR "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). Include price/payment ONLY if the customer actually brought it up — otherwise leave those blank (payment is handled on arrival). Then reply warmly, EXACTLY in this spirit: "Perfect! 🙌 The driver's heading out shortly and he'll give you a call when he's close 👟". Do NOT invent an exact ETA or say "I'm on my way" yourself — you're alerting the team, not driving.
 - AFTER the delivery is confirmed (you've already called notify_manager) — if the customer messages again asking "how long / you coming / where's the driver / you reaching?" — do NOT re-ask for their location or the order details. Say: "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". (The system also auto-sends a "we're still on the way!" reassurance if they go quiet for a while.)
-- FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Still send the ONE stage="order_confirmed" alert when they commit (location = e.g. "scheduled for Sunday — location to come") — and because they named a FUTURE time, ALSO pass remind_in_hours (hours until roughly 10 AM of the day they want it: "tomorrow"=24, "next week"=168, "Sunday"=hours till Sunday) so the owner automatically gets a ⏰ reminder alert when that day comes. Only call stage="delivery_ready" once they actually drop the location and say they're ready to receive — never before.
+- FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Still send the ONE stage="order_confirmed" alert when they commit (location = e.g. "scheduled for Sunday — location to come") — and because they named a FUTURE time, ALSO pass remind_in_hours (hours until 8:30 AM of the day they want it: "tomorrow"=24, "next week"=168, "Sunday"=hours till Sunday) so the owner automatically gets a ⏰ reminder alert when that day comes. Only call stage="delivery_ready" once they actually drop the location and say they're ready to receive — never before.
 
 BAHAMIAN "COMING" PHRASING (IMPORTANT — locals often ask questions with no question mark):
 - "you coming", "you coming bro", "you reaching", "wen you coming", "how long" → this means "ARE YOU COMING for the delivery / how soon?" They want to know you're on the way. Reply that yes you're coming / sorting their delivery, and ask for the details you still need (what shoe + size if you don't have them yet, and where to meet). Do NOT just recite the location line at them.
@@ -1835,7 +1835,7 @@ const AI_TOOLS = [
         payment: { type: 'string', description: 'How they are paying: website/card, cash, which bank transfer, or SunCash.' },
         location: { type: 'string', description: "The customer's meet-up spot / address exactly as they gave it. Mention if they dropped a pin. For stage=\"order_confirmed\" before they've sent it, use \"not sent yet\"." },
         stage: { type: 'string', enum: ['order_confirmed', 'delivery_ready'], description: "\"order_confirmed\" = the customer just committed to buying but the location isn't in hand yet (owner gets a NEW ORDER heads-up). \"delivery_ready\" = location received, driver can roll. Default: delivery_ready." },
-        remind_in_hours: { type: 'number', description: "⚠️ MANDATORY whenever the customer names ANY future day or time — an order_confirmed call for \"Friday\" / \"tomorrow\" / \"next week\" WITHOUT this number is a bug (2026-07-14: a Friday order went in with no reminder and had to be added by hand). For FUTURE / SCHEDULED orders: how many hours from now the customer wants it — the owner then gets a second ⏰ reminder alert when that time arrives, so a \"next week\" order can't be forgotten. \"tomorrow\" = 24, \"this weekend\" ≈ days until Saturday × 24, \"next week\" = 168, a named day = hours until ~10 AM that day. Leave out for right-now orders." },
+        remind_in_hours: { type: 'number', description: "⚠️ MANDATORY whenever the customer names ANY future day or time — an order_confirmed call for \"Friday\" / \"tomorrow\" / \"next week\" WITHOUT this number is a bug (2026-07-14: a Friday order went in with no reminder and had to be added by hand). For FUTURE / SCHEDULED orders: how many hours from now the customer wants it — the owner then gets a second ⏰ reminder alert when that time arrives, so a \"next week\" order can't be forgotten. \"tomorrow\" = 24, \"this weekend\" ≈ days until Saturday × 24, \"next week\" = 168, a named day = hours until ~8:30 AM that day. Leave out for right-now orders." },
       },
       required: ['location'],
     },
@@ -3336,10 +3336,58 @@ function saveReminders() {
   }, 1500);
   if (remindersSaveT.unref) remindersSaveT.unref();
 }
-function scheduleOrderReminder(ms, store, lines, image) {
-  reminders.push({ at: Date.now() + ms, store: store || null, lines, image: image || null });
+// `sub` is the CUSTOMER's subscriber id (Rodney 2026-08-16). Without it a due reminder could
+// only ever reach Rodney; with it, Kiki can go straight back to the person who ordered.
+function scheduleOrderReminder(ms, store, lines, image, sub) {
+  reminders.push({ at: Date.now() + ms, store: store || null, lines, image: image || null, sub: sub || null });
   saveReminders();
 }
+// What Kiki says to a customer whose own chosen day has arrived. Deliberately a question,
+// not an announcement — they may have changed their mind, and asking is how we find out
+// without Rodney having to chase it himself.
+// 🔁 KEEP THE LINE WARM until the day they named (Rodney 2026-08-16: a customer says Friday
+// on a Monday). Rotated so four days in a row don't read like four copies of the same nag —
+// picked by day index, not at random, so a customer never sees the same one twice running.
+// Each one ENDS IN A QUESTION on purpose: WhatsApp only lets us message freely for 24 hours
+// after the customer's last message, and only THEIR reply restarts that clock. A line they
+// can answer keeps the door open; an announcement quietly closes it.
+const KEEP_WARM_T = {
+  en: [
+    (d) => `Hey! 👋 Still holding your order for ${d} — all good on your end?`,
+    (d) => `Quick one — your pair's set aside for ${d} 👟 Want me to keep it?`,
+    (d) => `Just so you know, we've got your order boxed and waiting for ${d} 📦 Still works for you?`,
+    (d) => `Morning! Your ${d} order is ready whenever you are 👟 Anything change?`,
+  ],
+  es: [
+    (d) => `¡Hola! 👋 Sigo guardando tu pedido para ${d} — ¿todo bien?`,
+    (d) => `Tu par está apartado para ${d} 👟 ¿Te lo sigo guardando?`,
+    (d) => `Tu pedido está listo y esperando para ${d} 📦 ¿Te sirve todavía?`,
+    (d) => `¡Buenos días! Tu pedido de ${d} está listo cuando quieras 👟 ¿Algún cambio?`,
+  ],
+  ht: [
+    (d) => `Alo! 👋 M ap kenbe kòmand ou a pou ${d} — tout bagay anfòm?`,
+    (d) => `Pè ou a sou kote pou ${d} 👟 Ou vle m kenbe l?`,
+    (d) => `Kòmand ou an pare e l ap tann pou ${d} 📦 Li toujou bon pou ou?`,
+    (d) => `Bonjou! Kòmand ${d} ou a pare lè ou pare 👟 Gen anyen ki chanje?`,
+  ],
+  fr: [
+    (d) => `Salut ! 👋 Je garde ta commande pour ${d} — tout va bien ?`,
+    (d) => `Ta paire est mise de côté pour ${d} 👟 Je te la garde ?`,
+    (d) => `Ta commande est prête et t'attend pour ${d} 📦 Ça te va toujours ?`,
+    (d) => `Bonjour ! Ta commande de ${d} est prête quand tu veux 👟 Quelque chose a changé ?`,
+  ],
+};
+function keepWarmLine(sub, dayLabel, n) {
+  const list = KEEP_WARM_T[subLang.get(sub) || 'en'] || KEEP_WARM_T.en;
+  return list[n % list.length](dayLabel);
+}
+
+const DAY_ARRIVED_T = {
+  en: "Morning! 👋 You had a delivery set for today — still want it? Just say yes and I'll get it moving 👟",
+  es: "¡Buenos días! 👋 Tenías una entrega para hoy — ¿la sigues queriendo? Dime que sí y la pongo en marcha 👟",
+  ht: "Bonjou! 👋 Ou te gen yon livrezon pou jodi a — èske ou toujou vle l? Di m wi epi m ap fè l bouje 👟",
+  fr: "Bonjour ! 👋 Tu avais une livraison prévue pour aujourd'hui — tu la veux toujours ? Dis-moi oui et je lance ça 👟",
+};
 const reminderTick = setInterval(async () => {
   const now = Date.now();
   const due = reminders.filter(r => r.at <= now);
@@ -3348,13 +3396,95 @@ const reminderTick = setInterval(async () => {
   saveReminders();
   for (const r of due) {
     const tk = (r.store && storeTokens.get(r.store)) || lastToken || process.env.MANYCHAT_TOKEN;
-    try { await waSendManager(r.lines, tk, r.image); } catch (_) {}
-    try { require('./shop').addAlert(r.lines, 'Kiki 🤖'); } catch (_) {}
-    saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'order-reminder-fired', store: r.store, lines: r.lines });
+    // 📨 ASK THE CUSTOMER, NOT RODNEY (Rodney 2026-08-16: "can I get Kiki to send the message
+    // to the customer direct… she would just have been speaking to the customer within the
+    // twenty four hour window"). He is right that this is usually inside the window: the
+    // reminder is set for the day the CUSTOMER named, and they were talking to Kiki when they
+    // named it. So try them first — that turns a job on Rodney's list into an answered
+    // question. If WhatsApp refuses (the 24h window HAS closed, e.g. a "next week" order),
+    // nothing is lost: it falls straight through to the owner alert exactly as before.
+    // 🔁 A KEEP-WARM day, not the day itself: nudge them, then book tomorrow's nudge.
+    // The chain ends the moment WhatsApp refuses us, because after that we physically
+    // cannot reach them — and that is exactly when Rodney needs to know.
+    if (r.kind === 'keep-warm') {
+      let ok = false;
+      try {
+        const res = await sendChunk(r.sub, [{ type: 'text', text: keepWarmLine(r.sub, r.dayLabel || 'your day', r.n || 0) }], tk);
+        ok = !!(res && res.ok);
+      } catch (_) { ok = false; }
+      if (ok && r.finalAt && Date.now() + 20 * 3600 * 1000 < r.finalAt) {
+        reminders.push({ at: Date.now() + 24 * 3600 * 1000, store: r.store, lines: r.lines, image: null,
+          sub: r.sub, kind: 'keep-warm', n: (r.n || 0) + 1, dayLabel: r.dayLabel, finalAt: r.finalAt });
+        saveReminders();
+      }
+      if (!ok) {
+        try { require('./shop').addAlert('🔇 *LOST THE LINE WITH A CUSTOMER*\n' + r.lines +
+          '\n\nThey stopped replying, so WhatsApp will no longer let Kiki message them (the 24-hour window shut). ' +
+          'Their order is still booked for ' + (r.dayLabel || 'the day they named') + ' — if you want it kept alive, message them yourself.', 'Kiki 🤖'); } catch (_) {}
+      }
+      saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'keep-warm-' + (ok ? 'sent' : 'window-closed'), sub: r.sub, n: r.n || 0 });
+      if (recent.length > 120) recent.length = 120;
+      continue;
+    }
+    let askedCustomer = false;
+    if (r.sub) {
+      try {
+        const res = await sendChunk(r.sub, [{ type: 'text', text: L(DAY_ARRIVED_T, r.sub) }], tk);
+        askedCustomer = !!(res && res.ok);
+        // They've been asked a question — let a reply cancel any stale nudge chain.
+        if (askedCustomer) { try { clearFollowUp(r.sub); } catch (_) {} }
+      } catch (_) { askedCustomer = false; }
+    }
+    // Rodney only gets pinged on WhatsApp when Kiki could NOT reach the customer. When she
+    // did, it still lands on the task board so the order is visible, just without buzzing him
+    // for something already handled.
+    if (!askedCustomer) { try { await waSendManager(r.lines, tk, r.image); } catch (_) {} }
+    try {
+      require('./shop').addAlert(
+        askedCustomer ? ('📨 ' + r.lines + '\n\n(Kiki has asked the customer directly if they still want it — no need to chase.)')
+                      : (r.lines + '\n\n⚠️ Could not message the customer (their 24-hour WhatsApp window is closed) — reach out yourself.'),
+        'Kiki 🤖');
+    } catch (_) {}
+    saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'order-reminder-fired', store: r.store, sub: r.sub || null, askedCustomer, lines: r.lines });
     if (recent.length > 120) recent.length = 120;
   }
 }, 60 * 1000);
 if (reminderTick.unref) reminderTick.unref();
+
+// ── 🌙 END-OF-DAY DELIVERY CHECK (Rodney 2026-08-16) ──────────────────────────
+// "Which deliveries went through, and which were a false alarm?" Nothing in the system ever
+// closed the loop on an order alert, so a day's alerts and a day's actual deliveries were
+// never reconciled — and Rodney reckons a lot of them are false alarms. At 9 PM Nassau the
+// person ON SHIFT is asked to name the ones that did NOT happen; silence means they all did.
+// Goes to the rota (blastOnDuty), so it lands on Rodney only when nobody is working.
+const deliveriesToday = [];   // { at, who, what, sub }
+function noteDeliveryForCheck(entry) {
+  const day = nassauNow().toISOString().slice(0, 10);
+  if (deliveriesToday.length && deliveriesToday[0].day !== day) deliveriesToday.length = 0;
+  deliveriesToday.unshift(Object.assign({ day }, entry));
+  if (deliveriesToday.length > 60) deliveriesToday.length = 60;
+}
+let lastDeliveryCheckDay = '';
+const deliveryCheckTick = setInterval(async () => {
+  const local = nassauNow();
+  if (local.getUTCHours() !== 21) return;               // the 9 PM Nassau hour
+  const day = local.toISOString().slice(0, 10);
+  if (lastDeliveryCheckDay === day) return;             // once a day only
+  const today = deliveriesToday.filter(d => d.day === day);
+  lastDeliveryCheckDay = day;
+  if (!today.length) return;                            // nothing went out — nothing to ask
+  const list = today.slice().reverse().map((d, i) =>
+    `${i + 1}. ${d.what}${d.who ? ' — ' + d.who : ''}  (${d.at})`).join('\n');
+  const msg = '🌙 *END OF DAY — DID THESE GO THROUGH?*\n' +
+    `We logged ${today.length} order${today.length === 1 ? '' : 's'} today:\n\n${list}\n\n` +
+    'Reply with the NUMBERS of any that did NOT happen (e.g. "2 and 4"). ' +
+    'If they all went through, just reply "all good" 👍';
+  try { await require('./shop').blastOnDuty(msg, null); } catch (_) {}
+  try { require('./shop').addAlert(msg, 'Kiki 🤖'); } catch (_) {}
+  saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'end-of-day-delivery-check', day, count: today.length });
+  if (recent.length > 120) recent.length = 120;
+}, 10 * 60 * 1000);
+if (deliveryCheckTick.unref) deliveryCheckTick.unref();
 
 // ── Staff subscriber map — learned from staff messages, survives restarts ──────
 // Maps employee name -> {sub, store} the moment a recognized staff number texts
@@ -4269,8 +4399,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // commits (location may still be missing) so the owner NEVER misses a sale;
         // "delivery_ready" (default) fires once the location is in hand.
         const earlyStage = inp.stage === 'order_confirmed';
+        // 📅 A FUTURE order must not SOUND like one going out now (Rodney 2026-08-16: "a lot
+        // of them are false alarms… we think something's going out now"). He still wants the
+        // alert — hearing it read out is how he knows the order exists — but the very first
+        // words have to say TOMORROW, because that is all he hears before deciding whether to
+        // move. Same alert, unmistakable headline.
+        const forLater = Number(inp.remind_in_hours) > 0;
         const lines = [
-          earlyStage ? "🛒 *YOU'VE GOT AN ORDER!* 🆕 — customer is buying now (location still coming)"
+          forLater ? "📅 *ORDER SET FOR LATER — NOTHING TO DO NOW* — Kiki has it booked and will chase the customer on the day"
+                   : earlyStage ? "🛒 *YOU'VE GOT AN ORDER!* 🆕 — customer is buying now (location still coming)"
                      : "🛵 *YOU'VE GOT AN ORDER — DELIVERY READY* — please facilitate",
           inp.customer_name ? `👤 ${inp.customer_name}` : null,
           custPhone ? `📞 ${custPhone}  (wa.me/${custPhone.replace(/[^0-9]/g,'')})` : null,
@@ -4292,6 +4429,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         ].filter(Boolean).join('\n');
         let alertImg = null;
         try { const sh = liveShoeMap()[inp.shoe_id]; if (sh && sh.image) alertImg = sh.image; } catch (_) {}
+        // Log it for tonight's "did these go through?" check — but only orders meant for TODAY.
+        // A future booking isn't a delivery that can have failed yet, and listing it would be
+        // the same false alarm in a different costume.
+        if (!forLater) {
+          try {
+            noteDeliveryForCheck({
+              at: nassauNow().toISOString().slice(11, 16),
+              who: inp.customer_name || '',
+              what: (inp.shoe ? inp.shoe + (inp.size ? ' size ' + inp.size : '') : 'order') + (inp.price ? ' — ' + inp.price : ''),
+              sub: String(sub),
+            });
+          } catch (_) {}
+        }
         let waOk = false;
         try { waOk = await waSendManager(lines, token, alertImg); } catch (_) {}
         try { require('./shop').addAlert(lines, 'Kiki 🤖', { sub: String(sub), account: ctx.store || '', img: alertImg || '' }); } catch (_) {} // shows on the website Tasks board
@@ -4324,7 +4474,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (remindH > 0 && remindH < 24 * 60) {
           const detail = lines.split('\n').slice(1).join('\n');
           scheduleOrderReminder(remindH * 3600 * 1000, ctx.store,
-            '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + detail, alertImg);
+            '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + detail, alertImg, sub);
+          // 🔁 More than a day out ("Friday" said on a Monday)? Start the daily keep-warm so
+          // the customer isn't left in silence until the day — and so their replies keep the
+          // WhatsApp window open, which is the only thing that lets Kiki reach them ON the day.
+          // First nudge tomorrow morning, then daily, stopping the day before it's due.
+          if (remindH > 30) {
+            const finalAt = Date.now() + remindH * 3600 * 1000;
+            const dayLabel = (inp.location && /(?:for|on)\s+([A-Za-z]+day|tomorrow|next week)/i.exec(inp.location) || [])[1]
+                             || (remindH >= 150 ? 'next week' : 'the day you said');
+            reminders.push({ at: Date.now() + 24 * 3600 * 1000, store: ctx.store, lines: detail, image: null,
+              sub, kind: 'keep-warm', n: 0, dayLabel, finalAt });
+            saveReminders();
+          }
         }
         // Delivery is now in motion — if the customer goes quiet, auto-reassure them
         // at ~20 min ("still on the way!"). Any reply from them cancels it (and Kiki
@@ -5082,8 +5244,11 @@ app.post('/console/remind', (req, res) => {
   const b = req.body || {};
   const hours = Number(b.hours);
   if (!(hours > 0) || !b.text) return res.status(400).json({ error: 'need hours > 0 and text' });
+  // Optional `sub`: pass the customer's subscriber id and Kiki asks THEM when it comes due
+  // instead of pinging Rodney. Left out (an order he arranged by hand and Kiki never saw),
+  // it behaves exactly as before and the reminder comes to him.
   scheduleOrderReminder(hours * 3600 * 1000, b.store || null,
-    '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + String(b.text));
+    '⏰ *ORDER REMINDER* — this one was scheduled for around NOW\n' + String(b.text), null, b.sub || null);
   res.json({ ok: true, fires_at: new Date(Date.now() + hours * 3600 * 1000).toISOString(), pending: reminders.length });
 });
 app.get('/console/remind', (req, res) => {
