@@ -1875,7 +1875,8 @@ Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". 
 ⚠️ JORDAN PRICING (know this cold): Air Jordan **1s are $120** — every Jordan 1 colourway and style (Jordan 1 High, Low, Retro — all of them). Every OTHER Air Jordan (Jordan 3, 4, 5, 11, 13, Tatum, etc.) is **$180**, any colour or style. So if a customer asks the price of a Jordan — INCLUDING one you can't find in stock or a colour you're not sure we carry (e.g. "how much for the blue and white Jordan?") — quote it from this rule: a Jordan 1 = $120, any other Jordan = $180. Never tell a customer a Jordan "isn't showing up" or that you can't price it.
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything (the Jordan pricing rule above is the one known exception, so you can always quote a Jordan: $120 for a Jordan 1, $180 for any other).
 💬 "CAN I GET A DEAL / DISCOUNT / HOW MUCH FOR 2?" — FRAME THE PRICE AS THE DEAL, NEVER SAY "NO DISCOUNTS" (Rodney 2026-07-20, IMPORTANT): when a customer asks for a discount, a lower price, or a deal on buying more than one, do NOT reply coldly with "no discounts on multiples" or "the price is firm" — that's harsh and kills the vibe. Instead frame it warmly and positively: the price is ALREADY our best, already-dropped price. Say it like: "That's already our best price 🙏 we just went DOWN on it so everyone can catch a deal 🔥" then give the honest total (e.g. two pairs = the two prices added up). Be friendly, never dismissive.
-🏷️ QUOTE EACH SHOE'S OWN PRICE — DON'T LUMP THEM (Rodney 2026-07-20): NOT every Jordan is $180 — Air Jordan 1s (and Dunks) are $120, Air Max 95 is $130, etc. So NEVER say "all Jordans are $180" or blanket-price a mixed order. Price each pair by its ACTUAL price (from search_inventory, or the Jordan rule above: Jordan 1 = $120, any other Jordan = $180), and when they're buying two different shoes, add their two real prices for the total — don't assume they're the same.`;
+🏷️ QUOTE EACH SHOE'S OWN PRICE — DON'T LUMP THEM (Rodney 2026-07-20): NOT every Jordan is $180 — Air Jordan 1s (and Dunks) are $120, Air Max 95 is $130, etc. So NEVER say "all Jordans are $180" or blanket-price a mixed order. Price each pair by its ACTUAL price (from search_inventory, or the Jordan rule above: Jordan 1 = $120, any other Jordan = $180), and when they're buying two different shoes, add their two real prices for the total — don't assume they're the same.
+🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, warmly invite them to our private wholesale catalog. Send exactly: "We do have a wholesale section 🙌 Here's the link and access code — https://242plug.com/wholesale (code: *${(process.env.WHOLESALE_CODE || 'W242').toUpperCase()}*) 👟 Let me know if you have any questions!" Then stop — don't push them to buy retail or ask their size next.`;
 }
 
 const AI_TOOLS = [
@@ -8566,6 +8567,36 @@ app.post('/inbox/transcribe', async (req, res) => {
 // on the API origin would wrongly intercept API calls). NOTE: storefront.html is a SNAPSHOT bundled
 // from the 242plug repo — re-copy it when the store code changes.
 const _SHOP_CDN = 'https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/242plug@main';
+
+// ---- WHOLESALE CATALOG ----
+// Build once at startup; served at /wholesale (code-gated in the browser via sessionStorage).
+// Set WHOLESALE_CODE on Railway to change the access code (default W242).
+// Set WA_NUM on Railway to the WhatsApp number customers tap to order (digits only, e.g. 12426000000).
+let WHOLESALE_HTML = null;
+(function buildWholesaleHtml(){
+  try {
+    const path = require('path');
+    let html = require('fs').readFileSync(path.join(__dirname, 'wholesale.html'), 'utf8');
+    const code   = (process.env.WHOLESALE_CODE || 'W242').trim();
+    const waNum  = (process.env.WA_NUM || '12426000000').replace(/\D/g, '');
+    // Strip only the sizes needed for the catalog tile (unique men's sizes, not pair counts)
+    const slim = catalog.map(s => ({
+      id: s.id, brand: s.brand, name: s.name, color: s.color,
+      price: s.price, image: s.image,
+      sizes: [...new Set((s.sizes||[]).map(x => parseFloat(x)).filter(n => !isNaN(n)))].sort((a,b)=>a-b)
+    }));
+    html = html
+      .replace('__CATALOG__', JSON.stringify(slim))
+      .replace("'__WHOLESALE_CODE__'", JSON.stringify(code))
+      .replace("'__WA_NUM__'",  JSON.stringify(waNum));
+    WHOLESALE_HTML = html;
+  } catch(e){ WHOLESALE_HTML = null; }
+})();
+app.get('/wholesale', (req, res) => {
+  if (!WHOLESALE_HTML) return res.status(503).send('loading — refresh in a moment');
+  res.set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-store').send(WHOLESALE_HTML);
+});
+
 let STORE_HTML = null, STORE_HTML_GZ = null;
 (function buildStoreHtml(){
   try {
