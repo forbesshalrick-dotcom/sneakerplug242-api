@@ -610,6 +610,28 @@ app.get(['/feed.csv', '/catalog-feed.csv'], (req, res) => {
 // just Official Sneaker Crew, not Trendy Kicks"): shows WHICH stores have a live token
 // cached for waSendManager's owner-ping — never the actual token values, just presence,
 // so we can tell a missing/stale-token gap from a delivery failure without guessing.
+// Diagnostic (2026-08-17): what deliveries are actually open, and why two that look
+// identical in a WhatsApp message are — or are not — being treated as the same job.
+// Added because a driver was asked to choose between five copies of one order and there
+// was no way to see the records without SSH, which this Railway project does not have.
+// Read-only, key-gated, and deliberately shows the fields the fold decides on.
+app.get('/debug-deliveries', (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const day = nassauNow().toISOString().slice(0, 10);
+  res.json({
+    today: day,
+    counter: deliveryCounter,
+    open: deliveriesToday.filter(d => d.confirmed === null).length,
+    rows: deliveriesToday.map(d => ({
+      n: d.n, day: d.day, at: d.at, confirmed: d.confirmed, asks: d.asks,
+      sub: d.sub, shoeId: d.shoeId, size: d.size, price: d.price, store: d.store,
+      createdAt: d.createdAt,
+      createdAtISO: d.createdAt ? new Date(d.createdAt).toISOString() : null,
+      what: d.what,
+    })),
+  });
+});
+
 app.get('/debug-tokens', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   res.json({
