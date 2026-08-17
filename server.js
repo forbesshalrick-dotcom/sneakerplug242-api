@@ -7127,18 +7127,85 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   var recog=null, dictating=false, dictBase='', wRec=null, wRecording=false;
   // 🎤 Speak your Brief-to-Kiki note (hands-free while driving). Live transcript lands in the box so
   // you SEE it and can fix it before hitting Send to Kiki. Rodney 2026-07-20.
-  var briefRecog=null, briefDictating=false;
+  /* 🔴 FIXED 2026-08-17 — Rodney: "recordings to kiki doesnt work".
+   *
+   * This button only ever tried the browser's own voice typing, and it failed
+   * SILENTLY: onerror was wired straight to reset(), so a refused microphone, a
+   * dropped network or a browser without the API all produced the same thing —
+   * the button flicked back and said nothing. Indistinguishable from dead.
+   *
+   * Three changes, matching what already works on the composer mic:
+   *   1. The microphone is claimed INSIDE the tap via grabMic(). A browser only
+   *      grants it during a gesture; ask afterwards and Android refuses without
+   *      a word. That was the root cause of the composer mic bug too.
+   *   2. Errors are reported by name instead of swallowed, so a blocked mic says
+   *      so and he knows to change the site permission rather than assume it is
+   *      broken.
+   *   3. If voice typing is unavailable or fails, it falls back to recording and
+   *      transcribing server-side — the same Whisper path the composer uses, now
+   *      pointed at this box. Previously there was no fallback at all.
+   */
+  var briefRecog=null, briefDictating=false, briefWRec=null, briefWRecording=false;
+  function briefBtn(){ return $('briefDictate'); }
+  function briefIdle(){
+    briefDictating=false; briefWRecording=false;
+    var b=briefBtn(); if(b){ b.classList.remove('rec'); b.textContent='🎤 Speak your note'; }
+  }
+  function briefBusy(label){
+    var b=briefBtn(); if(b){ b.classList.add('rec'); b.textContent=label; }
+  }
   function briefDictate(){
     if(briefDictating){ try{briefRecog.stop();}catch(e){} return; }
-    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if(!SR){ toast('Voice typing not supported in this browser — tap the 🎤 on your keyboard instead'); return; }
-    briefRecog=new SR(); briefRecog.lang='en-US'; briefRecog.interimResults=true; briefRecog.continuous=true;
-    var base = $('briefText').value ? $('briefText').value.replace(/\\s*$/,'')+' ' : '';
-    function reset(){ briefDictating=false; var b=$('briefDictate'); if(b){ b.classList.remove('rec'); b.textContent='🎤 Speak your note'; } }
-    briefRecog.onresult=function(e){ var out=''; for(var i=0;i<e.results.length;i++){ out+=e.results[i][0].transcript + (e.results[i].isFinal?' ':''); } $('briefText').value=base+out; };
-    briefRecog.onend=reset; briefRecog.onerror=reset;
-    try{ briefRecog.start(); briefDictating=true; var b=$('briefDictate'); if(b){ b.classList.add('rec'); b.textContent='● Listening… tap to stop'; } toast('Listening… speak, then check it before you send'); }
-    catch(e){ toast('Could not start voice typing'); }
+    if(briefWRecording){ briefWRecording=false; briefIdle(); try{briefWRec.stop();}catch(e){} return; }
+
+    // Claim the mic first, in the tap. Everything else happens after.
+    grabMic().then(function(){
+      var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if(!SR){ briefWhisper(); return; }
+      briefRecog=new SR(); briefRecog.lang='en-US'; briefRecog.interimResults=true; briefRecog.continuous=true;
+      var base = $('briefText').value ? $('briefText').value.replace(/\\s*$/,'')+' ' : '';
+      var gotAnything=false;
+      briefRecog.onresult=function(e){ var out=''; for(var i=0;i<e.results.length;i++){ out+=e.results[i][0].transcript + (e.results[i].isFinal?' ':''); } if(out) gotAnything=true; $('briefText').value=base+out; };
+      briefRecog.onend=briefIdle;
+      briefRecog.onerror=function(ev){
+        var err=(ev&&ev.error)||'unknown';
+        briefIdle();
+        if(err==='not-allowed'||err==='service-not-allowed'){ toast('Microphone is blocked for this site — allow it in the address-bar padlock'); return; }
+        if(err==='no-speech'){ toast("Didn't hear anything — tap and speak a little closer"); return; }
+        // network / audio-capture / aborted: the browser route is unreliable here,
+        // so record it instead and let the server do the listening.
+        if(!gotAnything){ toast('Voice typing failed ('+err+') — recording instead'); briefWhisper(); }
+        else toast('Voice typing stopped ('+err+')');
+      };
+      try{ briefRecog.start(); briefDictating=true; briefBusy('● Listening… tap to stop'); toast('Listening… speak, then check it before you send'); }
+      catch(e){ briefWhisper(); }
+    }).catch(function(){
+      briefIdle();
+      toast('Allow microphone access to speak your note');
+    });
+  }
+  /* Fallback: record with the same encoder as a voice note, then transcribe it
+     server-side into the Brief box. The mic stream is already held from the tap,
+     so the encoder is handed it rather than re-asking outside the gesture. */
+  function briefWhisper(){
+    loadOpus(function(){
+      try{
+        var opts={ encoderPath: encoderBlobUrl, numberOfChannels:1, encoderSampleRate:16000, streamPages:false };
+        if(micStream && micStream.active){
+          try{
+            var AC = window.AudioContext || window.webkitAudioContext;
+            var actx = new AC(); if(actx.state==='suspended') actx.resume();
+            opts.sourceNode = actx.createMediaStreamSource(micStream);
+          }catch(e){}
+        }
+        briefWRec=new window.Recorder(opts);
+        briefWRec.ondataavailable=function(arr){ transcribeClip(arr, 'briefText'); };
+        briefWRec.start().then(function(){
+          briefWRecording=true; briefBusy('● Recording… tap to stop');
+          toast('Recording — tap to stop and it will type itself out');
+        }).catch(function(){ briefIdle(); toast('Allow microphone to record your note'); });
+      }catch(e){ briefIdle(); toast('Could not start recording'); }
+    });
   }
   function grow(el){ el.style.height='auto'; el.style.height=Math.min(120,el.scrollHeight)+'px'; }
   function dictate(){
@@ -7165,13 +7232,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     });
   }
   function stopWhisper(){ if(wRec&&wRecording){ wRecording=false; $('dictate').classList.remove('rec'); try{wRec.stop();}catch(e){} } }
-  function transcribeClip(arr){
+  // targetId lets the Brief-to-Kiki box reuse this instead of only the composer.
+  function transcribeClip(arr, targetId){
+    var tid = targetId || 'text';
     toast('Transcribing…');
     var blob=new Blob([arr],{type:'audio/ogg'}); var rd=new FileReader();
     rd.onload=function(){ post('/inbox/upload',{image:rd.result}).then(function(d){
       if(!(d&&d.ok&&d.url)){ toast('Transcribe upload failed'); return; }
       post('/inbox/transcribe',{url:d.url}).then(function(t){
-        if(t&&t.ok&&t.text){ var el=$('text'); el.value=(el.value?el.value.replace(/\\s*$/,'')+' ':'')+t.text; grow(el); }
+        if(t&&t.ok&&t.text){ var el=$(tid); if(!el) return; el.value=(el.value?el.value.replace(/\\s*$/,'')+' ':'')+t.text; if(tid==='text') grow(el); }
         else toast((t&&t.error)||'Could not catch that');
       }).catch(function(){ toast('Transcribe failed'); });
     }).catch(function(){ toast('Transcribe failed'); }); };
