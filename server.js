@@ -4200,9 +4200,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // 🔒 STAFF PHOTO = float/receipt, NEVER a shoe (2026-07-17): the photo→shoe machinery is so
   // strong the model kept SEARCHING a staff member's cash photo. Remove the shoe tools entirely
   // for a staff photo turn — now it CAN'T search or send shoes; only count cash / log a receipt.
+  // 🚨 WHOLESALE MUST NOT GET THE RETAIL ALBUM (Rodney 2026-08-16, from a real ManyChat log —
+  // the worst bug in it). Kiki quoted a wholesale buyer "Jordan $85 per pair", he said Jordans
+  // size 9, and she then sent him the RETAIL album: card after card reading
+  // "A1 · Air Jordan 4 Retro (Wet Cement) — $180". Eighty-five, then a hundred and eighty, in
+  // the same conversation. A shop owner reads that as being quoted one price and shown another
+  // and walks — and the order codes (A1/A2/A3) are retail codes that mean nothing here.
+  //
+  // Root cause: send_photos reads the RETAIL catalogue and was never taken off the table for
+  // this store. Telling her in the prompt not to send photos was never going to hold — the
+  // retail rules scream "ALWAYS send the pictures" in a dozen places, and the loop even FORCES
+  // send_photos on some turns. So remove the tool itself. Non-null here also suppresses those
+  // forced calls, which is exactly what wholesale needs: the filtered link IS the answer.
+  const wholesale = ctx.store === SI.STORE;
   const staffPhotoTools = (staffName && image)
     ? AI_TOOLS.filter(t => t.name !== 'search_inventory' && t.name !== 'send_photos')
-    : null;
+    : wholesale
+      ? AI_TOOLS.filter(t => t.name !== 'send_photos')
+      : null;
   try {
   for (let step = 0; step < 6; step++) {
     // On the FIRST move of a photo turn, FORCE Kiki to search inventory — so she can't
@@ -4333,7 +4348,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // 10,000+ styles that change when stock lands, on another host. The
           // reply carries the filtered catalog link, which is what Kiki sends
           // instead of photos — an album of this inventory is hopeless.
-          const r = await SI.search({ query: p.query || p.color || '', brand: p.brand, limit: 6 });
+          const r = await SI.search({ query: p.query || p.color || '', brand: p.brand, size: p.size, limit: 6 });
           found = r.shoes;
           lastSearchCount = found.length;
           result = r.ok
@@ -5676,7 +5691,28 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
      Nightshift client. Colour is now DATA ONLY — the three business hues and nothing else is
      saturated. Ground is a near-black with a blue bias rather than a flat #000, so the brand
      colours sit on it without vibrating. */
-  :root{--acc:#4C8DFF;--acc2:#12D890;--ink:#E9EFF6;--dim:#94A3B5;--card:rgba(255,255,255,.028);--line:rgba(255,255,255,.075);--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+  /* One place for every colour. Dark is the default because this is a night-shift tool —
+     Rodney is on it at 3am. Light is a real theme, not an inversion: the ground goes to a
+     cool off-white, the ink goes to near-black, and the three business hues are DARKENED so
+     they still pass as readable text on white (a #12D890 that sings on black is unreadable
+     on paper-white). Everything below reads these; nothing hardcodes a surface colour. */
+  :root{
+    --acc:#4C8DFF;--acc2:#12D890;
+    --bg:#05050a;--bg2:#0a0812;--surface:rgba(255,255,255,.05);--surface-2:rgba(255,255,255,.08);
+    --ink:#E9EFF6;--dim:#94A3B5;--ink-3:#6F7C8E;
+    --card:rgba(255,255,255,.028);--line:rgba(255,255,255,.075);
+    --tk:#4C8DFF;--osc:#12D890;--si:#FF3D9E;--sb:#9A5CFF;--oth:#7C5CFF;--warn:#FFB43D;
+    --shadow:0 10px 30px rgba(0,0,0,.5);
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
+  /* ☀️ LIGHT — the toggle in the search bar sets data-theme on <html>. Only surfaces and ink
+     move; the account hues keep their identity so a TK row is still recognisably TK. */
+  :root[data-theme="light"]{
+    --bg:#F5F7FA;--bg2:#FFFFFF;--surface:#FFFFFF;--surface-2:#EEF1F6;
+    --ink:#0C121A;--dim:#525E6E;--ink-3:#8892A2;
+    --card:#FFFFFF;--line:#E2E7EE;
+    --tk:#1D5FD8;--osc:#03835A;--si:#D01478;--sb:#6D3BD6;--oth:#5B47C7;--warn:#B26A05;
+    --acc:#1D5FD8;--acc2:#03835A;
+    --shadow:0 1px 2px rgba(12,18,26,.05),0 10px 26px -16px rgba(12,18,26,.22)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   /* App-shell lock: html+body fill the screen exactly and never scroll; the message
      list is the only thing that scrolls. This stops one finger dragging the whole UI
@@ -6086,6 +6122,93 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   #stopBar #stopBtn:active{transform:scale(.94)}
   .navbtn:active{transform:scale(.9)}
   .navbadge{position:absolute;top:-3px;right:2px;width:16px;height:16px;border-radius:50%;background:#ff2e6e;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(255,46,110,.7)}
+
+  /* ─────────── ACCOUNT TABS ───────────
+     Rodney 2026-08-16: "when a tab need my attention it should glow in that color code."
+     One strip, 34px tall — deliberately slim, he called the first pass too thick. Each tab
+     carries its own --c so the underline, the count pill and the focus ring are all that
+     account's colour and never a generic blue. When an account has unread messages the
+     count pill fills solid and breathes in that same colour, so a glance across the strip
+     tells him WHICH business is waiting, not just that something is. */
+  .tabs{display:flex;gap:2px;padding:0 12px;margin:0 2px;border-bottom:1px solid var(--line);
+    overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{--c:var(--dim);position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
+    height:34px;padding:0 11px;background:none;border:0;cursor:pointer;color:var(--dim);
+    font-family:'Inter',-apple-system,sans-serif;font-size:12.5px;font-weight:600;white-space:nowrap;
+    letter-spacing:-.01em}
+  .tab::after{content:'';position:absolute;left:7px;right:7px;bottom:-1px;height:2px;background:transparent;border-radius:2px 2px 0 0}
+  .tab[aria-selected="true"]{color:var(--c)}
+  .tab[aria-selected="true"]::after{background:var(--c)}
+  .tab:active{transform:scale(.95)}
+  .tab .n{font-family:var(--mono);font-size:10px;font-weight:600;padding:1.5px 5px;border-radius:5px;
+    background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);font-variant-numeric:tabular-nums}
+  .tab[data-alert="1"] .n{background:var(--c);color:#fff;animation:tabglow 2s ease-in-out infinite}
+  @keyframes tabglow{
+    0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 60%,transparent)}
+    50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 0%,transparent)}}
+  .tab.t-ALL{--c:var(--ink)} .tab.t-TK{--c:var(--tk)} .tab.t-OSC{--c:var(--osc)}
+  .tab.t-SI{--c:var(--si)} .tab.t-SB{--c:var(--sb)} .tab.t-OTH{--c:var(--oth)}
+  @media (prefers-reduced-motion:reduce){.tab[data-alert="1"] .n{animation:none}}
+
+  /* Selection is the ACCOUNT's colour, never a fixed pink. Rodney: "the pink and green chat
+     tab is highlighted in blue not color coded." A selected TK row now reads blue, an SI row
+     reads pink — the highlight tells him which business he's about to send to. */
+  #listView .row.selected{border-color:var(--rowc);background:color-mix(in srgb,var(--rowc) 16%,transparent);
+    box-shadow:0 0 0 1px var(--rowc) inset}
+  #listView .row.selected::before{background:var(--rowc);box-shadow:none}
+  #selBar{border-top:1px solid var(--line)}
+
+  /* ☀️ LIGHT THEME — the surfaces the rest of this sheet hardcodes for the dark ground.
+     Grouped here rather than scattered so there is one place to look when a colour is wrong
+     in light mode. The heavy black text-shadows exist to lift text off a photo backdrop that
+     light mode doesn't have — they must go, or every label looks smudged. */
+  :root[data-theme="light"] html,html[data-theme="light"]{background:var(--bg)}
+  [data-theme="light"] body{background:var(--bg)}
+  [data-theme="light"] #listView::before,[data-theme="light"] #threadView::before{background:var(--bg)}
+  [data-theme="light"] .thead h1,[data-theme="light"] .thead .sm,
+  [data-theme="light"] .row .nm,[data-theme="light"] .row .lt,
+  [data-theme="light"] .row .tm,[data-theme="light"] .row .pz,
+  [data-theme="light"] .navbtn,[data-theme="light"] .row .pin,
+  [data-theme="light"] .row .lbl{text-shadow:none}
+  [data-theme="light"] #back{color:var(--ink)}
+  [data-theme="light"] #listView .row{background:var(--surface);border-color:var(--line);
+    box-shadow:var(--shadow)}
+  [data-theme="light"] #listView .row:active{background:var(--surface-2)}
+  [data-theme="light"] .row .lt{color:var(--dim)}
+  [data-theme="light"] .row .lt.cust{color:var(--ink)}
+  [data-theme="light"] .row .lt.rep b{color:var(--dim)}
+  [data-theme="light"] .row .tm{color:var(--ink-3)}
+  [data-theme="light"] .row.unread{background:color-mix(in srgb,var(--rowc) 8%,var(--surface))}
+  [data-theme="light"] #listView .row.pinned{background:#FFF8E3}
+  [data-theme="light"] .searchbar .sbox{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow)}
+  [data-theme="light"] .searchbar input::placeholder{color:var(--ink-3)}
+  [data-theme="light"] .sbtn{background:var(--surface);border-color:var(--line);color:var(--dim);box-shadow:var(--shadow)}
+  [data-theme="light"] .icon{background:var(--surface);border-color:var(--line);color:var(--ink);box-shadow:var(--shadow)}
+  [data-theme="light"] .b{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow)}
+  [data-theme="light"] .b.in{border-color:color-mix(in srgb,var(--tk) 40%,var(--line))}
+  [data-theme="light"] .b.kiki{border-color:color-mix(in srgb,var(--si) 40%,var(--line))}
+  [data-theme="light"] .b.rodney{border-color:color-mix(in srgb,var(--osc) 40%,var(--line))}
+  [data-theme="light"] .b .who{background:none;-webkit-text-fill-color:var(--si);color:var(--si)}
+  [data-theme="light"] .b.rodney .who{-webkit-text-fill-color:var(--osc);color:var(--osc)}
+  [data-theme="light"] .compinner{background:var(--surface);border:1.7px solid var(--line);box-shadow:var(--shadow)}
+  [data-theme="light"] .attach{background:var(--surface-2);border-color:var(--line);color:var(--ink);box-shadow:none}
+  [data-theme="light"] .sheet{background:var(--surface);border-color:var(--line)}
+  [data-theme="light"] .sheet .cancel{background:var(--surface-2);color:var(--ink)}
+  [data-theme="light"] .sheet textarea,[data-theme="light"] .customlblrow input{background:var(--surface-2);color:var(--ink)}
+  [data-theme="light"] .toast{background:#0C121A;color:#fff;border-color:transparent}
+  [data-theme="light"] .modal{background:rgba(12,18,26,.32)}
+  [data-theme="light"] .dsep span{background:var(--surface);color:var(--dim);border-color:var(--line)}
+  [data-theme="light"] .dsep:before,[data-theme="light"] .dsep:after{background:var(--line)}
+  [data-theme="light"] .ordrow,[data-theme="light"] .myrow{background:var(--surface-2);color:var(--ink)}
+  [data-theme="light"] .mynum{color:var(--ink)}
+  [data-theme="light"] .ctxbtn,[data-theme="light"] .chip{color:var(--ink)}
+  [data-theme="light"] .navbtn{color:var(--dim)}
+  [data-theme="light"] .navbtn.active{color:var(--si);filter:none}
+  [data-theme="light"] #selBar{background:var(--surface);backdrop-filter:none}
+  [data-theme="light"] #selBar .selinfo{color:var(--ink)}
+  [data-theme="light"] .sys{color:#0d3b22}
+  [data-theme="light"] .b .trl{border-top-color:var(--line)}
 </style></head><body>
 <input type="file" id="avFile" accept="image/*" style="display:none">
 <div id="stopBar" style="display:none"><span id="stopMsg"></span><button id="stopBtn">✋ STOP</button></div>

@@ -29,14 +29,23 @@ const SITE = process.env.SI_SITE || 'https://sneakerinventory.com';
  * Never throws: a search that fails should make Kiki say she couldn't find it,
  * not crash the turn.
  */
-async function search({ query, brand, limit } = {}) {
+async function search({ query, brand, size, limit } = {}) {
   const token = process.env.SI_BOT_TOKEN || '';
   if (!token) {
     return { ok: false, shoes: [], error: 'SI_BOT_TOKEN is not set' };
   }
+  // ⚠️ q MUST NOT BE EMPTY (Rodney 2026-08-16, caught in a real ManyChat log). A buyer said
+  // "Jordan's" then "Size 9". The brand landed in `brand`, nothing landed in `query`, and the
+  // link Kiki sent back was literally `.../catalog?q=` — an empty search. He'd been told
+  // "1,321 Jordans available in size 9 — here they all are" and the link showed him nothing
+  // of the sort. Falling back to the brand means the link always opens on SOMETHING real.
+  const q = query || brand || '';
+  // The size was being dropped entirely on the way in, so a "size 9" buyer got an all-sizes
+  // link. Pass it through; if the site ignores the param the link is no worse than before.
   const url =
-    `${SITE}/api/bot/search?q=${encodeURIComponent(query || '')}` +
+    `${SITE}/api/bot/search?q=${encodeURIComponent(q)}` +
     (brand ? `&brand=${encodeURIComponent(brand)}` : '') +
+    (size ? `&size=${encodeURIComponent(String(size).trim())}` : '') +
     `&limit=${Math.min(10, Math.max(1, Number(limit) || 6))}`;
   try {
     const res = await fetch(url, {
@@ -121,6 +130,15 @@ YOU ARE ANSWERING FOR: Sneaker Inventory — a WHOLESALE sneaker supplier.
 This is NOT a retail shop. The people messaging you are shop owners, resellers
 and market traders buying stock to sell on. Talk to them as a supplier talks to
 a trade buyer: plainly, about quantities and prices.
+
+HOW TO WRITE ON WHATSAPP — GET THIS RIGHT OR IT LOOKS BROKEN
+- WhatsApp is NOT Markdown. Bold is ONE asterisk either side: *like this*.
+- NEVER use two asterisks. **This** does not go bold — the customer literally sees the
+  stars. It has already gone out looking like **wholesale** and **https://sneakerinventory.com**.
+- NEVER put asterisks, brackets or any punctuation around a LINK. The stars get swallowed
+  into the address and the link stops working. Write the address bare, on its own line:
+      https://sneakerinventory.com
+- Same for the password — write it plainly: Password: wholesale
 
 WHAT YOU NEVER SAY — NO EXCEPTIONS
 - NEVER say where the shoes ship from. No country, no city, no supplier name.
