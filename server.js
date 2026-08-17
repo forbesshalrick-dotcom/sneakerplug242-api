@@ -1138,13 +1138,40 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // (Creole/Spanish) chat Kiki appends a "🔎 _Customer said: …_" line so the owner can follow
   // along. That line is logged to the Inbox above (owner sees it) but must NOT reach the
   // customer — strip it from the outgoing WhatsApp text so the customer only gets the reply.
+  // 🔴 FIXED 2026-08-17 — this leaked to a real customer, twice over. Rodney sent a
+  // screenshot of a Sneaker Inventory chat where a buyer saw:
+  //     🔍 _Customer said: "Nassau or Island"_
+  //     ---
+  //     This is wholesale — we ship direct...
+  // Two separate faults, and the second hid the first:
+  //   1. The old pattern matched only 🔎 (U+1F50E). Kiki wrote 🔍 (U+1F50D) — the OTHER
+  //      magnifying glass. One codepoint out and the whole strip silently did nothing.
+  //   2. It cut from the marker to END OF STRING, which only works when the line is
+  //      last. Kiki had put it FIRST, so the strip consumed the entire message, the
+  //      "never blank the message" guard restored the original, and the translation
+  //      went out anyway. The guard turned a total failure into a silent one.
+  // So: match either glass (or none), remove only that LINE wherever it sits, and
+  // clear the "---" divider it leaves orphaned.
   try {
-    const TRANS_RE = /\n*[ \t>_*]*🔎[ \t]*_*\s*Customer said:[\s\S]*$/i;
+    // ⚠️ ALTERNATION, NOT A CHARACTER CLASS. `[🔍🔎]` looks correct and matches
+    // NOTHING — each glass is two UTF-16 units, so a class holds four surrogate
+    // halves and none of them is a whole emoji. My first attempt at this fix had
+    // exactly that bug and a test caught it.
+    const TRANS_LINE = /^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim;
+    const ORPHAN_RULE = /^\s*(?:-{3,}|—{2,}|\*{3,})\s*$/gm;
     for (const mm of (messages || [])) {
-      if (mm && mm.type === 'text' && mm.text && TRANS_RE.test(mm.text)) {
-        const stripped = String(mm.text).replace(TRANS_RE, '').trim();
-        if (stripped) mm.text = stripped; // never blank the whole message
-      }
+      if (!(mm && mm.type === 'text' && mm.text)) continue;
+      if (!/Customer said:/i.test(mm.text)) continue;
+      const stripped = String(mm.text)
+        .replace(TRANS_LINE, '')
+        .replace(ORPHAN_RULE, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      // Still never blank the whole bubble — but now that only happens when the
+      // reply genuinely was nothing but a translation line, which is worth knowing.
+      if (stripped) mm.text = stripped;
+      // sendChunk has no `req`, so this goes to the Railway log rather than /last.
+      else console.error('[translation-only reply] sub', subscriberId, JSON.stringify(mm.text).slice(0, 200));
     }
   } catch (_) {}
   // 🧠🚫 <thinking> BLOCKS — cut them out of every outgoing bubble, whatever path built it.
@@ -6218,11 +6245,6 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   [data-theme="light"] .sbtn{background:var(--surface);border-color:var(--line);color:var(--dim);box-shadow:var(--shadow)}
   [data-theme="light"] .icon{background:var(--surface);border-color:var(--line);color:var(--ink);box-shadow:var(--shadow)}
   [data-theme="light"] .b{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow)}
-  [data-theme="light"] .b.in{border-color:color-mix(in srgb,var(--tk) 40%,var(--line))}
-  [data-theme="light"] .b.kiki{border-color:color-mix(in srgb,var(--si) 40%,var(--line))}
-  [data-theme="light"] .b.rodney{border-color:color-mix(in srgb,var(--osc) 40%,var(--line))}
-  [data-theme="light"] .b .who{background:none;-webkit-text-fill-color:var(--si);color:var(--si)}
-  [data-theme="light"] .b.rodney .who{-webkit-text-fill-color:var(--osc);color:var(--osc)}
   [data-theme="light"] .compinner{background:var(--surface);border:1.7px solid var(--line);box-shadow:var(--shadow)}
   [data-theme="light"] .attach{background:var(--surface-2);border-color:var(--line);color:var(--ink);box-shadow:none}
   [data-theme="light"] .sheet{background:var(--surface);border-color:var(--line)}
