@@ -7091,18 +7091,53 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     });
   }
   // stop recording. cancel=true → throw the recording away (Cancel button).
+  /* 🎤 2026-08-17 — Rodney: "the recording doesn't last as long as I'm recording
+   * for... it never got the last piece", and "when I came out the website the
+   * recorder was still in use". Two faults in here, both fixed together because
+   * the fix for one is the wrong order for the other.
+   *
+   * THE TAIL: stop() used to fire on the same tick as the tap. The encoder is
+   * still holding the last partial frame at that moment, so his final words —
+   * the "and I'm counting" part — never made it in. There is now a short trailing
+   * pad: the UI stops instantly so it feels responsive, but capture continues for
+   * a beat before the encoder is told to close.
+   *
+   * THE HELD MIC: nothing ever released the stream. grabMic() takes it and it was
+   * kept for the life of the page "so it never re-asks outside the tap" — which
+   * also meant the phone's microphone stayed locked until he closed the site. He
+   * hit this twice, and both times could not send a voice message to report it.
+   * Releasing is safe: the browser remembers the PERMISSION for the origin, so a
+   * later grabMic() inside a tap still resolves with no prompt. It was only ever
+   * the timing that mattered, not the grant.
+   *
+   * Order matters — release only AFTER the audio has been handed over, or
+   * releasing becomes a third way to cut the tail off.
+   */
+  var TAIL_PAD_MS = 400;
   function stopRec(cancel){
     if(!recorder || !recording) return;
     recording=false; recCancel=!!cancel;
     clearInterval(recTimer); recTimer=null;
     if(recMaxTimer){ clearTimeout(recMaxTimer); recMaxTimer=null; }
+    // The UI goes back to idle straight away so the tap feels instant...
     stopMeter();
     $('mic').classList.remove('rec');
     if($('recHud')) $('recHud').style.display='none';
-    try{ recorder.stop(); }catch(e){}
     if(cancel) toast('Voice note deleted');
+    // ...while the encoder gets a beat to swallow the last frame.
+    var r = recorder;
+    setTimeout(function(){
+      try{ r.stop(); }catch(e){}
+      // Belt and braces: if ondataavailable never fires (encoder error, cancelled
+      // recording), the microphone must still come back. 4s is well clear of a
+      // normal flush.
+      setTimeout(releaseMicIfIdle, 4000);
+    }, cancel ? 0 : TAIL_PAD_MS);
   }
   function onRecorded(arr){
+    // The audio is in hand, so the microphone can go back to the phone. This is
+    // the earliest safe point — releasing any sooner clips the end of the note.
+    releaseMicIfIdle();
     if(recCancel){ recCancel=false; return; } // slid to cancel → discard, don't upload
     try{
       var blob=new Blob([arr], {type:'audio/ogg'});
