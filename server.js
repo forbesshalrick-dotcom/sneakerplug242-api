@@ -5689,7 +5689,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .tag{font-size:10px;font-weight:800;padding:3px 8px;border-radius:7px;letter-spacing:.8px;border:1px solid transparent}
   .tag.TK{background:rgba(47,109,246,.16);color:#7fb4ff;border-color:rgba(47,109,246,.4)}
   .tag.OSC{background:rgba(18,184,102,.16);color:#5fe0a0;border-color:rgba(18,184,102,.4)}
-  .tag.SB{background:rgba(154,92,255,.16);color:#c6a6ff;border-color:rgba(154,92,255,.4)}
+  .tag.SB{background:rgba(255,45,149,.16);color:#ff9ecb;border-color:rgba(255,45,149,.4)}
   .tag.OTH{background:rgba(120,134,168,.16);color:#c3ccdc;border-color:rgba(120,134,168,.4)}
   .dot{width:11px;height:11px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 0 0 3px rgba(124,92,255,.18);animation:pulse 1.6s infinite}
   .pz{font-size:10.5px;color:#ffcf8f;font-weight:600}
@@ -5727,7 +5727,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .b.rodney{border-color:#9dff5c;box-shadow:0 0 17px rgba(157,255,92,.5),inset 0 0 12px rgba(157,255,92,.10);border-bottom-right-radius:6px}
   .acc-TK{--acc:#2f6df6;--acc2:#38bdf8;--accglow:rgba(56,189,248,.5)}
   .acc-OSC{--acc:#12b866;--acc2:#4ef0a0;--accglow:rgba(78,240,160,.5)}
-  .acc-SB{--acc:#9a5cff;--acc2:#c6a6ff;--accglow:rgba(198,166,255,.5)}
+  .acc-SB{--acc:#ff2d95;--acc2:#ff9ecb;--accglow:rgba(255,158,203,.5)}
   .acc-OTH{--acc:#7c5cff;--acc2:#22d3ee;--accglow:rgba(34,211,238,.5)}
   .b .who{font-size:11px;font-weight:800;margin-bottom:3px;display:flex;align-items:center;gap:6px;letter-spacing:.3px;
     background:linear-gradient(90deg,#ff8ad4,#ff5cb4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -6159,7 +6159,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   window.__rodneyEmoji=function(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(157,255,92,.65),0 0 12px rgba(157,255,92,.45);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👨🏾</span>'; };
   window.__imgFail=function(el){ try{ var s=document.createElement('span'); s.textContent='📷 photo'; el.replaceWith(s); }catch(e){} };
   window.__avFail=function(el){ try{ el.style.display='none'; var s=el.parentNode.querySelector('.avini'); if(s) s.style.display='flex'; }catch(e){} };
-  function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
+  // SB (Sneaker Inventory) was purple; Rodney asked for pink so it reads apart from TK blue and
+  // OSC green at a glance (2026-08-16). Deliberately BRIGHTER than the .cn-num pink (#ff5cb4) —
+  // the customer's number is already pink, and a matching shade made the whole label one blob.
+  function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SB'?['#ff2d95','#ff9ecb']:['#7c5cff','#22d3ee']; }
   // Up to two initials (first + last word) for a fuller monogram.
   function initials(nm){ var p=String(nm||'').trim().split(/\\s+/).filter(Boolean); if(!p.length) return '#'; var a=(p[0].match(/[a-zA-Z0-9]/)||['#'])[0]; if(p.length<2) return a.toUpperCase(); var b=(p[p.length-1].match(/[a-zA-Z0-9]/)||[''])[0]; return (a+b).toUpperCase(); }
   // Local number (last 7 digits) + the "Name-8033126" label so the name AND the number
@@ -6170,7 +6173,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   function custLabel(name, num){ var nm=String(name||'').trim(); var loc=localNum(num); return nm ? (nm+(loc?'-'+loc:'')) : (loc?('+'+String(num||'').replace(/\\D/g,'')):'Customer'); }
   // Colour-split: NAME in the account colour (TK blue, OSC green — matches the avatar
   // icon), NUMBER always pink for a uniform look.
-  function accTextColor(tag){ return tag==='TK'?'#38bdf8':(tag==='SB'?'#c6a6ff':'#2fe08a'); }
+  function accTextColor(tag){ return tag==='TK'?'#38bdf8':(tag==='SB'?'#ff9ecb':'#2fe08a'); }
   function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=accTextColor(tag); if(!nm) return loc?('<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'):('<span class="cn-name" style="color:'+col+'">Customer</span>'); return '<span class="cn-name" style="color:'+col+'">'+esc(nm)+'</span>'+(loc?'<span class="cn-num">-'+esc(loc)+'</span>':''); }
   // Header: NAME only (no number). The full number lives once, in the call link below it.
   function custNameHTML(name, tag){ var nm=String(name||'').trim(); var col=accTextColor(tag); return '<span class="cn-name" style="color:'+col+'">'+esc(nm||'Customer')+'</span>'; }
