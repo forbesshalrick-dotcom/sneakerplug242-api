@@ -5723,7 +5723,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     --bg:#05050a;--bg2:#0a0812;--surface:rgba(255,255,255,.05);--surface-2:rgba(255,255,255,.08);
     --ink:#E9EFF6;--dim:#94A3B5;--ink-3:#6F7C8E;
     --card:rgba(255,255,255,.028);--line:rgba(255,255,255,.075);
-    --tk:#4C8DFF;--osc:#12D890;--si:#FF3D9E;--sb:#9A5CFF;--oth:#7C5CFF;--warn:#FFB43D;
+    --tk:#1E6BFF;--osc:#00B257;--si:#F0142F;--sb:#8A2BFF;--oth:#6C4DFF;--warn:#F08000;
     --shadow:0 10px 30px rgba(0,0,0,.5);
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
   /* ☀️ LIGHT — the toggle in the search bar sets data-theme on <html>. Only surfaces and ink
@@ -5735,7 +5735,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     --bg:#FFFFFF;--bg2:#FFFFFF;--surface:#FFFFFF;--surface-2:#F4F6F9;
     --ink:#0C121A;--dim:#525E6E;--ink-3:#8892A2;
     --card:#FFFFFF;--line:#E2E7EE;
-    --tk:#1D5FD8;--osc:#03835A;--si:#D01478;--sb:#6D3BD6;--oth:#5B47C7;--warn:#B26A05;
+    --tk:#1E6BFF;--osc:#00B257;--si:#F0142F;--sb:#8A2BFF;--oth:#6C4DFF;--warn:#F08000;
     --acc:#1D5FD8;--acc2:#03835A;
     --shadow:0 1px 2px rgba(12,18,26,.05),0 10px 26px -16px rgba(12,18,26,.22)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -5749,9 +5749,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   /* luxury backdrop — swap CHAT_BG_URL for the collage image; falls back to a rich glow */
   #listView::before,#threadView::before{content:'';position:absolute;inset:0;z-index:-3;pointer-events:none;
     background:
-      radial-gradient(600px 400px at 12% 6%, rgba(198,92,255,.18), transparent 60%),
-      radial-gradient(600px 460px at 88% 22%, rgba(34,211,238,.14), transparent 60%),
-      radial-gradient(700px 520px at 50% 108%, rgba(255,92,180,.16), transparent 60%),
+      radial-gradient(600px 400px at 12% 6%, transparent, transparent 60%),
+      radial-gradient(600px 460px at 88% 22%, transparent, transparent 60%),
+      radial-gradient(700px 520px at 50% 108%, transparent, transparent 60%),
       linear-gradient(180deg,#0a0812,#05050a);
     background-size:cover;background-position:center}
   /* background-position:center 12% (not "center"): the collage's people are framed near the
@@ -5779,8 +5779,8 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   header{position:sticky;top:0;z-index:5;padding:calc(env(safe-area-inset-top) + 5px) 14px 5px;display:flex;align-items:center;gap:11px;
     background:transparent;border-bottom:0}
   .thead h1,.thead .sm{text-shadow:0 1px 6px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.9),0 0 10px rgba(0,0,0,.7)}
-  #tSub{color:#ff5cb4}
-  .callnum{color:#ff5cb4;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:4px;padding:2px 8px;margin-left:-4px;border-radius:9px;background:rgba(255,92,180,.14);border:1px solid rgba(255,92,180,.4)}
+  #tSub{color:var(--si)}
+  .callnum{color:var(--si);text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:4px;padding:2px 8px;margin-left:-4px;border-radius:9px;background:transparent;border:1px solid transparent}
   .callnum:active{transform:scale(.94)}
   /* plain back arrow, no circle */
   #back{background:none;border:0;box-shadow:none;width:auto;height:auto;font-size:32px;color:#fff;padding:0 4px;text-shadow:0 1px 6px rgba(0,0,0,.9)}
@@ -5788,7 +5788,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   header .brandname{font-size:18px;font-weight:700;margin:0;flex:1;letter-spacing:.2px;line-height:1.05}
   header .brandsub{display:block;font-size:10.5px;font-weight:600;color:var(--dim);letter-spacing:2px;font-family:'Inter'}
   header .sm{font-size:11px;color:var(--dim);font-weight:600}
-  .icon{background:rgba(9,8,18,.55);border:1.5px solid rgba(198,92,255,.5);color:#e8dcff;font-size:16px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 10px rgba(198,92,255,.28)}
+  .icon{background:rgba(9,8,18,.55);border:1.5px solid transparent;color:#e8dcff;font-size:16px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 10px transparent}
   .icon:active{transform:scale(.88)}
   .avatar{border-radius:50%;flex-shrink:0;overflow:hidden;background:linear-gradient(135deg,var(--acc),var(--acc2));display:block}
   #listView,#threadView{position:fixed;inset:0;display:flex;flex-direction:column}
@@ -5883,16 +5883,16 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     background-size:cover;background-position:center;background-repeat:no-repeat;
     filter:saturate(1.65) contrast(1.14) brightness(1.1)}
   .b>*{position:relative;z-index:1}
-  .b.in{border-color:#22d3ee;box-shadow:0 0 15px rgba(34,211,238,.45),inset 0 0 12px rgba(34,211,238,.10);border-bottom-left-radius:6px}
-  .b.kiki{border-color:#ff5cb4;box-shadow:0 0 17px rgba(255,92,180,.55),inset 0 0 12px rgba(255,92,180,.12);border-bottom-right-radius:6px}
-  .b.rodney{border-color:#9dff5c;box-shadow:0 0 17px rgba(157,255,92,.5),inset 0 0 12px rgba(157,255,92,.10);border-bottom-right-radius:6px}
+  .b.in{border-color:color-mix(in srgb,var(--tk) 55%,transparent);box-shadow:none;border-bottom-left-radius:6px}
+  .b.kiki{border-color:color-mix(in srgb,var(--si) 55%,transparent);box-shadow:none;border-bottom-right-radius:6px}
+  .b.rodney{border-color:color-mix(in srgb,var(--osc) 55%,transparent);box-shadow:none;border-bottom-right-radius:6px}
   .acc-TK{--acc:#2f6df6;--acc2:#38bdf8;--accglow:rgba(56,189,248,.5)}
   .acc-OSC{--acc:#12b866;--acc2:#4ef0a0;--accglow:rgba(78,240,160,.5)}
   .acc-SB{--acc:#9a5cff;--acc2:#c6a6ff;--accglow:rgba(198,166,255,.5)}
-  .acc-SI{--acc:#ff2d95;--acc2:#ff9ecb;--accglow:rgba(255,158,203,.5)}
-  .acc-OTH{--acc:#7c5cff;--acc2:#22d3ee;--accglow:rgba(34,211,238,.5)}
+  .acc-SI{--acc:var(--si);--acc2:#ff9ecb;--accglow:rgba(255,158,203,.5)}
+  .acc-OTH{--acc:#7c5cff;--acc2:var(--tk);--accglow:transparent}
   .b .who{font-size:11px;font-weight:800;margin-bottom:3px;display:flex;align-items:center;gap:6px;letter-spacing:.3px;
-    background:linear-gradient(90deg,#ff8ad4,#ff5cb4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    background:linear-gradient(90deg,var(--si),var(--si));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .b.rodney .who{background:linear-gradient(90deg,#e4ffcf,#9dff5c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .b .tm{font-size:9.5px;opacity:.5;margin-top:4px;text-align:right}
   /* 📅 Day divider — a centred pill with a hairline running through it, so a long thread
@@ -5924,13 +5924,13 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .iconstrip.dragging{cursor:grabbing}
   .iconstrip::-webkit-scrollbar{display:none}
   .compinner{flex:1;min-width:0;display:flex;gap:5px;align-items:center;padding:5px;border-radius:26px;border:1.7px solid transparent;
-    background:linear-gradient(rgba(9,8,18,.9),rgba(9,8,18,.9)) padding-box, linear-gradient(90deg,#ff5cb4,#c65cff,#22d3ee) border-box;
-    box-shadow:0 0 18px rgba(198,92,255,.32)}
+    background:linear-gradient(rgba(9,8,18,.9),rgba(9,8,18,.9)) padding-box, linear-gradient(90deg,var(--si),var(--sb),var(--tk)) border-box;
+    box-shadow:0 0 18px transparent}
   .compinner textarea{flex:1;min-width:0;resize:none;background:transparent;border:0;color:var(--ink);padding:10px 6px;font-size:15px;font-family:inherit;max-height:120px}
   .compinner textarea:focus{outline:none}
-  .sendbtn{background:linear-gradient(135deg,#c65cff,#22d3ee);border:0;color:#05050a;font-weight:800;border-radius:50%;width:40px;height:40px;padding:0;font-size:17px;cursor:pointer;transition:.15s;flex-shrink:0;box-shadow:0 0 14px rgba(198,92,255,.5);display:flex;align-items:center;justify-content:center}
+  .sendbtn{background:linear-gradient(135deg,var(--sb),var(--tk));border:0;color:#05050a;font-weight:800;border-radius:50%;width:40px;height:40px;padding:0;font-size:17px;cursor:pointer;transition:.15s;flex-shrink:0;box-shadow:0 0 14px transparent;display:flex;align-items:center;justify-content:center}
   .sendbtn:active{transform:scale(.9)} .sendbtn:disabled{opacity:.5}
-  .attach{background:rgba(255,255,255,.05);border:1.2px solid rgba(198,92,255,.4);color:#e8dcff;font-size:14px;width:28px;height:28px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 6px rgba(198,92,255,.2)}
+  .attach{background:rgba(255,255,255,.05);border:1.2px solid transparent;color:#e8dcff;font-size:14px;width:28px;height:28px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:.15s;box-shadow:0 0 6px transparent}
   .attach:active{transform:scale(.88)}
   .attach.rec{background:#e23b5a;color:#fff;border-color:#e23b5a;box-shadow:0 0 14px rgba(226,59,90,.6);animation:pulse 1s infinite}
   /* 🎙 recording HUD (tap mic to start, tap Stop to finish) */
@@ -5952,7 +5952,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .rechud .reccancel:active{transform:scale(.9)}
   /* voice-note preview: play button + duration + send + delete */
   .voiceprev{align-items:center;gap:10px}
-  .vplay{width:34px;height:34px;flex-shrink:0;border-radius:50%;border:1.5px solid #ff5cb4;background:rgba(255,92,180,.15);color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .vplay{width:34px;height:34px;flex-shrink:0;border-radius:50%;border:1.5px solid var(--si);background:transparent;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
   .vplay:active{transform:scale(.9)}
   /* ✋ manual STOP — always visible, red, halts an in-progress photo send to this customer */
   .attach.stopsend{background:linear-gradient(135deg,#ff3b5c,#ff5c8a);border-color:#ff3b5c;color:#fff;box-shadow:0 0 12px rgba(255,59,92,.55);margin-left:2px}
@@ -5965,8 +5965,8 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .attach.q-pay{border-color:#ffb547;box-shadow:0 0 9px rgba(255,181,71,.45)}
   .attach.q-shoes{border-color:#cfd8e6;box-shadow:0 0 9px rgba(207,216,230,.4)}
   .attach.q-money{border-color:#4ef0a0;box-shadow:0 0 9px rgba(78,240,160,.45)}
-  .attach.q-orders{border-color:#ff5cb4;box-shadow:0 0 9px rgba(255,92,180,.45);position:relative}
-  .ordbadge{position:absolute;top:-8px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:11px;background:linear-gradient(135deg,#ff2e6e,#ff5cb4);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(255,46,110,.7);border:1.5px solid #1a0a12}
+  .attach.q-orders{border-color:var(--si);box-shadow:0 0 9px transparent;position:relative}
+  .ordbadge{position:absolute;top:-8px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:11px;background:linear-gradient(135deg,#ff2e6e,var(--si));color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(255,46,110,.7);border:1.5px solid #1a0a12}
   .ordrow{display:flex;gap:11px;align-items:flex-start;padding:12px 13px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);margin-bottom:9px;font-size:13.5px;line-height:1.45;color:#eef1fb}
   .ordrow a{color:#7fe0ff;font-weight:700}
   .ordpic{width:52px;height:52px;border-radius:12px;object-fit:cover;flex-shrink:0;background:#171a2b;box-shadow:0 0 0 1.5px rgba(255,255,255,.12)}
@@ -5994,16 +5994,16 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .imgprev{display:flex;align-items:center;gap:11px;padding:9px 13px;background:rgba(124,92,255,.1);border-top:1px solid var(--line)}
   .imgprev img{height:54px;width:54px;object-fit:cover;border-radius:10px}
   .imgprev .ip-label{flex:1;font-size:13px;color:#c8d2ee;font-weight:600}
-  .imgprev .ipsend{background:linear-gradient(135deg,#c65cff,#22d3ee);border:0;color:#05050a;font-weight:800;font-size:14px;padding:9px 16px;border-radius:12px;cursor:pointer;font-family:'Space Grotesk';box-shadow:0 0 12px rgba(198,92,255,.5);flex-shrink:0}
+  .imgprev .ipsend{background:linear-gradient(135deg,var(--sb),var(--tk));border:0;color:#05050a;font-weight:800;font-size:14px;padding:9px 16px;border-radius:12px;cursor:pointer;font-family:'Space Grotesk';box-shadow:0 0 12px transparent;flex-shrink:0}
   .imgprev .ipsend:active{transform:scale(.94)}
   .b.tap{cursor:pointer}
   .b.hasimg{padding:5px}
   .msgimg{max-width:210px;max-height:260px;border-radius:12px;display:block;object-fit:cover;filter:saturate(1.25) contrast(1.05)}
   /* 📍 shared-location pin bubble */
   .locpin{display:flex;align-items:center;gap:11px;text-decoration:none;color:inherit}
-  .locbig{font-size:26px;line-height:1;filter:drop-shadow(0 0 6px rgba(34,211,238,.7))}
+  .locbig{font-size:26px;line-height:1;filter:drop-shadow(0 0 6px transparent)}
   .loctx{display:flex;flex-direction:column;font-weight:800;letter-spacing:.2px}
-  .locgo{font-size:11.5px;font-weight:700;color:#22d3ee;opacity:.92;margin-top:2px}
+  .locgo{font-size:11.5px;font-weight:700;color:var(--tk);opacity:.92;margin-top:2px}
   /* system event pill (deliveries / new orders) */
   .srow{align-self:center;max-width:90%;animation:rise .22s ease;margin:2px 0}
   .sys{background:linear-gradient(180deg,rgba(34,197,94,.16),rgba(16,17,27,.82));border:1px solid rgba(74,222,128,.55);color:#eafff1;
@@ -6022,14 +6022,14 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .sheet p{font-size:13px;color:var(--dim);margin:0 0 14px;line-height:1.5}
   .picklabel{font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin:2px 0 7px;display:flex;align-items:center;gap:8px}
   .matchtog{margin-left:auto;background:rgba(255,255,255,.06);border:1.4px solid rgba(56,189,248,.55);color:#bdefff;font-family:'Space Grotesk';font-weight:800;font-size:11px;letter-spacing:.5px;padding:5px 10px;border-radius:11px;cursor:pointer;text-transform:none}
-  .matchtog.on{background:linear-gradient(135deg,#38bdf8,#22d3ee);border-color:#7dffdf;color:#04121a;box-shadow:0 0 12px rgba(34,211,238,.6)}
+  .matchtog.on{background:linear-gradient(135deg,#38bdf8,var(--tk));border-color:#7dffdf;color:#04121a;box-shadow:0 0 12px transparent}
   .matchtog:active{transform:scale(.94)}
   .chiprow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px;max-height:118px;overflow-y:auto}
   .chip{padding:8px 14px;border-radius:20px;font-size:14px;font-weight:700;font-family:'Space Grotesk';background:rgba(124,92,255,.14);border:1.5px solid rgba(124,92,255,.5);color:#e8dcff;cursor:pointer;white-space:nowrap;transition:.12s}
-  .chip.brandchip{background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.45);color:#c8f4fb}
+  .chip.brandchip{background:transparent;border-color:transparent;color:#c8f4fb}
   .chip:active{transform:scale(.92)}
   /* selected chip = solid, obvious pick */
-  .chip.on{background:linear-gradient(135deg,#ff5cb4,#c65cff)!important;border-color:#ff8ad4!important;color:#fff!important;box-shadow:0 0 14px rgba(255,92,180,.6)!important;font-weight:800}
+  .chip.on{background:linear-gradient(135deg,var(--si),var(--sb))!important;border-color:var(--si)!important;color:#fff!important;box-shadow:0 0 14px transparent!important;font-weight:800}
   .lblchip{font-weight:800}
   /* pin marker + colour-coded customer label on a row */
   .row .pin{font-size:13px;margin-right:2px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.8))}
@@ -6037,12 +6037,12 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   #listView .row.pinned{background:rgba(255,210,74,.10)}
   /* long-press menu buttons */
   .ctxrow{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-  .ctxbtn{flex:1;min-width:96px;padding:13px 10px;border-radius:14px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.4);color:#fff;font-weight:700;font-size:13.5px;font-family:'Space Grotesk';cursor:pointer}
+  .ctxbtn{flex:1;min-width:96px;padding:13px 10px;border-radius:14px;background:rgba(255,255,255,.06);border:1.5px solid transparent;color:#fff;font-weight:700;font-size:13.5px;font-family:'Space Grotesk';cursor:pointer}
   .ctxbtn:active{transform:scale(.95)}
   .customlblrow{display:flex;gap:8px;margin-bottom:14px}
-  .customlblrow input{flex:1;min-width:0;padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.35);color:#fff;font-family:'Space Grotesk';font-size:13.5px}
+  .customlblrow input{flex:1;min-width:0;padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.06);border:1.5px solid transparent;color:#fff;font-family:'Space Grotesk';font-size:13.5px}
   .customlblrow input::placeholder{color:var(--dim)}
-  .customlblrow button{padding:11px 16px;border-radius:12px;background:linear-gradient(135deg,#ff5cb4,#c65cff);border:0;color:#fff;font-weight:800;font-size:13px;font-family:'Space Grotesk';cursor:pointer}
+  .customlblrow button{padding:11px 16px;border-radius:12px;background:linear-gradient(135deg,var(--si),var(--sb));border:0;color:#fff;font-weight:800;font-size:13px;font-family:'Space Grotesk';cursor:pointer}
   .customlblrow button:active{transform:scale(.93)}
   .ctxbtn.ctxdanger{width:100%;background:rgba(255,59,92,.12);border-color:rgba(255,59,92,.55);color:#ff8397;margin-bottom:14px}
   .chip.sending{background:#12b866;border-color:#2fe08a;color:#04120b;opacity:1}
@@ -6070,17 +6070,17 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .wordmark{font-family:'Inter',-apple-system,sans-serif;font-size:31px;font-weight:800;line-height:1;margin:0;color:var(--ink);letter-spacing:-.035em;transform:none;text-shadow:none}
   /* WhatsApp overlaps the bottom-right of INBOX, graffiti-tag style */
   .wabrand{position:static;font-family:var(--mono);font-size:10px;font-weight:500;line-height:1;color:var(--dim);margin:5px 0 0;letter-spacing:.18em;text-transform:uppercase;transform:none;text-shadow:none}
-  .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:5px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
+  .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:var(--si);font-weight:700;margin:5px 0 0 4px;text-shadow:0 0 12px transparent}
   .searchbar{display:flex;gap:9px;padding:8px 14px 10px;align-items:center;flex-shrink:0}
-  .searchbar .sbox{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:rgba(255,92,180,.08);border:1.6px solid #ff5cb4;border-radius:16px;padding:12px 14px;box-shadow:0 0 10px rgba(255,92,180,.25)}
-  .searchbar .sbox:focus-within{border-color:#ff77c2;box-shadow:0 0 14px rgba(255,92,180,.42)}
+  .searchbar .sbox{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:transparent;border:1.6px solid var(--si);border-radius:16px;padding:12px 14px;box-shadow:0 0 10px transparent}
+  .searchbar .sbox:focus-within{border-color:#ff77c2;box-shadow:0 0 14px transparent}
   .searchbar .sbox svg{width:18px;height:18px;flex-shrink:0;opacity:.9}
   .searchbar input{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font-size:15px;font-family:'Space Grotesk'}
   .searchbar input::placeholder{color:rgba(255,180,214,.7)}
   .searchbar input:focus{outline:none}
   .sbtn{width:46px;height:48px;border-radius:15px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:#e8dcff;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
   .sbtn svg{width:22px;height:22px}
-  .sbtn.compose{color:#ff5cb4;border-color:rgba(255,92,180,.55);box-shadow:0 0 12px rgba(255,92,180,.35)}
+  .sbtn.compose{color:var(--si);border-color:transparent;box-shadow:0 0 12px transparent}
   .sbtn:active{transform:scale(.92)}
   #threads{padding:4px 2px 14px}
   /* transparent rows over the vivid collage — text carries its own shadow for legibility */
@@ -6090,7 +6090,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .row .toprow{display:flex;justify-content:space-between;align-items:center;gap:10px}
   .row .nm{flex:1;min-width:0;display:flex;align-items:center;gap:6px;text-shadow:0 2px 7px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.9)}
   .row .nmtext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
-  .cn-num{color:#ff5cb4}
+  .cn-num{color:var(--si)}
   .row .meta{display:flex;flex-direction:row;align-items:center;gap:7px;flex-shrink:0}
   .row .lt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6eaf4;text-shadow:0 1px 6px rgba(0,0,0,.98),0 0 4px rgba(0,0,0,.95)}
   .row .tm{text-shadow:0 1px 5px rgba(0,0,0,.95)}
@@ -6128,15 +6128,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:5px 6px calc(4px + env(safe-area-inset-bottom));background:transparent;border-top:0;flex-shrink:0}
   .navbtn{background:none;border:0;color:#c3c8d6;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px;text-shadow:0 1px 4px rgba(0,0,0,.9)}
   .navbtn svg{width:19px;height:19px}
-  .navbtn.active{color:#ff5cb4;filter:drop-shadow(0 0 8px rgba(255,92,180,.6))}
+  .navbtn.active{color:var(--si);filter:drop-shadow(0 0 8px transparent)}
   /* multi-select: highlighted rows + the send bar */
-  #listView .row.selected{border-color:#ff5cb4;box-shadow:0 0 16px rgba(255,92,180,.5);background:rgba(255,92,180,.14)}
-  #listView .row.selected::before{content:'✓';position:absolute;top:6px;right:8px;width:19px;height:19px;border-radius:50%;background:#ff5cb4;color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px rgba(255,92,180,.7)}
+  #listView .row.selected{border-color:var(--si);box-shadow:0 0 16px transparent;background:transparent}
+  #listView .row.selected::before{content:'✓';position:absolute;top:6px;right:8px;width:19px;height:19px;border-radius:50%;background:var(--si);color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 0 8px transparent}
   #listView .row{position:relative}
-  #selBar{position:sticky;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(10,8,20,.7),rgba(10,8,20,.92));backdrop-filter:blur(14px);border-top:1px solid rgba(255,92,180,.4)}
+  #selBar{position:sticky;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(10,8,20,.7),rgba(10,8,20,.92));backdrop-filter:blur(14px);border-top:1px solid transparent}
   #selBar .selinfo{color:#fff;font-size:13px;font-weight:700}
-  #selBar .selinfo b{color:#ff5cb4;font-size:15px}
-  #selBar .selbtn{flex:1;background:linear-gradient(135deg,#ff5cb4,#c65cff);border:0;color:#fff;font-weight:800;font-size:14px;padding:11px;border-radius:13px;cursor:pointer;font-family:'Space Grotesk';box-shadow:0 0 14px rgba(255,92,180,.5)}
+  #selBar .selinfo b{color:var(--si);font-size:15px}
+  #selBar .selbtn{flex:1;background:linear-gradient(135deg,var(--si),var(--sb));border:0;color:#fff;font-weight:800;font-size:14px;padding:11px;border-radius:13px;cursor:pointer;font-family:'Space Grotesk';box-shadow:0 0 14px transparent}
   #selBar .selx{background:rgba(255,255,255,.08);border:1px solid var(--line);color:#e7e9ee;font-size:15px;width:42px;height:42px;border-radius:12px;cursor:pointer}
   #selBar .selbtn:active,#selBar .selx:active{transform:scale(.94)}
   body.selmode .bottomnav{display:none}
@@ -6258,6 +6258,78 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   [data-theme="light"] body.hasbg .b:not(.hasimg){text-shadow:none}
   [data-theme="light"] body.hasbg .b:not(.hasimg)::before{display:none}
   [data-theme="light"] .wordmark{color:var(--ink)}
+
+  /* ══ COLOUR DISCIPLINE ══════════════════════════════════════════════════════
+     Rodney, seeing the rebuilt list: "colors are all over the place from old setup, it all
+     has to be colo coordinated like we did with the test app."
+     He's right — the layout got rebuilt but the old palette survived underneath, so a row
+     had a green name, a hot-pink number, a green "Customer:" and a blue tick all at once.
+     ONE rule from here down: on any row, the ACCOUNT's colour is the only colour, and it is
+     spent on exactly two things — WHO it is, and WHO answered. Everything else is ink or
+     grey. That's what made the mockup read as one designed thing. */
+
+  /* the person's name carries the account colour; the number sits beside it in quiet grey
+     mono — it's reference, not headline. It used to be hot pink on every single row. */
+  .row .nm{font-size:14.5px;font-weight:700;letter-spacing:-.015em}
+  .cn-name{color:var(--rowc)}
+  .cn-num{color:var(--dim);font-family:var(--mono);font-size:11.5px;font-weight:500;letter-spacing:0}
+  /* "Customer:" is a label, not a colour event — plain ink. "Kiki:" earns the account colour
+     because it tells him WHO answered, which is the thing he's actually scanning for. */
+  .row .lt.cust{color:var(--ink)}
+  .row .lt.cust .ctag{color:var(--ink);font-weight:700}
+  .row .lt.rep{color:var(--dim)}
+  .row .lt.rep b{color:var(--rowc);font-weight:700}
+  /* avatars: a soft tinted tile in the account colour, matching the tabs. The glowing ring
+     and drop-shadow were the loudest thing on screen and said nothing. */
+  .row .av{border-radius:12px;border:1px solid color-mix(in srgb,var(--rowc) 34%,transparent);
+    background:color-mix(in srgb,var(--rowc) 15%,transparent)!important;color:var(--rowc);
+    box-shadow:none;font-weight:800}
+  .row .av .avini{color:var(--rowc)}
+  /* the row itself: quiet tint + a bar of its colour, exactly like the approved design */
+  #listView .row{border:1px solid var(--line);border-left:3px solid color-mix(in srgb,var(--rowc) 45%,transparent);
+    border-radius:12px;background:color-mix(in srgb,var(--rowc) 4%,transparent);box-shadow:none}
+  #listView .row.unread{border-left-width:5px;border-left-color:var(--rowc);
+    background:color-mix(in srgb,var(--rowc) 10%,transparent)}
+  .row .dot{background:var(--rowc);box-shadow:0 0 6px var(--rowc);animation:none}
+  .row .tm{color:var(--dim);font-family:var(--mono);font-size:10.5px}
+  /* the account pill: its own colour, and the Kiki tick tucked beside it instead of sitting
+     on top of it in a completely unrelated blue */
+  .row .tag{background:color-mix(in srgb,var(--rowc) 14%,transparent);color:var(--rowc);
+    border-color:color-mix(in srgb,var(--rowc) 34%,transparent)}
+  .row .kiki{position:static;width:20px;height:20px;margin-left:5px;border:0;box-shadow:none;font-size:11px}
+  .row .kiki.kon{background:color-mix(in srgb,var(--rowc) 16%,transparent)!important;color:var(--rowc)}
+  .row .kiki.koff{background:rgba(224,51,79,.16)!important;color:#E0334F}
+  /* the toolbar stops being a fruit salad — neutral chrome, colour reserved for data */
+  .searchbar .sbox{background:var(--surface);border:1px solid var(--line);box-shadow:none}
+  .searchbar .sbox svg{stroke:var(--dim)}
+  .searchbar input::placeholder{color:var(--ink-3)}
+  .sbtn{background:var(--surface);border:1px solid var(--line);color:var(--dim);box-shadow:none}
+  .navbtn.active{color:var(--ink);filter:none}
+  .navbtn.active svg{stroke:var(--ink)}
+
+  /* ══ THE HEADER ═════════════════════════════════════════════════════════════
+     "I like the top, it's a bit fat you can tighten it up but keep the text."
+     Same three lines, roughly 40% less height — it was pushing the first customer below the
+     fold, and the first customer is the whole point of the page. */
+  .hero{padding:calc(env(safe-area-inset-top) + 4px) 16px 0}
+  .heroTop{align-items:center;gap:4px}
+  .crown{width:22px;height:22px}
+  .wordmark{font-size:25px;letter-spacing:-.04em}
+  .wabrand{margin:1px 0 0;font-size:9px}
+  .wordwrap{padding-bottom:0}
+  /* 🟢 "STAY CONNECTED" as a live-network sign — a green pulse and a green glow, so it reads
+     as a status light saying the line is up, which is exactly what it means. */
+  .tagline{display:inline-flex;align-items:center;gap:6px;font-size:9.5px;letter-spacing:.22em;
+    font-weight:700;color:var(--osc);margin:3px 0 0;
+    text-shadow:0 0 10px color-mix(in srgb,var(--osc) 55%,transparent)}
+  .tagline::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--osc);
+    box-shadow:0 0 7px var(--osc);animation:livedot 2.2s ease-in-out infinite}
+  @keyframes livedot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.82)}}
+  @media (prefers-reduced-motion:reduce){.tagline::before{animation:none}}
+  .searchbar{padding:7px 14px 8px}
+  .sbtn{width:42px;height:42px;border-radius:12px}
+  #threads{padding:2px 2px 14px}
+  #listView .row{margin:4px 7px;padding:7px 11px}
   [data-theme="light"] .empty{color:var(--dim)}
   [data-theme="light"] .compinner textarea{color:var(--ink)}
   [data-theme="light"] .compinner textarea::placeholder{color:var(--ink-3)}
@@ -6293,7 +6365,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   </div>
   <div class="searchbar">
     <div class="sbox">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#ff5cb4" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--si)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
       <input id="search" inputmode="search" placeholder="Search name or number…">
       <span class="sm" id="rev" style="display:none"></span>
     </div>
@@ -6381,9 +6453,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
 </div>
 <div class="modal" id="shoeModal">
   <div class="sheet">
-    <h2>📸 Send pictures<span id="shCount" style="font-size:13px;color:#ff8ad4;font-weight:700"></span></h2>
+    <h2>📸 Send pictures<span id="shCount" style="font-size:13px;color:var(--si);font-weight:700"></span></h2>
     <p>Tap <b>sizes</b>, a <b>brand</b>, and/or a <b>colour</b> — combine them for an exact set — then press <b>Send</b>. Nothing goes out until you hit Send. Or just type a shoe below. Pauses Kiki automatically.</p>
-    <input id="shQuery" placeholder="🔎 Type a shoe — e.g. Air Max Plus pink" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,92,180,.5);color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit;margin-bottom:12px">
+    <input id="shQuery" placeholder="🔎 Type a shoe — e.g. Air Max Plus pink" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1.5px solid transparent;color:var(--ink);border-radius:14px;padding:12px 14px;font-size:15px;font-family:inherit;margin-bottom:12px">
     <div class="picklabel">Sizes — tap one or more <button class="matchtog" id="matchTog" style="display:none" title="Only shoes that come in ALL the sizes you picked (a matching pair)">🔗 Matching</button></div>
     <div class="chiprow" id="sizeChips"><span class="chipmini">Loading…</span></div>
     <div class="picklabel">Brands — tap one or more <span style="margin-left:auto;font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">none = all brands</span></div>
@@ -6438,11 +6510,11 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   // until then it shows the professional-woman emoji. One-line swap when the file lands.
   var KIKI_AVATAR = '';  // set once at init if /inbox/kiki.png exists (else emoji)
   function kiki(sz){
-    var ring='box-shadow:0 0 0 2px rgba(198,92,255,.6),0 0 12px rgba(198,92,255,.4)';
+    var ring='box-shadow:0 0 0 2px transparent,0 0 12px transparent';
     if(KIKI_AVATAR){ return '<img src="'+KIKI_AVATAR+'" style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;object-fit:cover;'+ring+';flex-shrink:0;vertical-align:middle" onerror="this.outerHTML=window.__kikiEmoji('+sz+')">'; }
     return window.__kikiEmoji(sz);
   }
-  window.__kikiEmoji=function(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px rgba(198,92,255,.6),0 0 12px rgba(198,92,255,.4);display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👩🏽‍💼</span>'; };
+  window.__kikiEmoji=function(sz){ return '<span style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#171a2b;box-shadow:0 0 0 2px transparent,0 0 12px transparent;display:inline-flex;align-items:center;justify-content:center;font-size:'+Math.round(sz*0.6)+'px;flex-shrink:0;line-height:1;vertical-align:middle">👩🏽‍💼</span>'; };
   // Rodney's avatar on his own ("You") replies — mirrors Kiki, with a lime-green ring.
   var RODNEY_AVATAR = '';  // set at init if /inbox/rodney.png exists (else a person emoji)
   function rodney(sz){
@@ -6455,9 +6527,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   window.__avFail=function(el){ try{ el.style.display='none'; var s=el.parentNode.querySelector('.avini'); if(s) s.style.display='flex'; }catch(e){} };
   // SI (Sneaker Inventory) is PINK — Rodney's call 2026-08-16, because blue and green were
   // already taken and the fallback purple read as blue next to Trendy Kicks. Deliberately
-  // brighter than the .cn-num pink (#ff5cb4): the customer's number is already pink, and a
+  // brighter than the .cn-num pink (var(--si)): the customer's number is already pink, and a
   // matching shade turned the whole label into one blob. SB (Shoe Box) keeps its purple.
-  function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SI'?['#ff2d95','#ff9ecb']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
+  // Rodney 2026-08-17: "pink should now be red, and all colors more vivid."
+  // Sneaker Inventory moves from pink to a proper red, and every hue is pushed to full
+  // saturation. ONE set of values, used by both the light and the dark look on purpose —
+  // the tabs read these same numbers, so an SI tab and an SI row are the identical red
+  // rather than two shades that nearly match. Each hue is picked to hold up on BOTH a white
+  // page and a near-black one, since he flips between them.
+  function accCols(tag){ return tag==='TK'?['#1E6BFF','#5AA0FF']:tag==='OSC'?['#00B257','#2FE58C']:tag==='SI'?['#F0142F','#FF6B7A']:tag==='SB'?['#8A2BFF','#B98CFF']:['#6C4DFF','#00C8E0']; }
   // ── ACCOUNT TABS ──────────────────────────────────────────────────────────
   // One strip across the top, one tab per business, built from the REAL threads so a count
   // can never drift from what's underneath it. A tab glows in its own colour when that
@@ -6525,9 +6603,16 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   // Colour-split: NAME in the account colour (TK blue, OSC green — matches the avatar
   // icon), NUMBER always pink for a uniform look.
   function accTextColor(tag){ return tag==='TK'?'#38bdf8':(tag==='SI'?'#ff9ecb':(tag==='SB'?'#c6a6ff':'#2fe08a')); }
-  function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); var col=accTextColor(tag); if(!nm) return loc?('<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'):('<span class="cn-name" style="color:'+col+'">Customer</span>'); return '<span class="cn-name" style="color:'+col+'">'+esc(nm)+'</span>'+(loc?'<span class="cn-num">-'+esc(loc)+'</span>':''); }
+  // No inline colour any more: the row already carries --rowc, and .cn-name reads it. An
+  // inline style would beat the stylesheet and lock the name to the old palette, which is how
+  // a row ended up with a green name, a hot-pink number and a blue tick all at once.
+  // The number is a thin space + the last 7 digits, not a hyphen: "Myra Rodgers 4321218"
+  // reads as a name and a phone number; "Myra Rodgers-4321218" reads as one strange word.
+  function custLabelHTML(name, num, tag){ var nm=String(name||'').trim(); var loc=localNum(num); if(!nm) return loc?('<span class="cn-num">+'+esc(String(num||'').replace(/\\D/g,''))+'</span>'):('<span class="cn-name">Customer</span>'); return '<span class="cn-name">'+esc(nm)+'</span>'+(loc?'<span class="cn-num"> '+esc(loc)+'</span>':''); }
   // Header: NAME only (no number). The full number lives once, in the call link below it.
-  function custNameHTML(name, tag){ var nm=String(name||'').trim(); var col=accTextColor(tag); return '<span class="cn-name" style="color:'+col+'">'+esc(nm||'Customer')+'</span>'; }
+  // Same story as custLabelHTML: the colour comes from --rowc on the header, not from an
+  // inline style, so the chat header matches the row the customer came from.
+  function custNameHTML(name, tag){ var nm=String(name||'').trim(); var c=accCols(tag)[0]; return '<span class="cn-name" style="--rowc:'+c+'">'+esc(nm||'Customer')+'</span>'; }
   // Call link opens the phone DIALER (a normal cellular call) — Rodney's choice 2026-07-19.
   function callLinkHTML(num){ var d=String(num||'').replace(/[^0-9]/g,''); return '<a class="callnum" href="tel:+'+esc(d)+'">📞 +'+esc(d)+'</a>'; }
   function promptKey(msg){
@@ -7223,7 +7308,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   $('ctxPics').onclick=function(){ if(!ctxTarget) return; pickTargets=[ctxTarget]; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=' · '+(ctxTarget.name||('+'+ctxTarget.sub)); closeCtx(); $('shoeModal').classList.add('open'); loadPickChips(); };
   $('ctxPin').onclick=function(){ if(!ctxTarget) return; post('/inbox/pin',{sub:ctxTarget.sub,account:ctxTarget.account}).then(function(r){ if(r&&r.ok){ toast(r.pinned?'📌 Pinned to top':'Unpinned'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not pin'); }); };
   $('ctxMulti').onclick=function(){ if(!ctxTarget) return; var t=ctxTarget; closeCtx(); selMode=true; selected[t.sub]=t; refreshSel(); };
-  $('ctxCustomLblGo').onclick=function(){ var v=($('ctxCustomLbl').value||'').trim(); if(!v){ toast('Type a label first'); return; } setLabel({text:v,color:'#ff5cb4'}); };
+  $('ctxCustomLblGo').onclick=function(){ var v=($('ctxCustomLbl').value||'').trim(); if(!v){ toast('Type a label first'); return; } setLabel({text:v,color:'var(--si)'}); };
   $('ctxCustomLbl').onkeydown=function(e){ if(e.key==='Enter'){ e.preventDefault(); $('ctxCustomLblGo').click(); } };
   $('ctxDelete').onclick=function(){
     if(!ctxTarget) return;
