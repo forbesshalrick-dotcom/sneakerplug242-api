@@ -5579,16 +5579,20 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <title>Inbox — SNEAKERPLUG242</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Permanent+Marker&family=Bangers&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{--acc:#7c5cff;--acc2:#22d3ee;--ink:#eef1fb;--dim:#98a0b8;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.08)}
+  /* Rodney 2026-08-16: dropped the graffiti for a clean, modern desk he can put in front of a
+     Nightshift client. Colour is now DATA ONLY — the three business hues and nothing else is
+     saturated. Ground is a near-black with a blue bias rather than a flat #000, so the brand
+     colours sit on it without vibrating. */
+  :root{--acc:#4C8DFF;--acc2:#12D890;--ink:#E9EFF6;--dim:#94A3B5;--card:rgba(255,255,255,.028);--line:rgba(255,255,255,.075);--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   /* App-shell lock: html+body fill the screen exactly and never scroll; the message
      list is the only thing that scrolls. This stops one finger dragging the whole UI
      into black, while two-finger pinch-zoom still works (viewport allows it). */
   html{height:100%;background:#0a0812}
   html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none}
-  body{font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased;
+  body{font-family:'Inter',-apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink);overflow:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-.006em;
     background:#05050a}
   /* luxury backdrop — swap CHAT_BG_URL for the collage image; falls back to a rich glow */
   #listView::before,#threadView::before{content:'';position:absolute;inset:0;z-index:-3;pointer-events:none;
@@ -5602,17 +5606,21 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
      top of the source photo, and on a wide/short viewport background-size:cover crops a LOT
      of height — centering vertically cut faces off entirely (Rodney 2026-07-24: "faces are
      cut off at the top"). Biasing the crop window toward the top keeps faces in frame. */
-  body.hasbg #listView::before,body.hasbg #threadView::before{background-image:var(--chatbg);background-size:cover;background-position:center 12%;filter:saturate(1.45) contrast(1.08) brightness(1.05)}
+  /* Photo wallpaper retired. It fought every piece of text on the page and no enterprise tool
+     ships one. The ground is now flat and the eye goes to the threads. */
+  body.hasbg #listView::before,body.hasbg #threadView::before{background-image:none;background:transparent}
   body.hasbg #listView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.06),rgba(6,5,12,.14))}
   body.hasbg #threadView::after{content:'';position:absolute;inset:0;z-index:-2;pointer-events:none;background:linear-gradient(180deg,rgba(5,5,10,.08),rgba(6,5,12,.16))}
   /* haunted-luxury FX over the collage: a green halo that fades in/out (the "glowing
      eyes" green ambiance across all the ladies) + twinkling sparkles for jewelry glisten.
      Sits above the darkened photo (z-index:-1) but below all the text/rows. */
   .fxlayer{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
-  .fxlayer .glow{position:absolute;inset:0;mix-blend-mode:screen;background:radial-gradient(80% 70% at 50% 42%, rgba(46,224,138,.05) 30%, rgba(46,224,138,.16) 72%, rgba(46,224,138,.42) 100%);animation:hauntglow 3.4s ease-in-out infinite}
+  /* The pulsing green haunt-glow and the twinkling sparks are gone. Ambient animation is the
+     fastest way to make software look like a toy. */
+  .fxlayer .glow{display:none}
   @keyframes hauntglow{0%,100%{opacity:.28}50%{opacity:1}}
   /* jewelry-glisten star glints scattered over the collage, twinkling green/white */
-  .fxlayer .spark{position:absolute;color:#f2fff8;line-height:1;opacity:0;transform:scale(.3);animation:twinkle 2.4s ease-in-out infinite;text-shadow:0 0 5px rgba(180,255,214,.95),0 0 11px rgba(46,224,138,.85),0 0 18px rgba(46,224,138,.5);pointer-events:none;will-change:opacity,transform}
+  .fxlayer .spark{display:none}
   @keyframes twinkle{0%,100%{opacity:0;transform:scale(.25) rotate(0deg)}45%{opacity:1;transform:scale(1) rotate(90deg)}55%{opacity:.9;transform:scale(1.05) rotate(110deg)}}
   /* two fonts, deliberately split: Space Grotesk = all UI chrome, Inter = message text */
   .b, .b .who{font-family:'Inter',-apple-system,sans-serif}
@@ -5655,7 +5663,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
        #listView/#threadView, silently swallowing every click/scroll/touch on the whole app.
        Confirmed live via elementsFromPoint() before this fix — BODY was catching input that
        should have gone to the row underneath it. These layers must never intercept input. */
-    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:var(--chatbg);background-size:cover;background-position:center 12%;filter:blur(18px) saturate(1.3) brightness(1.1);transform:scale(1.08)}
+    body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(120% 80% at 50% -10%, rgba(76,141,255,.07), transparent 60%)}
     body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background:rgba(5,5,10,.2)}
     /* Rodney 2026-07-24: "I want the actual chat to be wider — it started off wide until we
        made changes to make the aspect ratio fit a mobile perfectly." Widened from the
@@ -5906,10 +5914,10 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   .heroTop{display:flex;align-items:flex-start;gap:2px}
   .wordwrap{position:relative;display:inline-block;padding-bottom:6px}
   /* graffiti tag: "WhatsApp" overlaps the bottom-right of INBOX */
-  .crown{width:46px;height:46px;margin:-6px 0 -2px -4px;filter:drop-shadow(0 0 10px rgba(46,224,138,.75))}
-  .wordmark{font-family:'Permanent Marker',cursive;font-size:52px;line-height:.86;margin:0;color:#fff;letter-spacing:1px;transform:skew(-5deg);text-shadow:0 3px 14px rgba(0,0,0,.7),0 0 2px #000,3px 3px 0 rgba(0,0,0,.35)}
+  .crown{width:30px;height:30px;margin:0 0 0 -2px;filter:none;opacity:.9}
+  .wordmark{font-family:'Inter',-apple-system,sans-serif;font-size:31px;font-weight:800;line-height:1;margin:0;color:var(--ink);letter-spacing:-.035em;transform:none;text-shadow:none}
   /* WhatsApp overlaps the bottom-right of INBOX, graffiti-tag style */
-  .wabrand{position:absolute;right:-8px;bottom:-3px;font-family:'Permanent Marker',cursive;font-size:23px;line-height:1;color:#25D366;margin:0;transform:skew(-5deg) rotate(-5deg);text-shadow:0 0 12px rgba(37,211,102,.85),0 2px 6px rgba(0,0,0,.9),1px 1px 0 rgba(0,0,0,.5)}
+  .wabrand{position:static;font-family:var(--mono);font-size:10px;font-weight:500;line-height:1;color:var(--dim);margin:5px 0 0;letter-spacing:.18em;text-transform:uppercase;transform:none;text-shadow:none}
   .tagline{font-family:'Space Grotesk';font-size:12px;letter-spacing:7px;color:#ff5cb4;font-weight:700;margin:5px 0 0 4px;text-shadow:0 0 12px rgba(255,92,180,.6)}
   .searchbar{display:flex;gap:9px;padding:8px 14px 10px;align-items:center;flex-shrink:0}
   .searchbar .sbox{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:rgba(255,92,180,.08);border:1.6px solid #ff5cb4;border-radius:16px;padding:12px 14px;box-shadow:0 0 10px rgba(255,92,180,.25)}
@@ -5943,7 +5951,7 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     mask:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2048%2030'%3E%3Cg%20fill='%23000'%3E%3Crect%20x='0'%20y='0'%20width='48'%20height='5'%20rx='2'/%3E%3Crect%20x='2'%20y='3'%20width='3.6'%20height='11'%20rx='1.8'/%3E%3Ccircle%20cx='3.8'%20cy='14'%20r='2.8'/%3E%3Crect%20x='9'%20y='3'%20width='4'%20height='17'%20rx='2'/%3E%3Ccircle%20cx='11'%20cy='20'%20r='3.2'/%3E%3Crect%20x='16'%20y='3'%20width='3.4'%20height='9'%20rx='1.7'/%3E%3Ccircle%20cx='17.7'%20cy='12'%20r='2.7'/%3E%3Crect%20x='22.5'%20y='3'%20width='4.4'%20height='21'%20rx='2.2'/%3E%3Ccircle%20cx='24.7'%20cy='24'%20r='3.6'/%3E%3Crect%20x='30'%20y='3'%20width='3.6'%20height='11'%20rx='1.8'/%3E%3Ccircle%20cx='31.8'%20cy='14'%20r='2.9'/%3E%3Crect%20x='36.5'%20y='3'%20width='4'%20height='18'%20rx='2'/%3E%3Ccircle%20cx='38.5'%20cy='21'%20r='3.2'/%3E%3Crect%20x='43'%20y='3'%20width='3.4'%20height='13'%20rx='1.7'/%3E%3Ccircle%20cx='44.7'%20cy='16'%20r='2.7'/%3E%3C/g%3E%3C/svg%3E") no-repeat center/100% 100%;
     filter:drop-shadow(0 1px 4px var(--rg,rgba(124,92,255,.6)))}
   .row .av{position:relative;overflow:visible}
-  .row .nm{font-family:'Permanent Marker',cursive;font-size:17px;font-weight:400;letter-spacing:.5px;gap:6px}
+  .row .nm{font-family:'Inter',-apple-system,sans-serif;font-size:14.5px;font-weight:640;letter-spacing:-.012em;gap:6px}
   .row .lt{font-family:'Inter';font-size:13px}
   .av .avimg{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
   .av .avini{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
