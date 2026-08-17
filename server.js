@@ -907,6 +907,36 @@ function staffNameFor(req) {
   }
   return null;
 }
+// 🧑‍🔧 IS THIS AN EMPLOYEE'S OWN PHONE? — used to decide whether to SELL to them.
+//
+// 2026-08-17: Kiki chased the driver for a delivery confirmation and, ten minutes later,
+// asked the same person "did you see anything you liked from the pics, or did you get
+// sorted? 😊" — the customer nudge. Rodney: "kiki is confused".
+//
+// She was. Deashinique's number is in TEST_CUSTOMER_RAW, a list whose ONLY intended job is
+// "show this person's messages in the Inbox". But the way that was implemented,
+// staffNameFor() returns null for her on every single message, so every other part of the
+// bot reads her as a customer — including the sales nudge and the closer.
+//
+// Being visible in the Inbox is a DISPLAY choice. Being someone we pitch shoes at is a
+// BEHAVIOUR choice. One flag was doing both jobs. This answers only the second.
+//
+// Rodney's OWN lines are deliberately excluded: he uses 4324406 as a test customer to
+// preview exactly what a real customer sees, and that has to keep working.
+function employeeNameForNumber(req) {
+  const p = getPhone(req);
+  if (!p) return null;
+  const tail = String(p).replace(/\D/g, '').slice(-10);
+  if (tail.length < 10) return null;
+  if (MANAGER_TAIL_NAMES[tail]) return null; // the owner previewing the customer experience
+  let emp = {};
+  try { emp = require('./shop').getEmployees() || {}; } catch (_) {}
+  for (const [nm, num] of Object.entries(Object.assign({}, EXTRA_STAFF, emp))) {
+    if (String(num || '').replace(/\D/g, '').slice(-10) === tail) return nm;
+  }
+  return null;
+}
+
 // The owner's own manager/staff name IGNORING the test-customer override — so a number set as a
 // test customer (e.g. 4324406, used to preview the customer experience) is still recognised as
 // staff when it reports a SALE/RESTOCK/FLOAT. Used only to elevate those specific actions.
@@ -3753,8 +3783,12 @@ function handleDeliveryAnswer(text, staffName) {
     const open = pendingDeliveries();
     if (!open.length) return null;   // nothing outstanding → not an answer, let the model have it
     if (open.length > 1) {
+      // Name the CUSTOMER and the time on every line. Two orders for the same shoe in the
+      // same size read as identical text (2026-08-17: a driver was shown five lines that
+      // were word-for-word the same and asked which one he meant — an unanswerable
+      // question). Who it was for and when it came in is what actually tells them apart.
       return `Which one? 🤔 I've got ${open.length} waiting:\n`
-        + open.map(d => `#${d.n} — ${d.what}`).join('\n')
+        + open.map(d => `#${d.n} — ${d.what}${d.who ? ' for ' + d.who : ''}${d.at ? ' (' + d.at + ')' : ''}`).join('\n')
         + `\n\nReply *DONE ${open[0].n}* or *NO ${open[0].n}* with the number.`;
     }
     word = bare[1].toLowerCase();
@@ -4762,7 +4796,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           result.note = (result.note ? result.note + ' ' : '')
             + `These shoes were NOT sent — they don't come in a ${inp.size}${inp.womens ? " (women's)" : ''}: ${droppedWrongSize.join('; ')}. If one of them fits what the customer wanted, you may offer it as a NEAREST-SIZE option, saying plainly it doesn't come in their size.`;
         }
-        if (result.sent > 0) { if (!staffName) scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // staff don't get 10-min nudges // nudge 10 min later if quiet
+        // An employee never gets the 10-minute "see anything you liked?" nudge, even when
+        // their number is on the show-in-Inbox list — that list is about where their
+        // messages appear, not about whether we pitch shoes at the person driving them.
+        if (result.sent > 0) { if (!staffName && !employeeNameForNumber(req)) scheduleFollowUp(sub, token); photosSent = true; photosSentRun = true; sentToCustomer = true; } // nudge 10 min later if quiet
         // 🚨 ALBUM SENT *NOTHING* — the silent hole (Rodney 2026-07-27): a size-4 customer got
         // the lead-in "This is what we have in size 4 rite now 👇 Ready to Order!" at 12:20 and
         // then NOTHING — no photos, and not one line in /last, so the image-timeout text
@@ -5813,7 +5850,11 @@ app.post('/console/send', async (req, res) => {
 
   try {
     const r = await sendShoePhotos(sub, ids, token, true, null, leadIn);
-    if (r.sent > 0) scheduleFollowUp(sub, token);
+    // Same rule as the chat path: don't pitch to our own staff. Best-effort here — this
+    // route is given a subscriber id, not a phone, so it can only recognise employees who
+    // have messaged Kiki at least once (that is what fills staffSubs).
+    const toStaff = Object.values(staffSubs || {}).some(v => v && String(v.sub) === String(sub));
+    if (r.sent > 0 && !toStaff) scheduleFollowUp(sub, token);
     record(req, { endpoint: 'console-send', sub, store, what, found: results.length, sent: r.sent });
     res.json({ ok: true, found: results.length, sent: r.sent, sub, store });
   } catch (e) {
