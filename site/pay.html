@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pay Nightshift — card or PayPal</title>
+<meta name="description" content="Pay a deposit, a balance or a monthly by card or PayPal. No account needed.">
+<!-- An invoice page has no business in Google. Clients arrive here from a link we send. -->
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://nightshift242.com/pay.html">
+<meta name="theme-color" content="#FF4A1C">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/site.css?v=20260815e">
+<style>
+  /* Everything here is scoped to the pay page. The rest of the site's styles do
+     the heavy lifting — this is only the bits a payment page needs. */
+  .pay-grid{display:grid;gap:clamp(22px,4vw,44px);grid-template-columns:1fr}
+  @media (min-width:900px){.pay-grid{grid-template-columns:minmax(0,1fr) minmax(0,340px)}}
+
+  .amt-row{display:flex;align-items:center;gap:10px}
+  .amt-cur{font-family:var(--display);font-size:22px;font-weight:600;color:var(--ink-2)}
+  #amount{font-family:var(--display);font-size:30px;font-weight:600;letter-spacing:-.01em;
+    padding:12px 14px;width:100%;min-width:0}
+
+  .picks{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .pick{font-family:var(--display);font-size:14px;font-weight:600;cursor:pointer;
+    background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);
+    border-radius:999px;padding:8px 15px;line-height:1.1}
+  .pick:hover{border-color:var(--accent);color:var(--accent-ink)}
+  .pick[aria-pressed="true"]{background:var(--accent-strong);border-color:var(--accent-strong);color:#fff}
+
+  .total-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+    border-top:1px solid var(--line);margin-top:22px;padding-top:16px}
+  .total-line .k{font-family:var(--display);font-size:13px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--ink-2)}
+  .total-line .v{font-family:var(--display);font-size:28px;font-weight:600;color:var(--ink)}
+
+  #paypal-box{margin-top:18px;min-height:52px}
+  .pay-note{font-size:14px;color:var(--ink-2);margin-top:14px;line-height:1.55}
+
+  .pay-err{display:none;margin-top:14px;padding:12px 14px;border-radius:10px;
+    background:color-mix(in srgb, var(--accent) 10%, transparent);
+    border:1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+    color:var(--accent-ink);font-size:14.5px}
+  .pay-err.on{display:block}
+
+  /* The receipt. It replaces the form entirely — once the money has moved the
+     only thing on screen should be proof that it moved. */
+  #receipt{display:none}
+  #receipt.on{display:block}
+  .rcpt-tick{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;
+    background:var(--accent-strong);color:#fff;font-size:28px;line-height:1;margin-bottom:18px}
+  .rcpt-rows{display:flex;flex-direction:column;gap:10px;margin:20px 0 4px}
+  .rcpt-rows div{display:flex;justify-content:space-between;gap:14px;font-size:15px;
+    border-bottom:1px dashed var(--line);padding-bottom:10px}
+  .rcpt-rows span:first-child{color:var(--ink-2)}
+  .rcpt-rows span:last-child{font-family:var(--display);font-weight:600;text-align:right;
+    word-break:break-all}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="bar">
+    <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="services.html">Services</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="demos/index.html">Demos</a>
+      <a href="case-study.html">Case study</a>
+      <a href="about.html">About</a>
+      <a class="btn btn-primary btn-sm" href="contact.html">Start a project</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="band">
+    <div class="wrap">
+
+      <div class="sec-head">
+        <p class="eyebrow">Payment</p>
+        <h1 class="h-xl" id="pay-title">Pay Nightshift.</h1>
+        <p class="lead" id="pay-lead">Card or PayPal, from anywhere, no account needed. Type the amount on your invoice and pay it here — you get a receipt on screen and by email straight away.</p>
+      </div>
+
+      <div class="pay-grid">
+
+        <!-- The form. One number and one reference: an invoice page that asks for
+             more than that is a form, and people abandon forms. -->
+        <div id="payform">
+          <div class="quote-card">
+
+            <div class="field">
+              <label for="amount">Amount to pay</label>
+              <div class="amt-row">
+                <span class="amt-cur">$</span>
+                <input id="amount" type="text" inputmode="decimal" autocomplete="off"
+                       placeholder="0.00" aria-describedby="amount-hint">
+              </div>
+              <p class="hint" id="amount-hint">Bahamian and US dollars are the same money — B$600 is US$600.</p>
+
+              <div class="picks" role="group" aria-label="Common amounts">
+                <button class="pick" type="button" data-amt="150">$150 monthly</button>
+                <button class="pick" type="button" data-amt="600">$600 deposit</button>
+                <button class="pick" type="button" data-amt="1200">$1,200</button>
+                <button class="pick" type="button" data-amt="1750">$1,750 deposit</button>
+                <button class="pick" type="button" data-amt="3500">$3,500</button>
+              </div>
+            </div>
+
+            <div class="field" style="margin-top:20px">
+              <label for="ref">What is it for</label>
+              <input id="ref" type="text" autocomplete="organization"
+                     placeholder="Your business name, or the invoice number" maxlength="90">
+              <p class="hint">This is what shows up beside the payment, so we know instantly whose it is.</p>
+            </div>
+
+            <div class="total-line">
+              <span class="k">You are paying</span>
+              <span class="v" id="total">$0.00</span>
+            </div>
+
+            <div id="paypal-box"></div>
+            <div class="pay-err" id="err" role="alert"></div>
+
+            <p class="pay-note">
+              Payment is taken the moment you press pay — nothing is charged before that, and
+              nothing repeats on its own. Card details go straight to PayPal; they never touch
+              this website and we never see them.
+            </p>
+          </div>
+        </div>
+
+        <!-- The receipt takes over this whole column when a payment lands. -->
+        <div id="receipt" class="quote-card">
+          <div class="rcpt-tick" aria-hidden="true">✓</div>
+          <p class="eyebrow">Paid</p>
+          <h2 class="h-md" id="rcpt-head">Thank you — that has gone through.</h2>
+          <div class="rcpt-rows">
+            <div><span>Amount</span><span id="rcpt-amt">—</span></div>
+            <div><span>For</span><span id="rcpt-ref">—</span></div>
+            <div><span>Receipt number</span><span id="rcpt-id">—</span></div>
+            <div><span>Date</span><span id="rcpt-date">—</span></div>
+          </div>
+          <p class="pay-note">
+            PayPal has emailed you a receipt as well. Keep the receipt number above — quoting it
+            answers any question about this payment in one message.
+          </p>
+          <div class="btn-row" style="margin-top:16px">
+            <a class="btn btn-primary" id="rcpt-wa" href="#" rel="noopener">Send us the receipt on WhatsApp</a>
+            <button class="btn btn-ghost" type="button" onclick="window.print()">Print this</button>
+          </div>
+        </div>
+
+        <aside class="stack stack-lg">
+          <div class="stack stack-sm">
+            <p class="eyebrow">How the money works</p>
+            <p class="muted" style="font-size:15.5px">Half to start, half on launch. The monthly begins the day your site goes live, never before. The fixed price we put in writing is the price — it does not move.</p>
+          </div>
+          <div class="stack stack-sm">
+            <p class="eyebrow">Rather not use a card?</p>
+            <p class="muted" style="font-size:15.5px">Bank transfer to CIBC or Scotiabank, or cash, both work exactly the same. Message us and we send the details.</p>
+            <a class="btn btn-ghost" href="https://wa.me/12424481632?text=Hi%2C%20I%27d%20like%20to%20pay%20by%20bank%20transfer." rel="noopener" style="align-self:flex-start">Ask for bank details</a>
+          </div>
+          <div class="stack stack-sm">
+            <p class="eyebrow">Something look wrong?</p>
+            <p class="muted" style="font-size:15.5px">Do not pay a number you were not sent in writing. Message us first and we will confirm it.</p>
+            <p><a href="mailto:hello@nightshift242.com" style="font-family:var(--display);font-size:15px">hello@nightshift242.com</a></p>
+          </div>
+        </aside>
+
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+        <p>Websites and WhatsApp order bots for Bahamian businesses. Nassau, New Providence.</p>
+      </div>
+      <div class="foot-col">
+        <h3>Site</h3>
+        <ul>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="pricing.html">Pricing</a></li>
+          <li><a href="demos/index.html">Demos</a></li>
+          <li><a href="behind-the-scenes.html">Behind the message</a></li>
+          <li><a href="case-study.html">Case study</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Start a project</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h3>Reach us</h3>
+        <ul>
+          <li><a href="https://wa.me/12424481632" rel="noopener">WhatsApp</a></li>
+          <li><a href="mailto:hello@nightshift242.com">hello@nightshift242.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Nightshift · Nassau, Bahamas</span>
+      <span>Replies within 4 business hours</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/site.js?v=20260815e" defer></script>
+<script>
+(function () {
+  'use strict';
+
+  /* The live PayPal client ID. Client-side only — the client ID is meant to be
+     public, and there is no secret on this page. Money lands in the PayPal
+     account this ID belongs to, and PayPal emails both sides a receipt.
+     To point payments at a different PayPal account, change this one line to
+     that account's LIVE client ID (developer.paypal.com → Apps & Credentials
+     → Live → your app → Client ID). */
+  var CLIENT_ID = 'AeX7a1IbNRKYrce7DZntUYNfGGqLZVEPlT43byCqY442t0svUVA6RQHd4IF9LAZYgasId7F1PmPULtpO';
+  var WA = '12424481632';
+  var MIN = 1, MAX = 20000;
+
+  var amountEl = document.getElementById('amount');
+  var refEl    = document.getElementById('ref');
+  var totalEl  = document.getElementById('total');
+  var boxEl    = document.getElementById('paypal-box');
+  var errEl    = document.getElementById('err');
+  var formEl   = document.getElementById('payform');
+  var rcptEl   = document.getElementById('receipt');
+  var picks    = [].slice.call(document.querySelectorAll('.pick'));
+
+  /* An invoice link can carry the numbers already filled in, so a client who
+     taps it in WhatsApp has nothing to type:
+        /pay.html?amount=600&ref=Sunrise%20Auto%20deposit          */
+  var q = new URLSearchParams(location.search);
+  if (q.get('amount')) amountEl.value = clean(q.get('amount'));
+  if (q.get('ref'))    refEl.value    = q.get('ref').slice(0, 90);
+
+  function clean(v) { return String(v == null ? '' : v).replace(/[^0-9.]/g, ''); }
+
+  function money(n) {
+    return '$' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  /* One number, read the same way everywhere on the page. Returns 0 when what is
+     typed is not a payable amount, and 0 is what stops the button rendering. */
+  function amount() {
+    var n = parseFloat(clean(amountEl.value));
+    if (!isFinite(n) || n < MIN || n > MAX) return 0;
+    return Math.round(n * 100) / 100;
+  }
+
+  function showErr(msg) { errEl.textContent = msg; errEl.classList.add('on'); }
+  function clearErr()   { errEl.textContent = ''; errEl.classList.remove('on'); }
+
+  /* PayPal's SDK is loaded once, on demand — not on page load. Somebody reading
+     the page has no reason to be pulling a payment library. */
+  var sdk = null;
+  function loadSDK() {
+    if (sdk) return sdk;
+    sdk = new Promise(function (resolve) {
+      var s = document.createElement('script');
+      s.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(CLIENT_ID) +
+              '&currency=USD&intent=capture&disable-funding=paylater';
+      s.onload = function () { resolve(true); };
+      s.onerror = function () { resolve(false); };
+      document.head.appendChild(s);
+    });
+    return sdk;
+  }
+
+  /* The buttons are rebuilt whenever the amount changes. PayPal reads the amount
+     once, when a button is created — leaving an old button on screen after the
+     number changed is how somebody pays the wrong figure. */
+  var renderToken = 0;
+  function renderButtons() {
+    var token = ++renderToken;
+    var n = amount();
+    totalEl.textContent = money(n);
+    boxEl.innerHTML = '';
+    if (!n) return;
+
+    loadSDK().then(function (ok) {
+      if (token !== renderToken) return;               // amount changed while loading
+      if (!ok || !window.paypal) {
+        showErr('Card payment will not load right now. Message us on WhatsApp and we will send you bank details instead.');
+        return;
+      }
+      clearErr();
+      window.paypal.Buttons({
+        style: { layout: 'vertical', shape: 'rect', label: 'pay', height: 46 },
+
+        createOrder: function (_data, actions) {
+          var v = amount();
+          var ref = (refEl.value || '').trim().slice(0, 120);
+          return actions.order.create({
+            intent: 'CAPTURE',
+            purchase_units: [{
+              amount: { currency_code: 'USD', value: v.toFixed(2) },
+              description: ('Nightshift' + (ref ? ' — ' + ref : '')).slice(0, 127)
+            }],
+            application_context: {
+              brand_name: 'Nightshift',
+              shipping_preference: 'NO_SHIPPING',
+              user_action: 'PAY_NOW'          // charge at checkout, not later
+            }
+          });
+        },
+
+        onApprove: function (_data, actions) {
+          return actions.order.capture().then(function (details) { paid(details); });
+        },
+
+        onError: function () {
+          showErr('That payment did not go through. Nothing has been charged — try again, or message us and we will send bank details.');
+        }
+      }).render('#paypal-box').catch(function () {
+        showErr('Card payment will not load right now. Message us on WhatsApp and we will send you bank details instead.');
+      });
+    });
+  }
+
+  /* Money has moved. Swap the form out for proof of it — and hand them a
+     one-tap WhatsApp message so we hear about it before the PayPal email lands. */
+  function paid(details) {
+    var id = '';
+    try { id = details.purchase_units[0].payments.captures[0].id; } catch (e) {}
+    if (!id) id = (details && details.id) || 'paid';
+
+    var v = amount();
+    var ref = (refEl.value || '').trim();
+    var when = new Date().toLocaleString('en-BS', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+
+    document.getElementById('rcpt-amt').textContent  = money(v) + ' USD';
+    document.getElementById('rcpt-ref').textContent  = ref || 'Nightshift';
+    document.getElementById('rcpt-id').textContent   = id;
+    document.getElementById('rcpt-date').textContent = when;
+    document.getElementById('rcpt-wa').href =
+      'https://wa.me/' + WA + '?text=' + encodeURIComponent(
+        'Paid ' + money(v) + ' on the website.' +
+        (ref ? '\nFor: ' + ref : '') +
+        '\nReceipt: ' + id);
+
+    formEl.style.display = 'none';
+    rcptEl.classList.add('on');
+    document.getElementById('pay-title').textContent = 'Payment received.';
+    document.getElementById('pay-lead').textContent =
+      'That is done and there is nothing else for you to do. Your receipt is below.';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* Retyping the amount should not rebuild the PayPal button on every keystroke —
+     it flickers and PayPal rate-limits it. Settle first, then rebuild. */
+  var t = null;
+  function queue() {
+    totalEl.textContent = money(amount());
+    picks.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(parseFloat(b.dataset.amt) === amount()));
+    });
+    clearTimeout(t);
+    t = setTimeout(renderButtons, 450);
+  }
+
+  amountEl.addEventListener('input', function () {
+    var c = clean(this.value);
+    if (c !== this.value) this.value = c;
+    queue();
+  });
+  refEl.addEventListener('input', function () { clearTimeout(t); t = setTimeout(renderButtons, 450); });
+
+  picks.forEach(function (b) {
+    b.addEventListener('click', function () {
+      amountEl.value = b.dataset.amt;
+      queue();
+    });
+  });
+
+  queue();
+})();
+</script>
+</body>
+</html>
