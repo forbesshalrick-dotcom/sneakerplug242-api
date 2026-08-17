@@ -6279,14 +6279,28 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   [data-theme="light"] .navbtn,[data-theme="light"] .row .pin,
   [data-theme="light"] .row .lbl{text-shadow:none}
   [data-theme="light"] #back{color:var(--ink)}
-  [data-theme="light"] #listView .row{background:var(--surface);border-color:var(--line);
-    box-shadow:var(--shadow)}
-  [data-theme="light"] #listView .row:active{background:var(--surface-2)}
+  /* 🔴 THIS is why every chat looked white. Rodney had to say it four times:
+     "all tabs for customer remain colored NO BORDER. FULL COLOR IN THE TABS."
+     He is on the light theme, and this rule painted every row var(--surface) —
+     plain white — at a higher specificity than the colour rule further down, so
+     the colour was only ever winning on unread rows. The fix belongs here, not
+     there. Every row now carries its business colour; nothing is white except
+     staff, deliberately. */
+  [data-theme="light"] #listView .row{background:color-mix(in srgb,var(--rowc) 15%,var(--surface));
+    border-color:transparent;box-shadow:var(--shadow)}
+  [data-theme="light"] #listView .row:active{background:color-mix(in srgb,var(--rowc) 24%,var(--surface))}
   [data-theme="light"] .row .lt{color:var(--dim)}
   [data-theme="light"] .row .lt.cust{color:var(--ink)}
   [data-theme="light"] .row .lt.rep b{color:var(--dim)}
   [data-theme="light"] .row .tm{color:var(--ink-3)}
-  [data-theme="light"] .row.unread{background:color-mix(in srgb,var(--rowc) 8%,var(--surface))}
+  /* Unread keeps the SAME fill — the slim left edge is the only difference, which
+     is what he asked for: "the notification at the edge is nice but you never add
+     the color." Two signals, one job each. */
+  [data-theme="light"] .row.unread{background:color-mix(in srgb,var(--rowc) 15%,var(--surface));
+    border-left-color:var(--rowc)}
+  /* Staff stay genuinely white — that is the whole point of them. */
+  [data-theme="light"] #listView .row.staff{background:#fff}
+  [data-theme="light"] #listView .row.staff.unread{background:#fff;border-left-color:var(--ink)}
   [data-theme="light"] #listView .row.pinned{background:#FFF8E3}
   [data-theme="light"] .searchbar .sbox{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow)}
   [data-theme="light"] .searchbar input::placeholder{color:var(--ink-3)}
