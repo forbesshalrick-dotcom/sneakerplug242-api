@@ -6992,6 +6992,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   // headers, so we pull the encoder worker into a same-origin blob URL (a cross-origin
   // Worker URL would be blocked). Records → uploads → holds the URL until Send. ──
   var pendingAudioUrl = null, recorder = null, recording = false, opusReady = false, encoderBlobUrl = null;
+  // The in-flight upload of the just-recorded note, so Transcribe can wait for
+  // it instead of claiming there is no recording. Resolves to the URL, or null.
+  var audioUpload = null;
   function loadOpus(cb){
     if(opusReady){ cb(); return; }
     var base='https://cdn.jsdelivr.net/npm/opus-recorder@8.0.5/dist/';
@@ -7146,17 +7149,28 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       recBlobUrl=URL.createObjectURL(blob);
       var au=$('audEl'); if(au){ au.src=recBlobUrl; au.onloadedmetadata=function(){ if($('audDur')) $('audDur').textContent=fmtDur(au.duration||0); }; au.onended=function(){ if($('audPlay')) $('audPlay').textContent='▶️'; }; }
       $('audPreview').style.display='flex';
-      // upload in the background so Send is instant
-      var rd=new FileReader();
-      rd.onload=function(){ post('/inbox/upload', {image: rd.result}).then(function(d){
-        if(d && d.ok && d.url){ pendingAudioUrl=d.url; }
-        else { toast((d&&d.error)||'Upload failed'); }
-      }).catch(function(){ toast('Upload failed — network'); }); };
-      rd.readAsDataURL(blob);
+      // Upload in the background so Send is instant.
+      //
+      // ⚠️ The upload promise is kept. Rodney recorded 17 seconds, saw the
+      // preview say "0:17 · ready", tapped Transcribe and got "No recording to
+      // transcribe" — because that button only ever looked at pendingAudioUrl,
+      // which does not exist until this upload lands. The preview is drawn from
+      // the LOCAL blob and says "ready" immediately, so on 4G there is a window
+      // of several seconds where the note plainly exists and the button denies
+      // it. Transcribe now waits on this instead of giving up.
+      audioUpload = new Promise(function(resolve){
+        var rd=new FileReader();
+        rd.onload=function(){ post('/inbox/upload', {image: rd.result}).then(function(d){
+          if(d && d.ok && d.url){ pendingAudioUrl=d.url; resolve(d.url); }
+          else { toast((d&&d.error)||'Upload failed'); resolve(null); }
+        }).catch(function(){ toast('Upload failed — network'); resolve(null); }); };
+        rd.onerror=function(){ resolve(null); };
+        rd.readAsDataURL(blob);
+      });
     }catch(e){ toast('Could not save recording'); }
   }
   function playAud(){ var au=$('audEl'); if(!au||!au.src) return; if(au.paused){ au.currentTime=0; au.play(); if($('audPlay'))$('audPlay').textContent='⏸'; } else { au.pause(); if($('audPlay'))$('audPlay').textContent='▶️'; } }
-  function clearAud(){ pendingAudioUrl=null; $('audPreview').style.display='none'; var au=$('audEl'); if(au){ try{au.pause();}catch(e){} au.removeAttribute('src'); } if(recBlobUrl){ try{URL.revokeObjectURL(recBlobUrl);}catch(e){} recBlobUrl=null; } if($('audPlay'))$('audPlay').textContent='▶️'; if(recording) stopRec(true); }
+  function clearAud(){ pendingAudioUrl=null; audioUpload=null; $('audPreview').style.display='none'; var au=$('audEl'); if(au){ try{au.pause();}catch(e){} au.removeAttribute('src'); } if(recBlobUrl){ try{URL.revokeObjectURL(recBlobUrl);}catch(e){} recBlobUrl=null; } if($('audPlay'))$('audPlay').textContent='▶️'; if(recording) stopRec(true); }
 
   // ── speak-to-type (dictation): live via the browser like Claude's voice; Whisper fallback ──
   var recog=null, dictating=false, dictBase='', wRec=null, wRecording=false;
@@ -7514,9 +7528,18 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   // same Whisper transcription already used for the dictate fallback and for reading
   // customers' own voice notes.
   if($('audTranscribe')) $('audTranscribe').onclick=function(){
-    if(!pendingAudioUrl){ toast('No recording to transcribe'); return; }
+    // "No recording to transcribe" now means exactly that — nothing recorded.
+    // If a note exists but its upload is still in flight, wait for it rather
+    // than telling him it isn't there.
+    if(!pendingAudioUrl && !audioUpload){ toast('No recording to transcribe'); return; }
     var btn=$('audTranscribe'); var was=btn.textContent; btn.textContent='⏳'; btn.disabled=true;
-    post('/inbox/transcribe',{url:pendingAudioUrl}).then(function(r){
+    var ready = pendingAudioUrl ? Promise.resolve(pendingAudioUrl) : audioUpload;
+    if(!pendingAudioUrl) toast('Finishing the upload first…');
+    ready.then(function(url){
+      if(!url){ btn.textContent=was; btn.disabled=false; toast('That recording never finished uploading — record it again'); return; }
+      return post('/inbox/transcribe',{url:url});
+    }).then(function(r){
+      if(!r) return;
       btn.textContent=was; btn.disabled=false;
       if(r && r.ok && r.text){
         var t=$('text'); var base=t.value?t.value.replace(/\s*$/,'')+' ':''; t.value=base+r.text; grow(t); t.focus();
