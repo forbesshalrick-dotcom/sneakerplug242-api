@@ -6370,20 +6370,28 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
        COLOUR  = which business. Always on, every row.
        BORDER  = needs opening. A full ring round the whole tile, not a thicker
                  left edge, because the left stripe was easy to miss mid-scroll. */
-  #listView .row{border:1px solid color-mix(in srgb,var(--rowc) 30%,transparent);
-    border-left:3px solid var(--rowc);
-    border-radius:12px;background:color-mix(in srgb,var(--rowc) 9%,transparent);box-shadow:none}
-  #listView .row.unread{border:2px solid var(--rowc);border-left-width:4px;
-    background:color-mix(in srgb,var(--rowc) 16%,transparent);
-    box-shadow:0 0 0 1px color-mix(in srgb,var(--rowc) 35%,transparent)}
+  /* Rodney was explicit about the final shape: "all customer tabs will be colored
+     with NO border. Border only for notification tabs — after opening the border
+     leaves and the color stays."
+
+     So the two signals are completely separate, and each has exactly one job:
+       FILL   = which business. Always, on every row, and it never changes.
+       BORDER = open me. Present only while unread, gone the moment he opens it.
+
+     The border is transparent rather than absent so a row does not shift by two
+     pixels when it goes from unread to read — the whole list would jiggle as he
+     works down it. */
+  #listView .row{border:2px solid transparent;
+    border-radius:12px;background:color-mix(in srgb,var(--rowc) 13%,transparent);box-shadow:none}
+  #listView .row.unread{border-color:var(--rowc);
+    background:color-mix(in srgb,var(--rowc) 13%,transparent)}
 
   /* Staff and his own phones are not customers of any business, so they carry no
-     account colour at all — white means "one of us" at a glance. They can still
-     go unread, and then they get a neutral ring rather than a coloured one. */
-  #listView .row.staff{--rowc:var(--line-strong,#c9c9d1);
-    background:#fff;border-color:var(--line);border-left-color:var(--line-strong,#c9c9d1)}
-  #listView .row.staff.unread{border:2px solid var(--ink);border-left-width:4px;
-    background:#fff;box-shadow:none}
+     account colour — white means "one of us" at a glance. The border rule is the
+     same as everyone else's: he said the ring is for every chat that needs
+     opening, so they get one too, in ink since there is no business to name. */
+  #listView .row.staff{background:#fff}
+  #listView .row.staff.unread{border-color:var(--ink)}
   .row .dot{background:var(--rowc);box-shadow:0 0 6px var(--rowc);animation:none}
   .row .tm{color:var(--dim);font-family:var(--mono);font-size:10.5px}
   /* the account pill: its own colour, and the Kiki tick tucked beside it instead of sitting
