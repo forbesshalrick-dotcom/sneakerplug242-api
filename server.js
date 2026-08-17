@@ -1383,6 +1383,14 @@ const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const WELCOME_NUDGE_MSG = "Let me know if you'd like to see the catalog or what we have in stock 👟";
+// ⚠️ WHOLESALE gets a DIFFERENT nudge (Rodney 2026-08-17). On Sneaker Inventory the
+// catalogue has ALREADY gone out as the website link plus the trade password, and there
+// are far too many styles to send as pictures over WhatsApp. The retail wording above
+// offered "the catalog or what we have in stock" five minutes after Kiki had just sent
+// the link — it read like she'd forgotten, and it invited a photo dump that WhatsApp
+// cannot carry. His words: "let me know if you see something you like, we'll line it up
+// ASAP." So: never offer photos or a catalogue here, just nudge them on the site.
+const WHOLESALE_NUDGE_MSG = "Take your time looking through the site 👟 Let me know if you see something you like and I'll line it up ASAP.";
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
@@ -1437,6 +1445,15 @@ function detectLang(text, prev) {
   return prev || 'en';
 }
 function L(map, sub) { return map[subLang.get(sub) || 'en'] || map.en; }
+
+/* Wholesale nudge, translated the same way as the rest. Says nothing about pictures
+   or a catalogue — the site link already went out. */
+const WS_ASKME_T = {
+  en: WHOLESALE_NUDGE_MSG,
+  es: "Tómate tu tiempo mirando el sitio 👟 Avísame si ves algo que te guste y te lo preparo enseguida.",
+  ht: "Pran tan ou gade sit la 👟 Fè m konnen si ou wè yon bagay ou renmen, m ap prepare l touswit.",
+  fr: "Prends ton temps sur le site 👟 Dis-moi si tu vois quelque chose qui te plaît et je te le prépare tout de suite.",
+};
 
 const ASKME_T = {
   en: WELCOME_NUDGE_MSG,
@@ -3215,7 +3232,9 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
 // nudge read like the chat was STARTING OVER; Kiki should never sound like a restart.
 function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS, isCloser: true }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
-function scheduleWelcomeNudge(sub, token) { scheduleNudge(sub, token, L(ASKME_T, sub), WELCOME_NUDGE_MS); }
+function scheduleWelcomeNudge(sub, token, wholesale) {
+  scheduleNudge(sub, token, wholesale ? L(WS_ASKME_T, sub) : L(ASKME_T, sub), WELCOME_NUDGE_MS);
+}
 
 // Ping the owner's WhatsApp with a delivery-ready alert. Uses the live chat's
 // own ManyChat token (the customer's account) — the owner just needs to have
@@ -5083,7 +5102,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // If this was their first message (we just sent the welcome) and we didn't send
   // photos, nudge once ~5 min later in case they go quiet. Cancelled if they reply.
   if (wasNewConvo && sentToCustomer && !photosSentRun) {
-    scheduleWelcomeNudge(sub, token);
+    scheduleWelcomeNudge(sub, token, wholesale);
   }
   rememberConvo(sub, trimHistory(history));
 }
