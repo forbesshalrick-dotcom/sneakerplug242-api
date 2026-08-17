@@ -5973,8 +5973,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   /* 📅 Day divider — a centred pill with a hairline running through it, so a long thread
      visibly breaks into days (Rodney 2026-07-28). Sticks to the top while you scroll that
      day, so you always know which day you're reading. */
-  .dsep{display:flex;align-items:center;gap:10px;margin:16px 4px 10px;position:sticky;top:4px;z-index:3;pointer-events:none}
-  .dsep:before,.dsep:after{content:"";flex:1;height:1px;background:rgba(255,255,255,.13)}
+  /* Rodney 2026-08-17: "big line across the chat, all the day tabs remain in plain
+     view bundled up in the screen."
+     Two faults in one rule. Every day label was position:sticky, so each one pinned
+     itself under the header and they stacked up on top of each other as he scrolled
+     back through a long chat. And the :before/:after drew a full-width rule across
+     the conversation, which cut the thread in half visually.
+     Now it is what a day marker should be: a small centred pill that scrolls away
+     with the messages it belongs to, and no line at all. */
+  .dsep{display:flex;align-items:center;justify-content:center;margin:18px 4px 12px;pointer-events:none}
   .dsep span{flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
     color:#cfd6e6;background:rgba(18,22,34,.92);border:1px solid rgba(255,255,255,.14);
     border-radius:999px;padding:4px 12px;backdrop-filter:blur(6px);box-shadow:0 2px 10px rgba(0,0,0,.35)}
@@ -6315,7 +6322,6 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   [data-theme="light"] .toast{background:#0C121A;color:#fff;border-color:transparent}
   [data-theme="light"] .modal{background:rgba(12,18,26,.32)}
   [data-theme="light"] .dsep span{background:var(--surface);color:var(--dim);border-color:var(--line)}
-  [data-theme="light"] .dsep:before,[data-theme="light"] .dsep:after{background:var(--line)}
   [data-theme="light"] .ordrow,[data-theme="light"] .myrow{background:var(--surface-2);color:var(--ink)}
   [data-theme="light"] .mynum{color:var(--ink)}
   [data-theme="light"] .ctxbtn,[data-theme="light"] .chip{color:var(--ink)}
