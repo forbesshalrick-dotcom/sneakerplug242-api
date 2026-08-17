@@ -6604,12 +6604,16 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     if(opusReady){ cb(); return; }
     var base='https://cdn.jsdelivr.net/npm/opus-recorder@8.0.5/dist/';
     var s=document.createElement('script'); s.src=base+'recorder.min.js';
+    // Any failure below must UNLIGHT the mic. Leaving it lit after a failed load is what made
+    // this look like a dead button rather than a failed download.
+    function recFail(msg){ recording=false; if($('mic')) $('mic').classList.remove('rec'); if($('recHud')) $('recHud').style.display='none'; toast(msg); }
     s.onload=function(){
       fetch(base+'encoderWorker.min.js').then(function(r){return r.blob();}).then(function(bl){
-        encoderBlobUrl=URL.createObjectURL(bl); opusReady=!!window.Recorder; opusReady?cb():toast('Recorder didn\\'t load');
-      }).catch(function(){ toast('Could not load recorder — check connection'); });
+        encoderBlobUrl=URL.createObjectURL(bl); opusReady=!!window.Recorder;
+        opusReady?cb():recFail('Recorder didn\\'t load — try again');
+      }).catch(function(){ recFail('Could not load recorder — check your connection'); });
     };
-    s.onerror=function(){ toast('Could not load recorder — check connection'); };
+    s.onerror=function(){ recFail('Could not load recorder — check your connection'); };
     document.head.appendChild(s);
   }
   // 🎙 WhatsApp-style voice notes: HOLD the mic to record, SLIDE away to cancel, RELEASE to stage
@@ -6906,7 +6910,28 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // TAP-to-record mic. One tap starts (mic turns red + HUD shows Stop/Cancel); tap the mic again OR
   // the Stop button to finish + stage. No hold, no release dependency — recording can't get stuck on
   // a phone that never fires pointerup (that was the "keeps recording, can't stop" bug).
-  if($('mic')) $('mic').onclick=function(e){ e.preventDefault(); e.stopPropagation(); if(recording) stopRec(false); else startRec(); };
+  // 🎙 Rodney 2026-08-16: "recording messages to kiki never worked, the button never did anything."
+  // Two causes, both fixed here.
+  // 1. It was bound to onclick only, while the tooltip and the code comment both say HOLD. Holding
+  //    on Android is a long-press — you get text selection or a context menu and the click NEVER
+  //    fires. So a hold, which is what he was doing, did precisely nothing.
+  // 2. The opus recorder is fetched from a CDN at the moment you tap, so even a correct tap sat
+  //    there silently while it downloaded, and a failure was a toast that's easy to miss.
+  // Now: pointerdown starts it immediately (so hold AND tap both work), the button changes state
+  // on contact so you can SEE it registered, and the recorder is warmed up in the background.
+  if($('mic')){
+    var micEl=$('mic');
+    micEl.style.touchAction='manipulation';
+    micEl.style.webkitUserSelect='none'; micEl.style.userSelect='none';
+    micEl.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+    micEl.addEventListener('pointerdown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      micEl.classList.add('rec');            // instant feedback — never a dead button again
+      if(recording) stopRec(false); else startRec();
+    });
+    // Warm the recorder up once, quietly, so the first press doesn't wait on a download.
+    setTimeout(function(){ try{ loadOpus(function(){}); }catch(e){} }, 4000);
+  }
   if($('recStop')) $('recStop').onclick=function(){ stopRec(false); };
   if($('recCancel')) $('recCancel').onclick=function(){ stopRec(true); };
   $('imgX').onclick=clearImg;
