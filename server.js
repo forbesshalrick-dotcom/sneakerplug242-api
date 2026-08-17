@@ -3321,17 +3321,46 @@ async function waSendManager(text, token, image) {
   // image (optional): shoe picture sent right above the alert text (Rodney 2026-07-14:
   // "is it possible to add the shoe picture to the notification?").
   const chunk = image ? [{ type: 'image', url: image }, { type: 'text', text }] : [{ type: 'text', text }];
-  // NEW primary path: direct sends to Rodney's subscriber id on every account we
-  // have a live token for. His one phone gets the alert from whichever bot can reach it.
+  /* 🔴 FIXED 2026-08-17 — Rodney: "why is SI number messaging the other business
+   * number for order notifications. It's supposed to be messaging 4324406."
+   *
+   * This used to fire the alert through EVERY account at once. The intent was
+   * redundancy — his one phone gets it from whichever bot can reach him — but the
+   * effect was that a Trendy Kicks sale arrived from the Sneaker Inventory number
+   * as well. Wholesale and retail are separate businesses to the people he deals
+   * with, and mixing them in his own alerts is confusing at best.
+   *
+   * So: the order's OWN store is tried first, and if it lands, nothing else sends.
+   * The broadcast survives only as a fallback, because the original worry is real
+   * — he is a subscriber on some accounts and not others, and an alert that never
+   * arrives is worse than one from the wrong number.
+   */
   let anyDirect = false;
+  const ownStore = token
+    ? [...storeTokens.entries()].find(([, t]) => t === token)?.[0]
+    : null;
+
+  if (ownStore && MANAGER_SUB_BY_STORE[ownStore] && storeTokens.get(ownStore)) {
+    try {
+      const r = await sendChunk(MANAGER_SUB_BY_STORE[ownStore], chunk, storeTokens.get(ownStore));
+      if (r && r.ok) return true;   // reached him from the right business — done
+    } catch (_) {}
+  }
+
   for (const [store, subId] of Object.entries(MANAGER_SUB_BY_STORE)) {
+    if (store === ownStore) continue;   // already tried, and it failed
     // ONLY that store's own token can reach that store's subscriber id — sending TK's
     // sub via OSC's token 400s with "Subscriber does not exist" (send-fail, 2026-07-14).
     const tk = storeTokens.get(store);
     if (!tk) continue;
     try { const r = await sendChunk(subId, chunk, tk); if (r && r.ok) anyDirect = true; } catch (_) {}
   }
-  if (anyDirect) return true;
+  if (anyDirect) {
+    // Worth knowing: it only reached him from another business because his own
+    // store could not deliver. That is a real fault, just a quieter one.
+    try { console.error('[manager-alert] fell back to another account; own store =', ownStore || '(unknown)'); } catch (_) {}
+    return true;
+  }
   // Legacy fallback: the old phone lookup (kept in case the sub ids ever change).
   if (!MANAGER_NUMBERS.length) return false;
   // A manager number only shows up as a "subscriber" on the ONE account it has messaged.
