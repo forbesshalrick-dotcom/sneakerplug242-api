@@ -5468,6 +5468,97 @@ function consoleAuth(req, res) {
   return true;
 }
 
+// ── 📸 WHATSAPP PROFILE PICTURE, SET FROM THE APP ────────────────────────────
+// Rodney 2026-08-16: "my whatsapp image changed from the app especially for SI because I don't
+// have an actual whatsapp app for that 1." The 941 number lives on the Cloud API only — there is
+// no WhatsApp app to open and no other way in, so the Graph API is the ONLY route to its avatar.
+//
+// Meta wants a two-step dance: upload the bytes to the resumable upload API to get a HANDLE,
+// then PATCH the business profile with that handle. The phone number id isn't stored anywhere
+// (it only ever arrives on an inbound webhook) so we look it up from the WABA on the way through.
+const WABA_IDS = { SI: '2327694734425445', OSC: '474474792421628' };
+
+async function waLookupPhoneId(wabaId) {
+  const tok = waToken();
+  if (!tok) return { ok: false, error: 'WA_TOKEN is not set on Railway' };
+  try {
+    const r = await fetch(`${WA_GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
+      { headers: { Authorization: `Bearer ${tok}` } });
+    const d = await r.json();
+    if (!r.ok) return { ok: false, error: (d && d.error && d.error.message) || `graph ${r.status}` };
+    return { ok: true, numbers: (d.data || []).map(n => ({ id: n.id, number: n.display_phone_number, name: n.verified_name })) };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
+
+// GET /wa/profile?key=&waba=SI — what Meta currently has, plus the phone id we resolved.
+// Diagnostic first: if the token or permissions are wrong we want to SEE that, not guess.
+app.get('/wa/profile', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const waba = WABA_IDS[String(req.query.waba || 'SI').toUpperCase()] || WABA_IDS.SI;
+  const look = await waLookupPhoneId(waba);
+  if (!look.ok) return res.json({ ok: false, step: 'lookup', error: look.error });
+  const first = look.numbers[0];
+  if (!first) return res.json({ ok: false, step: 'lookup', error: 'no phone numbers on this WABA' });
+  try {
+    const r = await fetch(`${WA_GRAPH}/${first.id}/whatsapp_business_profile?fields=about,profile_picture_url,description,websites`,
+      { headers: { Authorization: `Bearer ${waToken()}` } });
+    const d = await r.json();
+    return res.json({ ok: r.ok, numbers: look.numbers, phoneId: first.id, profile: (d && d.data && d.data[0]) || d });
+  } catch (e) { return res.json({ ok: false, step: 'profile', error: String(e.message || e) }); }
+});
+
+// POST /wa/profile-photo {key, image:"data:image/png;base64,...", waba:"SI"}
+// Same base64 shape the Inbox already posts to /inbox/upload, so the UI side is a one-liner.
+app.post('/wa/profile-photo', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const tok = waToken();
+  if (!tok) return res.status(400).json({ ok: false, error: 'WA_TOKEN is not set on Railway' });
+  const appId = (process.env.META_APP_ID || '').trim();
+  if (!appId) return res.status(400).json({ ok: false, error: 'META_APP_ID is not set on Railway — Meta requires an app id to upload the image before it can be attached to the profile' });
+
+  const b = req.body || {};
+  const m = /^data:(image\/(?:png|jpe?g));base64,(.+)$/i.exec(String(b.image || ''));
+  if (!m) return res.status(400).json({ ok: false, error: 'send image as a data URL — PNG or JPEG only' });
+  const mime = m[1].toLowerCase();
+  const bytes = Buffer.from(m[2], 'base64');
+  if (!bytes.length) return res.status(400).json({ ok: false, error: 'image was empty' });
+
+  const waba = WABA_IDS[String(b.waba || 'SI').toUpperCase()] || WABA_IDS.SI;
+  const look = await waLookupPhoneId(waba);
+  if (!look.ok) return res.status(400).json({ ok: false, step: 'lookup', error: look.error });
+  const phoneId = (look.numbers[0] || {}).id;
+  if (!phoneId) return res.status(400).json({ ok: false, step: 'lookup', error: 'no phone number on this WABA' });
+
+  try {
+    // 1 — open an upload session
+    const s = await fetch(`${WA_GRAPH}/${appId}/uploads?file_length=${bytes.length}&file_type=${encodeURIComponent(mime)}`,
+      { method: 'POST', headers: { Authorization: `Bearer ${tok}` } });
+    const sd = await s.json();
+    if (!s.ok || !sd.id) return res.status(400).json({ ok: false, step: 'session', error: (sd && sd.error && sd.error.message) || `graph ${s.status}` });
+
+    // 2 — push the bytes, get the handle back
+    const u = await fetch(`${WA_GRAPH}/${sd.id}`, {
+      method: 'POST',
+      headers: { Authorization: `OAuth ${tok}`, file_offset: '0', 'Content-Type': 'application/octet-stream' },
+      body: bytes,
+    });
+    const ud = await u.json();
+    if (!u.ok || !ud.h) return res.status(400).json({ ok: false, step: 'upload', error: (ud && ud.error && ud.error.message) || `graph ${u.status}` });
+
+    // 3 — attach the handle to the business profile
+    const p = await fetch(`${WA_GRAPH}/${phoneId}/whatsapp_business_profile`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', profile_picture_handle: ud.h }),
+    });
+    const pd = await p.json();
+    if (!p.ok) return res.status(400).json({ ok: false, step: 'apply', error: (pd && pd.error && pd.error.message) || `graph ${p.status}` });
+    return res.json({ ok: true, phoneId, number: (look.numbers[0] || {}).number, bytes: bytes.length });
+  } catch (e) {
+    return res.status(500).json({ ok: false, step: 'exception', error: String(e.message || e) });
+  }
+});
+
 // Manually set (or list) owner reminders — e.g. an order arranged by hand in the
 // Inbox that Kiki never saw. POST {key, hours, store, text} / GET ?key= to list.
 app.post('/console/remind', (req, res) => {
