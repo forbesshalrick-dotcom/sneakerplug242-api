@@ -6381,17 +6381,27 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
      The border is transparent rather than absent so a row does not shift by two
      pixels when it goes from unread to read — the whole list would jiggle as he
      works down it. */
-  #listView .row{border:2px solid transparent;
+  /* He then saw the full ring and preferred the earlier look: "fix back tabs slim,
+     only corner border for notification like the photo. but all customer tabs
+     still need full color."
+
+     So the alert is a slim bar down the left edge — the shape from the screenshot
+     he pointed at — not a border round the whole tile. Quieter to scan: the eye
+     picks up a column of coloured edges down the left margin without every unread
+     row shouting. The fill still does the other job and never changes.
+
+     Borders stay declared on all four sides and merely go transparent when read,
+     so a row never changes size as he works down the list. */
+  #listView .row{border:1px solid transparent;border-left:4px solid transparent;
     border-radius:12px;background:color-mix(in srgb,var(--rowc) 13%,transparent);box-shadow:none}
-  #listView .row.unread{border-color:var(--rowc);
-    background:color-mix(in srgb,var(--rowc) 13%,transparent)}
+  #listView .row.unread{border-left-color:var(--rowc)}
 
   /* Staff and his own phones are not customers of any business, so they carry no
      account colour — white means "one of us" at a glance. The border rule is the
      same as everyone else's: he said the ring is for every chat that needs
      opening, so they get one too, in ink since there is no business to name. */
   #listView .row.staff{background:#fff}
-  #listView .row.staff.unread{border-color:var(--ink)}
+  #listView .row.staff.unread{border-left-color:var(--ink)}
   .row .dot{background:var(--rowc);box-shadow:0 0 6px var(--rowc);animation:none}
   .row .tm{color:var(--dim);font-family:var(--mono);font-size:10.5px}
   /* the account pill: its own colour, and the Kiki tick tucked beside it instead of sitting
