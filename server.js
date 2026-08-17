@@ -6307,6 +6307,38 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .navbtn.active{color:var(--ink);filter:none}
   .navbtn.active svg{stroke:var(--ink)}
 
+  /* ══ THE CHAT SCREEN, IN THE ACCOUNT'S COLOUR ═══════════════════════════════
+     Rodney 2026-08-17: "this customer's tab is blue, all chats should be outlined blue,
+     whole tabs colored with different shades of blue to separate each of the participants."
+     He's right — a Trendy Kicks customer opened blue in the list and then the chat showed
+     Kiki in red and himself in green: three unrelated colours for one conversation. The
+     three speakers are now three SHADES of that one account colour — the customer palest,
+     Kiki mid, him solid. Open an Inventory chat and the same three shades come out red. */
+  #threadView{--rowc:var(--oth)}
+  .thead .cn-name{color:var(--rowc)}
+  #tSub,.callnum{color:var(--rowc)}
+  .callnum{background:color-mix(in srgb,var(--rowc) 12%,transparent);border-color:color-mix(in srgb,var(--rowc) 38%,transparent)}
+  .b{background:var(--surface);border:1.5px solid var(--line)}
+  /* THEM — palest: their words, the colour only frames it */
+  .b.in{background:color-mix(in srgb,var(--rowc) 7%,var(--surface));
+    border-color:color-mix(in srgb,var(--rowc) 26%,transparent)}
+  /* KIKI — mid: filled enough to read as "us", light enough to tell from his own */
+  .b.kiki{background:color-mix(in srgb,var(--rowc) 16%,var(--surface));
+    border-color:color-mix(in srgb,var(--rowc) 45%,transparent)}
+  /* HIM — solid, so his own words are unmistakable at a glance */
+  .b.rodney{background:var(--rowc);border-color:var(--rowc);color:#fff}
+  .b.rodney .tm{color:#fff;opacity:.8}
+  .b .who{background:none!important;-webkit-text-fill-color:var(--rowc);color:var(--rowc)}
+  .b.rodney .who{-webkit-text-fill-color:#fff;color:#fff}
+  .compinner{background:var(--surface);
+    border:1.7px solid color-mix(in srgb,var(--rowc) 38%,transparent)!important;box-shadow:none}
+  .sendbtn{background:var(--rowc);color:#fff;box-shadow:none}
+  .attach{border-color:color-mix(in srgb,var(--rowc) 34%,transparent);color:var(--rowc);
+    background:color-mix(in srgb,var(--rowc) 10%,transparent);box-shadow:none}
+  .attach.stopsend{background:#F0142F;border-color:#F0142F;color:#fff}
+  .attach.rec{background:#F0142F;border-color:#F0142F;color:#fff}
+  .icon{border-color:color-mix(in srgb,var(--rowc) 34%,transparent);color:var(--rowc);box-shadow:none}
+
   /* ══ THE HEADER ═════════════════════════════════════════════════════════════
      "I like the top, it's a bit fat you can tighten it up but keep the text."
      Same three lines, roughly 40% less height — it was pushing the first customer below the
@@ -6811,6 +6843,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     $('tAv').style.background = 'linear-gradient(135deg,'+c[0]+','+c[1]+')';
     $('tAv').style.setProperty('--rc', c[0]);
     $('threadView').className = 'acc-'+tagCls(tag); // colour bubbles + accents by account
+    // The whole chat screen takes this customer's account colour, so the three speakers come
+    // out as three shades of ONE colour instead of blue / red / green in the same window.
+    $('threadView').style.setProperty('--rowc', c[0]);
     $('listView').style.display='none'; $('threadView').style.display='flex';
     $('msgs').innerHTML=''; loadThread(true); refreshOrderBadge();
   }
@@ -6985,11 +7020,40 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     var eq=$('recHud')?$('recHud').querySelector('.eqbars'):null;
     if(eq){ eq.classList.remove('live'); var bb=eq.querySelectorAll('i'); for(var i=0;i<bb.length;i++) bb[i].style.height=''; }
   }
+  // 🎤 THE REASON THIS NEVER WORKED (Rodney reported it twice; found 2026-08-17).
+  //
+  // A browser only lets you ask for the microphone DURING a user's tap. The old flow was:
+  // tap -> go and download the encoder from a CDN -> come back -> ask for the mic. By the
+  // time it came back, the tap was long over, so Android threw the request away. No prompt,
+  // no recording, no error the eye could catch: a dead button, exactly as he described.
+  // On his 4G that round trip is easily a second or two, so it would have failed every time.
+  //
+  // Now the microphone is claimed INSIDE the tap, before anything is downloaded, and the
+  // live stream is handed to the encoder afterwards. The permission prompt appears instantly
+  // on the first press, and after that it starts recording the moment he touches it.
+  var micStream = null;
+  function grabMic(){
+    if(micStream && micStream.active) return Promise.resolve(micStream);
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+      return Promise.reject(new Error('no-mic-api'));
+    return navigator.mediaDevices.getUserMedia({audio:true}).then(function(st){ micStream=st; return st; });
+  }
+  function micFail(msg){ recording=false; if($('mic')) $('mic').classList.remove('rec'); if($('recHud')) $('recHud').style.display='none'; toast(msg); }
   function startRec(){
     if(recording) return;
     loadOpus(function(){
       try{
-        recorder = new window.Recorder({ encoderPath: encoderBlobUrl, numberOfChannels:1, encoderSampleRate:16000, streamPages:false });
+        // Feed the encoder the stream we already hold, so it never re-asks outside the tap.
+        var opts = { encoderPath: encoderBlobUrl, numberOfChannels:1, encoderSampleRate:16000, streamPages:false };
+        if(micStream && micStream.active){
+          try{
+            var AC = window.AudioContext || window.webkitAudioContext;
+            var actx = new AC();
+            if(actx.state === 'suspended') actx.resume();
+            opts.sourceNode = actx.createMediaStreamSource(micStream);
+          }catch(e){ /* fall back to letting the recorder open its own stream */ }
+        }
+        recorder = new window.Recorder(opts);
         recorder.ondataavailable = function(arr){ onRecorded(arr); };
         recorder.start().then(function(){
           recording=true; recCancel=false; recStartMs=Date.now();
@@ -7261,11 +7325,19 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     micEl.addEventListener('contextmenu', function(e){ e.preventDefault(); });
     micEl.addEventListener('pointerdown', function(e){
       e.preventDefault(); e.stopPropagation();
+      if(recording){ stopRec(false); return; }
       micEl.classList.add('rec');            // instant feedback — never a dead button again
-      if(recording) stopRec(false); else startRec();
+      // Claim the microphone HERE, inside the tap. This line is the whole fix: ask for it any
+      // later — after a download, inside a .then() — and the browser has already decided the
+      // tap is over and silently refuses. See the note above startRec.
+      grabMic().then(startRec).catch(function(err){
+        micFail(err && err.name==='NotAllowedError'
+          ? 'Microphone blocked. Tap the padlock in the address bar and allow the mic.'
+          : 'Can\\'t reach the microphone on this browser.');
+      });
     });
-    // Warm the recorder up once, quietly, so the first press doesn't wait on a download.
-    setTimeout(function(){ try{ loadOpus(function(){}); }catch(e){} }, 4000);
+    // Warm the encoder up quietly so the first press doesn't wait on a download either.
+    setTimeout(function(){ try{ loadOpus(function(){}); }catch(e){} }, 3000);
   }
   if($('recStop')) $('recStop').onclick=function(){ stopRec(false); };
   if($('recCancel')) $('recCancel').onclick=function(){ stopRec(true); };
