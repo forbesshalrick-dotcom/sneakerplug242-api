@@ -5692,9 +5692,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
    so without this the page flashes black and then snaps to white on every single open —
    which looks broken even though it isn't. White is the default and it deliberately does NOT
    follow the phone's setting; dark only ever comes from the button, and it's remembered. */
-(function(){try{var t=localStorage.getItem('sp242-inbox-theme');
-document.documentElement.setAttribute('data-theme', t==='dark'?'dark':'light');}
-catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+(function(){var t='light';try{t=localStorage.getItem('sp242-inbox-theme')==='dark'?'dark':'light';}catch(e){}
+document.documentElement.setAttribute('data-theme',t);
+/* The black strips above and below the page are the BROWSER's own bars, not ours — Chrome on
+   Android paints them from <meta name="theme-color">, which was pinned to the old near-black.
+   That's why the app went white but the phone still framed it in black. Paint it to match the
+   page and the design runs edge to edge, the way nightshift242.com does. */
+var m=document.querySelector('meta[name="theme-color"]');
+if(!m){m=document.createElement('meta');m.name='theme-color';document.head.appendChild(m);}
+m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
 </script>
 <link rel="manifest" href="/inbox/app.webmanifest">
 <link rel="apple-touch-icon" href="/inbox/icon-192.png">
@@ -5723,7 +5729,10 @@ catch(e){document.documentElement.setAttribute('data-theme','light');}})();
   /* ☀️ LIGHT — the toggle in the search bar sets data-theme on <html>. Only surfaces and ink
      move; the account hues keep their identity so a TK row is still recognisably TK. */
   :root[data-theme="light"]{
-    --bg:#F5F7FA;--bg2:#FFFFFF;--surface:#FFFFFF;--surface-2:#EEF1F6;
+    /* PURE white, not a grey-white. Rodney: "the white like it has a black underlay not pure
+       bright white." #F5F7FA is a designer's off-white and next to a phone's true white it
+       reads as dirty — like something dark is showing through. Paper white it is. */
+    --bg:#FFFFFF;--bg2:#FFFFFF;--surface:#FFFFFF;--surface-2:#F4F6F9;
     --ink:#0C121A;--dim:#525E6E;--ink-3:#8892A2;
     --card:#FFFFFF;--line:#E2E7EE;
     --tk:#1D5FD8;--osc:#03835A;--si:#D01478;--sb:#6D3BD6;--oth:#5B47C7;--warn:#B26A05;
@@ -6233,6 +6242,22 @@ catch(e){document.documentElement.setAttribute('data-theme','light');}})();
   [data-theme="light"] .sys{color:#0d3b22}
   [data-theme="light"] .b .trl{border-top-color:var(--line)}
   [data-theme="light"] .tabs{background:var(--surface)}
+  /* The dark scrims. These are half-transparent BLACK sheets laid over the whole view to keep
+     text readable on the old photo wallpaper. The wallpaper is long gone, but the sheets
+     stayed — and on a white page they are literally the "black underlay" Rodney can see
+     greying everything down. Off, in light mode. */
+  [data-theme="light"] body.hasbg #listView::after,
+  [data-theme="light"] body.hasbg #threadView::after,
+  [data-theme="light"] body::before,
+  [data-theme="light"] body::after{background:none;display:none}
+  [data-theme="light"] body,[data-theme="light"] html{background:var(--bg)}
+  [data-theme="light"] #listView,[data-theme="light"] #threadView{background:var(--bg)}
+  [data-theme="light"] .hero,[data-theme="light"] .searchbar,
+  [data-theme="light"] .bottomnav,[data-theme="light"] .composer,
+  [data-theme="light"] header{background:var(--bg)}
+  [data-theme="light"] body.hasbg .b:not(.hasimg){text-shadow:none}
+  [data-theme="light"] body.hasbg .b:not(.hasimg)::before{display:none}
+  [data-theme="light"] .wordmark{color:var(--ink)}
   [data-theme="light"] .empty{color:var(--dim)}
   [data-theme="light"] .compinner textarea{color:var(--ink)}
   [data-theme="light"] .compinner textarea::placeholder{color:var(--ink-3)}
@@ -6478,6 +6503,9 @@ catch(e){document.documentElement.setAttribute('data-theme','light');}})();
   var THEME_KEY='sp242-inbox-theme';
   function applyTheme(t){
     document.documentElement.setAttribute('data-theme', t);
+    // keep the phone's own top/bottom bars matching the page, or the app sits in a black frame
+    var m=document.querySelector('meta[name="theme-color"]');
+    if(m) m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');
     var b=$('themeBtn'); if(b){ b.textContent = t==='dark'?'🌙':'☀️'; b.title = t==='dark'?'Switch to the white look':'Switch to the dark look'; }
     try{ localStorage.setItem(THEME_KEY, t); }catch(e){}   // storage off: still switches, just won't remember
   }
