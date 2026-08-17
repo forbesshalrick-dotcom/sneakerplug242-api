@@ -3557,6 +3557,9 @@ try {
       deliveriesToday = Array.isArray(saved.rows) ? saved.rows : [];
       deliveryCounter = Number(saved.counter) || deliveriesToday.length;
       console.log('[deliveries] restored', deliveriesToday.length, 'from disk —', deliveriesToday.filter(d => d.confirmed === null).length, 'still unanswered');
+      // Tidy duplicates written before the fold existed, so a driver is never asked to
+      // pick between five copies of the one job he actually did.
+      collapseDuplicateDeliveries();
     }
   }
 } catch (e) { console.log('[deliveries] restore failed:', e.message); }
@@ -3572,14 +3575,85 @@ function saveDeliveries() {
   }, 800);
   if (deliverySaveT.unref) deliverySaveT.unref();
 }
+// Is this alert about an order we are ALREADY waiting on an answer for?
+//
+// Kiki calls notify_manager more than once for a single sale BY DESIGN — once the moment
+// the customer commits ("order_confirmed", usually before the shoe or the location is
+// known) and again when the location lands ("delivery_ready") — and she calls it again
+// any time that order comes back up in the conversation. Every one of those used to open
+// its own delivery to confirm.
+//
+// 2026-08-17, live: one $300 order (Air Jordan 5 + Air Force 1, size 10.5) became FIVE
+// identical pending deliveries. The driver replied "Done" and Kiki read all five back to
+// him and asked which one he meant. He had only ever done the one. Rodney: "kiki asked so
+// many times if the order was done that she thought it was different orders."
+//
+// Same customer + same shoe = the same job. When one side doesn't know the shoe yet it is
+// STILL the same job — that is precisely the two-stage alert. Two DIFFERENT known shoes
+// for one customer stay separate, because that genuinely is two deliveries.
+function sameOpenOrder(rec, entry) {
+  if (String(rec.sub || '') !== String(entry.sub || '')) return false;
+  const a = rec.shoeId, b = entry.shoeId;
+  // Both known and different → two real orders.
+  if (a && b && String(a) !== String(b)) return false;
+  if (a && b && rec.size && entry.size && String(rec.size) !== String(entry.size)) return false;
+  // A repeat alert lands minutes after the first, not hours. The window is what keeps a
+  // customer who orders again that evening from being folded into the morning's delivery.
+  const ta = rec.createdAt || 0, tb = entry.createdAt || 0;
+  if (ta && tb && Math.abs(ta - tb) > 6 * 3600 * 1000) return false;
+  return true;
+}
+
+// Later alerts carry better detail than the first one — that is the whole point of the
+// two stages — so anything real in the newer alert wins. "order" is the placeholder Kiki
+// sends when she doesn't know the shoe yet; it must never overwrite a real description.
+function mergeIntoDelivery(rec, entry) {
+  for (const k of ['who', 'what', 'shoeId', 'size', 'price', 'store', 'at']) {
+    const v = entry[k];
+    if (v === undefined || v === null || v === '') continue;
+    if (k === 'what' && v === 'order' && rec.what && rec.what !== 'order') continue;
+    rec[k] = v;
+  }
+  return rec;
+}
+
 function noteDeliveryForCheck(entry) {
   const day = nassauNow().toISOString().slice(0, 10);
   if (deliveriesToday.length && deliveriesToday[0].day !== day) { deliveriesToday.length = 0; deliveryCounter = 0; }
+  const dup = deliveriesToday.find(d => d.day === day && d.confirmed === null && sameOpenOrder(d, entry));
+  if (dup) {
+    mergeIntoDelivery(dup, entry);
+    saveDeliveries();
+    console.log('[deliveries] repeat alert folded into #' + dup.n + ' —', dup.what);
+    return dup;
+  }
   const rec = Object.assign({ day, n: ++deliveryCounter, confirmed: null, asks: 0, askedAt: 0 }, entry);
   deliveriesToday.unshift(rec);
   if (deliveriesToday.length > 60) deliveriesToday.length = 60;
   saveDeliveries();
   return rec;
+}
+
+// The same fold applied to whatever is already on disk. Without this the five duplicates
+// from 2026-08-17 would sit in the queue being chased all night by a server that has been
+// taught not to create them but not to clean them up.
+function collapseDuplicateDeliveries() {
+  const kept = [];
+  let folded = 0;
+  // Oldest first, so the record that SURVIVES is the one the team was first told about
+  // and already has the right number on it.
+  for (const rec of [...deliveriesToday].reverse()) {
+    if (rec.confirmed !== null) { kept.push(rec); continue; }
+    const into = kept.find(k => k.confirmed === null && k.day === rec.day && sameOpenOrder(k, rec));
+    if (into) { mergeIntoDelivery(into, rec); folded++; }
+    else kept.push(rec);
+  }
+  if (folded) {
+    deliveriesToday = kept.reverse();
+    console.log('[deliveries] folded', folded, 'duplicate pending deliveries into their originals');
+    saveDeliveries();
+  }
+  return folded;
 }
 
 // ── ✅ DID IT ACTUALLY GO? (Rodney 2026-08-16) ───────────────────────────────
