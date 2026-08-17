@@ -5687,6 +5687,15 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="242 Inbox">
+<script>
+/* Set the look BEFORE a single pixel is painted. The stylesheet below is written dark-first,
+   so without this the page flashes black and then snaps to white on every single open —
+   which looks broken even though it isn't. White is the default and it deliberately does NOT
+   follow the phone's setting; dark only ever comes from the button, and it's remembered. */
+(function(){try{var t=localStorage.getItem('sp242-inbox-theme');
+document.documentElement.setAttribute('data-theme', t==='dark'?'dark':'light');}
+catch(e){document.documentElement.setAttribute('data-theme','light');}})();
+</script>
 <link rel="manifest" href="/inbox/app.webmanifest">
 <link rel="apple-touch-icon" href="/inbox/icon-192.png">
 <title>Inbox — SNEAKERPLUG242</title>
@@ -6137,18 +6146,25 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
      account's colour and never a generic blue. When an account has unread messages the
      count pill fills solid and breathes in that same colour, so a glance across the strip
      tells him WHICH business is waiting, not just that something is. */
-  .tabs{display:flex;gap:2px;padding:0 12px;margin:0 2px;border-bottom:1px solid var(--line);
+  /* All the accounts must fit across a phone WITHOUT scrolling — when "Inventory" fell off
+     the edge it read as though that business wasn't there. Hence 30px tall, tight type, and
+     flex:1 so they share the width instead of leaving a gap. */
+  .tabs{display:flex;gap:0;padding:0 8px;margin:0 2px;border-bottom:1px solid var(--line);
     overflow-x:auto;scrollbar-width:none;flex-shrink:0}
   .tabs::-webkit-scrollbar{display:none}
-  .tab{--c:var(--dim);position:relative;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
-    height:34px;padding:0 11px;background:none;border:0;cursor:pointer;color:var(--dim);
-    font-family:'Inter',-apple-system,sans-serif;font-size:12.5px;font-weight:600;white-space:nowrap;
-    letter-spacing:-.01em}
-  .tab::after{content:'';position:absolute;left:7px;right:7px;bottom:-1px;height:2px;background:transparent;border-radius:2px 2px 0 0}
-  .tab[aria-selected="true"]{color:var(--c)}
+  .tab{--c:var(--dim);position:relative;flex:1 1 auto;min-width:0;display:inline-flex;
+    align-items:center;justify-content:center;gap:4px;
+    height:30px;padding:0 5px;background:none;border:0;cursor:pointer;
+    font-family:'Inter',-apple-system,sans-serif;font-size:11.5px;font-weight:650;white-space:nowrap;
+    letter-spacing:-.015em;
+    /* always its own colour, just held back when it isn't the one you're on — the strip
+       itself is the key to the colour coding */
+    color:var(--c);opacity:.6}
+  .tab::after{content:'';position:absolute;left:5px;right:5px;bottom:-1px;height:2px;background:transparent;border-radius:2px 2px 0 0}
+  .tab[aria-selected="true"]{opacity:1}
   .tab[aria-selected="true"]::after{background:var(--c)}
   .tab:active{transform:scale(.95)}
-  .tab .n{font-family:var(--mono);font-size:10px;font-weight:600;padding:1.5px 5px;border-radius:5px;
+  .tab .n{font-family:var(--mono);font-size:9.5px;font-weight:700;padding:1px 4px;border-radius:4px;
     background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);font-variant-numeric:tabular-nums}
   .tab[data-alert="1"] .n{background:var(--c);color:#fff;animation:tabglow 2s ease-in-out infinite}
   @keyframes tabglow{
@@ -6216,6 +6232,25 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   [data-theme="light"] #selBar .selinfo{color:var(--ink)}
   [data-theme="light"] .sys{color:#0d3b22}
   [data-theme="light"] .b .trl{border-top-color:var(--line)}
+  [data-theme="light"] .tabs{background:var(--surface)}
+  [data-theme="light"] .empty{color:var(--dim)}
+  [data-theme="light"] .compinner textarea{color:var(--ink)}
+  [data-theme="light"] .compinner textarea::placeholder{color:var(--ink-3)}
+  [data-theme="light"] .banner.paused{background:#FFF6E5;color:#7A4E00;border-bottom-color:#F0DCB4}
+  [data-theme="light"] .banner.live{background:#E8F8EF;color:#0A5637;border-bottom-color:#BFE6D2}
+  [data-theme="light"] .row .lt.cust .ctag{color:var(--rowc)}
+  [data-theme="light"] .row .dot{box-shadow:0 0 0 3px color-mix(in srgb,var(--rowc) 22%,transparent)}
+  [data-theme="light"] .sbtn.dens.on{color:var(--osc);border-color:var(--osc);box-shadow:none}
+  [data-theme="light"] #stopBar{background:#FFF1F3;border-top-color:#E0334F}
+  [data-theme="light"] #stopBar #stopMsg{color:#7A0A1C}
+  [data-theme="light"] .rechud{background:#FFF1F3;color:#7A0A1C}
+  [data-theme="light"] .vplay{color:var(--si)}
+  /* 🎨 The last of the graffiti. These paint drips hang off every avatar and were the one
+     piece of the old spray-can look that survived the clean-up — they read as scruffy on a
+     white ground, and Rodney asked for a desk he can put in front of a Nightshift client. */
+  .row .av::after{display:none}
+  .tagline{font-family:'Inter',-apple-system,sans-serif;font-size:10px;letter-spacing:.18em;
+    color:var(--dim);font-weight:600;text-shadow:none;margin:4px 0 0 2px}
 </style></head><body>
 <input type="file" id="avFile" accept="image/*" style="display:none">
 <div id="stopBar" style="display:none"><span id="stopMsg"></span><button id="stopBtn">✋ STOP</button></div>
@@ -6239,8 +6274,11 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
     </div>
     <button class="sbtn dens" id="density" title="Smaller rows — fit the full name & number"><span style="font-weight:800;line-height:1">A<span style="font-size:11px">a</span></span></button>
     <button class="sbtn" id="rf" title="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="#cfd6e6" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg></button>
+    <button class="sbtn" id="themeBtn" title="Switch between the white and the dark look">☀️</button>
     <a class="sbtn" id="siteBtn" href="https://242plug.com" target="_blank" rel="noopener" title="Open 242plug.com — the website" style="text-decoration:none;display:flex;align-items:center;justify-content:center;font-size:16px">🛒</a>
   </div>
+  <!-- Account tabs. Built from the real threads in JS so the counts are never a lie. -->
+  <div class="tabs" id="acctTabs" role="tablist" aria-label="Accounts"></div>
   <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
   <div id="selBar" style="display:none"><span class="selinfo"><b id="selCount">0</b> selected</span><button id="selSend" class="selbtn">📸 Send pics</button><button id="selCancel" class="selx">✕</button></div>
   <nav class="bottomnav">
@@ -6395,6 +6433,59 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // brighter than the .cn-num pink (#ff5cb4): the customer's number is already pink, and a
   // matching shade turned the whole label into one blob. SB (Shoe Box) keeps its purple.
   function accCols(tag){ return tag==='TK'?['#2f6df6','#38bdf8']:tag==='OSC'?['#12b866','#5fe0a0']:tag==='SI'?['#ff2d95','#ff9ecb']:tag==='SB'?['#9a5cff','#c6a6ff']:['#7c5cff','#22d3ee']; }
+  // ── ACCOUNT TABS ──────────────────────────────────────────────────────────
+  // One strip across the top, one tab per business, built from the REAL threads so a count
+  // can never drift from what's underneath it. A tab glows in its own colour when that
+  // account has someone waiting — and stops the moment the last one is read, because a badge
+  // that keeps shouting about finished work is the thing that trains you to ignore it.
+  var acctFilter='ALL';
+  var ACCT_NAMES={TK:'Trendy Kicks',OSC:'Sneaker Crew',SI:'Inventory',SB:'Shoe Box',OTH:'Other'};
+  function buildTabs(threads){
+    var box=$('acctTabs'); if(!box) return;
+    var order=[], seen={}, unread={}, total={};
+    (threads||[]).forEach(function(t){
+      var g=t.tag||'OTH';
+      if(!seen[g]){ seen[g]=1; order.push(g); }
+      total[g]=(total[g]||0)+1;
+      if(t.unread) unread[g]=(unread[g]||0)+1;
+    });
+    var allUnread=Object.keys(unread).length>0;
+    var html='<button class="tab" role="tab" data-f="ALL" aria-selected="'+(acctFilter==='ALL')+'"'
+      +(allUnread?' data-alert="1"':'')+' style="--c:var(--ink)">All <span class="n">'+(threads||[]).length+'</span></button>';
+    order.forEach(function(g){
+      var c=accCols(g)[0];
+      html+='<button class="tab" role="tab" data-f="'+g+'" aria-selected="'+(acctFilter===g)+'"'
+        +(unread[g]?' data-alert="1"':'')+' style="--c:'+c+'">'
+        +esc(ACCT_NAMES[g]||g)+' <span class="n">'+total[g]+'</span></button>';
+    });
+    box.innerHTML=html;
+    Array.prototype.forEach.call(box.querySelectorAll('.tab'), function(b){
+      b.onclick=function(){
+        acctFilter=b.getAttribute('data-f');
+        Array.prototype.forEach.call(box.querySelectorAll('.tab'), function(x){
+          x.setAttribute('aria-selected', String(x===b));
+        });
+        applyFilter();
+        closeThread && cur && closeThread();   // a tab filters the LIST, so show him the list
+      };
+    });
+  }
+
+  // ── THEME ─────────────────────────────────────────────────────────────────
+  // White is the default and it deliberately does NOT follow the phone. Rodney's phone lives
+  // in dark mode and he wants this to open white regardless — dark only ever comes from the
+  // button, and whatever he leaves it on is what he gets back on the next open.
+  var THEME_KEY='sp242-inbox-theme';
+  function applyTheme(t){
+    document.documentElement.setAttribute('data-theme', t);
+    var b=$('themeBtn'); if(b){ b.textContent = t==='dark'?'🌙':'☀️'; b.title = t==='dark'?'Switch to the white look':'Switch to the dark look'; }
+    try{ localStorage.setItem(THEME_KEY, t); }catch(e){}   // storage off: still switches, just won't remember
+  }
+  (function(){
+    var saved=null; try{ saved=localStorage.getItem(THEME_KEY); }catch(e){}
+    applyTheme(saved==='dark'?'dark':'light');
+  })();
+
   // Up to two initials (first + last word) for a fuller monogram.
   function initials(nm){ var p=String(nm||'').trim().split(/\\s+/).filter(Boolean); if(!p.length) return '#'; var a=(p[0].match(/[a-zA-Z0-9]/)||['#'])[0]; if(p.length<2) return a.toUpperCase(); var b=(p[p.length-1].match(/[a-zA-Z0-9]/)||[''])[0]; return (a+b).toUpperCase(); }
   // Local number (last 7 digits) + the "Name-8033126" label so the name AND the number
@@ -6562,7 +6653,8 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
           +'</div></div>';
       }).join('');
       var nb=$('navChatBadge'); if(nb){ if(totalUnread>0){ nb.textContent=totalUnread>99?'99':totalUnread; nb.style.display='flex'; } else nb.style.display='none'; }
-      if($('search') && $('search').value) $('search').oninput();
+      buildTabs(ts);   // rebuild the account strip from the threads we just drew
+      applyFilter();   // and re-apply BOTH the search text and the chosen account tab
       Array.prototype.forEach.call(document.querySelectorAll('.row'), function(el){
         var timer=null, longed=false;
         el.onclick=function(){ if(longed){ longed=false; return; } if(selMode){ toggleSel(el); return; } openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag'), el.getAttribute('data-phone')); };
@@ -7138,14 +7230,23 @@ const INBOX_HTML = `<!doctype html><html><head><meta charset="utf-8">
   // brand marks
   if($('briefAv')) $('briefAv').innerHTML = kiki(24);
   // search filter (name / number) over the loaded rows
-  $('search').oninput = function(){
-    var raw=(this.value||'').toLowerCase().trim();
+  // ONE filter, two inputs. The account tab and the search box both hide rows, so if each
+  // owned el.style.display separately the last one to run would wipe out the other — type a
+  // name while on the Inventory tab and you'd get matches from every account. Both funnel
+  // through here instead, and a row shows only when it passes BOTH.
+  function applyFilter(){
+    var raw=(($('search')||{}).value||'').toLowerCase().trim();
     var qd=raw.replace(/[^0-9]/g,''); // digits-only, so a typed phone matches the number
     Array.prototype.forEach.call(document.querySelectorAll('#threads .row'), function(el){
       var nm=(el.getAttribute('data-name')||'').toLowerCase(), sub=el.getAttribute('data-sub')||'', ph=(el.getAttribute('data-phone')||'').replace(/[^0-9]/g,'');
-      var match = !raw || nm.indexOf(raw)>-1 || sub.indexOf(raw)>-1 || (qd && (sub.indexOf(qd)>-1 || ph.indexOf(qd)>-1));
-      el.style.display=match?'':'none';
+      var hit = !raw || nm.indexOf(raw)>-1 || sub.indexOf(raw)>-1 || (qd && (sub.indexOf(qd)>-1 || ph.indexOf(qd)>-1));
+      var inAcct = (acctFilter==='ALL') || (el.getAttribute('data-tag')===acctFilter);
+      el.style.display=(hit && inAcct)?'':'none';
     });
+  }
+  $('search').oninput = applyFilter;
+  if($('themeBtn')) $('themeBtn').onclick = function(){
+    applyTheme(document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark');
   };
   // bottom nav
   function setNav(id){ Array.prototype.forEach.call(document.querySelectorAll('.navbtn'), function(b){ b.classList.toggle('active', b.id===id); }); }
