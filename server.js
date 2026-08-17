@@ -6356,10 +6356,34 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     box-shadow:none;font-weight:800}
   .row .av .avini{color:var(--rowc)}
   /* the row itself: quiet tint + a bar of its colour, exactly like the approved design */
-  #listView .row{border:1px solid var(--line);border-left:3px solid color-mix(in srgb,var(--rowc) 45%,transparent);
-    border-radius:12px;background:color-mix(in srgb,var(--rowc) 4%,transparent);box-shadow:none}
-  #listView .row.unread{border-left-width:5px;border-left-color:var(--rowc);
-    background:color-mix(in srgb,var(--rowc) 10%,transparent)}
+  /* ─── ROW COLOUR (Rodney 2026-08-17) ───────────────────────────────────────
+     "I like how the chats are coloured, I wish they stay coloured all the time,
+      and for notification that I should open should make this bold border corner
+      around the entire tab then I would know it need to open."
+
+     Before, only an UNREAD row was properly tinted; everything else sat at 4% and
+     read as plain white. So the colour was doing two jobs at once — telling him
+     which business a chat belonged to AND that it needed him — and a read chat
+     lost its business identity entirely.
+
+     Split into two signals that never compete:
+       COLOUR  = which business. Always on, every row.
+       BORDER  = needs opening. A full ring round the whole tile, not a thicker
+                 left edge, because the left stripe was easy to miss mid-scroll. */
+  #listView .row{border:1px solid color-mix(in srgb,var(--rowc) 30%,transparent);
+    border-left:3px solid var(--rowc);
+    border-radius:12px;background:color-mix(in srgb,var(--rowc) 9%,transparent);box-shadow:none}
+  #listView .row.unread{border:2px solid var(--rowc);border-left-width:4px;
+    background:color-mix(in srgb,var(--rowc) 16%,transparent);
+    box-shadow:0 0 0 1px color-mix(in srgb,var(--rowc) 35%,transparent)}
+
+  /* Staff and his own phones are not customers of any business, so they carry no
+     account colour at all — white means "one of us" at a glance. They can still
+     go unread, and then they get a neutral ring rather than a coloured one. */
+  #listView .row.staff{--rowc:var(--line-strong,#c9c9d1);
+    background:#fff;border-color:var(--line);border-left-color:var(--line-strong,#c9c9d1)}
+  #listView .row.staff.unread{border:2px solid var(--ink);border-left-width:4px;
+    background:#fff;box-shadow:none}
   .row .dot{background:var(--rowc);box-shadow:0 0 6px var(--rowc);animation:none}
   .row .tm{color:var(--dim);font-family:var(--mono);font-size:10.5px}
   /* the account pill: its own colour, and the Kiki tick tucked beside it instead of sitting
@@ -6828,6 +6852,19 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   function tagCls(t){ return (t==='TK'||t==='OSC'||t==='SB')?t:'OTH'; }
   function countdown(until){ var s=Math.max(0,Math.floor((until-Date.now())/1000)); var m=Math.floor(s/60); return m>0?(m+' min'):(s+'s'); }
 
+  /* 🧑‍💼 STAFF ROWS STAY WHITE. Rodney 2026-08-17: "leave my 2 driplomatics tab in all
+     white, along with Deashinique- 4684477 all white, to show staff numbers."
+     The colour coding tells him which BUSINESS a customer came through — but his own
+     phone and his staff are not customers of anything, so colouring them by account
+     was noise in the one list he scans fastest. White now means "one of us".
+     Matched on the last 7 digits so +1242 / 1242 / 242 / bare all agree. */
+  var STAFF_TAILS = ['4324406', '4684477'];
+  function isStaffPhone(p){
+    var d = String(p || '').replace(/\D/g, '');
+    if (!d) return false;
+    for (var i = 0; i < STAFF_TAILS.length; i++) if (d.slice(-7) === STAFF_TAILS[i]) return true;
+    return false;
+  }
   function loadThreads(){
     api('/inbox/threads').then(function(d){
       if(d && d.error){ try{ localStorage.removeItem(LS); }catch(e){} promptKey("That key didn't work — check it and try again."); return; }
@@ -6859,7 +6896,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
           if(t.replyPrev) lns += '<span class="lt rep">'+(t.replyWho?('<b>'+esc(t.replyWho)+':</b> '):'')+esc(unB(t.replyPrev))+'</span>';
           pv = lns || ('<span class="lt">'+esc(unB(t.lastText||'…'))+'</span>');
         }
-        return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-phone="'+esc(t.phone||'')+'" data-tag="'+t.tag+'">'
+        return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+(isStaffPhone(t.phone)?' staff':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-phone="'+esc(t.phone||'')+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
             +'<div class="toprow"><div class="nm">'+pinHtml+'<span class="nmtext">'+custLabelHTML(rawName, t.phone, t.tag)+'</span>'+lblHtml+(t.unread?'<span class="dot"></span>':'')+'</div>'
