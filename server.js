@@ -3609,9 +3609,6 @@ try {
       deliveriesToday = Array.isArray(saved.rows) ? saved.rows : [];
       deliveryCounter = Number(saved.counter) || deliveriesToday.length;
       console.log('[deliveries] restored', deliveriesToday.length, 'from disk —', deliveriesToday.filter(d => d.confirmed === null).length, 'still unanswered');
-      // Tidy duplicates written before the fold existed, so a driver is never asked to
-      // pick between five copies of the one job he actually did.
-      collapseDuplicateDeliveries();
     }
   }
 } catch (e) { console.log('[deliveries] restore failed:', e.message); }
@@ -3627,6 +3624,17 @@ function saveDeliveries() {
   }, 800);
   if (deliverySaveT.unref) deliverySaveT.unref();
 }
+
+// Tidy any duplicates already on disk, so a driver is never asked to pick between five
+// copies of the one job he actually did.
+//
+// ⚠️ This call has to sit HERE, below saveDeliveries, not up inside the restore block where
+// it naturally belongs. `deliverySaveT` is a `let`, so touching it before this line throws
+// "Cannot access before initialization" — which is exactly what happened on the 2026-08-17
+// deploy: the fold ran and collapsed 5 rows to 2 in memory, then the save threw, the restore
+// block's catch swallowed it, and the tidied list was never written to disk.
+collapseDuplicateDeliveries();
+
 // Is this alert about an order we are ALREADY waiting on an answer for?
 //
 // Kiki calls notify_manager more than once for a single sale BY DESIGN — once the moment
