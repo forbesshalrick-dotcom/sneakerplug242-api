@@ -7154,35 +7154,72 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   function briefBusy(label){
     var b=briefBtn(); if(b){ b.classList.add('rec'); b.textContent=label; }
   }
+  /* ⚠️ 2026-08-17, SECOND fix. My first one made this worse, and Rodney caught it:
+   * it said "Listening…", produced nothing, would not stop when tapped, and left
+   * the phone's microphone held — Chrome then told him "the microphone is being
+   * used by Google" and he had to close the whole site to get it back.
+   *
+   * Cause: I called grabMic() before starting voice typing and never released it.
+   * Voice typing opens its OWN capture, so the two fought over the microphone —
+   * and my held stream stayed open for the life of the page, which is what locked
+   * the mic out of every other app.
+   *
+   * So: voice typing gets NO grabMic — it asks for the microphone itself, inside
+   * the tap, which is all that was ever needed. grabMic is only for the recorder
+   * fallback, which genuinely needs a stream, and that stream is now released
+   * afterwards. Stop resets the button immediately instead of waiting for an
+   * event that may never arrive, and a watchdog guarantees it can never sit on
+   * "Listening…" forever.
+   */
+  function releaseMicIfIdle(){
+    // Never yank the stream out from under the composer's own recording.
+    if(recording || briefWRecording) return;
+    if(micStream){ try{ micStream.getTracks().forEach(function(t){ t.stop(); }); }catch(e){} micStream=null; }
+  }
+  var briefWatchdog=null;
+  function briefStopEverything(){
+    if(briefWatchdog){ clearTimeout(briefWatchdog); briefWatchdog=null; }
+    briefDictating=false;
+    if(briefRecog){ try{briefRecog.stop();}catch(e){} try{briefRecog.abort();}catch(e){} briefRecog=null; }
+    if(briefWRec && briefWRecording){ briefWRecording=false; try{briefWRec.stop();}catch(e){} }
+    briefWRecording=false;
+    briefIdle();
+    releaseMicIfIdle();
+  }
   function briefDictate(){
-    if(briefDictating){ try{briefRecog.stop();}catch(e){} return; }
-    if(briefWRecording){ briefWRecording=false; briefIdle(); try{briefWRec.stop();}catch(e){} return; }
+    // Any tap while busy means STOP, and stop must be instant and unconditional.
+    if(briefDictating || briefWRecording){ briefStopEverything(); toast('Stopped'); return; }
 
-    // Claim the mic first, in the tap. Everything else happens after.
-    grabMic().then(function(){
-      var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if(!SR){ briefWhisper(); return; }
-      briefRecog=new SR(); briefRecog.lang='en-US'; briefRecog.interimResults=true; briefRecog.continuous=true;
-      var base = $('briefText').value ? $('briefText').value.replace(/\\s*$/,'')+' ' : '';
-      var gotAnything=false;
-      briefRecog.onresult=function(e){ var out=''; for(var i=0;i<e.results.length;i++){ out+=e.results[i][0].transcript + (e.results[i].isFinal?' ':''); } if(out) gotAnything=true; $('briefText').value=base+out; };
-      briefRecog.onend=briefIdle;
-      briefRecog.onerror=function(ev){
-        var err=(ev&&ev.error)||'unknown';
-        briefIdle();
-        if(err==='not-allowed'||err==='service-not-allowed'){ toast('Microphone is blocked for this site — allow it in the address-bar padlock'); return; }
-        if(err==='no-speech'){ toast("Didn't hear anything — tap and speak a little closer"); return; }
-        // network / audio-capture / aborted: the browser route is unreliable here,
-        // so record it instead and let the server do the listening.
-        if(!gotAnything){ toast('Voice typing failed ('+err+') — recording instead'); briefWhisper(); }
-        else toast('Voice typing stopped ('+err+')');
-      };
-      try{ briefRecog.start(); briefDictating=true; briefBusy('● Listening… tap to stop'); toast('Listening… speak, then check it before you send'); }
-      catch(e){ briefWhisper(); }
-    }).catch(function(){
-      briefIdle();
-      toast('Allow microphone access to speak your note');
-    });
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ briefWhisper(); return; }
+
+    briefRecog=new SR(); briefRecog.lang='en-US'; briefRecog.interimResults=true; briefRecog.continuous=true;
+    var base = $('briefText').value ? $('briefText').value.replace(/\\s*$/,'')+' ' : '';
+    var gotAnything=false;
+    briefRecog.onresult=function(e){
+      var out=''; for(var i=0;i<e.results.length;i++){ out+=e.results[i][0].transcript + (e.results[i].isFinal?' ':''); }
+      if(out){ gotAnything=true; if(briefWatchdog){ clearTimeout(briefWatchdog); briefWatchdog=null; } }
+      $('briefText').value=base+out;
+    };
+    briefRecog.onend=function(){ briefStopEverything(); };
+    briefRecog.onerror=function(ev){
+      var err=(ev&&ev.error)||'unknown';
+      briefStopEverything();
+      if(err==='not-allowed'||err==='service-not-allowed'){ toast('Microphone is blocked for this site — allow it in the address-bar padlock'); return; }
+      if(err==='no-speech'){ toast("Didn't hear anything — tap and speak a little closer"); return; }
+      if(!gotAnything){ toast('Voice typing failed ('+err+') — recording instead'); briefWhisper(); }
+      else toast('Voice typing stopped ('+err+')');
+    };
+    try{
+      briefRecog.start(); briefDictating=true; briefBusy('● Listening… tap to stop');
+      toast('Listening… speak, then check it before you send');
+      // If nothing has been heard in 8 seconds, voice typing is not working here.
+      // Don't leave him staring at "Listening…" — stop and record instead.
+      briefWatchdog=setTimeout(function(){
+        if(!gotAnything && briefDictating){ briefStopEverything(); toast('Voice typing got nothing — recording instead'); briefWhisper(); }
+      }, 8000);
+    }
+    catch(e){ briefStopEverything(); briefWhisper(); }
   }
   /* Fallback: record with the same encoder as a voice note, then transcribe it
      server-side into the Brief box. The mic stream is already held from the tap,
