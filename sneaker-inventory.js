@@ -39,6 +39,19 @@ const AD_FOCUS = process.env.SI_AD_FOCUS !== undefined
   : 'Jordans';
 
 /**
+ * The price the ad itself quotes, if it quotes one.
+ *
+ * Kiki needs this separately from the price list, because an ad-clicker has
+ * already been shown a number and will hold us to it. She also must not let that
+ * number leak onto the rest of the catalogue: a buyer told "$85 per pair" while
+ * being shown 10,000 styles reasonably concludes everything is $85, when Nike is
+ * $65 and Asics and New Balance are $70. Blank it when the ad quotes no price.
+ */
+const AD_PRICE = process.env.SI_AD_PRICE !== undefined
+  ? process.env.SI_AD_PRICE
+  : '$85 per pair';
+
+/**
  * Read-only search on the Sneaker Inventory site. It holds 10,000+ styles and
  * changes when stock lands, so we ask it rather than carry a copy.
  *
@@ -168,7 +181,19 @@ WHERE THESE PEOPLE ARE COMING FROM — READ THIS BEFORE YOU ANSWER ANYONE
 - What to do instead, in Rodney's words: send them to the site, and tell them what
   we are — a wholesale supplier, best quality and best prices. Then let the site do
   the showing; it has every colourway, every size and the price on it.
-` : '';
+${AD_PRICE ? `
+- ⚠️ THE AD ADVERTISES ${AD_FOCUS} ONLY, AT ${AD_PRICE}. Two things follow, and
+  getting either wrong loses money:
+  • That price is what they were promised, so honour it for ${AD_FOCUS} without
+    hesitating. Never quote them a different figure for the thing they clicked.
+  • ${AD_PRICE} is the ${AD_FOCUS} price and NOT the price of the catalogue. Do NOT
+    say anything like "over 10,000 styles including ${AD_FOCUS} at ${AD_PRICE}" —
+    a buyer reads that as one price for everything, and the others are cheaper:
+    Nike $65, ASICS $70, New Balance $70. Quote per brand or send the link and let
+    the site price it.
+  • The ad does not offer the other brands at all. If they ask about a brand the ad
+    never mentioned, that is fine — help them — but do not imply the ad covered it.
+` : ''}` : '';
 
   return `
 YOU ARE ANSWERING FOR: Sneaker Inventory — a WHOLESALE sneaker supplier.
