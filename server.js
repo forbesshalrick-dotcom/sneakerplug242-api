@@ -1434,7 +1434,7 @@ const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
-const WELCOME_NUDGE_MSG = "Let me know if you'd like to see the catalog or what we have in stock 👟";
+const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
 // ⚠️ WHOLESALE gets a DIFFERENT nudge (Rodney 2026-08-17). On Sneaker Inventory the
 // catalogue has ALREADY gone out as the website link plus the trade password, and there
 // are far too many styles to send as pictures over WhatsApp. The retail wording above
@@ -1509,9 +1509,9 @@ const WS_ASKME_T = {
 
 const ASKME_T = {
   en: WELCOME_NUDGE_MSG,
-  es: "Avísame si quieres ver el catálogo o lo que tenemos en stock 👟",
-  ht: "Fè m konnen si ou vle wè katalòg la oswa sa nou genyen an stok 👟",
-  fr: "Dis-moi si tu veux voir le catalogue ou ce qu'on a en stock 👟",
+  es: "¿Qué talla buscas? 👟",
+  ht: "Ki gwosè ou ap chèche? 👟",
+  fr: "Quelle pointure vous cherchez ? 👟",
 };
 const FOLLOWUP_T = {
   en: FOLLOWUP_MSG,
