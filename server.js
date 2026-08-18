@@ -8569,24 +8569,17 @@ app.post('/inbox/transcribe', async (req, res) => {
 const _SHOP_CDN = 'https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/242plug@main';
 
 // ---- WHOLESALE CATALOG ----
-// Build once at startup; served at /wholesale (code-gated in the browser via sessionStorage).
+// Served at /wholesale. Data is fetched client-side from sneakerinventory.com/api/catalog.
 // Set WHOLESALE_CODE on Railway to change the access code (default W242).
-// Set WA_NUM on Railway to the WhatsApp number customers tap to order (digits only, e.g. 12426000000).
+// Set WA_NUM on Railway to the WhatsApp number for the footer button (digits only).
 let WHOLESALE_HTML = null;
 (function buildWholesaleHtml(){
   try {
     const path = require('path');
     let html = require('fs').readFileSync(path.join(__dirname, 'wholesale.html'), 'utf8');
-    const code   = (process.env.WHOLESALE_CODE || 'W242').trim();
-    const waNum  = (process.env.WA_NUM || '12426000000').replace(/\D/g, '');
-    // Strip only the sizes needed for the catalog tile (unique men's sizes, not pair counts)
-    const slim = catalog.map(s => ({
-      id: s.id, brand: s.brand, name: s.name, color: s.color,
-      price: s.price, image: s.image,
-      sizes: [...new Set((s.sizes||[]).map(x => parseFloat(x)).filter(n => !isNaN(n)))].sort((a,b)=>a-b)
-    }));
+    const code  = (process.env.WHOLESALE_CODE || 'W242').trim();
+    const waNum = (process.env.WA_NUM || '12426000000').replace(/\D/g, '');
     html = html
-      .replace('__CATALOG__', JSON.stringify(slim))
       .replace("'__WHOLESALE_CODE__'", JSON.stringify(code))
       .replace("'__WA_NUM__'",  JSON.stringify(waNum));
     WHOLESALE_HTML = html;

@@ -53,11 +53,10 @@ nav{background:var(--s1);border-bottom:1px solid var(--border);height:56px;displ
 @media(min-width:1100px){#grid{grid-template-columns:repeat(5,1fr);}}
 
 /* ---- TILE ---- */
-.tile{background:var(--s1);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:default;transition:border-color .2s;display:flex;flex-direction:column;}
+.tile{background:var(--s1);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color .2s;display:flex;flex-direction:column;}
 .tile:hover{border-color:rgba(200,241,53,.4);}
-.tile-img-wrap{width:100%;aspect-ratio:4/3;overflow:hidden;background:#000;}
+.tile-img-wrap{width:100%;aspect-ratio:4/3;overflow:hidden;background:#000;position:relative;}
 .tile-img{width:100%;height:100%;object-fit:cover;display:block;}
-.tile-img[src=""]{display:none;}
 .tile-no-img{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:28px;}
 .tile-body{padding:10px 10px 12px;display:flex;flex-direction:column;flex:1;gap:3px;}
 .tile-brand{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--acc);font-weight:700;}
@@ -67,7 +66,10 @@ nav{background:var(--s1);border-bottom:1px solid var(--border);height:56px;displ
 .tile-sizes{margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;}
 .sz{font-size:9px;padding:2px 5px;border:1px solid var(--border);border-radius:4px;color:var(--dim);}
 
-/* ---- EMPTY ---- */
+/* ---- LOADING / EMPTY ---- */
+#loading{text-align:center;padding:80px 20px;color:var(--dim);}
+#loading .spin{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 16px;}
+@keyframes spin{to{transform:rotate(360deg)}}
 #empty{display:none;text-align:center;padding:80px 20px;color:var(--dim);}
 #empty h3{font-size:18px;margin-bottom:8px;color:var(--txt);}
 
@@ -103,7 +105,8 @@ footer p{font-size:12px;color:var(--dim);flex:1;}
     <div class="brand-tabs" id="brandTabs"></div>
   </div>
 
-  <div id="grid"></div>
+  <div id="loading"><div class="spin"></div>Loading catalog…</div>
+  <div id="grid" style="display:none"></div>
   <div id="empty"><h3>No shoes match</h3><p>Try a different search or brand.</p></div>
 
   <footer>
@@ -114,26 +117,26 @@ footer p{font-size:12px;color:var(--dim);flex:1;}
 
 <script>
 (function(){
-  const CATALOG = __CATALOG__;
-  const CODE    = '__WHOLESALE_CODE__';
-  const WA_NUM  = '__WA_NUM__';
-  const SK = 'ws_unlocked';
+  var CODE   = '__WHOLESALE_CODE__';
+  var WA_NUM = '__WA_NUM__';
+  var API    = 'https://sneakerinventory.com/api/catalog';
+  var SK     = 'ws_unlocked';
 
   function openWA(){
-    window.open('https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent('Hi, I\'d like to enquire about wholesale prices 👟'), '_blank');
+    window.open('https://wa.me/' + WA_NUM + '?text=' + encodeURIComponent("Hi, I'd like to enquire about wholesale prices 👟"), '_blank');
   }
   window.openWA = openWA;
 
   // ---- LOCK ----
-  var inp   = document.getElementById('lockInput');
-  var err   = document.getElementById('lockErr');
-  var lock  = document.getElementById('lock');
-  var main  = document.getElementById('main');
+  var inp  = document.getElementById('lockInput');
+  var err  = document.getElementById('lockErr');
+  var lock = document.getElementById('lock');
+  var main = document.getElementById('main');
 
   function unlock(){
     lock.classList.add('hidden');
     main.classList.add('show');
-    buildCatalog();
+    loadCatalog();
   }
 
   if (sessionStorage.getItem(SK) === CODE) {
@@ -157,27 +160,31 @@ footer p{font-size:12px;color:var(--dim);flex:1;}
   }
 
   // ---- CATALOG ----
+  var allProducts = [];
+  var allBrands   = [];
   var activeBrand = 'All';
-  var searchQ = '';
+  var searchQ     = '';
+  var searchTimer = null;
 
-  function uniqueSizes(arr){
-    if (!arr || !arr.length) return [];
-    var seen = {}, out = [];
-    arr.forEach(function(s){
-      var n = parseFloat(s);
-      var k = isNaN(n) ? s : n;
-      if (!seen[k]) { seen[k] = true; out.push(n||s); }
-    });
-    return out.sort(function(a,b){ return a-b; });
+  function loadCatalog(){
+    fetch(API)
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        allProducts = data.products || [];
+        allBrands   = data.brands   || [];
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('grid').style.display    = '';
+        buildTabs();
+        render();
+      })
+      .catch(function(e){
+        document.getElementById('loading').innerHTML = '<p style="color:#ff4455">Could not load catalog — please refresh</p>';
+      });
   }
 
-  function buildCatalog(){
-    // Brand list
-    var brands = ['All'];
-    var bSet = {};
-    CATALOG.forEach(function(s){ if(s.brand && !bSet[s.brand]){ bSet[s.brand]=true; brands.push(s.brand); }});
+  function buildTabs(){
     var tabs = document.getElementById('brandTabs');
-    brands.forEach(function(b){
+    (['All'].concat(allBrands)).forEach(function(b){
       var btn = document.createElement('button');
       btn.className = 'btab' + (b==='All'?' on':'');
       btn.textContent = b;
@@ -185,56 +192,75 @@ footer p{font-size:12px;color:var(--dim);flex:1;}
         activeBrand = b;
         document.querySelectorAll('.btab').forEach(function(t){ t.classList.remove('on'); });
         btn.classList.add('on');
-        render();
+        // For brand switch: refetch from API with brand filter (faster on big catalogs)
+        if (b === 'All') {
+          render();
+        } else {
+          fetchBrand(b);
+        }
       });
       tabs.appendChild(btn);
     });
 
     document.getElementById('searchInput').addEventListener('input', function(e){
       searchQ = e.target.value.toLowerCase();
-      render();
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(render, 180);
     });
+  }
 
-    render();
+  function fetchBrand(brand){
+    document.getElementById('loading').style.display = '';
+    document.getElementById('grid').style.display    = 'none';
+    fetch(API + '?brand=' + encodeURIComponent(brand))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        allProducts = data.products || [];
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('grid').style.display    = '';
+        render();
+      })
+      .catch(function(){
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('grid').style.display    = '';
+      });
   }
 
   function render(){
     var q = searchQ;
-    var filtered = CATALOG.filter(function(s){
-      if (activeBrand !== 'All' && s.brand !== activeBrand) return false;
-      if (q) {
-        var hay = ((s.name||'') + ' ' + (s.brand||'') + ' ' + (s.color||'')).toLowerCase();
-        if (hay.indexOf(q) === -1) return false;
-      }
-      return true;
+    var list = allProducts.filter(function(s){
+      if (!q) return true;
+      var hay = ((s.name||'') + ' ' + (s.brand||'') + ' ' + (s.colorway||'') + ' ' + (s.model||'')).toLowerCase();
+      return hay.indexOf(q) !== -1;
     });
 
-    document.getElementById('navCount').textContent = filtered.length + ' pairs';
-    var grid = document.getElementById('grid');
+    document.getElementById('navCount').textContent = list.length + ' styles';
+    var grid  = document.getElementById('grid');
     var empty = document.getElementById('empty');
 
-    if (!filtered.length){
+    if (!list.length){
       grid.innerHTML = '';
       empty.style.display = 'block';
       return;
     }
     empty.style.display = 'none';
 
-    grid.innerHTML = filtered.map(function(s){
-      var sizes = uniqueSizes(s.sizes);
-      var sizeHtml = sizes.slice(0,10).map(function(sz){ return '<span class="sz">' + sz + '</span>'; }).join('');
-      if (sizes.length > 10) sizeHtml += '<span class="sz">+' + (sizes.length-10) + '</span>';
+    grid.innerHTML = list.map(function(s){
+      var sizes = (s.sizes || []).slice(0, 10);
+      var extra = (s.sizes || []).length - 10;
+      var szHtml = sizes.map(function(sz){ return '<span class="sz">'+sz+'</span>'; }).join('');
+      if (extra > 0) szHtml += '<span class="sz">+'+extra+'</span>';
       var imgHtml = s.image
-        ? '<img class="tile-img" src="' + s.image + '" loading="lazy" alt="' + (s.name||'') + '" onerror="this.style.display=\'none\'">'
+        ? '<img class="tile-img" src="'+s.image+'" loading="lazy" alt="'+(s.name||'')+'" onerror="this.parentNode.innerHTML=\'<div class=tile-no-img>👟</div>\'">'
         : '<div class="tile-no-img">👟</div>';
       return '<div class="tile">'
-        + '<div class="tile-img-wrap">' + imgHtml + '</div>'
+        + '<div class="tile-img-wrap">'+imgHtml+'</div>'
         + '<div class="tile-body">'
-        + '<div class="tile-brand">' + (s.brand||'') + '</div>'
-        + '<div class="tile-name">' + (s.name||'') + '</div>'
-        + (s.color ? '<div class="tile-color">' + s.color + '</div>' : '')
-        + '<div class="tile-price">$' + (s.price||'—') + '</div>'
-        + (sizeHtml ? '<div class="tile-sizes">' + sizeHtml + '</div>' : '')
+        + '<div class="tile-brand">'+(s.brand||'')+'</div>'
+        + '<div class="tile-name">'+(s.name||'')+'</div>'
+        + (s.colorway ? '<div class="tile-color">'+s.colorway+'</div>' : '')
+        + (s.price ? '<div class="tile-price">$'+s.price+'</div>' : '')
+        + (szHtml ? '<div class="tile-sizes">'+szHtml+'</div>' : '')
         + '</div></div>';
     }).join('');
   }
