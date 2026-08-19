@@ -535,15 +535,32 @@ function keepManualRestock(id, beforeShoe, incomingShoe) {
   const shrank = Object.keys(beforeC).filter(s => (inC[s] || 0) < beforeC[s]);
   if (!shrank.length) return { sizes: incomingShoe.sizes, kept: [] };
   const cutoff = Date.now() - REVERT_LOOKBACK_MS;
+  const rows = state.shoeAudit.filter(r => r.id === String(id) && new Date(r.at).getTime() >= cutoff);
+  // ⚠️ THE HAND-EDIT LABEL LANDS ON THE WRONG ROW (found 2026-08-19, why the VaporMax died).
+  // The website pushes a hand edit TWICE, about a millisecond apart: once plain — that push
+  // does the actual growth — and once carrying `_manualEdit`, by which time the sizes already
+  // match so nothing changes. The audit therefore records:
+  //     21:03:20.849  grew 4 → 21 pairs   via: undefined
+  //     21:03:20.850  21 → 21 (no-op)     via: 'manual-edit'
+  // The old code demanded ONE row be both tagged AND growing. No row ever is. So Rodney's
+  // 17-pair restock was left undefended and a stale push deleted 9.5, 10, 11 and 12.
+  // Fix: treat the tag as covering the whole burst — any row within TWIN_MS of a tagged row
+  // is the same human action. Fixing the client's double-push too, but this has to hold even
+  // when a phone is running an old copy of the page, which is the entire problem.
+  const TWIN_MS = 3000;
+  const tagStamps = rows
+    .filter(r => r.via === 'manual-edit' || r.via === 'kiki-restock')
+    .map(r => new Date(r.at).getTime());
   const manuallyAdded = new Set();
-  for (const row of state.shoeAudit) {
-    if (row.id !== String(id)) continue;
-    if (new Date(row.at).getTime() < cutoff) break;      // audit is newest-first
+  for (const row of rows) {
     // A staff member restocking through Kiki is deliberately adding stock, exactly like a
     // hand edit on the website — so it earns the same protection from a stale phone's shrink
     // (Rodney 2026-08-14). The audit still records WHERE it came from ('kiki-restock' vs
     // 'manual-edit'); this only decides whether it is defended.
-    if (row.via !== 'manual-edit' && row.via !== 'kiki-restock') continue;
+    const at = new Date(row.at).getTime();
+    const human = row.via === 'manual-edit' || row.via === 'kiki-restock'
+      || tagStamps.some(ts => Math.abs(ts - at) <= TWIN_MS);
+    if (!human) continue;
     const bC = count(row.beforeSizes), aC = count(row.afterSizes);
     for (const s of shrank) if ((aC[s] || 0) > (bC[s] || 0)) manuallyAdded.add(s);
   }
@@ -1039,6 +1056,41 @@ async function sendPush(title, body, url) {
 
 // ── routes ───────────────────────────────────────────────────────────────────
 function mount(app) {
+  // ── 🤖 A LINK PREVIEWER MUST NEVER TOUCH STOCK (Rodney 2026-08-19) ───────────
+  // The "stock keeps reverting" saga, finally pinned down. On 16 Aug at 04:13:27–30Z,
+  // 396 shoe pushes arrived in about three seconds from 173.252.95.49 with the user-agent
+  // `facebookexternalhit/1.1` — Facebook's link-preview crawler. Every guard downstream of
+  // here (stripRevertedSizes, keepManualRestock, the newest-wins lock) blocked 385 of them,
+  // which is why this went unnoticed for so long: it looked like the system was coping. The
+  // 11 that slipped through deleted 21 pairs and invented 5 that were never on the shelf.
+  //
+  // WHY A ROBOT CAN WRITE AT ALL: the shop's write key is printed inside storefront.html,
+  // so anything that loads the page holds it — and Facebook RUNS the page's JavaScript when
+  // it builds a preview card. The app boots there with a blank local copy and pushes it up
+  // exactly like a staff phone would. It is stale by definition: that "device" has never
+  // seen a sale or a restock in its life.
+  //
+  // Every previous fix tried to RECOGNISE a bad write after it arrived. A guard can always
+  // be fooled by data that looks legitimate. This removes the ability instead: reads stay
+  // open (a preview card still renders, the ads still work), writes from a crawler are
+  // refused outright. Not pattern-matched — refused.
+  //
+  // ⚠️ Deliberately does NOT block bare `node` — count.js, the only sanctioned way to write
+  // a physical count, posts with that user-agent.
+  const BOT_UA = /facebookexternalhit|meta-externalagent|facebookcatalog|Twitterbot|Slackbot|LinkedInBot|TelegramBot|Discordbot|Pinterest|Googlebot|bingbot|Applebot|YandexBot|DuckDuckBot|PetalBot|Bytespider|AhrefsBot|SemrushBot|MJ12bot|Scrapy|HeadlessChrome|Chrome-Lighthouse|\bbot\b|crawler|spider/i;
+  const botBlocks = { count: 0, last: null };
+  app.use('/shop', (req, res, next) => {
+    // Reading is harmless and link previews need it — only writes are refused.
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+    const ua = String(req.headers['user-agent'] || '');
+    if (!BOT_UA.test(ua)) return next();
+    botBlocks.count++;
+    botBlocks.last = { at: new Date().toISOString(), path: req.path, src: reqSource(req) };
+    console.log('[shop] 🤖 BOT WRITE BLOCKED', req.method, req.path, JSON.stringify(reqSource(req)));
+    return res.status(403).json({ error: 'robots cannot write stock', blocked: 'bot' });
+  });
+  mount.botBlocks = botBlocks;
+
   function auth(req, res) {
     const key = req.query.key || req.get('x-shop-key') || (req.body && req.body.key);
     if (key !== SHOP_KEY) { res.status(401).json({ error: 'bad key' }); return false; }
@@ -1256,20 +1308,34 @@ function mount(app) {
   //   /shop/audit?key=…              → most recent writes across all shoes
   //   /shop/audit?key=…&id=c0446     → just that shoe's history
   //   /shop/audit?key=…&grew=1       → ONLY the reverts (stock went up / un-sold)
-  //   &limit=N                        → how many (default 100)
+  //   &limit=N                        → how many (default 100, max 1000)
+  //   &offset=N                       → skip the newest N first, so the WHOLE trail is readable
+  //
+  // ⚠️ offset exists because of 2026-08-19: the audit held 4153 rows, limit capped at 1000 and
+  // there was no way to page past them — so an investigation could only ever see the last few
+  // days and had to say "earlier damage cannot be ruled out". It can now: page with
+  // offset=0,1000,2000… until `returned` comes back 0.
   app.get('/shop/audit', (req, res) => {
     if (!auth(req, res)) return;
     const id = req.query.id ? String(req.query.id) : '';
     const onlyGrew = req.query.grew === '1' || req.query.grew === 'true';
     const limit = Math.min(parseInt(req.query.limit, 10) || 100, 1000);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const ua = req.query.ua ? String(req.query.ua).toLowerCase() : '';
     let rows = state.shoeAudit || [];
     if (id) rows = rows.filter(r => r.id === id);
     if (onlyGrew) rows = rows.filter(r => r.grew);
+    if (ua) rows = rows.filter(r => String((r.src && r.src.ua) || '').toLowerCase().includes(ua));
+    const page = rows.slice(offset, offset + limit);
     res.json({
       total: (state.shoeAudit || []).length,
       grewTotal: (state.shoeAudit || []).filter(r => r.grew).length,
-      returned: Math.min(rows.length, limit),
-      rows: rows.slice(0, limit),
+      matched: rows.length,
+      offset,
+      returned: page.length,
+      botWritesBlocked: (mount.botBlocks && mount.botBlocks.count) || 0,
+      lastBotWriteBlocked: (mount.botBlocks && mount.botBlocks.last) || null,
+      rows: page,
     });
   });
 

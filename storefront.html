@@ -2770,6 +2770,16 @@ function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))re
   const shoe={id:editingId||pendingShoeId||uid(),brand,name,nickname:document.getElementById('f-nickname').value.trim(),color:document.getElementById('f-color').value.trim(),condition:document.getElementById('f-condition').value,price:price?parseFloat(price):0,sku:document.getElementById('f-sku').value.trim(),sizes,image:pendingImage&&!pendingImage.startsWith('data:')?pendingImage:(editingId?shoes.find(x=>x.id===editingId)?.image||null:null),gallery:null,frames360:resolvedFrames,sold:editingId?shoes.find(x=>x.id===editingId)?.sold||false:false,reorder:editingId?shoes.find(x=>x.id===editingId)?.reorder||false:false,createdAt:editingId?shoes.find(x=>x.id===editingId)?.createdAt||Date.now():Date.now(),updatedAt:Date.now()};
   if(editingId){const i=shoes.findIndex(x=>x.id===editingId);shoes[i]=shoe;}else shoes.unshift(shoe);
   _recordCatalogOverride(shoe); // remember edits to built-in shoes so they don't revert on refresh
+  // ⚠️ SEND THIS EDIT ONCE, NOT TWICE (Rodney 2026-08-19 — why his VaporMax restock died).
+  // save() below fires the background pusher, which would upload this same shoe UNFLAGGED a
+  // millisecond before the flagged push underneath. The unflagged one did the real growth, so
+  // the server's audit recorded "grew 4 → 21 pairs, via: undefined" and then "21 → 21, via:
+  // manual-edit" — and the guard that defends a hand restock needs ONE row that is both tagged
+  // and growing. It never got one, so a stale push later deleted 9.5, 10, 11 and 12.
+  // Marking the snapshot as already-sent silences the background twin; the flagged push below
+  // is the only one that goes, carrying the baseUpdatedAt we captured BEFORE overwriting it.
+  var _mBase=(typeof _lastSeenUpd==='function')?_lastSeenUpd(shoe.id):0, _mPrevSnap=(typeof _lastInvSnap==='object'&&_lastInvSnap)?_lastInvSnap[shoe.id]:undefined;
+  if(typeof _lastInvSnap==='object'&&_lastInvSnap&&typeof liteShoe==='function') _lastInvSnap[shoe.id]=JSON.stringify(liteShoe(shoe));
   save();closeModal();renderInventory();_sfx.success();
   // A human just reviewed and typed this exact size list into the edit form and hit Save — that's
   // never a stale background sync, so push it to the server flagged as a deliberate edit; the
@@ -2780,10 +2790,13 @@ function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))re
   // kept silently stripping it back out because it looked identical to the exact stale-sync revert
   // the guard exists to stop).
   if(typeof shopPost==='function'&&typeof liteShoe==='function'){
-    try{ shopPost('/shop/shoe',{shoe:Object.assign({},liteShoe(shoe),{_manualEdit:true}),baseUpdatedAt:_lastSeenUpd(shoe.id)}).then(function(res){
-      if(res&&res.skipped==='stale'){ showToast('⚠️ "'+shoe.name+'" did NOT save — refresh the app and redo the change.', true); try{syncInventory();}catch(e){} }
-      else if(typeof _lastInvSnap==='object'&&_lastInvSnap) _lastInvSnap[shoe.id]=JSON.stringify(liteShoe(shoe));
-    }).catch(function(){ showToast('⚠️ Change didn\'t reach the server — check your internet and redo it.', true); }); }catch(e){}
+    try{ shopPost('/shop/shoe',{shoe:Object.assign({},liteShoe(shoe),{_manualEdit:true}),baseUpdatedAt:_mBase}).then(function(res){
+      if(res&&res.skipped==='stale'){ showToast('⚠️ "'+shoe.name+'" did NOT save — refresh the app and redo the change.', true);
+        if(typeof _lastInvSnap==='object'&&_lastInvSnap) _lastInvSnap[shoe.id]=_mPrevSnap;   // let it be retried
+        try{syncInventory();}catch(e){} }
+    }).catch(function(){ showToast('⚠️ Change didn\'t reach the server — check your internet and redo it.', true);
+      // Put the snapshot back so the next save() retries this edit instead of assuming it landed.
+      if(typeof _lastInvSnap==='object'&&_lastInvSnap) _lastInvSnap[shoe.id]=_mPrevSnap; }); }catch(e){}
   }
   // Log explicitly with detail (brand+name) — showToast wrapper will also fire but won't duplicate
   var _auditAction = editingId ? 'Shoe edited' : 'Shoe added';
@@ -7471,6 +7484,17 @@ if(typeof addAudit==='function' && !addAudit._wrapped){
 
 // ── INVENTORY SYNC (Stage 4): shoe edits / sold sizes / adds / deletes shared ──
 var _lastInvSnap={}, _suppressInvPush=false, _invSeeded=false;
+// 🔒 NOTHING MAY WRITE STOCK BEFORE THIS DEVICE HAS READ THE SERVER (Rodney 2026-08-19).
+// This is the other half of the "stock keeps reverting" bug. On boot, _lastInvSnap is empty
+// and `shoes` is whatever the built-in catalogue says — the factory sizes, not the shelf. If
+// anything calls save() in that gap (the Firebase sync fires at 300ms, the shop sync only at
+// 700ms), _pushInvChanges sees every shoe as "changed" and uploads the FACTORY copy over the
+// real one. That is precisely what Facebook's link crawler did on 16 Aug: 396 shoes in three
+// seconds, from a browser that had never seen a sale in its life.
+// A device that has not yet heard back from the server has nothing worth saying. So it is
+// silent until syncInventory() has succeeded once — and if a human edits during that gap they
+// are TOLD, never silently ignored (see the toast in _pushInvChanges).
+var _invReady=false;
 function _catIdList(){ return (window._SP_CATALOG_IDS||[]); }
 function _catMapById(){ var m={}; (window._SP_CATALOG||[]).forEach(function(c){ m[c.id]=c; }); return m; }
 // Lite form: catalog shoes → only the mutable fields; custom shoes → full (minus base64).
@@ -7490,6 +7514,11 @@ function _lastSeenUpd(id){
 }
 function _rebuildInvSnap(){ _lastInvSnap={}; shoes.forEach(function(s){ _lastInvSnap[s.id]=JSON.stringify(liteShoe(s)); }); }
 function _pushInvChanges(){
+  if(!_invReady){
+    // Not "drop it quietly" — Rodney has been burned by silent saves. Say it out loud.
+    showToast('⏳ Still loading the shop — that change was NOT saved yet. Give it a second and redo it.', true);
+    return;
+  }
   var cur={}; shoes.forEach(function(s){ cur[s.id]=liteShoe(s); });
   Object.keys(cur).forEach(function(id){ var j=JSON.stringify(cur[id]); if(_lastInvSnap[id]!==j){
     // LOUD ON REFUSAL (2026-07-14, the Foamposite silent revert): if the server refuses this
@@ -7574,6 +7603,7 @@ function syncInventory(){
     var changed=applyServerShoes(st.shoes, combinedDeleted);
     if(changed){ _suppressInvPush=true; try{ save(); }catch(e){} _suppressInvPush=false; var pg=document.getElementById('page-inventory'); if(pg&&pg.classList.contains('active')) renderInventory(); }
     _rebuildInvSnap();
+    _invReady=true;   // we have now seen the real shelf — safe to push changes from here on
   }).catch(function(){});
 }
 // Every inventory change goes through save() — push the deltas afterward.
