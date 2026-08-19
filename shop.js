@@ -902,7 +902,13 @@ function addAlert(text, by, meta) {
   let pushUrl = '/';
   const _m = note.text.match(/wa\.me\/(\d{7,})/i);
   if (_m && _m[1]) pushUrl = 'https://wa.me/' + _m[1];
-  sendPush('New delivery / task', note.text, pushUrl).catch(() => {});
+  // 🔔 AN ALERT CAN NAME ITSELF (Rodney 2026-08-19: "I don't get the notification unless I'm
+  // in the app... then I hear I need agent, need agent, need agent"). EVERY push used to be
+  // titled "New delivery / task", so even when one did land it never said a customer was
+  // waiting — it read like another stock chore. Callers can now pass their own title/body.
+  const _pt = (meta && meta.pushTitle) || 'New delivery / task';
+  const _pb = (meta && meta.pushBody) || note.text;
+  sendPush(_pt, _pb, pushUrl).catch(() => {});
   return note;
 }
 
@@ -1409,6 +1415,35 @@ function mount(app) {
     if (state.subs.length > 200) state.subs = state.subs.slice(-200);
     persist('subs.json');
     res.json({ ok: true, count: state.subs.length, pushEnabled: !!webpush });
+  });
+
+  // 🔎 IS ANY PHONE ACTUALLY SUBSCRIBED? (Rodney 2026-08-19)
+  // He says agent alerts never reach his phone — he only hears them once he opens the app.
+  // The push wiring was all present (addAlert → sendPush, web-push installed, VAPID keys
+  // hardcoded so they work even with no Railway env vars), which left exactly one thing
+  // unknown and completely invisible: whether his device had ever registered. sendPush
+  // returns 0 and says nothing when the list is empty, so a silent phone and a broken
+  // server looked identical from outside. This makes the answer readable in one call.
+  // Read-only and deliberately shows NO subscription secrets — the auth keys and the p256dh
+  // are never returned, just enough to recognise a device. Gated on DEBUG_KEY like /last.
+  app.get('/shop/push/status', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    res.json({
+      pushEnabled: !!webpush,
+      count: subs.length,
+      devices: subs.map((s) => {
+        let host = '';
+        try { host = new URL(s.endpoint).host; } catch (_) {}
+        return {
+          by: s.by || 'staff',
+          at: s.at || null,
+          host,                                    // fcm/apple/mozilla — tells us the phone type
+          tail: String(s.endpoint || '').slice(-8), // enough to tell two devices apart
+        };
+      }),
+    });
   });
 
   // Re-seed a note that already exists on a device but is missing on the server
