@@ -5,7 +5,7 @@
  *
  * Kept in its own file on purpose. server.js is 7,200 lines of a retail sneaker
  * shop in Nassau, and this is a different trade: the buyers are shops, the
- * minimum is three pairs, and the answer to "show me Jordan 5" is a link to a
+ * minimum is a couple of pairs, and the answer to "show me Jordan 5" is a link to a
  * filtered catalog rather than an album of photos.
  *
  * Only four things in server.js touch this:
@@ -91,6 +91,25 @@ const AD_MODELS = process.env.SI_AD_MODELS !== undefined
 const AD_MOQ = process.env.SI_AD_MOQ !== undefined
   ? process.env.SI_AD_MOQ
   : '2 pairs minimum';
+
+/**
+ * The site's real minimum order, in pairs.
+ *
+ * ⚠️ THIS IS A CONSTANT BECAUSE THE NUMBER USED TO BE TYPED INTO SEVEN SENTENCES.
+ * Rodney changed the live setting from 3 to 2 on 19 Aug 2026 and Kiki carried on
+ * telling buyers "minimum order quantity is 3 pairs" — the same failure as the
+ * $85 price, which survived a repricing for exactly the same reason. A figure
+ * written into prose outlives every change made to the thing it describes.
+ *
+ * Verified live after his change: the cart says "minimum is 2 pairs — mix any
+ * styles and sizes you like".
+ *
+ * If he changes it again in Admin → Settings, set SI_MIN_ORDER_PAIRS on Railway
+ * to match. No deploy needed. Nothing below hardcodes it.
+ */
+const MIN_PAIRS = process.env.SI_MIN_ORDER_PAIRS !== undefined
+  ? String(process.env.SI_MIN_ORDER_PAIRS).trim()
+  : '2';
 
 /**
  * Read-only search on the Sneaker Inventory site. It holds 10,000+ styles and
@@ -315,14 +334,10 @@ ${AD_MOQ ? `- ${AD_MOQ.toUpperCase()} on these, and say so the FIRST time you qu
   "actually you have to take two" has been moved on, and they know it.` : ''}
 - If they pick one, call search_inventory for THAT model by name and send the link
   it gives you. All three are on the site, so there is always a real page to send.
-- ⚠️ TWO PAIRS OF ONE JORDAN IS NOT A COMPLETE ORDER, and this WILL come up. The
-  ad says 2 pairs minimum and that is right — it is 2 pairs minimum PER STYLE —
-  but the site will not check out an order under 3 pairs in total, mixed across
-  anything. So if someone says "I'll take two of the 12s", do not say yes and let
-  the site refuse them at the last step. Say it forward, the friendly way:
-      Order minimum is 3 pairs total, mix them however you like.
-      Want a third — another 12, or one of the 8s?
-  Never let the 3 arrive as a surprise after they have committed to 2.
+- ✅ TWO PAIRS OF ONE JORDAN IS NOW A COMPLETE ORDER. Rodney dropped the site
+  minimum to ${MIN_PAIRS} pairs on 19 Aug 2026, so the ad and the checkout finally
+  agree. If someone says "I'll take two of the 12s", that is a real order — take
+  it. Do NOT ask them to add a third, and never mention an old ${MIN_PAIRS === '2' ? 'three-pair' : 'higher'} minimum.
 ` : ''}` : '';
 
   return `
@@ -441,10 +456,10 @@ THE OFFER
 - Wholesale prices, per pair:
     Jordan $100 · ASICS $70 · New Balance $70 · Nike $65
     Saucony $65 · adidas $55 · Puma $55
-- Minimum order quantity is 3 pairs. Say "minimum order quantity" in full —
-  never "MOQ", it means nothing to most people here.
-- Those 3 pairs can be MIXED: any styles, any sizes, in any combination. This
-  is the thing buyers are most surprised by, so say it.
+- Minimum order quantity is ${MIN_PAIRS} pairs. Say "minimum order quantity" in
+  full — never "MOQ", it means nothing to most people here.
+- Those ${MIN_PAIRS} pairs can be MIXED: any styles, any sizes, in any
+  combination. This is the thing buyers are most surprised by, so say it.
 - Sizes are US. Most styles run about US 4 to US 13.
 - The trade contact is trade@sneakerinventory.com.
 
@@ -469,15 +484,15 @@ ORDERING
 - They order on the website themselves once they have the password. You do not
   take orders in the chat and you do not quote totals — the site does that.
 - If they want help, walk them through it: open the link, pick sizes, add to
-  cart, minimum 3 pairs mixed, then their details at checkout.
+  cart, minimum ${MIN_PAIRS} pairs mixed, then their details at checkout.
 
 WHAT YOU DON'T DO
 - No delivery slots, no drivers, no meet-ups, no PIN codes. That is the retail
   shop, not this business.
 - Don't quote retail prices or talk about resale margins unless asked.
 - If someone is clearly a regular shopper wanting one pair, tell them kindly
-  this is wholesale with a 3-pair minimum order quantity, and that they're
-  welcome if they'd like three.
+  this is wholesale with a ${MIN_PAIRS}-pair minimum order quantity, and that
+  they're welcome if they'd like ${MIN_PAIRS}.
 `.trim();
 }
 
