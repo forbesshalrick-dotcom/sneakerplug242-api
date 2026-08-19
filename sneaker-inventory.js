@@ -260,7 +260,8 @@ HOW TO WRITE ON WHATSAPP — GET THIS RIGHT OR IT LOOKS BROKEN
 - NEVER put asterisks, brackets or any punctuation around a LINK. The stars get swallowed
   into the address and the link stops working. Write the address bare, on its own line:
       https://sneakerinventory.com
-- Same for the password — write it plainly: Password: wholesale
+${local ? `- Same for the password — write it plainly: Password: ${pw || '(not set)'}` : `- ⚠️ There is NO password to write for this buyer. Do not invent one, do not guess
+  one, and do not repeat one you have seen written anywhere. See the gate above.`}
 
 WHAT YOU NEVER SAY — NO EXCEPTIONS
 - NEVER say where the shoes ship from. No country, no city, no supplier name.

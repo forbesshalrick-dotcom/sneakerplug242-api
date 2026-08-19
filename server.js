@@ -1603,14 +1603,16 @@ function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
     return [
       `You are Kiki, the WhatsApp assistant for ${SI.STORE}.`,
       who ? `The person you are talking to is called ${who}.` : '',
-      greet ? 'This is their first message — greet them once, briefly.' :
-              'You have already greeted this person. Do NOT greet them again.',
+      greet ? 'This is their first message. Your greeting is scripted below — send it exactly as written.' :
+              'You have already greeted this person. Do NOT greet them again, and do NOT resend the site or the password — not even if they now say "hi", "hello" or "you there?". Just answer their newest message.',
       '',
       HOUSE_RULES,
       '',
       // Local buyers get the site and the code with no questions; everyone else
       // gets shown names and a filtered link, never the password.
-      SI.facts({ local: SI.isBahamian(phone) }),
+      // `greet` carries the same first-message flag the shop side uses, so the
+      // scripted wholesale greeting only ever fires once — see sneaker-inventory.js.
+      SI.facts({ local: SI.isBahamian(phone), greet }),
     ].filter(Boolean).join('\n');
   }
 
