@@ -450,4 +450,56 @@ WHAT YOU DON'T DO
 `.trim();
 }
 
-module.exports = { STORE, MANYCHAT_ACCOUNT, search, facts, isBahamian, SITE };
+
+/**
+ * THE PASSWORD MUST TRAVEL WITH THE LINK. Always. No exceptions.
+ *
+ * Rodney, 19 Aug 2026, with a screenshot of the Tino chat: **"customer had to ask
+ * for password"**. Tino (+1 242 820 6002) asked "you have any Jordan's in stock",
+ * Kiki answered with `sneakerinventory.com/catalog?q=Jordan` and the line "have a
+ * look through the site" — and NO password. He hit the trade gate, could not get
+ * in, and had to type "What's the password" himself. Only then did she send it.
+ *
+ * That is the whole of the "Tino can't reach the site" bug. He was never locked
+ * out and the site was never down (200 in 0.18s all day). He was handed a door
+ * and not the key. Before this, two whole days went into checking Fly machines,
+ * `/front`, session cookies and stale server actions — none of it was the fault.
+ *
+ * Why the prompt alone could not fix it: `facts()` tells her to send the password
+ * "in your first reply", and this was NOT her first reply — Rodney had typed into
+ * the chat himself at 12:52, so the greeting had long since fired. Every one of
+ * those instructions is framed around the opening message. A search result three
+ * messages later slips straight past all of them.
+ *
+ * So this is done in code, after the model has spoken, where it cannot be talked
+ * out of it: if her reply points a LOCAL buyer at the site and does not carry the
+ * password, the password is appended. Idempotent — if she already included it (in
+ * any casing, or as "Password: x"), nothing is added.
+ *
+ * Non-local buyers are untouched: they must never receive it (see the gate in
+ * facts()), and this function returns their text exactly as it was.
+ */
+function ensurePassword(text, { local = false } = {}) {
+  if (!local) return text;                       // the gate: never leak it abroad
+  const pw = (process.env.SI_TRADE_PASSWORD || '').trim();
+  if (!pw) return text;                          // nothing to add
+  if (!text || typeof text !== 'string') return text;
+
+  // Does the reply actually send them to the site? Match the host, not the full
+  // URL — she sends bare `sneakerinventory.com`, `https://…/catalog?q=Jordan`,
+  // and the `SI_SITE` override, and all three need the key.
+  const host = String(SITE).replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const pointsAtSite =
+    text.toLowerCase().includes(host.toLowerCase()) ||
+    text.toLowerCase().includes('sneakerinventory.com');
+  if (!pointsAtSite) return text;
+
+  // Already there? Leave it alone. Checks the word itself, so "password: Wholesale",
+  // "the password is Wholesale" and a bare "Wholesale" all count as covered.
+  if (new RegExp('(^|[^a-z0-9])' + pw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^a-z0-9]|$)', 'i').test(text))
+    return text;
+
+  return text.trimEnd() + '\n\nPassword: ' + pw;
+}
+
+module.exports = { STORE, MANYCHAT_ACCOUNT, search, facts, isBahamian, ensurePassword, SITE };

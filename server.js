@@ -4483,8 +4483,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // stripThinking: Claude sometimes writes its reasoning inline as <thinking>…</thinking>.
     // Cut it HERE too (not just at the send) so the leaked text can never become `lastText`
     // and get replayed by the safety net below.
-    const turnText = stripThinking(data.content.filter(b => b.type === 'text' && b.text.trim())
+    // 🔑 THE PASSWORD RIDES WITH THE LINK (Rodney 2026-08-19, screenshot of the Tino chat:
+    // "customer had to ask for password"). She sent a local trade buyer
+    // sneakerinventory.com/catalog?q=Jordan with no password, he hit the gate, and he had to
+    // ask for it himself — which is the entire "Tino can't reach the site" bug. The prompt
+    // could not fix this: facts() frames the password as something to send "in your first
+    // reply", and this was her fourth. Done here instead, after she has spoken, so it holds on
+    // every turn. Local buyers only — the gate for everyone else is untouched. See
+    // ensurePassword() in sneaker-inventory.js.
+    let turnText = stripThinking(data.content.filter(b => b.type === 'text' && b.text.trim())
       .map(b => b.text.trim()).join('\n'));
+    if (wholesale && turnText) {
+      const withPw = SI.ensurePassword(turnText, { local: SI.isBahamian(getPhone(req)) });
+      if (withPw !== turnText) {
+        record(req, { endpoint: 'si-password-appended', sub, text: turnText.slice(0, 80) });
+        turnText = withPw;
+      }
+    }
     if (turnText) lastText = turnText; // remember it in case nothing else lands
     // Stay quiet while searching. On a send_photos turn, DON'T send the text here —
     // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
