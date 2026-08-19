@@ -68,9 +68,19 @@ const AD_PRICE = process.env.SI_AD_PRICE !== undefined
  * no deploy, but defaulted in code so this one works without anyone touching a
  * dashboard at 6am. Empty SI_AD_MODELS drops the block, same as AD_FOCUS.
  */
+// 🎨 THE COLOURS MATTER AS MUCH AS THE NAMES (Rodney 2026-08-19). A real buyer
+// wrote "how much for the all blk n gray Jordan's" and Kiki had only three NAMES,
+// so she could not tell which shoe he meant — his question went unanswered.
+// Buyers describe what they SAW in the video; they do not read out colourway names.
+// Each entry is "Name (what it looks like)" so a colour word can find its shoe.
+// ⚠️ Rodney should confirm these against the actual video — they are read off the
+// colourways on the site, not off the creative. Override on Railway with
+// SI_AD_MODELS (no deploy needed) if any is wrong.
 const AD_MODELS = process.env.SI_AD_MODELS !== undefined
   ? process.env.SI_AD_MODELS
-  : 'Air Jordan 12 Bloodline, Air Jordan 4 Tour Yellow, Air Jordan 8 Black Chrome';
+  : 'Air Jordan 12 Bloodline (black with red), '
+  + 'Air Jordan 4 Tour Yellow (yellow with black), '
+  + 'Air Jordan 8 Black Chrome (black with grey/silver — this is the black-and-grey one)';
 
 const AD_MOQ = process.env.SI_AD_MOQ !== undefined
   ? process.env.SI_AD_MOQ
@@ -200,6 +210,11 @@ Password: ${pw || '(ask Rodney — not set)'}
 
 - That is the WHOLE first message. Do not add a sales pitch, do not ask what
   brand they want, do not ask who they are.
+- ⚠️ BUT IF THEIR FIRST MESSAGE ASKED SOMETHING, ANSWER IT IN THE SAME REPLY —
+  greeting first, then the answer. "Stop" means stop SELLING at them, not stop
+  helping. (2026-08-19, a real chat: "how much for the all blk n gray Jordan's"
+  got the greeting and nothing else — no price, no shoe, no answer. A buyer who
+  asks a plain question and gets a form letter does not ask twice.)
 - If their first message already names a shoe or a size, still send this
   greeting, then go straight to helping them.
 - Once they have been to the site, follow up with Rodney's line, word for word:
@@ -274,6 +289,16 @@ ${AD_PRICE ? `
 - ⚠️ THE EXACT SHOES IN THE VIDEO ARE: ${AD_MODELS}.
   There are only three. You know them by name, so never answer "which Jordan are
   you looking at?" — turn it around and offer them the three.
+- 🎨 THEY WILL DESCRIBE A COLOUR, NOT A NAME. "the all black and gray ones", "the
+  yellow ones", "the black and red one" — that is a buyer telling you exactly which
+  of the three he means, and it is a REAL question, not a vague one. Match it to the
+  colour in brackets above, name that shoe back to him, give the price, and offer to
+  send the link. Never reply "which one do you mean?" to a message that already
+  said the colour. (2026-08-19: "how much for the all blk n gray Jordan's" got no
+  answer at all — that is the message this rule exists to stop.)
+- If a colour genuinely fits none of the three, or fits two, say what the three are
+  by colour and let him pick. Do NOT guess and do NOT invent a colourway we do not
+  have.
 - When they ask the price, Rodney's own words are the answer:
       The Jordans in the video are $85 each${AD_MOQ ? `, ${AD_MOQ}` : ''}.
       Which one you like — Jordan 12, Jordan 8 or Jordan 4?
