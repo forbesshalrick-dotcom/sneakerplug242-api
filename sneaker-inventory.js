@@ -135,11 +135,59 @@ function isBahamian(phone) {
  * quantity" spelled out in full — plenty of Bahamian buyers have never bought
  * wholesale and "MOQ" means nothing to them.
  */
-function facts({ local = false } = {}) {
+function facts({ local = false, greet = false } = {}) {
   const pw = process.env.SI_TRADE_PASSWORD || '';
 
   // Two different conversations. Local: hand it over, get out of the way.
   // Everyone else: show them what's here, but the password stays shut.
+  // ─────────────────────────────────────────────────────────────────────────
+  // THE FIRST REPLY. Rodney wrote this out himself on 19 Aug after watching a
+  // real chat on the Sneaker Inventory line:
+  //
+  //     "Hi how can I help?
+  //      would you like to check out the inventory?
+  //      (sneakerinventory.com)
+  //      password: Wholesale"
+  //     ...then: "Let me know if you see something you like"
+  //
+  // ⚠️ WHY THIS IS SCRIPTED AND NOT LEFT TO KIKI. It already was left to her —
+  // the whole instruction was "greet them once, briefly" — and what she actually
+  // sent was "Hey — what are you looking for today?" and, to "what do you have?",
+  // a bare link. Two openings in a row that never mentioned the inventory and
+  // never handed over the password, so the buyer had nothing to look at. The shop
+  // side has had a word-for-word greeting for months for exactly this reason; the
+  // wholesale side never got one. A greeting is the one message you can write in
+  // advance, so write it.
+  //
+  // The password is the only part that is conditional — see the gate below.
+  const greeting = !greet ? '' : (local
+    ? `THIS IS THEIR FIRST MESSAGE — SEND THIS GREETING, THEN STOP
+Send it in EXACTLY this layout, with a blank line between each part so each line
+stands on its own. Nothing before it and nothing after it:
+
+Hi, how can I help?
+
+Would you like to check out the inventory?
+
+${SITE}
+
+Password: ${pw || '(ask Rodney — not set)'}
+
+- That is the WHOLE first message. Do not add a sales pitch, do not ask what
+  brand they want, do not ask who they are.
+- If their first message already names a shoe or a size, still send this
+  greeting, then go straight to helping them.
+- Once they have been to the site, follow up with Rodney's line, word for word:
+  "Let me know if you see something you like."
+- Send it in THEIR language if they opened in Creole ("bonswa", "bonjou") or
+  Spanish ("hola", "buenas") — same layout, same blank lines.`
+    : `THIS IS THEIR FIRST MESSAGE — GREET ONCE, WARMLY, AND OFFER A LOOK
+- "Hi, how can I help?" then ask if they'd like to see some of what's available.
+- ⚠️ NO PASSWORD and NO site link in this message — this buyer is not local, see
+  the gate below. Offer the look instead; the link comes later, filtered to
+  whatever they pick.
+- Keep it to two short lines. No pitch.`) + '\n\n';
+
   const gate = local
     ? `THIS BUYER IS LOCAL — GIVE THEM THE SITE AND THE CODE STRAIGHT AWAY
 - Send them ${SITE} and the trade password in your first reply. Do not ask who
@@ -325,7 +373,7 @@ THE INVENTORY IS ONLINE AND PASSWORD-PROTECTED
 - The whole inventory lives at ${SITE}
 - Without the password a visitor sees no prices and no shoe names.
 
-${gate}
+${greeting}${gate}
 
 HOW TO SHOW SHOES — READ THIS TWICE
 - When someone asks to see a model, call search_inventory and then SEND THE
