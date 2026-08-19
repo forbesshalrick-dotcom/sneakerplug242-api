@@ -87,7 +87,11 @@ async function search({ query, brand, size, limit } = {}) {
       ok: true,
       // The link IS the answer — see facts() below.
       link: d.link,
-      matched: d.matched,
+      // ⚠️ `matched` (the site's total match count) is deliberately NOT passed on.
+      // Rodney 2026-08-19: "she also doesnt have to mention howmany we have". She
+      // was reading it straight out — "10,196 styles available to order" — which is
+      // both unnecessary and goes stale the moment stock lands. The link shows them
+      // the range; a number adds nothing and can only be wrong.
       minOrderPairs: d.minOrderPairs,
       shoes: (d.items || []).map(i => ({
         name: i.name,
@@ -300,7 +304,13 @@ HOW YOU HAND OVER TO THE SITE, AND WHAT HAPPENS NEXT
   Never turn a lead time into "we have them here".
 
 THE OFFER
-- Over 10,000 styles: Jordan, Nike, ASICS, New Balance, adidas, Saucony, Puma.
+- The brands: Jordan, Nike, ASICS, New Balance, adidas, Saucony, Puma.
+- ⚠️ NEVER QUOTE A NUMBER OF STYLES. Not "10,196", not "over 10,000", not "20,000+",
+  not "thousands". The catalogue changes every time stock lands, so any figure you
+  give is out of date by the time they read it — and a buyer who is later told a
+  different number stops trusting the rest of what you said. Send the link and let
+  the site show them. If they ask outright how many, the answer is the range, not a
+  count: "the full range is on the site — have a look through."
 - Wholesale prices, per pair:
     Jordan $85 · ASICS $70 · New Balance $70 · Nike $65
     Saucony $65 · adidas $55 · Puma $55
