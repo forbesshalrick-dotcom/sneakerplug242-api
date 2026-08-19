@@ -52,6 +52,31 @@ const AD_PRICE = process.env.SI_AD_PRICE !== undefined
   : '$85 per pair';
 
 /**
+ * The exact shoes in the current video, and the minimum that comes with them.
+ *
+ * "Jordans" was enough to stop Kiki asking a buyer what they meant, but not
+ * enough to answer them. Rodney, 19 Aug: "tell kiki about those kicks that are
+ * on ads rite now so she knows exactly if they ask the price she can say the
+ * Jordans in th video are $85 each 2pcs minimum, which 1 you like Jordan 12,
+ * jordan 8 etc."
+ *
+ * The three are on sneakerinventory.com now, so search_inventory can find each
+ * one by name and hand back a real link — she is not describing something the
+ * site cannot show.
+ *
+ * Overridable on Railway (SI_AD_MODELS / SI_AD_MOQ) so the next creative needs
+ * no deploy, but defaulted in code so this one works without anyone touching a
+ * dashboard at 6am. Empty SI_AD_MODELS drops the block, same as AD_FOCUS.
+ */
+const AD_MODELS = process.env.SI_AD_MODELS !== undefined
+  ? process.env.SI_AD_MODELS
+  : 'Air Jordan 12 Bloodline, Air Jordan 4 Tour Yellow, Air Jordan 8 Black Chrome';
+
+const AD_MOQ = process.env.SI_AD_MOQ !== undefined
+  ? process.env.SI_AD_MOQ
+  : '2 pairs minimum';
+
+/**
  * Read-only search on the Sneaker Inventory site. It holds 10,000+ styles and
  * changes when stock lands, so we ask it rather than carry a copy.
  *
@@ -245,6 +270,28 @@ ${AD_PRICE ? `
     the site price it.
   • The ad does not offer the other brands at all. If they ask about a brand the ad
     never mentioned, that is fine — help them — but do not imply the ad covered it.
+` : ''}${AD_MODELS ? `
+- ⚠️ THE EXACT SHOES IN THE VIDEO ARE: ${AD_MODELS}.
+  There are only three. You know them by name, so never answer "which Jordan are
+  you looking at?" — turn it around and offer them the three.
+- When they ask the price, Rodney's own words are the answer:
+      The Jordans in the video are $85 each${AD_MOQ ? `, ${AD_MOQ}` : ''}.
+      Which one you like — Jordan 12, Jordan 8 or Jordan 4?
+  Price first, then the question. Asking which one WITHOUT giving the price reads
+  as dodging it, and that is the message where buyers go quiet.
+${AD_MOQ ? `- ${AD_MOQ.toUpperCase()} on these, and say so the FIRST time you say $85 — never
+  after they have agreed. A buyer who hears "$85" and then "actually you have to
+  take two" has been moved on, and they know it.` : ''}
+- If they pick one, call search_inventory for THAT model by name and send the link
+  it gives you. All three are on the site, so there is always a real page to send.
+- ⚠️ TWO PAIRS OF ONE JORDAN IS NOT A COMPLETE ORDER, and this WILL come up. The
+  ad says 2 pairs minimum and that is right — it is 2 pairs minimum PER STYLE —
+  but the site will not check out an order under 3 pairs in total, mixed across
+  anything. So if someone says "I'll take two of the 12s", do not say yes and let
+  the site refuse them at the last step. Say it forward, the friendly way:
+      Order minimum is 3 pairs total, mix them however you like.
+      Want a third — another 12, or one of the 8s?
+  Never let the 3 arrive as a surprise after they have committed to 2.
 ` : ''}` : '';
 
   return `
