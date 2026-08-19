@@ -47,9 +47,15 @@ const AD_FOCUS = process.env.SI_AD_FOCUS !== undefined
  * being shown 10,000 styles reasonably concludes everything is $85, when Nike is
  * $65 and Asics and New Balance are $70. Blank it when the ad quotes no price.
  */
+// ⚠️ RAISED TO $100 on 2026-08-19, the same day every Jordan on the site went
+// $85 → $100. Rodney asked "does she also know the price change?" — she did NOT.
+// She was still promising ad-clickers $85 while the site charged $100, which is
+// the worst version of this: quoted one number, shown another, at the checkout.
+// ⚠️ IF THE AD VIDEO ITSELF SHOWS "$85", THE CREATIVE HAS TO CHANGE TOO — this
+// only fixes what Kiki says. Override on Railway with SI_AD_PRICE, no deploy.
 const AD_PRICE = process.env.SI_AD_PRICE !== undefined
   ? process.env.SI_AD_PRICE
-  : '$85 per pair';
+  : '$100 per pair';
 
 /**
  * The exact shoes in the current video, and the minimum that comes with them.
@@ -78,9 +84,9 @@ const AD_PRICE = process.env.SI_AD_PRICE !== undefined
 // SI_AD_MODELS (no deploy needed) if any is wrong.
 const AD_MODELS = process.env.SI_AD_MODELS !== undefined
   ? process.env.SI_AD_MODELS
-  : 'Air Jordan 12 Bloodline (black with red), '
-  + 'Air Jordan 4 Tour Yellow (yellow with black), '
-  + 'Air Jordan 8 Black Chrome (black with grey/silver — this is the black-and-grey one)';
+  : 'Air Jordan 8 Black Chrome (black and grey), '
+  + 'Air Jordan 4 Tour Yellow (yellow and white), '
+  + 'Air Jordan 12 Bloodline (black and red)';
 
 const AD_MOQ = process.env.SI_AD_MOQ !== undefined
   ? process.env.SI_AD_MOQ
@@ -300,13 +306,13 @@ ${AD_PRICE ? `
   by colour and let him pick. Do NOT guess and do NOT invent a colourway we do not
   have.
 - When they ask the price, Rodney's own words are the answer:
-      The Jordans in the video are $85 each${AD_MOQ ? `, ${AD_MOQ}` : ''}.
+      The Jordans in the video are ${AD_PRICE}${AD_MOQ ? `, ${AD_MOQ}` : ''}.
       Which one you like — Jordan 12, Jordan 8 or Jordan 4?
   Price first, then the question. Asking which one WITHOUT giving the price reads
   as dodging it, and that is the message where buyers go quiet.
-${AD_MOQ ? `- ${AD_MOQ.toUpperCase()} on these, and say so the FIRST time you say $85 — never
-  after they have agreed. A buyer who hears "$85" and then "actually you have to
-  take two" has been moved on, and they know it.` : ''}
+${AD_MOQ ? `- ${AD_MOQ.toUpperCase()} on these, and say so the FIRST time you quote
+  ${AD_PRICE} — never after they have agreed. A buyer who hears the price and then
+  "actually you have to take two" has been moved on, and they know it.` : ''}
 - If they pick one, call search_inventory for THAT model by name and send the link
   it gives you. All three are on the site, so there is always a real page to send.
 - ⚠️ TWO PAIRS OF ONE JORDAN IS NOT A COMPLETE ORDER, and this WILL come up. The
@@ -433,7 +439,7 @@ THE OFFER
   the site show them. If they ask outright how many, the answer is the range, not a
   count: "the full range is on the site — have a look through."
 - Wholesale prices, per pair:
-    Jordan $85 · ASICS $70 · New Balance $70 · Nike $65
+    Jordan $100 · ASICS $70 · New Balance $70 · Nike $65
     Saucony $65 · adidas $55 · Puma $55
 - Minimum order quantity is 3 pairs. Say "minimum order quantity" in full —
   never "MOQ", it means nothing to most people here.
