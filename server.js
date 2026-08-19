@@ -8615,6 +8615,28 @@ app.get('/wholesale', (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-store').send(WHOLESALE_HTML);
 });
 
+// ── 🔔 THE SERVICE WORKER (Rodney 2026-08-19) ────────────────────────────────
+// storefront.html has always run navigator.serviceWorker.register('sw.js') and this
+// server has never served one — https://242plug.com/sw.js was a 404, and `git log --all
+// -- sw.js` is empty. That is why his "need agent" alerts never reached his phone: a
+// web push can ONLY be displayed by a service worker, so every push FCM accepted had
+// nothing to show it. Everything either side looked healthy, which is what made it
+// invisible — 5 live subscriptions, web-push installed, VAPID configured, no 410s.
+//
+// Cache-Control: no-cache is deliberate. The browser re-fetches this on every update
+// check; if it is cached, a future fix to the worker can take a day to reach a phone.
+// See sw.js itself for why it has no fetch handler and caches nothing.
+let SW_JS = null;
+try { SW_JS = require('fs').readFileSync(require('path').join(__dirname, 'sw.js'), 'utf8'); }
+catch (e) { console.log('[sw] sw.js missing — push notifications will not display:', e.message); }
+app.get('/sw.js', (req, res) => {
+  if (!SW_JS) return res.status(404).type('text/plain').send('no service worker');
+  res.set('Content-Type', 'application/javascript; charset=utf-8')
+     .set('Cache-Control', 'no-cache')
+     .set('Service-Worker-Allowed', '/')
+     .send(SW_JS);
+});
+
 let STORE_HTML = null, STORE_HTML_GZ = null;
 (function buildStoreHtml(){
   try {
