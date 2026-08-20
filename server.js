@@ -4750,6 +4750,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // shoes are reported back so Kiki can offer the nearest size honestly instead
         // of implying a fit we don't have.
         const droppedWrongSize = [];
+        let nearSizeTrimmed = 0;   // near-misses held back so the album stays deliverable
         // 👟 SNEAKER GUARD (Rodney 2026-08-04 — a customer wrote "Looking for tennis" in a
         // women's 6 and got an album of five Crocs/slides/foam clogs and one real sneaker).
         // "Tennis" is the local word for sneakers, so this is a hard drop, not a hint: if the
@@ -4817,6 +4818,59 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             womensExactCount = all.filter(id => tier(id) === 0).length;
             womensHalfUpCount = all.filter(id => tier(id) === 1).length;
             womensTotalCount = all.length;
+          }
+          // 🚨 DON'T BURY THE REAL ANSWER IN NEAR-MISSES (Rodney 2026-08-20, two real
+          // chats). A customer asked "size 6?" and got EIGHTY-SIX photos — only SIX of
+          // them came in a 6. The other eighty each read "⚠️ No 6 in this one — closest
+          // is 6.5". ManyChat handles 6-8 photos perfectly and chokes on 60+: it answered
+          // 200 success to every image, delivered a fraction, and jammed that account in
+          // BOTH directions — her next two messages never reached this server at all, so
+          // Kiki looked like she had stopped answering. The near-size offer STAYS, it just
+          // stops being the whole album: every pair that really comes in their size goes
+          // out, then a handful of "closest we've got", then Kiki OFFERS the rest.
+          // Tunable live via NEAR_SIZE_MAX on Railway with no deploy. 0 turns it off.
+          const NEAR_SIZE_MAX = (() => {
+            const v = parseInt(process.env.NEAR_SIZE_MAX, 10);
+            return isNaN(v) ? 6 : Math.max(0, v);
+          })();
+          if (NEAR_SIZE_MAX > 0) {
+            const exactN = inp.womens === true ? wantN - 1.5 : wantN;
+            const isExact = (id) => {
+              const s = liveM[id];
+              return !!s && s.sizesRaw.some(x => parseFloat(x) === exactN);
+            };
+            // Real matches to the front. A stable sort, so the search's own ordering
+            // survives inside each half. (The women's path already sorted by tier above;
+            // this is the same idea for a men's ask, which had no ordering at all.)
+            if (inp.womens !== true) {
+              const exactFirst = (list) => [...list].sort((x, y) => (isExact(y) ? 1 : 0) - (isExact(x) ? 1 : 0));
+              if (Array.isArray(inp.ids)) inp.ids = exactFirst(inp.ids);
+              if (Array.isArray(inp.groups)) for (const g of inp.groups) {
+                if (Array.isArray(g.ids)) g.ids = exactFirst(g.ids);
+              }
+            }
+            const flat = (Array.isArray(inp.groups) && inp.groups.length)
+              ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
+            const near = flat.filter(id => !isExact(id));
+            if (near.length > NEAR_SIZE_MAX) {
+              const keepNear = new Set(near.slice(0, NEAR_SIZE_MAX));
+              nearSizeTrimmed = near.length - NEAR_SIZE_MAX;
+              const keep = (id) => isExact(id) || keepNear.has(id);
+              if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keep);
+              if (Array.isArray(inp.groups)) for (const g of inp.groups) {
+                if (Array.isArray(g.ids)) g.ids = g.ids.filter(keep);
+              }
+            }
+            // The women's counts above were taken BEFORE the trim — retake them so what Kiki is
+            // told ("of those, 2 are a true women's 6") matches what actually went out.
+            if (inp.womens === true && nearSizeTrimmed > 0) {
+              const hasMens2 = (id, n) => { const s = liveM[id]; return !!s && s.sizesRaw.some(x => parseFloat(x) === n); };
+              const tier2 = (id) => hasMens2(id, wantN - 1.5) ? 0 : hasMens2(id, wantN - 1) ? 1 : 2;
+              const all2 = (Array.isArray(inp.groups) && inp.groups.length) ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
+              womensExactCount = all2.filter(id => tier2(id) === 0).length;
+              womensHalfUpCount = all2.filter(id => tier2(id) === 1).length;
+              womensTotalCount = all2.length;
+            }
           }
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
@@ -4927,6 +4981,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           result.dropped_not_sneakers = droppedSlipOn;
           result.note = (result.note ? result.note + ' ' : '')
             + `These are NOT sneakers so they were NOT sent — the customer asked for tennis/sneakers: ${droppedSlipOn.join('; ')}. Do not describe them as sneakers. You may mention at the END that we also carry Crocs/slides if they want to see those too.`;
+        }
+        if (nearSizeTrimmed > 0) {
+          record(req, { endpoint: 'near-size-trimmed', sub, size: inp.size, trimmed: nearSizeTrimmed, sent: outIdCount });
+          result.near_size_trimmed = nearSizeTrimmed;
+          result.note = (result.note ? result.note + ' ' : '')
+            + `${nearSizeTrimmed} MORE pairs were held back — they do NOT come in a ${inp.size}, only the half size up, and an album that big stops arriving at all. Do NOT pretend they don't exist: after the photos, offer them in one short line, e.g. "that's what we've got in your size — I've got ${nearSizeTrimmed} more that are just half a size up if you want a look 👟".`;
         }
         if (droppedWrongSize.length) {
           record(req, { endpoint: 'size-guard-drop', sub, size: inp.size, dropped: droppedWrongSize });
