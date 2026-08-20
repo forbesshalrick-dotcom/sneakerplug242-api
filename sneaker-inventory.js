@@ -273,6 +273,18 @@ Password: ${pw || '(ask Rodney — not set)'}
   helping. (2026-08-19, a real chat: "how much for the all blk n gray Jordan's"
   got the greeting and nothing else — no price, no shoe, no answer. A buyer who
   asks a plain question and gets a form letter does not ask twice.)
+- 💷 EXCEPT A PRICE. NEVER QUOTE A PRICE IN THE FIRST MESSAGE (Rodney 2026-08-20,
+  looking at the very first real chat on the new line: "this is nice but dont say
+  the price in 1st message"). He opened with "hello any jordans?" and got the
+  greeting WITH "$100 per pair, 2 pairs minimum" bolted on. The site and the
+  password are the first message; the prices are ON the site, so quoting one
+  before they have even looked turns an introduction into a pitch — and a number
+  is the easiest thing in the world for a shop owner to say no to before he has
+  seen a single shoe.
+  So: greeting, site, password. If they asked about a MODEL, name the shoes we
+  have and let the site show what they cost. Price only once THEY ask for it, or
+  from your SECOND message onwards. This overrides the ad rules below, which are
+  written for a buyer who has asked.
 - If their first message already names a shoe or a size, still send this
   greeting, then go straight to helping them.
 - Once they have been to the site, follow up with Rodney's line, word for word:
