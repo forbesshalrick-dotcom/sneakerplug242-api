@@ -1143,15 +1143,26 @@ function mount(app) {
    */
   app.get('/shop/stock', (req, res) => {
     res.set('Cache-Control', 'no-store');
+    /* ⚠️ SEND THE SHOE OBJECTS WHOLE — do NOT trim them (Rodney 2026-08-20, 8:21am,
+     * a live regression I caused hours earlier).
+     *
+     * The first version of this returned only {id,sizes,sold,price,updatedAt}. It looked
+     * tidy and it broke the shop: every card on 242plug.com read "UNDEFINED / undefined"
+     * and search returned "No shoes in stock" for af1, air force, everything.
+     *
+     * Why: applyServerShoes() in storefront.html branches on `imp._catalog`. A catalog shoe
+     * gets its sizes/sold/price UPDATED field by field. Anything else falls to the else
+     * branch, which does `shoes[idx] = imp` — it REPLACES THE WHOLE OBJECT. Dropping
+     * `_catalog` sent all 357 shoes down that path, so each one was replaced by my
+     * five-field version and lost its name, brand, colour and image.
+     *
+     * There is nothing secret in a shoe object — the storefront prints all of it. The
+     * things that must never appear here are `accounts` (staff login PINs), `sales`,
+     * `notes` and `employees`, and none of them are below. Trim those, never the shoes.
+     */
     res.json({
       rev: state.rev.n,
-      shoes: (state.shoes || []).map(s => ({
-        id: s.id,
-        sizes: Array.isArray(s.sizes) ? s.sizes : [],
-        sold: !!s.sold,
-        price: s.price,
-        updatedAt: s.updatedAt || null,
-      })),
+      shoes: state.shoes || [],
       deleted: state.deleted || [],
     });
   });

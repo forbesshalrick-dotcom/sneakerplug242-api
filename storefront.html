@@ -7703,7 +7703,20 @@ function applyServerShoes(serverShoes, deletedIds){
       }
     } else {
       var idx=shoes.findIndex(function(x){return x.id===imp.id;});
-      if(idx>=0){ if(JSON.stringify(shoes[idx])!==JSON.stringify(imp)){ shoes[idx]=imp; changed=true; } }
+      if(idx>=0){
+        /* 🛡️ MERGE, DO NOT BLIND-REPLACE (Rodney 2026-08-20, 8:21am). This line used to be
+           `shoes[idx]=imp`, which swaps the WHOLE object for whatever the server sent. When a
+           feed arrived without name/brand/image, every card on the live shop read
+           "UNDEFINED / undefined" and search found nothing. A payload that omits a field must
+           leave that field alone rather than erase it — the server is authoritative about what
+           it SENDS, not about what it leaves out. */
+        var keep=shoes[idx], merged={};
+        Object.keys(keep).forEach(function(k){ merged[k]=keep[k]; });
+        Object.keys(imp).forEach(function(k){ if(imp[k]!==undefined) merged[k]=imp[k]; });
+        if(!merged.name && keep.name) merged.name=keep.name;
+        if(!merged.brand && keep.brand) merged.brand=keep.brand;
+        if(JSON.stringify(keep)!==JSON.stringify(merged)){ shoes[idx]=merged; changed=true; }
+      }
       else { shoes.unshift(imp); changed=true; }
     }
   });
