@@ -247,6 +247,12 @@ function record(req, extra) {
     query: req.query,
     rawBody: req.rawBody || null,
     parsedBody: req.body,
+    // 🔎 WHICH MANYCHAT ACCOUNT SENT THIS (Rodney 2026-08-20). Just the account number off
+    // the front of the token — never the token itself. Without this there is no way to see
+    // whether a new account is wired to the right brain except by reading a customer's chat
+    // afterwards, and getting it wrong means a wholesale buyer is answered with retail
+    // prices and A1 album codes. Now it is one line in /last.
+    mcAccount: (function(){ try{ var t=req.headers && req.headers['x-mc-token']; return t ? String(t).split(':')[0] : null; }catch(e){ return null; } })(),
     ...extra,
   });
   if (recent.length > 120) recent.length = 120;
@@ -841,6 +847,12 @@ function getStore(req) {
   if (acct === '3732738') return 'Trendy Kicks';
   if (acct === '3732170') return 'Official Sneaker Crew';
   if (SI.isOurAccount(acct)) return SI.STORE;   // accepts the new account AND the old one — see MANYCHAT_ACCOUNTS
+  // ⚠️ AN UNRECOGNISED ACCOUNT FALLS THROUGH TO THE RETAIL BRAIN, and that is the single
+  // worst outcome this business has: a shop owner quoted $180 retail Jordans and sent an
+  // album of A1 order codes (16 Aug). It used to happen in total silence. If a new ManyChat
+  // account is ever connected without being added to the list, this makes it obvious in
+  // /last within one message instead of after a lost customer.
+  if (acct) { try { record(req, { endpoint: 'UNKNOWN-MANYCHAT-ACCOUNT', mcAccount: acct, warn: 'falling back to the RETAIL brain — add this id to SI_MANYCHAT_ACCOUNTS if it is wholesale' }); } catch (_) {} }
   return null;
 }
 
