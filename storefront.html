@@ -4500,6 +4500,20 @@ function openBrandList(){
       const s=src.find(x=>x.id===cat.id);
       const ex=shoes.find(x=>x.id===cat.id);
       if(ex){
+        /* 🩹 SELF-REPAIR (Rodney 2026-08-20, 8:21am). For a few hours the public stock feed
+           was missing the `_catalog` flag, so applyServerShoes took its blind-replace path and
+           overwrote every shoe with a five-field object — then save() wrote that to
+           localStorage. Result: "UNDEFINED / undefined" on every card, and search finding
+           nothing. Fixing the feed alone was NOT enough: this loop restored price, nickname,
+           style code and photos but never name/brand/colour, so a phone that had already
+           loaded the broken version would have stayed broken for good.
+           Anything the master catalog knows and this device has lost is restored here, so
+           every affected phone heals itself on the next load with nothing for anyone to do. */
+        if(!ex.name && cat.name) ex.name=cat.name;
+        if(!ex.brand && cat.brand) ex.brand=cat.brand;
+        if(!ex.color && cat.color) ex.color=cat.color;
+        if(!ex.image && s && s.img) ex.image=s.img;
+        if(!ex.condition) ex.condition='New';
         ex.price=cat.price;
         if(cat.nickname)ex.nickname=cat.nickname;
         if(cat.dropDate)ex.dropDate=cat.dropDate;
