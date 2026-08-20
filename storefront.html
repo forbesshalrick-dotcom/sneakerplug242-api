@@ -5058,17 +5058,43 @@ function submitEmployeeLogin() {
   const name = document.getElementById('role-name-select').value;
   const pass = document.getElementById('role-password').value;
   if (!name) { _sfx.error(); document.getElementById('role-error').style.display='block'; return; }
-  if (ACCOUNTS[name] && ACCOUNTS[name] === pass) {
+
+  function ok(who){
     _sfx.login();
     currentRole = 'employee';
-    currentUser = name;
+    currentUser = who || name;
     hideLanding();
     applyRoleUI();
-  } else {
+    // The shelf was read as a customer a moment ago; re-read it as staff so sales,
+    // notes and the roster arrive too.
+    try{ _initShopSync(); }catch(e){}
+  }
+  function bad(){
     _sfx.error();
     document.getElementById('role-error').style.display='block';
     document.getElementById('role-password').value='';
   }
+
+  /* 🔑 THE SERVER DECIDES NOW, NOT THE BROWSER (Rodney 2026-08-20).
+     This used to be `ACCOUNTS[name] === pass` — a check the visitor's own phone performed
+     against a list the page already held, which is a setting rather than a lock. The point
+     of moving it is not the check itself, it is that a correct answer is the ONLY way to
+     obtain the write key now that it is no longer printed in the page.
+     Offline is deliberately still allowed IF this device has signed in before: staff sell
+     from the app in places with no signal, and the local list plus a previously-issued key
+     is the same evidence they had yesterday. A device that has never signed in gets nothing. */
+  shopPostPublic('/shop/staff-login', { name: name, pass: pass })
+    .then(function(res){
+      if (res && res.ok && res.key) { _setShopKey(res.key); ok(res.name); }
+      else bad();
+    })
+    .catch(function(err){
+      var offline = !(err && String(err.message||'').indexOf('http 401') > -1);
+      if (offline && _hasShopKey() && ACCOUNTS[name] && ACCOUNTS[name] === pass) {
+        showToast('Signed in offline — changes will sync when you have signal.');
+        ok(name);
+      } else bad();
+    });
 }
 
 function hideLanding() {
@@ -5219,12 +5245,17 @@ function _loginError(msg) {
   if (typeof _sfx !== 'undefined' && _sfx.wrong) _sfx.wrong();
   setTimeout(clearPattern, 600);
 }
-function _loginOk(name, patStr, firstTime) {
+function _loginOk(name, patStr, firstTime, key) {
   _patternConfirmMode = false; _patternConfirmSeq = [];
   try { localStorage.setItem('sp_pat_' + name, patStr); } catch (e) {}  // local cache (offline fallback only)
+  // 🔑 The write key arrives with a successful login and is cached on this device, because
+  // it is no longer printed in the page. Without this a staffer would get in and every
+  // save would be refused (Rodney 2026-08-20).
+  if (key) _setShopKey(key);
   currentRole = 'employee'; currentUser = name;
   _sfx.login(); hideLanding(); applyRoleUI();
   if (firstTime) showToast('Pattern set ✓');
+  try{ _initShopSync(); }catch(e){}   // re-read the shelf as staff now we have the key
 }
 function submitPattern() {
   var name = document.getElementById('role-name-select').value;
@@ -5236,7 +5267,7 @@ function submitPattern() {
   if (_patternConfirmMode) {
     if (_patternConfirmSeq.join('-') === patStr) {
       shopPost('/shop/login', { name: name, pattern: patStr, set: true })
-        .then(function (r) { if (r && r.ok) _loginOk(name, patStr, true); else { _patternConfirmMode = false; _patternConfirmSeq = []; _loginError('Could not set pattern. Try again.'); } })
+        .then(function (r) { if (r && r.ok) _loginOk(name, patStr, true, r.key); else { _patternConfirmMode = false; _patternConfirmSeq = []; _loginError('Could not set pattern. Try again.'); } })
         .catch(function () { _patternConfirmMode = false; _patternConfirmSeq = []; _loginError('Can’t reach server — check your connection.'); });
     } else {
       _patternConfirmMode = false; _patternConfirmSeq = [];
@@ -5249,7 +5280,7 @@ function submitPattern() {
   // Normal submit → verify on the server.
   shopPost('/shop/login', { name: name, pattern: patStr })
     .then(function (r) {
-      if (r && r.ok) { _loginOk(name, patStr, false); return; }
+      if (r && r.ok) { _loginOk(name, patStr, false, r.key); return; }
       if (r && r.needSetup) {
         // No pattern on file yet — run the "draw again to confirm" flow, then set it server-side.
         _patternConfirmSeq = _patternSeq.slice();
@@ -5264,7 +5295,10 @@ function submitPattern() {
       // Server unreachable: fall back ONLY to a pattern this device set before (never let a
       // fresh device in offline). Keeps staff working through a blip without opening the door.
       var cached = null; try { cached = localStorage.getItem('sp_pat_' + name); } catch (e) {}
-      if (cached && cached === patStr) { currentRole = 'employee'; currentUser = name; _sfx.login(); hideLanding(); applyRoleUI(); }
+      if (cached && cached === patStr) { currentRole = 'employee'; currentUser = name; _sfx.login(); hideLanding(); applyRoleUI();
+        // No key can be issued offline. If this device has one cached from a previous sign-in
+        // it keeps working; if not, say so plainly rather than letting saves fail silently.
+        if(!_hasShopKey()) showToast('Signed in offline — you can look, but changes will not save until you have signal.', true); }
       else _loginError('Can’t reach server — check your connection.');
     });
 }
@@ -5301,6 +5335,7 @@ async function registerFingerprint(name) {
     currentRole = 'employee'; currentUser = name;
     _sfx.login(); hideLanding(); applyRoleUI();
     showToast('Fingerprint registered ✓');
+    _warnIfNoKey();
   } catch(e) {
     showToast('Fingerprint setup failed — draw your pattern instead', true);
   }
@@ -5322,6 +5357,7 @@ async function verifyFingerprint(name, storedCredId) {
     });
     currentRole = 'employee'; currentUser = name;
     _sfx.login(); hideLanding(); applyRoleUI();
+    _warnIfNoKey();
   } catch(e) {
     showToast('Fingerprint failed — draw your pattern instead', true);
   }
@@ -7154,7 +7190,43 @@ setTimeout(updateNotifBadge, 500);
 // ── SHARED SHOP SYNC (notes/tasks now; sales/log/inventory in later stages) ──
 // Talks to the Railway server so every employee phone shares one source of truth.
 var SHOP_API = 'https://sneakerplug242-api-production.up.railway.app';
-var SHOP_KEY = 'sp242-shop-c988c5711bf067dccccc85b55fc14fde';
+/* 🔑 THE WRITE KEY IS NO LONGER PRINTED IN THIS PAGE (Rodney 2026-08-20:
+   "what if I stop all edits and website just view as customer?").
+   It used to sit right here as a literal, which meant every visitor, every crawler and
+   every stale phone that loaded the shop held a key that could rewrite the shelf — the
+   door behind the whole "reverting stock" saga. 604 pushes from 20 IPs in three days, and
+   all 1,000 most recent stock writes signed "(nobody named)", because nobody had to sign in.
+   It also unlocked /shop/state, which returns `accounts` — the staff login PINs.
+   Now: customers read the public, write-less /shop/stock feed and hold no key at all.
+   Staff get the key from the server at sign-in and it is cached on that device, so a phone
+   that has signed in once keeps working offline exactly as before. */
+var SHOP_KEY = '';
+try { SHOP_KEY = localStorage.getItem('sp_shop_key') || ''; } catch(e){}
+/* Post without a key. Only used to ASK for one. */
+function shopPostPublic(path, body){
+  return fetch(SHOP_API + path, {
+    method:'POST', headers:{'Content-Type':'application/json'}, cache:'no-store',
+    body: JSON.stringify(body||{})
+  }).then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json(); });
+}
+function _setShopKey(k){ SHOP_KEY = k || ''; try{ if(k) localStorage.setItem('sp_shop_key', k); }catch(e){} }
+function _hasShopKey(){ return !!SHOP_KEY; }
+/* Fingerprint sign-in happens entirely on the device (WebAuthn) and never reaches the
+   server, so it cannot be handed a write key. In practice a phone that has registered a
+   fingerprint signed in with its pattern first and already holds one. If it somehow does
+   not, say so — the alternative is every save being refused with no explanation. */
+function _warnIfNoKey(){
+  if(!_hasShopKey()) showToast('Draw your pattern once to finish signing in — changes will not save until you do.', true);
+  else { try{ _initShopSync(); }catch(e){} }
+}
+/* Read the shelf without a key. Customers use this; it has no write counterpart. */
+function shopGetPublic(path){
+  var ctl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+  var t = ctl ? setTimeout(function(){ try{ctl.abort();}catch(e){} }, 8000) : null;
+  return fetch(SHOP_API + path, ctl ? {cache:'no-store', signal:ctl.signal} : {cache:'no-store'})
+    .then(function(r){ if(t)clearTimeout(t); if(!r.ok) throw new Error('http '+r.status); return r.json(); },
+          function(e){ if(t)clearTimeout(t); throw e; });
+}
 var _shopLastRev = -1;
 
 function shopGet(path){
@@ -7566,6 +7638,15 @@ function _lastSeenUpd(id){
 }
 function _rebuildInvSnap(){ _lastInvSnap={}; shoes.forEach(function(s){ _lastInvSnap[s.id]=JSON.stringify(liteShoe(s)); }); }
 function _pushInvChanges(){
+  /* No key = not signed in = cannot write, full stop. This is the belt to the braces:
+     shopPost would fail anyway without a key, but a shopper must never even reach the
+     attempt, and staff must be TOLD rather than have a count vanish silently. */
+  if(!_hasShopKey()){
+    if(typeof currentRole!=='undefined' && currentRole==='employee'){
+      showToast('🔑 Sign in again to save changes — this device has no shop key yet.', true);
+    }
+    return;
+  }
   if(!_invReady){
     // Not "drop it quietly" — Rodney has been burned by silent saves. Say it out loud.
     showToast('⏳ Still loading the shop — that change was NOT saved yet. Give it a second and redo it.', true);
@@ -7629,7 +7710,14 @@ function applyServerShoes(serverShoes, deletedIds){
   return changed;
 }
 function syncInventory(){
-  return shopGet('/shop/state').then(function(st){
+  /* Two doors to the same shelf. A signed-in staff phone reads the full /shop/state (it
+     also needs sales, staff and roles). A customer holds no key, so it reads the public
+     write-less /shop/stock feed — which carries shoes and deletions and nothing else.
+     Either way the shopper ends up seeing CONFIRMED stock, which is the whole point. */
+  var source = _hasShopKey()
+    ? shopGet('/shop/state')
+    : shopGetPublic('/shop/stock');
+  return source.then(function(st){
     var serverIds={}; (st.shoes||[]).forEach(function(s){ serverIds[s.id]=1; });
     // Our permanent local graveyard of deleted ids. Combine with the server's so a
     // delete made anywhere is honoured everywhere — and re-push any the server is
@@ -7677,7 +7765,17 @@ if(typeof save==='function' && !save._wrapped){
   save._wrapped=true;
 }
 
+/* A customer holds no key, so every staff feed below would 401. Only the shelf is public.
+   Split rather than guarded call-by-call: there are ~25 keyed calls and this is the one
+   place they all start from. */
 function _pollShop(){
+  if(!_hasShopKey()){
+    // Shoppers poll the public feed so a size that sells while they browse disappears.
+    shopGetPublic('/shop/stock').then(function(r){
+      if(r && r.rev!==_shopLastRev){ _shopLastRev=r.rev; syncInventory(); }
+    }).catch(function(){});
+    return;
+  }
   shopGet('/shop/rev').then(function(r){
     if(r && r.rev!==_shopLastRev){ _shopLastRev=r.rev; syncNotes(false); syncAccounts(); syncSales(); syncLog(); syncInventory(); syncShifts(); }
   }).catch(function(){});
@@ -7685,6 +7783,12 @@ function _pollShop(){
 
 function _initShopSync(){
   populateLoginDropdown();
+  if(!_hasShopKey()){
+    // Customer: read the shelf, nothing else. No sales, no notes, no staff, no takings.
+    _rebuildInvSnap();
+    syncInventory();
+    return;
+  }
   syncAccounts();
   syncNotes(false);
   syncSales();

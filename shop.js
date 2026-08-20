@@ -1123,6 +1123,65 @@ function mount(app) {
     });
   });
 
+  /* 🟢 PUBLIC, READ-ONLY STOCK — the shopper's feed. NO KEY, AND NO WRITE TWIN.
+   *
+   * Rodney, 2026-08-20: "what if I stop all edits and website just view as customer?"
+   * Right the instinct, and this is the half that makes it possible.
+   *
+   * Until now there was exactly ONE way to read stock — /shop/state — and it is gated on
+   * the same key that WRITES stock. That is the only reason the write key had to be printed
+   * inside storefront.html at all: a customer's browser needed it just to see which sizes
+   * were left. Every visitor, every crawler and every stale phone therefore held a key that
+   * could rewrite the shelf. That is the door behind the whole "reverting stock" saga.
+   *
+   * This endpoint breaks that dependency. It returns the four fields a shopper needs and
+   * nothing else — no sales, no takings, no notes, no staff names, and crucially NO
+   * `accounts`, which /shop/state hands over and which contains staff login PINs.
+   *
+   * There is deliberately no POST counterpart. A page holding only this address cannot
+   * write, no matter who loads it or what they call themselves.
+   */
+  app.get('/shop/stock', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      rev: state.rev.n,
+      shoes: (state.shoes || []).map(s => ({
+        id: s.id,
+        sizes: Array.isArray(s.sizes) ? s.sizes : [],
+        sold: !!s.sold,
+        price: s.price,
+        updatedAt: s.updatedAt || null,
+      })),
+      deleted: state.deleted || [],
+    });
+  });
+
+  /* 🔑 THE WRITE KEY IS HANDED OUT AT LOGIN, NOT PRINTED IN THE PAGE.
+   *
+   * Staff sign in with the same name + PIN they already use; the difference is that the
+   * check now happens HERE rather than in the browser, and the key comes back only on a
+   * correct answer. A phone that never signs in never holds a key and cannot write.
+   *
+   * Deliberately says the same thing for a wrong name and a wrong PIN — telling a stranger
+   * which staff names exist is free information they should not get.
+   */
+  app.post('/shop/staff-login', (req, res) => {
+    const b = req.body || {};
+    const name = String(b.name || '').trim();
+    const pass = String(b.pass == null ? '' : b.pass);
+    const known = state.accounts || {};
+    // Case-insensitive on the NAME only — Rodney's staff type "manager" and "Manager".
+    const realName = Object.keys(known).find(n => n.toLowerCase() === name.toLowerCase());
+    const expected = realName ? String(known[realName] == null ? '' : known[realName]) : null;
+    const ok = !!realName && expected !== '' && pass === expected;
+    try {
+      state.log.unshift({ at: new Date().toISOString(), what: ok ? 'staff signed in' : 'failed sign-in', who: realName || name || '(blank)', kind: 'auth' });
+      if (state.log.length > 500) state.log.length = 500;
+    } catch (_) {}
+    if (!ok) return res.status(401).json({ ok: false, error: 'Name or PIN is wrong.' });
+    res.json({ ok: true, name: realName, key: SHOP_KEY });
+  });
+
   // ---- 📅 Work schedule ----
   app.get('/shop/shifts', (req, res) => {
     if (!auth(req, res)) return;
@@ -1558,7 +1617,9 @@ function mount(app) {
     const f = loginFails.get(name);
     if (f && f.until > Date.now()) return res.json({ ok: false, locked: true, error: 'Too many tries — wait a minute.' });
     // owner recovery: a master PIN set in Railway always works (and never gets stored/created here)
-    if (MASTER_PIN && pattern === MASTER_PIN) { loginFails.delete(name); return res.json({ ok: true, master: true }); }
+    // 🔑 Every success hands back the write key — it is no longer printed in storefront.html,
+    // so this is how a staff phone comes to hold one (Rodney 2026-08-20).
+    if (MASTER_PIN && pattern === MASTER_PIN) { loginFails.delete(name); return res.json({ ok: true, master: true, key: SHOP_KEY }); }
     const rec = state.logins[name];
     if (!rec || !rec.hash) {
       // No pattern on file for this name yet.
@@ -1567,12 +1628,12 @@ function mount(app) {
         state.logins[name] = { hash: hashPattern(pattern, salt), salt, setAt: new Date().toISOString() };
         persist('logins.json');
         loginFails.delete(name);
-        return res.json({ ok: true, firstTime: true });
+        return res.json({ ok: true, firstTime: true, key: SHOP_KEY });
       }
       return res.json({ ok: false, needSetup: true }); // tell the site to run its "draw twice" setup
     }
     const good = hashPattern(pattern, rec.salt) === rec.hash;
-    if (good) { loginFails.delete(name); return res.json({ ok: true }); }
+    if (good) { loginFails.delete(name); return res.json({ ok: true, key: SHOP_KEY }); }
     const n = ((f && f.n) || 0) + 1;
     loginFails.set(name, { n, until: n >= 6 ? Date.now() + 60000 : 0 });
     return res.json({ ok: false });
