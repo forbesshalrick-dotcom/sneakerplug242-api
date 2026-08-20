@@ -448,6 +448,11 @@ function extractSize(tokens) {
   return null;
 }
 
+// Words that sit in a colour field but describe the MATERIAL or FINISH, not a colour.
+// "All Black/Suede", "Black Gloss" and "Black Threaded" are all simply black shoes.
+const MATERIAL_WORDS = new Set(['suede', 'leather', 'gloss', 'glossy', 'threaded', 'mesh',
+  'patent', 'canvas', 'nubuck', 'knit', 'denim', 'reflective', 'metallic', 'matte', 'satin']);
+
 const BRAND_KEYWORDS = {
   'jordan':      ['jordan', 'aj', 'jumpman'],
   'nike':        ['nike'],
@@ -482,9 +487,19 @@ function scoreShoe(shoe, tokens, sizeFilter) {
     }
   }
 
-  for (const ct of tokenize(shoe.color)) {
-    if (ct.length >= 3 && tokens.includes(ct)) score += 2;
-  }
+  // 🎨 A SHOE THAT *IS* THE COLOUR BEATS ONE THAT MERELY CONTAINS IT (Rodney 2026-08-20:
+  // "when I search black nb, only other shoes came up"). Every colour word used to earn a
+  // flat +2, so "New Balance Grey/Black" and "New Balance Blue/Pink/Yellow/Black" tied with
+  // the actual All Black pair — and because findMatches keeps only the TOP tier, searching
+  // "black nb" handed back all 18 blackish New Balances with the all-black ones buried in
+  // the middle. Now: still +2 per matched colour, plus a bonus when EVERY colour the shoe
+  // has was asked for, i.e. the shoe really is that colour and nothing else.
+  // "All" is not a colour, and neither is a material or a finish — "All Black/Suede" and
+  // "Black Gloss" are black shoes, so those words must not count against the shoe.
+  const shoeColours = tokenize(shoe.color).filter(ct => ct !== 'all' && !MATERIAL_WORDS.has(ct));
+  const askedFor = shoeColours.filter(ct => ct.length >= 3 && tokens.includes(ct));
+  score += askedFor.length * 2;
+  if (askedFor.length && askedFor.length === shoeColours.length) score += 4;
 
   for (const nm of tokenize(shoe.name).filter(t => /^\d+$/.test(t))) {
     if (tokens.includes(nm)) score += 3;
