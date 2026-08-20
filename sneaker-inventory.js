@@ -121,6 +121,43 @@ const AD_MODELS = process.env.SI_AD_MODELS !== undefined
   + 'Air Jordan 4 Tour Yellow (yellow and white), '
   + 'Air Jordan 12 Bloodline (black and red)';
 
+/**
+ * ⚠️ THE AD SET IS NO LONGER "THREE JORDANS" (Rodney 2026-08-20).
+ *
+ * His words: "I used Jordan and asics because that's 2 of the 4 shoes we have on
+ * ads. so if they say the red/Black Jordan Kiki should know 3 of the Jordans on
+ * ads already by color."
+ *
+ * So: FOUR shoes on ads — three Jordans and an Asics. Every sentence below used
+ * to hardcode "three" and "Jordan 12, Jordan 8 or Jordan 4", which defeated the
+ * whole point of SI_AD_MODELS being an env var: adding a fourth shoe on Railway
+ * left Kiki insisting there were only three and reading out the old names. The
+ * count, the names and the brands are now DERIVED from the list itself, so the
+ * next creative change really is one Railway field and no deploy.
+ *
+ * Entry format is "Name (what it looks like)". An entry MAY end with a price —
+ * "Asics Gel-Kayano 14 (white and blue) - $70" — and that price wins for that
+ * shoe. It has to be allowed, because the moment the ad carries two brands, one
+ * AD_PRICE stops being true: Jordans are $100 and Asics are $70.
+ */
+const AD_LIST = AD_MODELS ? AD_MODELS.split(/,\s*(?=[A-Z])/).map(s => s.trim()).filter(Boolean) : [];
+const AD_NAMES = AD_LIST.map(s => s.replace(/\s*[([].*$/, '').replace(/\s*[-–—]\s*\$.*$/, '').trim()).filter(Boolean);
+const AD_COUNT_WORD = ['none', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'][AD_LIST.length] || String(AD_LIST.length);
+// Brand per shoe, so the price caveat and the photo question below name the RIGHT
+// brands. "Air Jordan 12" and "Jordan 12" are both Jordan; anything else takes its
+// first word ("Asics Gel-Kayano" -> Asics).
+const AD_BRANDS = [...new Set(AD_NAMES.map((n) => {
+  if (/jordan/i.test(n)) return 'Jordan';
+  const w = n.split(/\s+/)[0] || '';
+  return w.charAt(0).toUpperCase() + w.slice(1);
+}))].filter(Boolean);
+// "Jordan 12, Jordan 8 or Jordan 4" — Rodney's pick-one line, built from the real list.
+const AD_PICK_LINE = AD_NAMES.length > 1
+  ? AD_NAMES.slice(0, -1).join(', ') + ' or ' + AD_NAMES[AD_NAMES.length - 1]
+  : (AD_NAMES[0] || '');
+// "the Jordans in the video" only reads right while the ad IS all Jordans.
+const AD_THINGS = AD_BRANDS.length === 1 ? AD_BRANDS[0] + 's' : 'shoes';
+
 const AD_MOQ = process.env.SI_AD_MOQ !== undefined
   ? process.env.SI_AD_MOQ
   : '2 pairs minimum';
@@ -355,31 +392,49 @@ ${AD_PRICE ? `
     the site price it.
   • The ad does not offer the other brands at all. If they ask about a brand the ad
     never mentioned, that is fine — help them — but do not imply the ad covered it.
-` : ''}${AD_MODELS ? `
+${AD_BRANDS.length > 1 ? `  • ⚠️ THIS AD CARRIES MORE THAN ONE BRAND (${AD_BRANDS.join(' and ')}), so ${AD_PRICE}
+    is NOT one price for all of them. Any shoe in the list below that has its own
+    price written after it is THAT price — read it off the list. Where a shoe has
+    no price of its own, ${AD_PRICE} is the one it was quoted at. Never quote the
+    Jordan price for an Asics or the other way round.
+` : ''}` : ''}${AD_MODELS ? `
 - ⚠️ THE EXACT SHOES IN THE VIDEO ARE: ${AD_MODELS}.
-  There are only three. You know them by name, so never answer "which Jordan are
-  you looking at?" — turn it around and offer them the three.
+  There are only ${AD_COUNT_WORD}. You know them by name, so never answer "which one are
+  you looking at?" — turn it around and offer them the ${AD_COUNT_WORD}.
 - 🎨 THEY WILL DESCRIBE A COLOUR, NOT A NAME. "the all black and gray ones", "the
   yellow ones", "the black and red one" — that is a buyer telling you exactly which
-  of the three he means, and it is a REAL question, not a vague one. Match it to the
+  of the ${AD_COUNT_WORD} he means, and it is a REAL question, not a vague one. Match it to the
   colour in brackets above, name that shoe back to him, give the price, and offer to
   send the link. Never reply "which one do you mean?" to a message that already
   said the colour. (2026-08-19: "how much for the all blk n gray Jordan's" got no
   answer at all — that is the message this rule exists to stop.)
-- If a colour genuinely fits none of the three, or fits two, say what the three are
+- If a colour genuinely fits none of them, or fits two, say what the ${AD_COUNT_WORD} are
   by colour and let him pick. Do NOT guess and do NOT invent a colourway we do not
   have.
 - When they ask the price, Rodney's own words are the answer:
-      The Jordans in the video are ${AD_PRICE}${AD_MOQ ? `, ${AD_MOQ}` : ''}.
-      Which one you like — Jordan 12, Jordan 8 or Jordan 4?
+      The ${AD_THINGS} in the video are ${AD_PRICE}${AD_MOQ ? `, ${AD_MOQ}` : ''}.
+      Which one you like — ${AD_PICK_LINE}?
   Price first, then the question. Asking which one WITHOUT giving the price reads
   as dodging it, and that is the message where buyers go quiet.
 ${AD_MOQ ? `- ${AD_MOQ.toUpperCase()} on these, and say so the FIRST time you quote
   ${AD_PRICE} — never after they have agreed. A buyer who hears the price and then
   "actually you have to take two" has been moved on, and they know it.` : ''}
+- 📷 IF THEIR PHOTO WON'T OPEN, THESE ARE THE BRANDS TO OFFER (Rodney 2026-08-20).
+  Say the picture is still loading and ask which of the AD brands it is — his own
+  wording: "The picture is taking awhile to load what color is the shoe you sent?
+  is it ${AD_BRANDS.length > 1 ? AD_BRANDS.slice(0, 2).join(' or ') : (AD_BRANDS[0] || 'Jordan') + ' or Asics'}?". ${AD_BRANDS.length > 1
+    ? 'Those are the brands on the ads right now, so they are the two most likely answers.'
+    : 'Those are the two brands the ads pull, so they are the most likely answers.'}
+  NEVER tell them you cannot see pictures, cannot read images, or cannot identify
+  the shoe. Ask ONCE, then let their answer carry the conversation.
+- 🎯 THEN THE COLOUR ANSWERS IT. If they come back with a colour — "the red and
+  black Jordan", "the yellow ones", "the black and grey" — that is the whole
+  answer. You already know these ${AD_COUNT_WORD} by colour from the list above, so
+  name the shoe straight back and give the price. Do NOT ask a second question and
+  do NOT ask about the photo again.
 - If they pick one, call search_inventory for THAT model by name and send the link
-  it gives you. All three are on the site, so there is always a real page to send.
-- ✅ TWO PAIRS OF ONE JORDAN IS NOW A COMPLETE ORDER. Rodney dropped the site
+  it gives you. All ${AD_COUNT_WORD} are on the site, so there is always a real page to send.
+- ✅ TWO PAIRS OF ONE STYLE IS NOW A COMPLETE ORDER. Rodney dropped the site
   minimum to ${MIN_PAIRS} pairs on 19 Aug 2026, so the ad and the checkout finally
   agree. If someone says "I'll take two of the 12s", that is a real order — take
   it. Do NOT ask them to add a third, and never mention an old ${MIN_PAIRS === '2' ? 'three-pair' : 'higher'} minimum.
