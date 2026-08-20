@@ -8703,6 +8703,54 @@ app.get('/wholesale', (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-store').send(WHOLESALE_HTML);
 });
 
+// ---- OFFICIAL SNEAKER CREW (Rodney 2026-08-20) ------------------------------
+// Served at /osc. Same stock, second shop front — Trendy Kicks keeps /store, this is
+// the face for ManyChat account 3732170. Built like /wholesale: its own small file,
+// placeholders swapped in once at boot. It deliberately does NOT reuse storefront.html
+// (1.6 MB) and it holds NO shop write key — sizes come from the public read-only
+// GET /shop/stock at page load, never from a list baked into the page.
+let OSC_HTML = null;
+(function buildOscHtml(){
+  try {
+    const path = require('path');
+    let html = require('fs').readFileSync(path.join(__dirname, 'osc.html'), 'utf8');
+    const waNum = (process.env.OSC_WA_NUM || '12428033126').replace(/\D/g, '');
+
+    // Slim catalogue: name/brand/price/photo only. No sizes — those would be a second
+    // source of truth and that is exactly what was advertising 33 pairs that were gone.
+    const raw = JSON.parse(require('fs').readFileSync(path.join(__dirname, 'catalog.json'), 'utf8'));
+    const rows = (Array.isArray(raw) ? raw : (raw.shoes || raw.catalog || []))
+      .filter(s => s && s.id && s.image)
+      .map(s => ({
+        id: String(s.id),
+        brand: String(s.brand || '').trim(),
+        name: String(s.name || '').trim(),
+        nickname: String(s.nickname || s.color || '').trim(),
+        price: Number(s.price) || 0,
+        image: String(s.image)
+      }));
+
+    // Deterministic shuffle — a fixed salt hashed with the id. Same order on every
+    // load and every phone (so a shopper can find the pair they saw again), but a
+    // different order from the main site.
+    const key = id => {
+      let h = 0x4f43; // 'OC'
+      for (let i = 0; i < id.length; i++) h = ((h * 31) ^ id.charCodeAt(i)) >>> 0;
+      return h;
+    };
+    rows.sort((a, b) => key(a.id) - key(b.id) || (a.id < b.id ? -1 : 1));
+
+    html = html
+      .replace("'__OSC_WA__'", JSON.stringify(waNum))
+      .replace("'__OSC_CATALOG__'", JSON.stringify(rows));
+    OSC_HTML = html;
+  } catch(e){ console.error('[osc] build failed:', e && e.message); OSC_HTML = null; }
+})();
+app.get('/osc', (req, res) => {
+  if (!OSC_HTML) return res.status(503).send('loading — refresh in a moment');
+  res.set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-store').send(OSC_HTML);
+});
+
 // ── 🔔 THE SERVICE WORKER (Rodney 2026-08-19) ────────────────────────────────
 // storefront.html has always run navigator.serviceWorker.register('sw.js') and this
 // server has never served one — https://242plug.com/sw.js was a 404, and `git log --all
