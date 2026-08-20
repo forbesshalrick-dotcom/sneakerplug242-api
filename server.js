@@ -2727,7 +2727,32 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
-      try { await sendChunk(sub, [{ type: 'text', text: L(END_OF_PHOTOS_T, sub) }], token); } catch (e) { /* non-fatal */ }
+      /* 🖼️ A WAY TO SEE THE PICTURES WHEN THE PICTURES DO NOT ARRIVE (Rodney 2026-08-20).
+       *
+       * ManyChat is accepting images and not delivering them. Proven twice today on live
+       * chats: an album of 5 came back "200 success" five times and the customer had none;
+       * another was told "This is what we have in size 13 rite now 👇" and nothing followed.
+       * The existing text fallback never fires because ManyChat reports SUCCESS, so the bot
+       * believes it delivered and says nothing is wrong.
+       *
+       * TEXT always arrives — this closing line is proof, it lands every time. So it now
+       * carries a link that opens the shop already filtered to exactly what she just tried
+       * to send. A customer staring at a "👇" and no photos has one tap to see them all,
+       * with prices and sizes.
+       *
+       * The site reads #size= / #q= / #brand= off the URL (getHashParams in storefront.html),
+       * so this is a real filtered view, not the front page.
+       *
+       * ⚠️ THIS IS A PLASTER, NOT THE CURE. The cure is sending images through Meta's Graph
+       * API instead of ManyChat — both retail numbers are already on the Cloud API and
+       * approved. See the photo-pipe section in HANDOVER.md. */
+      let closing = L(END_OF_PHOTOS_T, sub);
+      if (SITE_LIVE) {
+        const sz = wantSize != null ? String(wantSize).trim() : '';
+        const link = sz ? `${WEBSITE}/#size=${encodeURIComponent(sz)}` : WEBSITE;
+        closing += `\n\nCan't see the pictures? 👉 ${link}${sz ? ` — every size ${sz} we have, with photos` : ''}`;
+      }
+      try { await sendChunk(sub, [{ type: 'text', text: closing }], token); } catch (e) { /* non-fatal */ }
     }
   }
   // last_shoe: the FINAL photo that went out — Kiki's best guess when the customer
