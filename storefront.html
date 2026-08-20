@@ -1123,6 +1123,26 @@ function parseSizes(str){if(!str.trim())return[];return str.split(',').map(s=>s.
 function formatSizesWithCounts(sizes){const order=[],counts={};(sizes||[]).forEach(s=>{s=String(s);if(!(s in counts)){counts[s]=0;order.push(s);}counts[s]++;});return order.map(s=>counts[s]>1?counts[s]+'x'+s:s).join(', ');}
 function formatPrice(n){return(!n||n==0)?'Price TBD':'$'+parseFloat(n).toFixed(2);}
 function uniqueSizes(arr){return[...new Set(arr)].sort((a,b)=>parseFloat(a)-parseFloat(b));}
+/* ⚠️ NEVER SHOW A SIZE THE SERVER HAS NOT CONFIRMED (Rodney 2026-08-19).
+   A customer insisted he could see a 9.5 Air Max 95 Black/Blue. He was right about what the
+   site said — the page ships a hardcoded `catalog` array (line ~3641) whose sizes are a snapshot
+   from whenever it was last built, and it PAINTS THEM BEFORE IT EVER ASKS THE SERVER
+   (renderInventory at ~6815; the first /shop/state is a 700ms setTimeout at ~7633).
+   Measured against live stock that night: 20 shoes advertising 33 pairs that were gone,
+   about $4,090 of stock that did not exist, plus 5 shoes staff had deliberately deleted.
+   This is the "a sold size came back" complaint from the other end — the size never came back,
+   the page never stopped saying it was there.
+   `_invReady` already knew the answer; it just gated UPLOADS, not what a shopper sees. */
+function _stockKnown(){ return typeof _invReady!=='undefined' && _invReady===true; }
+function _stockFailed(){ return typeof _invFailed!=='undefined' && _invFailed===true; }
+/* What goes where the size chips would be, until the shelf is confirmed. Never a size. */
+function _sizesPending(){
+  return _stockFailed()
+    ? '<div class="size-chip" style="cursor:default;opacity:.75;width:auto;padding:0 10px;">Message us to check sizes</div>'
+    : '<div class="size-chip" style="cursor:default;opacity:.6;width:auto;padding:0 10px;">Checking sizes…</div>';
+}
+/* Plain-text version for the places that build a sentence rather than chips. */
+function _sizesPendingText(){ return _stockFailed()?'Message us to check sizes':'Checking sizes…'; }
 function openWA(num,msg){
   const clean=num.replace(/[^0-9]/g,'');
   const url='https://wa.me/'+clean+'?text='+msg;
@@ -1745,7 +1765,9 @@ function iWantThis(id,preSize){_sfx.whoosh();
   const img=document.getElementById('want-shoe-img');
   img.src=s.image||'';img.style.display=s.image?'block':'none';
   const dispSizes=uniqueSizes(s.sizes);
-  document.getElementById('want-size-grid').innerHTML=dispSizes.map(sz=>`<button class="size-pick-btn" onclick="pickWantSize('${sz}')" id="wsb-${sz.replace('.','_')}">${sz}</button>`).join('');
+  document.getElementById('want-size-grid').innerHTML = !_stockKnown()
+    ? '<div style="font-size:12px;color:var(--text-muted);padding:6px 0;">'+_sizesPendingText()+'</div>'
+    : dispSizes.map(sz=>`<button class="size-pick-btn" onclick="pickWantSize('${sz}')" id="wsb-${sz.replace('.','_')}">${sz}</button>`).join('');
   if(preSize){setTimeout(()=>{const pre=document.getElementById('wsb-'+preSize.replace('.','_'));if(pre){pre.classList.add('selected');}},30);}
   modal.classList.add('open');
 }
@@ -2624,6 +2646,9 @@ function renderInventory(){
     const uniq=[...new Set(shoe.sizes)].sort((a,b)=>parseFloat(a)-parseFloat(b));
     return uniq.map(sz=>`<div class="size-chip" style="position:relative;cursor:pointer;" title="Tap to mark size ${sz} sold" onclick="_sfx.size();quickSellSize('${shoe.id}','${sz}')">${sz}<span style="position:absolute;top:-6px;right:-6px;background:var(--accent);color:#000;font-size:9px;font-weight:700;border-radius:8px;padding:1px 4px;line-height:1.3;">${counts[sz]}</span></div>`).join('');
   } else {
+    // 🛑 The customer branch. This exact expression is what showed a 9.5 that had been sold.
+    // Staff keep seeing the local copy (they are the ones correcting it); shoppers wait.
+    if(!_stockKnown()) return _sizesPending();
     return dispSizes.map(sz=>`<div class="size-chip" style="cursor:pointer;" ontouchstart="_sfx.size();selectSize(this,'${shoe.id}','`+sz+`');event.preventDefault();" onclick="_sfx.size();selectSize(this,'${shoe.id}','`+sz+`')">${sz}</div>`).join('');
   }
 })()}</div>
@@ -3473,7 +3498,7 @@ function renderAds(){
       <div style="flex:1;min-width:0">
         <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--accent);font-weight:700;margin-bottom:4px">${s.brand}</div>
         <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px;line-height:1.2">${s.name}</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${s.color||''} · Sizes: ${[...new Set(s.sizes)].join(', ')}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${s.color||''} · Sizes: ${_stockKnown()?[...new Set(s.sizes)].join(', '):_sizesPendingText()}</div>
         <div style="display:flex;align-items:center;gap:10px">
           <span style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent)">${s.price>0?'$'+parseFloat(s.price).toFixed(2):'Price TBD'}</span>
           <button onclick="iWantThis('${s.id}')" style="background:#25D366;border:none;color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">I Want This</button>
@@ -3509,7 +3534,7 @@ function openStockList(){
   if(!avail.length){body.innerHTML='<p style="padding:20px;color:var(--text-muted)">No shoes in stock.</p>';document.getElementById('stock-modal').classList.add('open');return;}
   body.innerHTML=avail.map(s=>{
     var sid = s.id;
-    var szHtml = [...new Set(s.sizes)].map(sz=>'<span ontouchstart="event.stopPropagation();document.getElementById(\'stock-modal\').classList.remove(\'open\');iWantThis(\''+sid+'\',\''+sz+'\');event.preventDefault();" onclick="event.stopPropagation();document.getElementById(\'stock-modal\').classList.remove(\'open\');iWantThis(\''+sid+'\',\''+sz+'\')" style="background:var(--surface3);border:1px solid var(--accent);border-radius:4px;padding:3px 8px;font-size:10px;font-family:Space Mono,monospace;color:var(--accent);cursor:pointer;touch-action:manipulation;display:inline-block;">'+sz+'</span>').join('');
+    var szHtml = (!_stockKnown()) ? '<span style="font-size:10px;color:var(--text-muted);">'+_sizesPendingText()+'</span>' : [...new Set(s.sizes)].map(sz=>'<span ontouchstart="event.stopPropagation();document.getElementById(\'stock-modal\').classList.remove(\'open\');iWantThis(\''+sid+'\',\''+sz+'\');event.preventDefault();" onclick="event.stopPropagation();document.getElementById(\'stock-modal\').classList.remove(\'open\');iWantThis(\''+sid+'\',\''+sz+'\')" style="background:var(--surface3);border:1px solid var(--accent);border-radius:4px;padding:3px 8px;font-size:10px;font-family:Space Mono,monospace;color:var(--accent);cursor:pointer;touch-action:manipulation;display:inline-block;">'+sz+'</span>').join('');
     var price = s.price>0 ? '$'+parseFloat(s.price).toFixed(2) : 'TBD';
     var actionBtns = currentRole!=='employee'
       ? '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">'
@@ -3558,7 +3583,7 @@ function openBrandList(){
     bShoes.forEach(function(s){
       var sid=s.id;
       var price=s.price>0?'$'+parseFloat(s.price).toFixed(2):'TBD';
-      var szHtml=[...new Set(s.sizes)].map(function(sz){
+      var szHtml=(!_stockKnown()) ? '<span style="font-size:10px;color:var(--text-muted);">'+_sizesPendingText()+'</span>' : [...new Set(s.sizes)].map(function(sz){
         return '<span ontouchstart="event.stopPropagation();document.getElementById(\'brand-modal\').classList.remove(\'open\');iWantThis(\''+sid+'\',\''+sz+'\');event.preventDefault();" onclick="event.stopPropagation();document.getElementById(\'brand-modal\').classList.remove(\'open\');iWantThis(\''+sid+'\',\''+sz+'\')" style="background:var(--surface3);border:1px solid var(--accent);border-radius:4px;padding:3px 8px;font-size:10px;font-family:Space Mono,monospace;color:var(--accent);cursor:pointer;touch-action:manipulation;display:inline-block;">'+sz+'</span>';
       }).join('');
       var actionBtns=currentRole!=='employee'
@@ -4494,7 +4519,14 @@ function openBrandList(){
     // of the named size IF present (guarded by a flag so it can never double-apply or resurrect
     // stock) and stamps updatedAt so the newest-wins sync pushes it to the server and every phone.
     try{ if(localStorage.getItem('sp_stockfix_v2')!=='1'){
-      var _fix1=function(id,sz,addInstead){ var s=shoes.find(function(x){return x.id===id;}); if(!s||!Array.isArray(s.sizes))return; var i=s.sizes.findIndex(function(x){return String(parseFloat(x))===String(parseFloat(sz));}); if(i>-1){ s.sizes.splice(i,1); if(addInstead)s.sizes.push(String(addInstead)); s.updatedAt=Date.now(); } };
+      /* ⚠️ These one-off corrections deliberately do NOT stamp updatedAt (Rodney 2026-08-19).
+         They used to set updatedAt=Date.now(). applyServerShoes only accepts the server when
+         impT >= exT, so on a fresh device a patch stamped "now" was NEWER than anything the
+         server held — meaning the patches written to CORRECT stock were the very thing
+         blocking the server from correcting it, airmax95bkbl001 among them. With no stamp,
+         exT falls to 0 and live stock always wins. That is the right order of authority:
+         these fix FACTORY data, they are not observations of the shelf. */
+      var _fix1=function(id,sz,addInstead){ var s=shoes.find(function(x){return x.id===id;}); if(!s||!Array.isArray(s.sizes))return; var i=s.sizes.findIndex(function(x){return String(parseFloat(x))===String(parseFloat(sz));}); if(i>-1){ s.sizes.splice(i,1); if(addInstead)s.sizes.push(String(addInstead)); } };
       _fix1('jordan4blackcat001','12','8.5'); // box actually holds an 8.5, not a 12
       _fix1('airmax95bkbl001','8');           // the 8 isn't there (only the 7)
       _fix1('airmax90bkyel001','8');          // sold via Kiki 2026-07-22; site never synced
@@ -4509,9 +4541,9 @@ function openBrandList(){
     // Both conditions make the fix converge safely across every phone syncing to the cloud.
     try{ if(localStorage.getItem('sp_stockfix_v3')!=='1'){
       var _lb=shoes.find(function(x){return x.id==='jordan11white001';});
-      if(_lb&&Array.isArray(_lb.sizes)&&!_lb.sizes.some(function(x){return parseFloat(x)===12;})){ _lb.sizes.push('12'); _lb.sold=false; _lb.updatedAt=Date.now(); }
+      if(_lb&&Array.isArray(_lb.sizes)&&!_lb.sizes.some(function(x){return parseFloat(x)===12;})){ _lb.sizes.push('12'); _lb.sold=false; }
       var _cc=shoes.find(function(x){return x&&/concord/i.test(String(x.nickname||'')+' '+String(x.name||''))&&String(x.brand||'').toLowerCase()==='jordan';});
-      if(_cc&&Array.isArray(_cc.sizes)){ var _tw=_cc.sizes.filter(function(x){return parseFloat(x)===12;}); if(_tw.length>=2){ var _ci=_cc.sizes.findIndex(function(x){return parseFloat(x)===12;}); if(_ci>-1){ _cc.sizes.splice(_ci,1); _cc.updatedAt=Date.now(); } } }
+      if(_cc&&Array.isArray(_cc.sizes)){ var _tw=_cc.sizes.filter(function(x){return parseFloat(x)===12;}); if(_tw.length>=2){ var _ci=_cc.sizes.findIndex(function(x){return parseFloat(x)===12;}); if(_ci>-1){ _cc.sizes.splice(_ci,1); } } }
       localStorage.setItem('sp_stockfix_v3','1');
     } }catch(e){}
     // 🧾 CORRECTION v4 (Rodney 2026-07-24): "there was only 1" — the Concord never had two 12s,
@@ -4520,7 +4552,7 @@ function openBrandList(){
     // the shoe sold out if no sizes remain.
     try{ if(localStorage.getItem('sp_stockfix_v4')!=='1'){
       var _cc4=shoes.find(function(x){return x&&/concord/i.test(String(x.nickname||'')+' '+String(x.name||''))&&String(x.brand||'').toLowerCase()==='jordan';});
-      if(_cc4&&Array.isArray(_cc4.sizes)){ var _ci4=_cc4.sizes.findIndex(function(x){return parseFloat(x)===12;}); if(_ci4>-1){ _cc4.sizes.splice(_ci4,1); if(!_cc4.sizes.length)_cc4.sold=true; _cc4.updatedAt=Date.now(); } }
+      if(_cc4&&Array.isArray(_cc4.sizes)){ var _ci4=_cc4.sizes.findIndex(function(x){return parseFloat(x)===12;}); if(_ci4>-1){ _cc4.sizes.splice(_ci4,1); if(!_cc4.sizes.length)_cc4.sold=true; } }
       localStorage.setItem('sp_stockfix_v4','1');
     } }catch(e){}
     // 🧾 CORRECTION v5 (Rodney 2026-07-24): physical count of the Legend Blue J11 = one 7 and one
@@ -4529,7 +4561,7 @@ function openBrandList(){
     // devices, so this can never drift or double-apply.
     try{ if(localStorage.getItem('sp_stockfix_v5')!=='1'){
       var _lb5=shoes.find(function(x){return x.id==='jordan11white001';});
-      if(_lb5){ _lb5.sizes=['7','10.5']; _lb5.sold=false; _lb5.updatedAt=Date.now(); }
+      if(_lb5){ _lb5.sizes=['7','10.5']; _lb5.sold=false; }
       localStorage.setItem('sp_stockfix_v5','1');
     } }catch(e){}
     // Save metadata to localStorage after building
@@ -4685,9 +4717,11 @@ function openShoeDetail(id){
       </div>`:''}
       <div style="font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:var(--accent);margin-bottom:18px;">$${s.price}</div>
       ${s.sold?'<div style="background:rgba(255,68,68,0.15);border:1px solid rgba(255,68,68,0.4);color:#ff6666;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;text-align:center;margin-bottom:14px;">SOLD OUT</div>':''}
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:8px;">Available Sizes ${!s.sold&&s.sizes.length?`<span style="color:var(--accent);font-weight:800;">· Total: ${s.sizes.length} pair${s.sizes.length!==1?'s':''}</span>`:''}</div>
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:8px;">Available Sizes ${_stockKnown()&&!s.sold&&s.sizes.length?`<span style="color:var(--accent);font-weight:800;">· Total: ${s.sizes.length} pair${s.sizes.length!==1?'s':''}</span>`:''}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-        ${dispSizes.map(sz=>`<div style="background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 13px;font-size:13px;font-family:'Space Mono',monospace;">${sz}</div>`).join('')}
+        ${!_stockKnown()
+          ? `<div style="background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 13px;font-size:13px;opacity:.7;">${_sizesPendingText()}</div>`
+          : dispSizes.map(sz=>`<div style="background:var(--surface3);border:1px solid var(--border);border-radius:5px;padding:7px 13px;font-size:13px;font-family:'Space Mono',monospace;">${sz}</div>`).join('')}
       </div>
       ${!s.sold?`<div style="display:flex;gap:8px;">
         <button class="restock-btn" onclick="openRestockModal('${id}')" style="flex:1;padding:11px;text-align:center;font-size:12px;">🙏 Restock</button>
@@ -4697,7 +4731,9 @@ function openShoeDetail(id){
       <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:8px;">🛒 Buy Now — pick your size</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-          ${dispSizes.map(sz=>`<button class="size-pick-btn" onclick="pickBuySize('${id}','${sz}')" id="bsb-${sz.replace('.','_')}">${sz}</button>`).join('')}
+          ${!_stockKnown()
+            ? `<div style="font-size:12px;color:var(--text-muted);padding:7px 0;">${_sizesPendingText()}</div>`
+            : dispSizes.map(sz=>`<button class="size-pick-btn" onclick="pickBuySize('${id}','${sz}')" id="bsb-${sz.replace('.','_')}">${sz}</button>`).join('')}
         </div>
         <button id="addcart-${id}" onclick="addSelectedToCart('${id}')" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;opacity:.45;">Add to Cart 🛒</button>
       </div>`:`<button class="restock-btn" onclick="openRestockModal('${id}')" style="width:100%;padding:11px;text-align:center;font-size:12px;">🙏 Restock When Back</button>`}
@@ -7122,8 +7158,21 @@ var SHOP_KEY = 'sp242-shop-c988c5711bf067dccccc85b55fc14fde';
 var _shopLastRev = -1;
 
 function shopGet(path){
-  return fetch(SHOP_API + path + (path.indexOf('?')>-1?'&':'?') + 'key=' + SHOP_KEY, {cache:'no-store'})
-    .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json(); });
+  // ⏱️ TIMEOUT + ONE RETRY (Rodney 2026-08-19). There was neither. A hung request never
+  // rejected, so syncInventory()'s .then never ran, _invReady stayed false forever, and the
+  // page sat there showing factory sizes with nothing on screen to say so. The 15s poller
+  // only re-syncs when /shop/rev CHANGES, so a failed first sync was never retried either.
+  function once(ms){
+    var ctl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+    var t = ctl ? setTimeout(function(){ try{ctl.abort();}catch(e){} }, ms) : null;
+    return fetch(SHOP_API + path + (path.indexOf('?')>-1?'&':'?') + 'key=' + SHOP_KEY,
+                 ctl ? {cache:'no-store', signal:ctl.signal} : {cache:'no-store'})
+      .then(function(r){ if(t)clearTimeout(t); if(!r.ok) throw new Error('http '+r.status); return r.json(); },
+            function(e){ if(t)clearTimeout(t); throw e; });
+  }
+  return once(8000).catch(function(){
+    return new Promise(function(res){ setTimeout(res, 1200); }).then(function(){ return once(8000); });
+  });
 }
 function shopPost(path, body){
   return fetch(SHOP_API + path + '?key=' + SHOP_KEY, {
@@ -7495,6 +7544,9 @@ var _lastInvSnap={}, _suppressInvPush=false, _invSeeded=false;
 // silent until syncInventory() has succeeded once — and if a human edits during that gap they
 // are TOLD, never silently ignored (see the toast in _pushInvChanges).
 var _invReady=false;
+/* Set when we asked the server for the shelf and could not get it. Drives the shopper-facing
+   "Message us to check sizes" instead of a silent fall-back to factory sizes. */
+var _invFailed=false;
 function _catIdList(){ return (window._SP_CATALOG_IDS||[]); }
 function _catMapById(){ var m={}; (window._SP_CATALOG||[]).forEach(function(c){ m[c.id]=c; }); return m; }
 // Lite form: catalog shoes → only the mutable fields; custom shoes → full (minus base64).
@@ -7601,10 +7653,22 @@ function syncInventory(){
       });
     }
     var changed=applyServerShoes(st.shoes, combinedDeleted);
-    if(changed){ _suppressInvPush=true; try{ save(); }catch(e){} _suppressInvPush=false; var pg=document.getElementById('page-inventory'); if(pg&&pg.classList.contains('active')) renderInventory(); }
+    if(changed){ _suppressInvPush=true; try{ save(); }catch(e){} _suppressInvPush=false; }
     _rebuildInvSnap();
+    _invFailed=false;
     _invReady=true;   // we have now seen the real shelf — safe to push changes from here on
-  }).catch(function(){});
+    // 🔁 ALWAYS REPAINT, not just when something changed and not just on the inventory page.
+    // Before this, the repaint was `if(changed) … if(#page-inventory.active)`. A shopper who
+    // tapped ENTER straight away kept the factory chips on screen, and on a cold device
+    // NOTHING changed server-side, so `changed` was false and it never repainted at all —
+    // leaving "Checking sizes…" up for good. The shelf is now known either way: redraw.
+    try{ renderInventory(); }catch(e){}
+  }).catch(function(){
+    // ⚠️ THIS USED TO BE AN EMPTY CATCH. Silence here is what let a customer be shown a 9.5
+    // that had been sold — the fetch failed, nobody knew, and the page kept its factory list.
+    _invFailed=true;
+    try{ renderInventory(); }catch(e){}
+  });
 }
 // Every inventory change goes through save() — push the deltas afterward.
 if(typeof save==='function' && !save._wrapped){

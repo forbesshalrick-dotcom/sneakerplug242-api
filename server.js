@@ -2103,6 +2103,14 @@ function liveShoeMap() {
         });
       }
     }
+    // 🚫 NEVER OFFER A SHOE THE SHELF HAS NEVER CONFIRMED (Rodney 2026-08-19).
+    // Without `ov`, sizesRaw is still catalog.json's factory list — a snapshot from whenever
+    // the catalog was written. The website had exactly this bug: on the night it was found it
+    // was advertising 33 pairs that were gone, ~$4,090 of stock, and a size 7 Air Max 97 the
+    // shop had no record of at all. Kiki reads the SAME baseline here, so she was offering the
+    // same phantom pairs over WhatsApp — and sendShoePhotos indexes this map, so the albums
+    // carried them too. A shoe the shop app has never pushed is UNKNOWN stock, not stock.
+    if (!ov) return;
     if (sold || !sizesRaw || sizesRaw.length === 0) return; // out of stock — never offer it
     // 🔥 SALE (Rodney 2026-07-29): he wanted "SALE $60" to go out with the shoe instead of a
     // bare price, so customers can see it's marked down. Kept as a FLAG + the old price rather
@@ -8718,8 +8726,16 @@ let STORE_HTML = null, STORE_HTML_GZ = null;
       // it at our own /store/app.webmanifest (served below); icons still ride the CDN, which is fine.
       .replace(/(["'`])manifest\.json(["'`])/g, '$1/store/app.webmanifest$2')
       .replace(/(["'`])(icon-192\.png|icon-512\.png|apple-touch-icon\.png)(["'`])/g, '$1' + _SHOP_CDN + '/$2$3')
-      // neuter SW registration → chainable no-op so any .then()/.catch() after it is harmless
-      .replace(/navigator\.serviceWorker\.register\([^)]*\)/g, '({then:function(){return this},catch:function(){return this}})');
+      // ⚠️ THE SW REGISTRATION USED TO BE NEUTERED HERE, and it must not be any more.
+      // It was rewritten to a chainable no-op because sw.js DID NOT EXIST — registering it
+      // 404'd. sw.js now exists (commit 74bd449), and it is the only thing that can draw a
+      // push notification on a phone. With this rewrite in place, Rodney's "need agent"
+      // alerts reach the device and have nothing to display them — which is exactly the
+      // bug that fix was meant to close. Verified against the live HTML: the served page
+      // contained no serviceWorker.register at all.
+      // sw.js is deliberately push-only (no fetch handler, no cache), so re-enabling this
+      // cannot bring back the stale-page problems that caused it to be neutered.
+      ;
     STORE_HTML = html;
     STORE_HTML_GZ = zlib.gzipSync(Buffer.from(html));
   } catch (e) { STORE_HTML = null; STORE_HTML_GZ = null; }
