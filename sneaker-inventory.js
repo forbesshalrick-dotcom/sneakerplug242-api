@@ -17,8 +17,35 @@
 
 const STORE = 'Sneaker Inventory';
 
-/** ManyChat account id for this business, from app.manychat.com/fb5425733. */
-const MANYCHAT_ACCOUNT = '5425733';
+/**
+ * ManyChat account id(s) for this business, from the app.manychat.com/fb<ID> URL.
+ *
+ * ⚠️ A LIST, NOT ONE VALUE, AND ON PURPOSE (Rodney 2026-08-19). His wholesale
+ * WhatsApp number `+1 904 454 8720` was banned by Meta that evening — the
+ * WhatsApp Business Account `1090557790147338` shows Disabled, "doesn't meet our
+ * policy guidelines". He re-registered on `+1 913 453 4008` and had to build a
+ * NEW ManyChat account (`5440126`) for it, because ManyChat will not swap the
+ * number on the old one while it is stuck to the disabled WABA.
+ *
+ * Both ids are accepted deliberately. If only the new one were listed, any
+ * message still arriving on the old account would fall through to `return null`
+ * and be answered by the RETAIL brain — retail prices, A1 album codes, $180
+ * Jordans quoted to a shop owner. That is the worst bug this business has had
+ * (16 Aug) and it is not worth risking to keep a constant tidy. Old ids cost
+ * nothing to keep; drop `5425733` only once that account is deleted.
+ *
+ * Override with SI_MANYCHAT_ACCOUNTS on Railway (comma-separated) — no deploy.
+ */
+const MANYCHAT_ACCOUNTS = (process.env.SI_MANYCHAT_ACCOUNTS || '5440126,5425733')
+  .split(',').map(x => x.trim()).filter(Boolean);
+
+/** True if this ManyChat account id belongs to Sneaker Inventory. */
+function isOurAccount(acct) {
+  return !!acct && MANYCHAT_ACCOUNTS.includes(String(acct).trim());
+}
+
+/** Kept for anything still reading a single id. The live one is first. */
+const MANYCHAT_ACCOUNT = MANYCHAT_ACCOUNTS[0];
 
 const SITE = process.env.SI_SITE || 'https://sneakerinventory.com';
 
@@ -560,4 +587,4 @@ function ensurePassword(text, { local = false } = {}) {
   return text.trimEnd() + '\n\nPassword: ' + pw;
 }
 
-module.exports = { STORE, MANYCHAT_ACCOUNT, search, facts, isBahamian, ensurePassword, SITE };
+module.exports = { STORE, MANYCHAT_ACCOUNT, MANYCHAT_ACCOUNTS, isOurAccount, search, facts, isBahamian, ensurePassword, SITE };

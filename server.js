@@ -840,7 +840,7 @@ function getStore(req) {
   const acct = tok.split(':')[0];
   if (acct === '3732738') return 'Trendy Kicks';
   if (acct === '3732170') return 'Official Sneaker Crew';
-  if (acct === SI.MANYCHAT_ACCOUNT) return SI.STORE;
+  if (SI.isOurAccount(acct)) return SI.STORE;   // accepts the new account AND the old one — see MANYCHAT_ACCOUNTS
   return null;
 }
 
