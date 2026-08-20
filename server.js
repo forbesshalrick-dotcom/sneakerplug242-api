@@ -1489,7 +1489,17 @@ const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
 // the link — it read like she'd forgotten, and it invited a photo dump that WhatsApp
 // cannot carry. His words: "let me know if you see something you like, we'll line it up
 // ASAP." So: never offer photos or a catalogue here, just nudge them on the site.
-const WHOLESALE_NUDGE_MSG = "Take your time looking through the site 👟 Let me know if you see something you like and I'll line it up ASAP.";
+// 🚨 THIS NUDGE IS OFTEN THE ONLY THING THAT ARRIVES (Rodney 2026-08-20, a real buyer).
+// "Boxer" clicked the ad at 6:18pm, got the site + password, replied "Good day price please"
+// at 6:18 — and that reply NEVER REACHED THIS SERVER. His inbox thread holds three messages
+// and his question is not one of them. Five minutes later this timer fired, so the customer
+// saw a shop that answered a question he had asked with "take your time looking through the
+// site". It reads as being brushed off. Same shape as the "Nassau" buyer an hour earlier.
+// We cannot make ManyChat deliver his message. But this nudge is the ONE message that still
+// gets out when the pipe is swallowing, so it must give him a way back in — ask him to send
+// it again, the way the retail closer already does. Rodney's own wording stays first and
+// untouched; the invitation is added after it.
+const WHOLESALE_NUDGE_MSG = "Take your time looking through the site 👟 Let me know if you see something you like and I'll line it up ASAP.\n\n(If you already sent me a message and I didn't answer — send it once more 🙏 WhatsApp drops one now and then.)";
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
@@ -1549,9 +1559,9 @@ function L(map, sub) { return map[subLang.get(sub) || 'en'] || map.en; }
    or a catalogue — the site link already went out. */
 const WS_ASKME_T = {
   en: WHOLESALE_NUDGE_MSG,
-  es: "Tómate tu tiempo mirando el sitio 👟 Avísame si ves algo que te guste y te lo preparo enseguida.",
-  ht: "Pran tan ou gade sit la 👟 Fè m konnen si ou wè yon bagay ou renmen, m ap prepare l touswit.",
-  fr: "Prends ton temps sur le site 👟 Dis-moi si tu vois quelque chose qui te plaît et je te le prépare tout de suite.",
+  es: "Tómate tu tiempo mirando el sitio 👟 Avísame si ves algo que te guste y te lo preparo enseguida.\n\n(Si ya me escribiste y no te contesté — mándalo otra vez 🙏 WhatsApp pierde alguno de vez en cuando.)",
+  ht: "Pran tan ou gade sit la 👟 Fè m konnen si ou wè yon bagay ou renmen, m ap prepare l touswit.\n\n(Si ou te deja ekri m e m pa reponn — voye l yon fwa ankò 🙏 WhatsApp pèdi youn tanzantan.)",
+  fr: "Prends ton temps sur le site 👟 Dis-moi si tu vois quelque chose qui te plaît et je te le prépare tout de suite.\n\n(Si tu m'as déjà écrit et que je n'ai pas répondu — renvoie-le 🙏 WhatsApp en perd un de temps en temps.)",
 };
 
 const ASKME_T = {
