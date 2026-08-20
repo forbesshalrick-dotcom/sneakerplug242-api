@@ -36,7 +36,13 @@ const STORE = 'Sneaker Inventory';
  *
  * Override with SI_MANYCHAT_ACCOUNTS on Railway (comma-separated) — no deploy.
  */
-const MANYCHAT_ACCOUNTS = (process.env.SI_MANYCHAT_ACCOUNTS || '5440126,5425733')
+// ⚠️ 5440106, NOT 5440126. I guessed the number off a half-read URL earlier and it was
+// wrong by one digit — navigating to fb5440126 silently bounced to Official Sneaker Crew.
+// Read off the real address bar on 2026-08-20: app.manychat.com/fb5440106/dashboard,
+// account "The Inventory", connected number +1 913 453 4008. A wrong id here is not a
+// small thing: getStore() would fall through to the RETAIL brain and quote a shop owner
+// $180 Jordans with A1 album codes.
+const MANYCHAT_ACCOUNTS = (process.env.SI_MANYCHAT_ACCOUNTS || '5440106,5440126,5425733')
   .split(',').map(x => x.trim()).filter(Boolean);
 
 /** True if this ManyChat account id belongs to Sneaker Inventory. */
