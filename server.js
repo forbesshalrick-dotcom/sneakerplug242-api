@@ -3710,11 +3710,18 @@ if (reminderTick.unref) reminderTick.unref();
 const DELIVERIES_FILE = REMINDERS_FILE ? REMINDERS_FILE.replace('reminders.json', 'deliveries.json') : null;
 let deliveriesToday = [];   // { day, n, at, who, what, sub, shoeId, size, price, store, confirmed, asks }
 let deliveryCounter = 0;
+// The 9 PM end-of-day list is numbered 1..N in the message, and that numbering is NOT each
+// order's own #n — the list is reversed so the oldest reads as 1. Rodney answered "3, 5 and 7"
+// on 20 Aug and Kiki had no memory of what her own list had said, so she asked him for shoe
+// names instead, nothing was booked, and nothing came off the website. The mapping from
+// list position -> order number now lives here, and on disk, because a push restarts us.
+let endOfDayList = null;    // { day, at, ns: [orderNumber, ...] }  index+1 = the number he sees
 try {
   if (DELIVERIES_FILE && require('fs').existsSync(DELIVERIES_FILE)) {
     const saved = JSON.parse(require('fs').readFileSync(DELIVERIES_FILE, 'utf8')) || {};
     const today = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
     if (saved.day === today) {
+      endOfDayList = saved.endOfDay || null;
       deliveriesToday = Array.isArray(saved.rows) ? saved.rows : [];
       deliveryCounter = Number(saved.counter) || deliveriesToday.length;
       console.log('[deliveries] restored', deliveriesToday.length, 'from disk —', deliveriesToday.filter(d => d.confirmed === null).length, 'still unanswered');
@@ -3728,7 +3735,7 @@ function saveDeliveries() {
   deliverySaveT = setTimeout(() => {
     try {
       const day = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
-      require('fs').writeFileSync(DELIVERIES_FILE, JSON.stringify({ day, counter: deliveryCounter, rows: deliveriesToday }));
+      require('fs').writeFileSync(DELIVERIES_FILE, JSON.stringify({ day, counter: deliveryCounter, rows: deliveriesToday, endOfDay: endOfDayList }));
     } catch (_) {}
   }, 800);
   if (deliverySaveT.unref) deliverySaveT.unref();
@@ -3977,6 +3984,14 @@ function handleDeliveryAnswer(text, staffName) {
   if (!rec) return `I don't have a delivery #${num} for today 🤔 Send me the number from the message I sent you.`;
   if (rec.confirmed !== null) return `#${num} was already marked ${rec.confirmed ? 'delivered' : 'not delivered'} 👍`;
   const yes = /^(done|yes|yeah|yep|delivered|deliver|del|sold|done deal|went through)$/.test(word);
+  return settleDelivery(rec, yes, staffName);
+}
+
+// Book ONE delivery either way. Split out of handleDeliveryAnswer (2026-08-21) so the
+// end-of-day list below settles orders through exactly the same code that moves stock —
+// a second copy of a money path is how the two drift apart.
+function settleDelivery(rec, yes, staffName) {
+  const num = rec.n;
   rec.confirmed = yes;
   rec.confirmedBy = staffName || 'staff';
   saveDeliveries();
@@ -4006,6 +4021,74 @@ function handleDeliveryAnswer(text, staffName) {
     return `Thanks — #${num} is marked delivered, but the stock update errored (${String(e.message || e).slice(0, 60)}). Flagged for the manager.`;
   }
 }
+// ── The reply to the 9 PM end-of-day list (Rodney 2026-08-20) ────────────────
+// He got the list, replied "3, 5 and 7", and Kiki answered "I need a bit more info".
+// He then spelled it out — "3, 5 and 7 did not sell" — and she asked him for shoe
+// names and codes, which is the one thing the list already told her. Nothing was
+// booked and nothing came off the website.
+//
+// The contract in the message is: NUMBERS = the ones that did NOT happen; everything
+// else went through. So a reply settles the WHOLE list in one go, both ways.
+//
+// ⚠️ Anchored as hard as handleDeliveryAnswer, for the same reason (16 Aug): a loose
+// match here eats ordinary staff sentences like "no 3 left in that size". This only
+// fires when today's list is genuinely open AND the message is nothing but numbers,
+// optionally followed by "did not sell". Everything else goes to the model untouched.
+function handleEndOfDayAnswer(text, by) {
+  const eod = endOfDayList;
+  if (!eod || !Array.isArray(eod.ns) || !eod.ns.length) return null;
+  if (eod.day !== nassauNow().toISOString().slice(0, 10)) return null;   // yesterday's list is closed
+  if (Date.now() - eod.at > 14 * 3600 * 1000) return null;
+  const t = String(text || '').trim();
+  if (!t || t.length > 60) return null;
+  const low = t.toLowerCase();
+
+  const allGood = /^(all\s*good|all\s*went\s*through|all\s*sold|all\s*of\s*them|yes\s*all|👍)[\s.!👍]*$/.test(low);
+  let picked = [];
+  if (!allGood) {
+    const m = /^([0-9\s,and&+]+?)(?:\s*(?:did\s*not|didn'?t|never|not)\s*(?:sell|sold|happen|go\s*through|deliver(?:ed)?))?[\s.!]*$/.exec(low);
+    if (!m) return null;
+    const spelled = /(did\s*not|didn'?t|never|not)/.test(low);
+    const nums = (m[1].match(/[0-9]{1,2}/g) || []).map(Number).filter(n => n >= 1 && n <= eod.ns.length);
+    if (!nums.length) return null;
+    picked = [...new Set(nums)];
+    // A LONE number is the ambiguous case — staff say "9" about a size all day long. Only
+    // take it as a list answer if he is clearly answering the message (within 3 hours) or
+    // he spelled out that it didn't sell. Two or more numbers is unmistakably the list.
+    if (picked.length === 1 && !spelled && Date.now() - eod.at > 3 * 3600 * 1000) return null;
+  }
+
+  const day = nassauNow().toISOString().slice(0, 10);
+  const rowFor = i => deliveriesToday.find(d => d.n === eod.ns[i - 1] && d.day === day) || null;
+  const didNot = [], sold = [], already = [], notes = [];
+  for (let i = 1; i <= eod.ns.length; i++) {
+    const rec = rowFor(i);
+    if (!rec) continue;
+    const failed = picked.includes(i);
+    if (rec.confirmed !== null) { already.push(`${i}. ${rec.what} — already ${rec.confirmed ? 'sold' : 'marked not sold'}`); continue; }
+    const line = settleDelivery(rec, !failed, by);
+    (failed ? didNot : sold).push(`${i}. ${rec.what}`);
+    // settleDelivery says so itself when it could not touch the website — pass that on
+    // rather than reporting a clean sweep that did not happen.
+    if (!failed && /couldn't|could not|failed|refused|errored/i.test(String(line))) notes.push(`⚠️ ${i}. ${rec.what} — ${line}`);
+  }
+  if (!didNot.length && !sold.length && !already.length) return null;
+
+  let out = '';
+  if (didNot.length) out += `🚫 Not sold — stock left alone:\n${didNot.join('\n')}\n\n`;
+  if (sold.length) out += `✅ Booked as sold and taken off the website:\n${sold.join('\n')}\n\n`;
+  if (already.length) out += `Already settled earlier:\n${already.join('\n')}\n\n`;
+  if (notes.length) out += `${notes.join('\n')}\n\n`;
+  // Do NOT offer an undo here. Once `confirmed` is set, handleDeliveryAnswer only replies
+  // "already marked" — a promise to put it back would be a promise that does nothing.
+  // Voiding the sale in the app is the real reversal (it restocks the size, see
+  // applyVoidToStock in shop.js).
+  out += 'That closes off today 👍 If one of those is wrong, void the sale on the app and the size goes straight back.';
+  endOfDayList = null;    // answered — a second reply must not re-run the whole list
+  saveDeliveries();
+  return out.trim();
+}
+
 let lastDeliveryCheckDay = '';
 const deliveryCheckTick = setInterval(async () => {
   const local = nassauNow();
@@ -4015,8 +4098,12 @@ const deliveryCheckTick = setInterval(async () => {
   const today = deliveriesToday.filter(d => d.day === day);
   lastDeliveryCheckDay = day;
   if (!today.length) return;                            // nothing went out — nothing to ask
-  const list = today.slice().reverse().map((d, i) =>
+  const ordered = today.slice().reverse();
+  const list = ordered.map((d, i) =>
     `${i + 1}. ${d.what}${d.who ? ' — ' + d.who : ''}  (${d.at})`).join('\n');
+  // Remember what number meant what, or his reply is unanswerable — see endOfDayList above.
+  endOfDayList = { day, at: Date.now(), ns: ordered.map(d => d.n) };
+  saveDeliveries();
   const msg = '🌙 *END OF DAY — DID THESE GO THROUGH?*\n' +
     `We logged ${today.length} order${today.length === 1 ? '' : 's'} today:\n\n${list}\n\n` +
     'Reply with the NUMBERS of any that did NOT happen (e.g. "2 and 4"). ' +
@@ -4470,7 +4557,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const _deliveryAnswerBy = staffName
     || (pendingDeliveries().length ? managerNameForNumber(req) : null);
   if (_deliveryAnswerBy && userText) {
-    const reply = handleDeliveryAnswer(userText, _deliveryAnswerBy);
+    const reply = handleEndOfDayAnswer(userText, _deliveryAnswerBy)
+      || handleDeliveryAnswer(userText, _deliveryAnswerBy);
     if (reply) {
       try { await sendChunk(sub, [{ type: 'text', text: reply }], token); } catch (_) {}
       record(req, { endpoint: 'delivery-answer', sub, by: _deliveryAnswerBy, said: String(userText).slice(0, 40) });
