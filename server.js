@@ -3851,7 +3851,12 @@ function askAboutDelivery(rec) { askAboutDeliveries([rec]); }
 function askAboutDeliveries(list) {
   if (!list || !list.length) return;
   const now = Date.now();
-  const line = r => `#${r.n} — ${r.what}${r.who ? ' for ' + r.who : ''}${r.at ? ' (' + r.at + ')' : ''}`;
+  // 🏪 SAY WHICH SHOP (Rodney 2026-08-20: "Official sneaker crew never sent a delivery
+  // message. Just trendy kicks.") It sent three of today's seven — the chase line simply
+  // never named the business, so an OSC order and a TK order read identically on his phone
+  // and he had no way to tell them apart. He runs two retail identities off one stock; the
+  // shop name is the first thing he needs, not a detail.
+  const line = r => `#${r.n}${r.store ? ' [' + r.store + ']' : ''} — ${r.what}${r.who ? ' for ' + r.who : ''}${r.at ? ' (' + r.at + ')' : ''}`;
   let msg;
   if (list.length === 1) {
     const rec = list[0];
@@ -3952,7 +3957,7 @@ function handleDeliveryAnswer(text, staffName) {
       // were word-for-word the same and asked which one he meant — an unanswerable
       // question). Who it was for and when it came in is what actually tells them apart.
       return `Which one? 🤔 I've got ${open.length} waiting:\n`
-        + open.map(d => `#${d.n} — ${d.what}${d.who ? ' for ' + d.who : ''}${d.at ? ' (' + d.at + ')' : ''}`).join('\n')
+        + open.map(d => `#${d.n}${d.store ? ' [' + d.store + ']' : ''} — ${d.what}${d.who ? ' for ' + d.who : ''}${d.at ? ' (' + d.at + ')' : ''}`).join('\n')
         + `\n\nReply *DONE ${open[0].n}* or *NO ${open[0].n}* with the number.`;
     }
     word = bare[1].toLowerCase();
