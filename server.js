@@ -3280,6 +3280,67 @@ function inboxRecord(account, sub, m) {
     }
   } catch (_) {}
 }
+// ── 🔔 NOBODY PICKED UP (Rodney 2026-08-21) ──────────────────────────────────
+// The human pause has no floor. When a person replies in a thread, Kiki goes silent for 45
+// minutes — correct, that is the whole point — but if that person then walks away, the
+// customer is talking to nobody and NOTHING says so. The pause expires quietly, and because
+// Kiki only ever speaks when a message arrives, a customer who gives up and stops texting is
+// never picked back up at all.
+//
+// Found live: `Jay Chris` (+1 242 806 4826, OSC). He picked the Air Force 1 White in a 9, a
+// human answered "on the way", and he then sent "Ok" → "How far u or" → "I can meet u
+// somewhere" (twice) → a pin. **103 minutes, no reply.** A push fired on each of those and
+// still nobody came — pushes have been unreliable for weeks, so this escalates on the channel
+// that actually works: staff WhatsApp.
+//
+// Deliberately does NOT un-pause. A human said "on the way"; Kiki does not know where the
+// driver is and must not talk over a live handover. Making the silence VISIBLE is the fix —
+// deciding to hand back is Rodney's call, not a timer's.
+const noPickupAlerted = new Map();   // sub -> last alert ts
+const NO_PICKUP_AFTER_MS = 12 * 60 * 1000;   // waiting this long with no answer = nobody came
+const NO_PICKUP_REALERT_MS = 30 * 60 * 1000; // at most one nudge per customer per half hour
+const noPickupTick = setInterval(() => {
+  try {
+    const now = Date.now();
+    for (const t of inboxThreads.values()) {
+      if (!t || !Array.isArray(t.msgs) || !t.msgs.length) continue;
+      let lastIn = 0, lastOut = 0, lastOutHuman = 0, lastInText = '';
+      for (const m of t.msgs) {
+        if (m.dir === 'in') { if (m.ts > lastIn) { lastIn = m.ts; lastInText = m.text || (m.img ? '📷 photo' : (m.loc ? '📍 location' : '')); } }
+        else if (m.dir === 'out') {
+          if (m.ts > lastOut) lastOut = m.ts;
+          if (String(m.sender || '').toLowerCase() !== 'kiki' && m.ts > lastOutHuman) lastOutHuman = m.ts;
+        }
+      }
+      // Only threads a HUMAN took over. If Kiki is running the chat she answers every message,
+      // so "customer spoke last" there means a send failed — a different problem with its own
+      // alarm. This one is strictly "a person stepped in and then vanished".
+      const humanTookOver = lastOutHuman > 0 && lastOutHuman >= lastOut;
+      if (!humanTookOver) continue;
+      if (!(lastIn > lastOut)) continue;                    // they are not actually waiting
+      if (now - lastIn < NO_PICKUP_AFTER_MS) continue;      // give the human a fair chance first
+      const prev = noPickupAlerted.get(t.sub) || 0;
+      if (now - prev < NO_PICKUP_REALERT_MS) continue;
+      noPickupAlerted.set(t.sub, now);
+      if (noPickupAlerted.size > 500) noPickupAlerted.delete(noPickupAlerted.keys().next().value);
+      const who = t.name || t.phone || ('customer ' + t.sub);
+      const mins = Math.round((now - lastIn) / 60000);
+      const msg = '🔔 *NOBODY PICKED UP*\n' + who + (t.phone ? ' (' + t.phone + ')' : '') +
+        ' has been waiting *' + mins + ' min* with no reply.\n' +
+        'Someone replied by hand, so Kiki is staying quiet — she will NOT step in.\n' +
+        (lastInText ? 'Last message: "' + String(lastInText).slice(0, 120) + '"\n' : '') +
+        'Open the chat and answer them, or let Kiki take it back.';
+      try { require('./shop').addAlert(msg, 'Kiki 🤖', { sub: t.sub, account: t.account, pushTitle: '🔔 ' + who + ' waiting ' + mins + 'm', pushBody: String(lastInText).slice(0, 90) }); } catch (_) {}
+      try { require('./shop').blastOnDuty(msg, null); } catch (_) {}
+      // record() reads req.headers and would throw on a stub — ticks log straight to `recent`,
+      // the same way the end-of-day delivery check does.
+      try { recent.unshift({ at: new Date().toISOString(), endpoint: 'no-pickup-alert', sub: t.sub, mins, who });
+            if (recent.length > 120) recent.length = 120; } catch (_) {}
+    }
+  } catch (_) {}
+}, 5 * 60 * 1000);
+if (noPickupTick.unref) noPickupTick.unref();
+
 // Best-effort: pull the customer's profile picture from ManyChat once, so the Inbox
 // shows their face (Rodney: "that's how I easily remember customers"). WhatsApp doesn't
 // always expose one — if ManyChat has no pic, the coloured initial stays. Fetched once
