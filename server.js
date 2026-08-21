@@ -5865,7 +5865,19 @@ function handleChat(req, res) {
   if (userText.trim() && !imageUrl && !audioUrl) {
     const prevTxt = (lastIncomingText.get(sub) || '').trim().toLowerCase().replace(/\s+/g, ' ');
     const nowTxt = userText.trim().toLowerCase().replace(/\s+/g, ' ');
-    if (prevTxt && prevTxt === nowTxt) { nonTextReplay = true; lastReplayAt.set(sub, Date.now()); }
+    // ⏱️ BOUNDED TO 90 SECONDS (Rodney 2026-08-21). This used to fire on ANY exact repeat,
+    // with no time limit at all. WhatsApp re-delivers the old words within SECONDS of the
+    // attachment that displaced them (the case this was built for was ~22s), so a repeat
+    // minutes later is NOT a swallowed pin — it is ManyChat re-firing a stale
+    // `last_input_text`, which it does constantly: measured today, 24 of 50 messages arrived
+    // more than once, one of them 18 times, with gaps up to 29 minutes.
+    // Unbounded, that told a PAYING customer his picture had gone missing when he had sent
+    // nothing — "Sen a pic pls" came in at 11:30 and again 11.8 minutes later, and Kiki
+    // answered the stale copy with "hmm that pic didn't come through on my end 🙈" — and
+    // fired a false "📎 SOMETHING DIDN'T COME THROUGH" alert at staff on top of it.
+    const prevAt = lastIncoming.get(sub) || 0;
+    const withinReplayWindow = prevAt && (Date.now() - prevAt) < 90 * 1000;
+    if (prevTxt && prevTxt === nowTxt && withinReplayWindow) { nonTextReplay = true; lastReplayAt.set(sub, Date.now()); }
   }
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
   const turnAt = Date.now(); // when THIS message arrived — albums born from this turn ignore nothing after it
