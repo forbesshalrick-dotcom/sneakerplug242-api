@@ -642,9 +642,19 @@ app.get('/debug-deliveries', (req, res) => {
   res.json({
     today: day,
     counter: deliveryCounter,
-    open: deliveriesToday.filter(d => d.confirmed === null).length,
+    // `open` used to mean "confirmed === null", which is NOT what the chaser acts on any
+    // more — a record that nobody ever answered is retired (`gaveUp`) and stops being
+    // chased while still reading as unconfirmed. Watching the old number after shipping
+    // that change showed 7 open forever and looked like the fix had failed. Report both,
+    // and return `gaveUp`/`askedAt` so the retire is actually visible from outside.
+    open: deliveriesToday.filter(d => d.confirmed === null && !d.gaveUp).length,
+    unanswered: deliveriesToday.filter(d => d.confirmed === null).length,
+    retired: deliveriesToday.filter(d => d.confirmed === null && d.gaveUp).length,
     rows: deliveriesToday.map(d => ({
       n: d.n, day: d.day, at: d.at, confirmed: d.confirmed, asks: d.asks,
+      gaveUp: !!d.gaveUp,
+      askedAt: d.askedAt || null,
+      askedAtISO: d.askedAt ? new Date(d.askedAt).toISOString() : null,
       sub: d.sub, shoeId: d.shoeId, size: d.size, price: d.price, store: d.store,
       createdAt: d.createdAt,
       createdAtISO: d.createdAt ? new Date(d.createdAt).toISOString() : null,
