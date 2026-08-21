@@ -3234,6 +3234,27 @@ function inboxRecord(account, sub, m) {
       if (oldest) { inboxThreads.delete(oldest[0]); if (inboxSubIndex.get(oldest[1].sub) === oldest[0]) inboxSubIndex.delete(oldest[1].sub); }
     }
     inboxRev++; saveInbox();
+    // 💬 TELL HIM WHEN A CHAT HE IS PERSONALLY HANDLING COMES BACK (Rodney 2026-08-21:
+    // "also the chat sends notification?" — it did not. inboxRecord stored the message,
+    // bumped an unread badge and told nobody.)
+    //
+    // NOT every customer message: that is dozens a day and he would mute it inside a week,
+    // and Kiki is answering those anyway. The one that matters is a thread HE replied in —
+    // `isHumanPaused(sub)` is true for 45 minutes after any human reply, which is exactly
+    // "Rodney is handling this one right now, Kiki is staying quiet". A reply landing in
+    // that window is a customer waiting on HIM, and until now it sat unread until he
+    // happened to open the Chats page. That is the same shape as every swallowed-message
+    // problem tonight: the information existed and never reached his phone.
+    //
+    // Tappable straight into the thread. Tagged per-thread so two customers never overwrite
+    // each other — the mistake the agent alerts already learned the hard way.
+    if (m.dir === 'in' && isHumanPaused(sub)) {
+      try {
+        const who = t.name || t.phone || 'A customer';
+        const body = img ? '📷 sent a photo' : (loc ? '📍 sent their location' : text.slice(0, 120));
+        require('./shop').sendPush(`💬 ${who} replied`, body, '/inbox?sub=' + encodeURIComponent(String(sub)), 'plug242-chat-' + sub).catch(() => {});
+      } catch (_) {}
+    }
   } catch (_) {}
 }
 // Best-effort: pull the customer's profile picture from ManyChat once, so the Inbox
@@ -7192,6 +7213,8 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   var qkey = new URLSearchParams(location.search).get('key') || '';
   if (qkey) { try { localStorage.setItem(LS, qkey); } catch(e){} }
   var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
+  // Set once, before any thread list is drawn — consumed by the first loadThreads().
+  try { window.__deepSub = new URLSearchParams(location.search).get('sub') || null; } catch(e){ window.__deepSub = null; }
   var cur = null, lastRev = -1, threadTimer = null, lastThreadSig = '', lastListSig = null; // null (not '') so an EMPTY first load still replaces the "Loading…" placeholder
   var pendingImages = [], quoteText = null, agentLabel = false;
   function $(id){return document.getElementById(id)}
@@ -7479,6 +7502,17 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
         el.addEventListener('touchend', cancel); el.addEventListener('touchmove', cancel);
         el.addEventListener('mousedown', start); el.addEventListener('mouseup', cancel); el.addEventListener('mouseleave', cancel);
       });
+      // 🔗 OPEN THE CHAT THE NOTIFICATION WAS ABOUT (2026-08-21). The chat push points at
+      // /inbox?sub=<subscriber>; without this it would land on the list and he would have to
+      // hunt for the customer — which is most of the reason a notification is worth having.
+      // One-shot: the flag is cleared immediately so a later refresh cannot yank him back out
+      // of whatever thread he has since opened. The key still comes from localStorage, so the
+      // deep link carries no secret.
+      if (window.__deepSub) {
+        var __ds = window.__deepSub; window.__deepSub = null;
+        var __row = document.querySelector('.row[data-sub="' + __ds + '"]');
+        if (__row) openThread(__ds, __row.getAttribute('data-acct'), __row.getAttribute('data-name'), __row.getAttribute('data-tag'), __row.getAttribute('data-phone'));
+      }
       refreshSel();
       Array.prototype.forEach.call(document.querySelectorAll('.av.setav'), function(el){
         el.onclick=function(ev){ ev.stopPropagation(); pendingAv={sub:el.getAttribute('data-sub'), account:el.getAttribute('data-acct')}; var f=$('avFile'); f.value=''; f.click(); };

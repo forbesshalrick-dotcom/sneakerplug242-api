@@ -1061,9 +1061,13 @@ async function blastEmployees(text, exceptName) {
 
 // Send a web-push notification to every subscribed staff device. Best-effort:
 // dead/expired subscriptions (HTTP 404/410) are pruned so the list stays clean.
-async function sendPush(title, body, url) {
+async function sendPush(title, body, url, tag) {
   if (!webpush || !Array.isArray(state.subs) || !state.subs.length) return 0;
-  const payload = JSON.stringify({ title: title || 'THE PLUG 242', body: body || 'New delivery / task', url: url || '/', tag: 'plug242-task' });
+  // `tag` (2026-08-21): a shared tag REPLACES the previous notification. That is right for
+  // stock chores and wrong for people — two customers replying would silently overwrite each
+  // other and he would only ever see the last one. Callers that are about a specific person
+  // pass their own tag; everything else keeps the old shared one.
+  const payload = JSON.stringify({ title: title || 'THE PLUG 242', body: body || 'New delivery / task', url: url || '/', tag: tag || 'plug242-task' });
   let sent = 0; const dead = [];
   await Promise.all(state.subs.map(async (s) => {
     try { await webpush.sendNotification(s, payload); sent++; }
@@ -2205,4 +2209,4 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, onDutyNames, addAlert, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
+module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
