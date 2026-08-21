@@ -1503,6 +1503,41 @@ function mount(app) {
     res.json({ ok: true, count: state.subs.length, pushEnabled: !!webpush });
   });
 
+  // 👀 WHO WOULD BE RUNG RIGHT NOW? (Rodney 2026-08-21)
+  //
+  // The 20 Aug morning was lost to a question nobody could answer from outside: the rota had
+  // Deashinique on mornings and nobody on evenings, so four delivery alerts rang her phone and
+  // not his, and he only found out a day later. blastOnDuty's decision was written to the
+  // Railway console — and this project has no ssh, so the console is unreadable in practice.
+  //
+  // This makes the same decision readable without sending anything at all. Read-only, gated
+  // on DEBUG_KEY, no WhatsApp goes out. Pass ?at=2026-08-21T14:00:00Z to ask about any moment.
+  app.get('/shop/who-on-duty', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    let at = null;
+    if (req.query.at) { const d = new Date(req.query.at); if (!isNaN(d)) at = new Date(d.getTime() + NASSAU_OFFSET_H * 3600 * 1000); }
+    const n = at || nassauNow();
+    const nums = state.employees || {};
+    const rostered = onDutyNames(n);
+    let targets = rostered.filter(x => nums[x]);
+    let scope = 'on-duty';
+    const copied = ALWAYS_COPY.filter(x => nums[x] && targets.indexOf(x) === -1);
+    if (targets.length && copied.length) { targets = [...new Set([...targets, ...copied])]; scope = 'on-duty + owner copy'; }
+    if (!targets.length && nums.Manager) { targets = ['Manager']; scope = 'manager-fallback (nobody rostered has a number)'; }
+    if (!targets.length) { targets = Object.keys(nums); scope = 'everyone-fallback (no numbers for the rota)'; }
+    res.json({
+      nassauTime: n.toISOString().replace('T', ' ').slice(0, 16) + ' (Nassau)',
+      slot: currentSlot(n) || '(shop shut)',
+      rostered,
+      alwaysCopied: ALWAYS_COPY,
+      wouldRing: targets,
+      scope,
+      notRung: Object.keys(nums).filter(x => targets.indexOf(x) === -1),
+      hasNumber: Object.fromEntries(Object.keys(nums).map(x => [x, !!nums[x]])),
+    });
+  });
+
   // 🔎 IS ANY PHONE ACTUALLY SUBSCRIBED? (Rodney 2026-08-19)
   // He says agent alerts never reach his phone — he only hears them once he opens the app.
   // The push wiring was all present (addAlert → sendPush, web-push installed, VAPID keys
