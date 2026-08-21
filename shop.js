@@ -1012,11 +1012,27 @@ function onDutyNames(at) {
 // reaches nobody: if the rostered person has no WhatsApp number stored we fall back to the
 // Manager, and only if even that is missing do we fall back to the whole team — losing a
 // delivery alert is far worse than one extra buzz.
+// 👑 THE OWNER IS ALWAYS COPIED (Rodney 2026-08-21, asked and answered: "yes copy").
+//
+// The rota gate below is the 14 Aug feature he asked for — an off-duty phone should not buzz
+// at 2am. But it cut him out too, and on 20 Aug that cost him a whole morning: the roster had
+// Deashinique on mornings and nobody on evenings, so deliveries #1-#4 (two of them Official
+// Sneaker Crew) rang HER phone only. He found out a day later, and read it as "Official Sneaker
+// Crew never sent a delivery message" — the shop was fine, he was simply never in the loop.
+//
+// So the rota still decides which STAFF member is rung; it no longer decides whether the owner
+// hears about his own business. Deliberately a union, not a replacement: whoever is on duty
+// still gets it, and the Set stops him being messaged twice when he IS the rostered one.
+const ALWAYS_COPY = ['Manager'];
 async function blastOnDuty(text, exceptName) {
   const nums = state.employees || {};
   const duty = onDutyNames().filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase());
   let targets = duty.filter(n => nums[n]);
   let scope = 'on-duty';
+  const copied = ALWAYS_COPY.filter(n => nums[n]
+    && (!exceptName || n.toLowerCase() !== String(exceptName).toLowerCase())
+    && targets.indexOf(n) === -1);
+  if (targets.length && copied.length) { targets = [...new Set([...targets, ...copied])]; scope = 'on-duty + owner copy'; }
   if (!targets.length && nums.Manager) { targets = ['Manager']; scope = 'manager-fallback (nobody rostered has a number)'; }
   if (!targets.length) { targets = Object.keys(nums).filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase()); scope = 'everyone-fallback (no numbers for the rota)'; }
   const results = [];
