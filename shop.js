@@ -1516,6 +1516,39 @@ function mount(app) {
     });
   });
 
+  // 🔔 FIRE ONE REAL PUSH ON DEMAND (Rodney 2026-08-20: "the notification that I agreed to
+  // for the website... but still no notification. Probably only when I open Google because
+  // I didn't download the app.")
+  //
+  // Every part of the chain reads healthy — web-push installed, VAPID set, sw.js served
+  // since 19 Aug, seven live subscriptions — and a healthy chain that nobody has fired is
+  // indistinguishable from a broken one. `/shop/push/status` answers "is a phone
+  // registered". This answers the only question left: "does one actually ring." It reports
+  // per-device what the push service said, so a phone that has quietly gone dead shows up
+  // as a 404/410 instead of as silence.
+  //
+  // Worth knowing, because it is the thing he assumed: on Android you do NOT have to install
+  // the app for this to work. A plain Chrome tab is enough once notifications are allowed.
+  app.get('/shop/push/test', async (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    if (!webpush) return res.json({ ok: false, why: 'web-push not installed' });
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    const payload = JSON.stringify({
+      title: req.query.title || '🔔 Test from Kiki',
+      body: req.query.body || 'If you can read this, notifications are working on this phone.',
+      url: '/', tag: 'plug242-test',
+    });
+    const out = [];
+    for (const s of subs) {
+      let host = ''; try { host = new URL(s.endpoint).host; } catch (_) {}
+      const tail = String(s.endpoint || '').slice(-8);
+      try { await webpush.sendNotification(s, payload); out.push({ by: s.by || 'staff', host, tail, ok: true }); }
+      catch (e) { out.push({ by: s.by || 'staff', host, tail, ok: false, code: e && e.statusCode, why: String((e && e.body) || (e && e.message) || e).slice(0, 120) }); }
+    }
+    res.json({ ok: true, tried: out.length, accepted: out.filter(x => x.ok).length, devices: out });
+  });
+
   // Re-seed a note that already exists on a device but is missing on the server
   // (e.g. after a restart). Idempotent, and does NOT fire WhatsApp again.
   app.post('/shop/note/restore', (req, res) => {

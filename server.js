@@ -3830,30 +3830,79 @@ function pendingDeliveries() {
   // NOTE the absence of a shoeId check. Requiring one is what made Rodney's 16:17 delivery
   // invisible to the chaser. Whether we can auto-book it is a separate question, answered
   // later in handleDeliveryAnswer — it must never decide whether we ask at all.
-  return deliveriesToday.filter(d => d.day === day && d.confirmed === null);
+  return deliveriesToday.filter(d => d.day === day && d.confirmed === null && !d.gaveUp);
 }
-function askAboutDelivery(rec) {
-  const line = `#${rec.n} — ${rec.what}${rec.who ? ' for ' + rec.who : ''}`;
-  const msg = (rec.asks === 0
-      ? '🛵 *DID THIS ONE GO THROUGH?*\n'
-      : '🛵 *STILL NEED AN ANSWER ON THIS ONE*\n') +
-    line + '\n\n' +
-    `Reply *DONE ${rec.n}* if it was delivered, or *NO ${rec.n}* if it didn't happen.\n` +
-    "If it's done I'll take the pair off the website myself — you don't have to touch anything.";
-  rec.asks++; rec.askedAt = Date.now();
+// 🚨 20 Aug 2026 — Rodney: "why does she still message me every couple seconds? Is it done
+// is it done? Because even when I say it done, she still... she's still not working. So it's
+// just wasting on my messages."
+//
+// He was right on both counts and it was ONE root cause. `/debug-deliveries` showed SEVEN
+// orders open for the day, every one confirmed:null, five of them already asked the full five
+// times — up to 35 separate WhatsApp messages. And because the queue was never empty, the bare
+// "done" path below could NEVER fire: with more than one open it is hard-coded to refuse and
+// ask "which one?", so every "done" he sent came back as a list instead of booking anything.
+// Nothing ever closed, so the jam got worse every day.
+//
+// Three changes: ask ONCE for the whole batch instead of once per order, remember which order
+// was last asked about so a bare "done" has something safe to attach to, and give up on
+// records nobody ever answered so they stop poisoning the queue.
+let lastAskedDelivery = null;
+function askAboutDelivery(rec) { askAboutDeliveries([rec]); }
+function askAboutDeliveries(list) {
+  if (!list || !list.length) return;
+  const now = Date.now();
+  const line = r => `#${r.n} — ${r.what}${r.who ? ' for ' + r.who : ''}${r.at ? ' (' + r.at + ')' : ''}`;
+  let msg;
+  if (list.length === 1) {
+    const rec = list[0];
+    msg = (rec.asks === 0
+        ? '🛵 *DID THIS ONE GO THROUGH?*\n'
+        : '🛵 *STILL NEED AN ANSWER ON THIS ONE*\n') +
+      line(rec) + '\n\n' +
+      `Reply *DONE ${rec.n}* if it was delivered, or *NO ${rec.n}* if it didn't happen.\n` +
+      "If it's done I'll take the pair off the website myself — you don't have to touch anything.";
+  } else {
+    // ONE message for the lot. Seven separate buzzes reads as nagging and he stops looking.
+    msg = `🛵 *${list.length} DELIVERIES STILL NEED AN ANSWER*\n` +
+      list.map(line).join('\n') + '\n\n' +
+      `Reply *DONE ${list[0].n}* or *NO ${list[0].n}* — the number tells me which one. Send as many as you like.\n` +
+      "Whatever you mark done I'll take off the website myself.";
+  }
+  for (const rec of list) { rec.asks++; rec.askedAt = now; }
+  // Only claim a "last asked" when exactly one was named. After a group ask a bare "done" is
+  // genuinely ambiguous and must still come back with the list — guessing would move stock.
+  lastAskedDelivery = list.length === 1 ? { n: list[0].n, day: list[0].day, at: now } : null;
+  saveDeliveries();
   require('./shop').blastOnDuty(msg, null).catch(() => {});
+}
+
+// Nothing answered after the last ask goes quiet. It still shows in the 9 PM end-of-day list
+// and `DONE 5` still works on it by number — it just stops being chased and stops blocking
+// every bare "done" for the rest of the day.
+const DELIVERY_MAX_ASKS = 5;
+function retireStaleDeliveries() {
+  const now = Date.now();
+  let n = 0;
+  for (const rec of deliveriesToday) {
+    if (rec.confirmed !== null || rec.gaveUp) continue;
+    if (rec.asks >= DELIVERY_MAX_ASKS && now - (rec.askedAt || rec.createdAt || 0) > 40 * 60 * 1000) { rec.gaveUp = true; n++; }
+  }
+  if (n) { saveDeliveries(); console.log('[deliveries] stopped chasing', n, 'nobody ever answered'); }
+  return n;
 }
 // Chase anything still unanswered: first ask ~25 min after the alert, then every ~40 min,
 // giving up after 4 asks so nobody is nagged all night. Whatever is still open by 9 PM lands
 // in the end-of-day list instead.
 const deliveryChaseTick = setInterval(() => {
   const now = Date.now();
-  for (const rec of pendingDeliveries()) {
-    // 8 minutes, then every 20. Rodney had finished the drop and started the next one before
-    // the old 25-minute first ask was even due — by then he'd already noticed the silence.
+  retireStaleDeliveries();
+  // 8 minutes, then every 20. Rodney had finished the drop and started the next one before
+  // the old 25-minute first ask was even due — by then he'd already noticed the silence.
+  const due = pendingDeliveries().filter(rec => {
     const wait = rec.asks === 0 ? 8 * 60 * 1000 : 20 * 60 * 1000;
-    if (rec.asks < 5 && now - (rec.askedAt || rec.createdAt || 0) > wait) { askAboutDelivery(rec); saveDeliveries(); }
-  }
+    return rec.asks < DELIVERY_MAX_ASKS && now - (rec.askedAt || rec.createdAt || 0) > wait;
+  });
+  askAboutDeliveries(due);
 }, 5 * 60 * 1000);
 if (deliveryChaseTick.unref) deliveryChaseTick.unref();
 
@@ -3889,7 +3938,15 @@ function handleDeliveryAnswer(text, staffName) {
     if (!bare) return null;
     const open = pendingDeliveries();
     if (!open.length) return null;   // nothing outstanding → not an answer, let the model have it
-    if (open.length > 1) {
+    // If she asked about ONE order and he answered within the hour and a half, that's the one
+    // he means — a person answers the message in front of them. This is the half of his
+    // 16 Aug ask ("she knows which 1") that never worked once a second order was open. The
+    // reply below still names the shoe and size back, which is how he catches a wrong match.
+    let guessed = null;
+    if (open.length > 1 && lastAskedDelivery && Date.now() - lastAskedDelivery.at < 90 * 60 * 1000) {
+      guessed = open.find(d => d.n === lastAskedDelivery.n && d.day === lastAskedDelivery.day) || null;
+    }
+    if (open.length > 1 && !guessed) {
       // Name the CUSTOMER and the time on every line. Two orders for the same shoe in the
       // same size read as identical text (2026-08-17: a driver was shown five lines that
       // were word-for-word the same and asked which one he meant — an unanswerable
@@ -3899,7 +3956,7 @@ function handleDeliveryAnswer(text, staffName) {
         + `\n\nReply *DONE ${open[0].n}* or *NO ${open[0].n}* with the number.`;
     }
     word = bare[1].toLowerCase();
-    num = open[0].n;
+    num = (guessed || open[0]).n;
   }
   const rec = deliveriesToday.find(d => d.n === num && d.day === nassauNow().toISOString().slice(0, 10));
   if (!rec) return `I don't have a delivery #${num} for today 🤔 Send me the number from the message I sent you.`;
