@@ -3299,10 +3299,21 @@ function inboxRecord(account, sub, m) {
 const noPickupAlerted = new Map();   // sub -> last alert ts
 const NO_PICKUP_AFTER_MS = 12 * 60 * 1000;   // waiting this long with no answer = nobody came
 const NO_PICKUP_REALERT_MS = 30 * 60 * 1000; // at most one nudge per customer per half hour
+// ⏳ CEILING, added within the hour of shipping this. The first live run alerted on TWELVE
+// threads at once and fired twelve WhatsApp messages at staff. Only four were real: the rest
+// ended on a trailing "K" / "Ok" / "Coming" up to SIX DAYS ago — a customer acknowledging and
+// going about their day, not a customer waiting. "Spoke last" does not mean "waiting for an
+// answer" once enough time has passed. Past this, it is history, not a live wait.
+const NO_PICKUP_STALE_MS = 3 * 60 * 60 * 1000;
+// And a hard cap per sweep, so a backlog can never blast the staff line again. An alert
+// nobody reads because it arrived twelve at a time is worth less than no alert at all.
+const NO_PICKUP_MAX_PER_TICK = 4;
 const noPickupTick = setInterval(() => {
   try {
     const now = Date.now();
+    let sentThisTick = 0;
     for (const t of inboxThreads.values()) {
+      if (sentThisTick >= NO_PICKUP_MAX_PER_TICK) break;
       if (!t || !Array.isArray(t.msgs) || !t.msgs.length) continue;
       let lastIn = 0, lastOut = 0, lastOutHuman = 0, lastInText = '';
       for (const m of t.msgs) {
@@ -3319,9 +3330,11 @@ const noPickupTick = setInterval(() => {
       if (!humanTookOver) continue;
       if (!(lastIn > lastOut)) continue;                    // they are not actually waiting
       if (now - lastIn < NO_PICKUP_AFTER_MS) continue;      // give the human a fair chance first
+      if (now - lastIn > NO_PICKUP_STALE_MS) continue;      // too old to be a live wait — see above
       const prev = noPickupAlerted.get(t.sub) || 0;
       if (now - prev < NO_PICKUP_REALERT_MS) continue;
       noPickupAlerted.set(t.sub, now);
+      sentThisTick++;
       if (noPickupAlerted.size > 500) noPickupAlerted.delete(noPickupAlerted.keys().next().value);
       const who = t.name || t.phone || ('customer ' + t.sub);
       const mins = Math.round((now - lastIn) / 60000);
