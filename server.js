@@ -840,6 +840,27 @@ app.get('/lookup', handleLookup);
 // is open — always true the moment they search. Token comes from the
 // MANYCHAT_TOKEN env var (set in Railway), or an Authorization header as fallback.
 const MC_API = 'https://api.manychat.com/fb/sending/sendContent';
+// ── WHICH CHANNEL IS THIS SUBSCRIBER ON? (Rodney 2026-08-21) ──────────────────
+// sendContent needs content.type to MATCH the subscriber's channel. It was hardcoded
+// 'whatsapp', so Kiki could only ever answer on WhatsApp — connecting The ShoeBox Page
+// to ManyChat as a Messenger channel would have failed on the very first reply, with
+// every text AND every photo rejected.
+// Detection order matters: a WhatsApp contact can ALSO carry a page_id (Trendy Kicks
+// does), so WhatsApp must be tested first or those get misrouted to messenger.
+// Anything we cannot identify stays 'whatsapp' — today's behaviour, unchanged.
+const subChannel = new Map();   // subscriber id -> 'whatsapp' | 'instagram' | 'messenger'
+function noteChannel(req, sub) {
+  if (!sub) return;
+  const b = (req && req.body && typeof req.body === 'object') ? req.body : {};
+  let ch = null;
+  if (b.whatsapp_phone || b.optin_whatsapp === true || b.whatsapp_bsuid) ch = 'whatsapp';
+  else if (b.ig_id || b.ig_username) ch = 'instagram';
+  else if (b.page_id && String(b.page_id).trim()) ch = 'messenger';
+  if (!ch) return;                                  // unknown → leave whatever we knew
+  subChannel.set(String(sub), ch);
+  if (subChannel.size > 500) subChannel.delete(subChannel.keys().next().value);
+}
+function channelFor(sub) { return subChannel.get(String(sub)) || 'whatsapp'; }
 const MAX_PHOTOS = catalog.length;  // send a photo for EVERY matching shoe (capped only by total inventory)
 const CHUNK = 10;               // ManyChat caps messages per content payload
 
@@ -1077,7 +1098,7 @@ async function sendChunkRaw(subscriberId, messages, token) {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subscriber_id: subscriberId,
-        data: { version: 'v2', content: { type: 'whatsapp', messages } },
+        data: { version: 'v2', content: { type: channelFor(subscriberId), messages } },
       }),
       signal: ctl.signal,
     });
@@ -1679,7 +1700,9 @@ function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
       // gets shown names and a filtered link, never the password.
       // `greet` carries the same first-message flag the shop side uses, so the
       // scripted wholesale greeting only ever fires once — see sneaker-inventory.js.
-      SI.facts({ local: SI.isBahamian(phone), greet }),
+      // No phone at all = a channel that does not carry one (Messenger / Instagram),
+      // NOT a foreign buyer. See the locationUnknown note in sneaker-inventory.js.
+      SI.facts({ local: SI.isBahamian(phone), greet, locationUnknown: !phone }),
     ].filter(Boolean).join('\n');
   }
 
@@ -5881,6 +5904,7 @@ function handleChat(req, res) {
   }
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
   const turnAt = Date.now(); // when THIS message arrived — albums born from this turn ignore nothing after it
+  noteChannel(req, sub);        // remember whether this contact is WhatsApp / Messenger / Instagram
   lastIncoming.set(sub, turnAt); // stamps "they just spoke" (albums check this + the text below)
   lastIncomingText.set(sub, userText || ''); // so the album knows if it was a STOP or just a question
   // A message actually reached us, so the line is working again — drop any shaky-delivery

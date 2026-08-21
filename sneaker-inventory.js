@@ -265,7 +265,13 @@ function isBahamian(phone) {
  * quantity" spelled out in full — plenty of Bahamian buyers have never bought
  * wholesale and "MOQ" means nothing to them.
  */
-function facts({ local = false, greet = false } = {}) {
+// `locationUnknown` is the THIRD state (Rodney 2026-08-21). This gate reads the buyer's
+// PHONE to decide local vs foreign, and `isBahamian` returns false when there is no phone
+// at all — so a channel that carries no number (Messenger / Instagram, which is exactly
+// what The ShoeBox Page brings) was being read as FOREIGN and every lead stonewalled.
+// The comment above isBahamian warns about this in as many words: "a false negative
+// stonewalls a real buyer." We do not guess in either direction — she asks, once.
+function facts({ local = false, greet = false, locationUnknown = false } = {}) {
   const pw = process.env.SI_TRADE_PASSWORD || '';
 
   // Two different conversations. Local: hand it over, get out of the way.
@@ -335,7 +341,23 @@ Password: ${pw || '(ask Rodney — not set)'}
   whatever they pick.
 - Keep it to two short lines. No pitch.`) + '\n\n';
 
-  const gate = local
+  const gate = (locationUnknown && !local)
+    ? `WE DO NOT KNOW WHERE THIS BUYER IS — ASK, ONCE, BEFORE THE PASSWORD
+- This person reached us on a channel that carries no phone number, so unlike a
+  WhatsApp buyer you genuinely cannot tell whether they are local. Do NOT assume
+  either way, and do NOT treat them as foreign — most of them are Bahamian.
+- Do NOT send the trade password or a link that bypasses it until you know.
+- In your FIRST reply: answer whatever they actually asked, be warm, and add ONE
+  short question — "you in the Bahamas?" That is the whole ask. Never demand a
+  business name, never qualify them, never interrogate.
+- The MOMENT they say anything that means yes — "yes", "Nassau", "Freeport", any
+  island name, "242", "I'm here" — they are LOCAL. Immediately send ${SITE} and
+  the trade password in that same reply, and carry on as normal.
+${pw ? `- The trade password is: ${pw}` : `- The trade password is not set; take their number and say he'll send it.`}
+- If they name somewhere abroad, follow the not-local rules: offer a look, names
+  only, no password, and offer to pass their details to the trade desk.
+- Ask ONCE. If they dodge the question twice, stop asking and just offer the look.`
+    : local
     ? `THIS BUYER IS LOCAL — GIVE THEM THE SITE AND THE CODE STRAIGHT AWAY
 - Send them ${SITE} and the trade password in your first reply. Do not ask who
   they are, do not ask for a business name, do not qualify them at all.
