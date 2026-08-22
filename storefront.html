@@ -1823,6 +1823,21 @@ function ensurePayPal(){
 let cart = [];
 try{ cart = JSON.parse(localStorage.getItem('sp_cart')||'[]')||[]; }catch(e){ cart=[]; }
 const _buySize = {};
+// 📊 VISITOR + FUNNEL COUNTER (Rodney 22 Aug: "is there a log of how many people uses the
+// site every day... and how many people add stuff to cart and not pay?"). There was none.
+// visits.js already existed but was only ever wired to the agency site, so the shop counted
+// nothing at all — and a cart lives in localStorage, so an abandoned one never reached the
+// server in any form.
+// Fire-and-forget on purpose: a counter must never slow the shop down or break a sale, so
+// every failure is swallowed and nothing is ever awaited.
+function px(ev){
+  try{
+    var body = JSON.stringify({ p: location.pathname || '/', r: document.referrer || '', e: ev || '' });
+    if (navigator.sendBeacon) { navigator.sendBeacon(SHOP_API + '/px', new Blob([body], {type:'application/json'})); return; }
+    fetch(SHOP_API + '/px', {method:'POST', headers:{'Content-Type':'application/json'}, body: body, keepalive:true}).catch(function(){});
+  }catch(e){}
+}
+try { px('view'); } catch(e) {}
 function saveCart(){ try{localStorage.setItem('sp_cart',JSON.stringify(cart));}catch(e){} updateCartBadge(); }
 function cartTotal(){ return cart.reduce((t,i)=>t+(parseFloat(i.price)||0),0); }
 // Card checkout carries a 4% processing fee (Rodney 2026-07-14 — covers part of the
@@ -1852,6 +1867,7 @@ function addSelectedToCart(id){
   if(imgEl){ const r=imgEl.getBoundingClientRect(); if(r.width){ rect={left:r.left,top:r.top,width:r.width,height:r.height}; src=imgEl.src||src; } }
   cart.push({id, name:s.name, brand:s.brand, color:s.color||'', size:sz, price:parseFloat(s.price)||0, image:s.image||''});
   saveCart();
+  px('add_to_cart');
   try{_sfx.success&&_sfx.success();}catch(e){}
   document.getElementById('shoe-detail-modal').classList.remove('open');
   if(rect) flyToCart(src, rect); else pulseCart();
@@ -1881,7 +1897,7 @@ function flyToCart(src,rect){
 }
 function removeFromCart(i){ cart.splice(i,1); saveCart(); renderCart(); }
 function emptyCart(){ if(!cart.length) return; cart=[]; saveCart(); renderCart(); try{_sfx.tap&&_sfx.tap();}catch(e){} showToast('Cart emptied 🗑'); }
-function openCart(){ renderCart(); document.getElementById('cart-modal').classList.add('open'); }
+function openCart(){ px('cart_open'); renderCart(); document.getElementById('cart-modal').classList.add('open'); }
 function closeCart(){ document.getElementById('cart-modal').classList.remove('open'); }
 function renderCart(){
   const body=document.getElementById('cart-body'); if(!body) return;
@@ -1927,11 +1943,12 @@ function renderCartPayPal(){
         description:('SNEAKERPLUG242 — '+cart.length+' item'+(cart.length>1?'s':'')+' (incl. 4% card fee)').slice(0,127)
       }]}),
       onApprove:(data,actions)=>actions.order.capture().then(det=>onCartPaid(det)),
-      onError:()=>{ showToast('Payment error, please try again',true); }
+      onError:()=>{ px('card_error'); showToast('Payment error, please try again',true); }
     }).render('#cart-paypal').catch(()=>{});
   }).catch(()=>{ cont.innerHTML='<div style="font-size:12px;color:#ff6666;text-align:center;">Couldn\'t load checkout — check connection</div>'; });
 }
 function onCartPaid(det){
+  px('paid');
   const oid=(det&&det.id)?det.id:'';
   const lines=cart.map(it=>'• '+it.brand+' '+it.name+(it.color?' ('+it.color+')':'')+' — size '+it.size+' — $'+(parseFloat(it.price)||0).toFixed(2)).join('\n')
     +'\n• Card processing fee (4%) — $'+cardFee().toFixed(2);

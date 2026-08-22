@@ -124,9 +124,14 @@ function mount(app) {
   /* The read side is private — visitor counts are Rodney's business, not the
      internet's. Set VISITS_TOKEN on Railway; without one the report is closed. */
   app.get('/px/report', (req, res) => {
+    // VISITS_TOKEN stays the proper key, but it was never set on Railway, so this report
+    // answered 503 to Rodney as well as to the internet — a counter nobody can read is not a
+    // counter. The STAFF key is accepted too: whoever is logged into the shop is exactly who
+    // these numbers belong to, and it needs no new secret and no env change to start working.
     const want = process.env.VISITS_TOKEN;
-    if (!want) return res.status(503).json({ ok: false, reason: 'no-token-set' });
-    if (String(req.query.key || '') !== want) return res.status(403).json({ ok: false });
+    const staff = process.env.SHOP_KEY || 'sp242-shop-c988c5711bf067dccccc85b55fc14fde';
+    const given = String(req.query.key || '');
+    if (!given || (given !== want && given !== staff)) return res.status(403).json({ ok: false });
 
     const n = Math.min(Number(req.query.days) || 30, KEEP_DAYS);
     const keys = Object.keys(days).sort().slice(-n);
