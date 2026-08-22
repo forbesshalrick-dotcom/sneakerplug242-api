@@ -1943,7 +1943,29 @@ function renderCartPayPal(){
         description:('SNEAKERPLUG242 — '+cart.length+' item'+(cart.length>1?'s':'')+' (incl. 4% card fee)').slice(0,127)
       }]}),
       onApprove:(data,actions)=>actions.order.capture().then(det=>onCartPaid(det)),
-      onError:()=>{ px('card_error'); showToast('Payment error, please try again',true); }
+      // 💳 SAY WHAT ACTUALLY WENT WRONG, AND LOG IT (Rodney 22 Aug). A customer got as far
+      // as typing his CVV, was refused, and ended up driving to the bank to pay cash. The old
+      // message was "Payment error, please try again" — which tells him nothing, so he tries
+      // the same card again, fails again, and leaves. A CVV-stage refusal is almost always the
+      // BANK, not us: Bahamian cards block online USD by default and PayPal bills from abroad.
+      // The reason is also sent to the counter, so we learn whether this is one card or every
+      // card instead of guessing off one phone call.
+      onError:(err)=>{
+        var reason='';
+        try{ reason=String((err&&(err.message||err.name))||'').slice(0,90); }catch(e){}
+        px('card_error' + (reason ? ':' + reason.replace(/[^a-zA-Z0-9 _-]/g,'').slice(0,40) : ''));
+        showToast('Card refused — usually the bank blocking online payments',true);
+        try{
+          var c=document.getElementById('cart-paypal');
+          // Only once — a second attempt would otherwise stack a second copy of the advice.
+          if(c && !c.querySelector('.card-fail-note')) c.insertAdjacentHTML('beforeend','<div class="card-fail-note" style="margin-top:10px;font-size:12px;line-height:1.5;color:var(--text-muted);background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:10px;padding:10px;">'
+            +'<b style="color:#ff8888;">That card was refused.</b><br>Nine times out of ten it\'s your bank blocking online or overseas payments, not your card details.<br><br>'
+            +'• Call your bank and ask them to allow online/international, then try again<br>'
+            +'• Or use a different card<br>'
+            +'• Or message us and pay by <b>bank transfer, SunCash or cash on delivery</b> \u2014 same price, no 4% card fee'
+            +'</div>');
+        }catch(e){}
+      }
     }).render('#cart-paypal').catch(()=>{});
   }).catch(()=>{ cont.innerHTML='<div style="font-size:12px;color:#ff6666;text-align:center;">Couldn\'t load checkout — check connection</div>'; });
 }
