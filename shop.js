@@ -1211,6 +1211,20 @@ function mount(app) {
     } catch (_) {}
     if (!ok) return res.status(401).json({ ok: false, error: 'Name or PIN is wrong.' });
     res.json({ ok: true, name: realName, key: SHOP_KEY });
+
+  // 🔐 ADMIN LINKS — hand the console/inbox URL to a LOGGED-IN staff member only.
+  // Rodney 22 Aug: a customer on his phone could see the staff nav, and the Jess + Chats
+  // buttons carried the CONSOLE KEY inline in the page HTML. Hiding a button with CSS does
+  // NOT remove it from the source — the key was readable by anyone who viewed source on
+  // 242plug.com, and it opens /console AND /inbox (every customer chat, phone number and
+  // address). The page now ships no key at all; staff fetch the link with the key they got
+  // when they logged in.
+  app.get('/shop/admin-link', (req, res) => {
+    if (!auth(req, res)) return;
+    const tool = String(req.query.tool || '').toLowerCase() === 'inbox' ? 'inbox' : 'console';
+    const ck = process.env.CONSOLE_KEY || 'sp242-jess-b297063c5dd791125b5dc9e53ad8f706';
+    res.json({ ok: true, url: 'https://sneakerplug242-api-production.up.railway.app/' + tool + '?key=' + encodeURIComponent(ck) });
+  });
   });
 
   // ---- 📅 Work schedule ----

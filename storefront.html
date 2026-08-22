@@ -536,7 +536,7 @@ select option{background:var(--surface2);}
   <span id="cloud-sync-badge" style="font-size:10px;color:var(--accent);opacity:0;transition:opacity 0.6s;white-space:nowrap;"></span>
   <div class="nav-links">
     <button class="nav-btn active" id="nav-inventory" onclick="showPage('inventory')">Shop</button>
-    <button class="nav-btn" id="nav-payment" onclick="_sfx.pay();showPage('payment')">Pay</button><button class="nav-btn" onclick="showPage('requests')" id="nav-requests">📋 Requests</button><button class="nav-btn" onclick="showPage('sales')" id="nav-sales">💰 Sales</button><button class="nav-btn" onclick="showPage('schedule')" id="nav-schedule">📅 Schedule</button><button class="nav-btn" onclick="showPage('tasks')" id="nav-tasks">✅ Tasks <span id="tasks-badge" style="display:none;background:#ffc800;color:#000;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:3px;vertical-align:middle;font-weight:700;"></span></button><button class="nav-btn" id="nav-jess" onclick="window.open('https://sneakerplug242-api-production.up.railway.app/console?key=sp242-jess-b297063c5dd791125b5dc9e53ad8f706','_blank')">🟢 Jess</button><button class="nav-btn" id="nav-inbox" onclick="window.open('https://sneakerplug242-api-production.up.railway.app/inbox?key=sp242-jess-b297063c5dd791125b5dc9e53ad8f706','_blank')">💬 Chats</button><button class="nav-btn" onclick="showPage('notifications')" id="nav-notifications">🔔 Inbox <span id="notif-badge" style="display:none;background:#ff4444;color:#fff;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:3px;vertical-align:middle;"></span></button><button class="nav-btn" onclick="showPage('auditlog')" id="nav-auditlog" style="display:none;">📜 Log</button><button class="nav-btn" onclick="openDeletedShoes()" id="nav-restore" style="display:none;">🗑️ Restore</button>
+    <button class="nav-btn" id="nav-payment" onclick="_sfx.pay();showPage('payment')">Pay</button><button class="nav-btn" onclick="showPage('requests')" id="nav-requests">📋 Requests</button><button class="nav-btn" onclick="showPage('sales')" id="nav-sales">💰 Sales</button><button class="nav-btn" onclick="showPage('schedule')" id="nav-schedule">📅 Schedule</button><button class="nav-btn" onclick="showPage('tasks')" id="nav-tasks">✅ Tasks <span id="tasks-badge" style="display:none;background:#ffc800;color:#000;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:3px;vertical-align:middle;font-weight:700;"></span></button><button class="nav-btn" id="nav-jess" onclick="openAdminTool('console')">🟢 Jess</button><button class="nav-btn" id="nav-inbox" onclick="openAdminTool('inbox')">💬 Chats</button><button class="nav-btn" onclick="showPage('notifications')" id="nav-notifications">🔔 Inbox <span id="notif-badge" style="display:none;background:#ff4444;color:#fff;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:3px;vertical-align:middle;"></span></button><button class="nav-btn" onclick="showPage('auditlog')" id="nav-auditlog" style="display:none;">📜 Log</button><button class="nav-btn" onclick="openDeletedShoes()" id="nav-restore" style="display:none;">🗑️ Restore</button>
     <button class="nav-btn" id="nav-wholesale" onclick="showPage('wholesale')">🏪 Wholesale</button>
     <button class="nav-btn" id="nav-settings" onclick="showPage('settings')">⚙</button>
     <button class="nav-btn primary" id="nav-add" onclick="openAddModal()">+ Add</button>
@@ -1901,6 +1901,18 @@ function renderCart(){
   + '<button onclick="emptyCart()" style="width:100%;background:transparent;border:1px solid rgba(255,80,80,.5);color:#ff6666;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:10px;">🗑 Empty Cart</button>'
   + '<div id="cart-paypal" style="min-height:46px;"></div>';
   renderCartPayPal();
+}
+// 🔐 Open the staff console / chats WITHOUT ever putting the key in this page.
+// Rodney 22 Aug watched a customer's phone and saw the staff nav — and those two buttons
+// used to carry the console key inline, which View Source hands to anybody. The key is
+// fetched now, with the staff key stored at login, and only for someone actually logged in.
+function openAdminTool(tool){
+  if (!_hasShopKey || !_hasShopKey()) { showToast('Staff login needed', true); return; }
+  var w = window.open('', '_blank');   // opened synchronously or the popup blocker eats it
+  shopGet('/shop/admin-link?tool=' + encodeURIComponent(tool)).then(function(d){
+    if (d && d.ok && d.url) { if (w) w.location = d.url; else window.open(d.url, '_blank'); }
+    else { if (w) w.close(); showToast('Could not open — try logging in again', true); }
+  }).catch(function(){ if (w) w.close(); showToast('Could not open — check connection', true); });
 }
 function renderCartPayPal(){
   const cont=document.getElementById('cart-paypal'); if(!cont||!cart.length) return;
@@ -5449,7 +5461,7 @@ function applyRoleUI() {
   // Show/hide employee-only nav buttons
   document.querySelectorAll('.nav-btn').forEach(b => {
     const oc = b.getAttribute('onclick') || '';
-    if (oc.includes('settings') || b.id === 'nav-requests' || b.id === 'nav-sales' || b.id === 'nav-schedule' || b.id === 'nav-tasks' || b.id === 'nav-jess' || b.id === 'nav-inbox') {
+    if (oc.includes('settings') || b.id === 'nav-requests' || b.id === 'nav-sales' || b.id === 'nav-schedule' || b.id === 'nav-tasks' || b.id === 'nav-jess' || b.id === 'nav-inbox' || b.id === 'nav-notifications') {
       b.style.display = isEmployee ? '' : 'none';
     }
   });

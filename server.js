@@ -9222,6 +9222,15 @@ let STORE_HTML = null, STORE_HTML_GZ = null;
       // contained no serviceWorker.register at all.
       // sw.js is deliberately push-only (no fetch handler, no cache), so re-enabling this
       // cannot bring back the stale-page problems that caused it to be neutered.
+      //
+      // 🔐 BELT AND BRACES: never let an admin key reach the public page (Rodney 22 Aug).
+      // The Jess + Chats buttons carried CONSOLE_KEY inline, and hiding a button with CSS
+      // does NOT remove it from the source — anyone could View Source on 242plug.com and
+      // walk into /console and /inbox (every customer chat, phone number and address).
+      // The buttons now fetch the link from /shop/admin-link with the staff key instead.
+      // This strip stays regardless, so re-adding a key by hand cannot re-open the hole.
+      .replace(new RegExp(String(process.env.CONSOLE_KEY || 'sp242-jess-b297063c5dd791125b5dc9e53ad8f706').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '')
+      .replace(new RegExp(String(process.env.SHOP_KEY || 'sp242-shop-c988c5711bf067dccccc85b55fc14fde').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '')
       ;
     STORE_HTML = html;
     STORE_HTML_GZ = zlib.gzipSync(Buffer.from(html));
