@@ -1,5 +1,6 @@
 const express = require('express');
 const SI = require('./sneaker-inventory');
+const NS = require('./nightshift');            // the web/bot agency — see nightshift.js
 const { HOUSE_RULES } = require('./bot-core');
 const cors = require('cors');
 const catalog = require('./catalog.json');
@@ -893,6 +894,7 @@ function getStore(req) {
   if (acct === '3732738') return 'Trendy Kicks';
   if (acct === '3732170') return 'Official Sneaker Crew';
   if (SI.isOurAccount(acct)) return SI.STORE;   // accepts the new account AND the old one — see MANYCHAT_ACCOUNTS
+  if (NS.isOurAccount(acct)) return NS.STORE;  // Nightshift, the web/bot agency
   // ⚠️ AN UNRECOGNISED ACCOUNT FALLS THROUGH TO THE RETAIL BRAIN, and that is the single
   // worst outcome this business has: a shop owner quoted $180 retail Jordans and sent an
   // album of A1 order codes (16 Aug). It used to happen in total silence. If a new ManyChat
@@ -1694,6 +1696,19 @@ function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
   // different trade: shops buying stock, a three-pair minimum, and a link to a
   // filtered catalog instead of an album. Cloning the retail prompt would tell
   // Kiki about delivery drivers and meet-ups that don't exist here.
+  // 🌙 THE AGENCY. Without this branch a business owner asking "how much for a
+  // website?" gets the RETAIL brain — quoted $180 Jordans and sent an album of
+  // order codes. That exact thing happened to a wholesale buyer on 16 Aug.
+  if (storeName === NS.STORE) {
+    return [
+      `You are the assistant for ${NS.STORE}, a Bahamian web and bot studio.`,
+      who ? `The person you are talking to is called ${who}.` : '',
+      '',
+      HOUSE_RULES,
+      '',
+      NS.facts({ greet }),
+    ].filter(Boolean).join('\n');
+  }
   if (storeName === SI.STORE) {
     return [
       `You are Kiki, the WhatsApp assistant for ${SI.STORE}.`,
