@@ -3405,6 +3405,7 @@ function inboxRecord(account, sub, m) {
 // Deliberately does NOT un-pause. A human said "on the way"; Kiki does not know where the
 // driver is and must not talk over a live handover. Making the silence VISIBLE is the fix —
 // deciding to hand back is Rodney's call, not a timer's.
+let _lastStale = [];                 // stores whose 24h window was shut on the last attempt
 const noPickupAlerted = new Map();   // sub -> last alert ts
 const NO_PICKUP_AFTER_MS = 12 * 60 * 1000;   // waiting this long with no answer = nobody came
 const NO_PICKUP_REALERT_MS = 30 * 60 * 1000; // at most one nudge per customer per half hour
@@ -3772,7 +3773,31 @@ async function waSendManager(text, token, image) {
         endpoint: ok ? 'manager-alert-sent' : 'manager-alert-FAILED',
         preview: String(text || '').replace(/\n/g, ' | ').slice(0, 70) });
       if (recent.length > 120) recent.length = 120;
-      if (!ok) console.error('[manager-alert] DID NOT REACH HIM:', String(text || '').slice(0, 80));
+      if (!ok) {
+        console.error('[manager-alert] DID NOT REACH HIM:', String(text || '').slice(0, 80));
+        // The alert genuinely did not land. NOW the window is worth raising — and only
+        // now. Push and the task board have no 24h window of their own, so this still
+        // reaches him when WhatsApp cannot.
+        const shut = (_lastStale || []).filter(x => x.hrs < 900);   // 999 = never messaged, not expired
+        const never = (_lastStale || []).filter(x => x.hrs >= 900);
+        const k = 'winclosed';
+        if (Date.now() - (nonTextAlertAt.get(k) || 0) > 3 * 3600 * 1000) {
+          nonTextAlertAt.set(k, Date.now());
+          let msg = '📵 *AN ORDER ALERT DID NOT REACH YOU*\n';
+          if (shut.length) {
+            msg += 'WhatsApp only lets the bot message you for 24h after YOU message it, and that has run out:\n'
+                 + shut.map(x => `• ${x.store} — ${x.hrs}h since you last wrote`).join('\n')
+                 + '\n\n👉 Send "hi" to ' + fmtStoreWa('12428033126') + ' (OSC) and ' + fmtStoreWa('12428256405')
+                 + ' (Trendy Kicks) to switch order alerts back on.\n';
+          }
+          if (never.length) {
+            msg += (shut.length ? '\n' : '') + 'These have never had a message from you, so the bot has never been allowed to write to you there:\n'
+                 + never.map(x => `• ${x.store}`).join('\n') + '\n';
+          }
+          msg += '\nThe order itself is safe and on this board — you just were not pinged.';
+          try { require('./shop').addAlert(msg, 'Kiki 🤖', { pushTitle: '📵 An order alert did not reach you', pushBody: 'Open the board — the order is safe' }); } catch (_) {}
+        }
+      }
     } catch (_) {}
   }
   return ok;
@@ -3843,22 +3868,16 @@ async function _waSendManagerInner(text, token, image) {
       const hrs = lastIn ? (Date.now() - lastIn) / 3600000 : 999;
       if (hrs > 23) stale.push({ store, hrs: Math.round(hrs) });
     }
-    if (stale.length) {
-      recent.unshift({ at: new Date().toISOString(), endpoint: 'manager-alert-WINDOW-CLOSED',
-        detail: stale.map(x => `${x.store}:${x.hrs}h`).join(', ') });
-      if (recent.length > 120) recent.length = 120;
-      const k = 'winclosed';
-      if (Date.now() - (nonTextAlertAt.get(k) || 0) > 3 * 3600 * 1000) {
-        nonTextAlertAt.set(k, Date.now());
-        const list = stale.map(x => `• ${x.store} — ${x.hrs}h`).join('\n');
-        require('./shop').addAlert(
-          '📵 *WHATSAPP ALERTS ARE BLOCKED*\nWhatsApp only lets the bot message you for 24h after YOU message it, and that window has shut:\n' +
-          list + '\n\n👉 Send "hi" to ' + fmtStoreWa('12428033126') + ' (OSC) and ' + fmtStoreWa('12428256405') +
-          ' (Trendy Kicks) to switch order alerts back on.\nOrders are still being taken and are all on this board — you are just not being pinged.',
-          'Kiki 🤖', { pushTitle: '📵 WhatsApp order alerts blocked',
-                       pushBody: 'Send "hi" to the bot numbers to turn them back on' });
-      }
-    }
+    // ⚠️ ONLY REMEMBER IT — DO NOT WARN YET. Fixed within hours of shipping: this
+    // block used to alert as soon as ANY store's window was shut, and it cried wolf
+    // immediately. Live proof the same evening: 4 warnings and 4 `manager-alert-sent`
+    // in the same window. Sneaker Inventory's manager contact has never messaged that
+    // number (999h = never, not expired), so its window is permanently "shut" — but
+    // the fallback reaches him through OSC or Trendy Kicks, whose windows are open, so
+    // he got every alert anyway. An alarm that fires while the thing works is worse
+    // than no alarm; he learns to swipe it away. The wrapper now warns only when the
+    // send genuinely failed.
+    _lastStale = stale;
   } catch (_) {}
 
   if (ownerOk) {
