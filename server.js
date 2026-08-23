@@ -1954,6 +1954,7 @@ ${who ? `- The customer's saved name is "${who}".\n` : ''}- If the customer's sa
 FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get sorted?" and they reply: if they say NO / nothing caught their eye → reply "Okay, no worries! Maybe next time. Have a good day! 👟". If they say YES / they liked something → ask them for the CODE on the photo, e.g. "Nice! 😍 What's the code on the one you liked? It's the *A1* right under the photo 👟" — then look it up and help them order.
 
 Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD. Website: ${WEBSITE}.
+⛔ ONE NAMED SHOE = ONE PRICE. NEVER THE WHOLE LIST (Rodney 2026-08-22). If the customer NAMES a shoe — "how much for the new balance", "price on the Air Max 95", "how much are the Jordans" — answer with THAT shoe's price and nothing else: "New Balance is $130 👟 — what size you need?". Do NOT send the price list as well. He watched it happen: a customer asked one question about New Balance and got the entire ten-line price sheet, then the answer at the bottom. It reads like a robot, it buries the answer he asked for, and it hands your whole price sheet to somebody who asked about one pair. The list is ONLY for a genuinely general question with no shoe named anywhere.
 PRICE LIST — when a customer asks about prices in GENERAL ("how much are your sneakers", "how much y'all charge", "price list", "how much for a pair", "what's the prices", "prices?"), do NOT give a vague range like "$70 to $250". Send this EXACT list (keep the emojis and the *bold* stars — WhatsApp shows them bold), then ask their size:
 ⚠️ A BARE "How much?" / "How much is it?" / "price?" WITH NO SHOE NAMED ANYWHERE IN THE CHAT COUNTS AS GENERAL TOO (Rodney 2026-08-02): this includes when it follows an ad-click opener like "can I get more info on this?" that YOU never resolved to a specific shoe (no photo id, no name anywhere in the conversation) — you don't know what "this" is any more than a cold "how much?" would tell you, so it's the same situation. Do NOT stall with "What shoe are you after? Tell me the name and I'll get you the price!" — that leaves them with zero information and an extra question to answer. Send the price list instead; it answers them immediately AND the closing "tell me your size" line naturally narrows things down next. Only ask "which shoe?" instead of sending the list when they've already named or shown one specific shoe and you just need to confirm which.
 👟 *${storeName.toUpperCase()} — PRICE LIST* 👟
@@ -3596,7 +3597,26 @@ function noteSendFailure(sub, body, token) {
   } catch (_) { /* a watchdog must never break the send path */ }
 }
 
+// 📣 WRAPPER: every manager alert now says whether it actually reached him (Rodney 22 Aug:
+// "2 deliveries I never received from Kiki"). Both orders WERE captured and both alerts WERE
+// written to the task board — what failed was the message to his phone, and nothing anywhere
+// recorded that. An alert that silently fails is worse than no alert, because the job looks
+// done. Now /last carries the outcome.
 async function waSendManager(text, token, image) {
+  let ok = false;
+  try { ok = await _waSendManagerInner(text, token, image); }
+  finally {
+    try {
+      recent.unshift({ at: new Date().toISOString(),
+        endpoint: ok ? 'manager-alert-sent' : 'manager-alert-FAILED',
+        preview: String(text || '').replace(/\n/g, ' | ').slice(0, 70) });
+      if (recent.length > 120) recent.length = 120;
+      if (!ok) console.error('[manager-alert] DID NOT REACH HIM:', String(text || '').slice(0, 80));
+    } catch (_) {}
+  }
+  return ok;
+}
+async function _waSendManagerInner(text, token, image) {
   // image (optional): shoe picture sent right above the alert text (Rodney 2026-07-14:
   // "is it possible to add the shoe picture to the notification?").
   const chunk = image ? [{ type: 'image', url: image }, { type: 'text', text }] : [{ type: 'text', text }];
