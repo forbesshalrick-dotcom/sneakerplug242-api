@@ -3417,6 +3417,56 @@ const NO_PICKUP_STALE_MS = 3 * 60 * 60 * 1000;
 // And a hard cap per sweep, so a backlog can never blast the staff line again. An alert
 // nobody reads because it arrived twelve at a time is worth less than no alert at all.
 const NO_PICKUP_MAX_PER_TICK = 4;
+/* Is this customer sitting unanswered? Returns the wait in ms, or 0.
+   Shared by the 5-minute sweep and the resume handler so the two can never
+   disagree about what "waiting" means. */
+function waitingSince(t) {
+  if (!t || !Array.isArray(t.msgs) || !t.msgs.length) return 0;
+  let lastIn = 0, lastOut = 0;
+  for (const m of t.msgs) {
+    if (m.dir === 'in') { if (m.ts > lastIn) lastIn = m.ts; }
+    else if (m.ts > lastOut) lastOut = m.ts;
+  }
+  return lastIn > lastOut ? Date.now() - lastIn : 0;
+}
+
+/* 🔴 RESUMED WITHOUT EVER ANSWERING (Rodney's chats, 23 Aug — found by M1A).
+   sub 13827434: a human paused at 20:04:37, the customer then sent SIX messages
+   (voice notes and photos) over four minutes, the human sent NOTHING (inbox-send
+   = 0) and resumed at 20:19:20.
+
+   The 12-minute guard was right not to fire — it measures from the customer's
+   LAST message (20:08:56), and the resume came 96 seconds before the threshold.
+   (M1A read the alert spacing as a 30-minute sweep; that spacing is
+   NO_PICKUP_REALERT_MS, the per-customer cap. The sweep is and was every 5 min.)
+
+   The real hole is what happens next: **Kiki only speaks when a NEW message
+   arrives.** So resuming while the customer is unanswered does not hand the
+   backlog back — it abandons it. Six voice notes and photos, answered by nobody,
+   and nothing would ever have said so. Resuming IS the signal the human is done,
+   so this needs no waiting period at all. */
+function checkResumedUnanswered(sub) {
+  try {
+    const key = inboxSubIndex.get(String(sub));
+    const t = key ? inboxThreads.get(key) : null;
+    const waited = waitingSince(t);
+    if (!waited) return;
+    const mins = Math.max(1, Math.round(waited / 60000));
+    const who = t.name || t.phone || ('customer ' + sub);
+    require('./shop').addAlert(
+      '🙋 *NOBODY EVER ANSWERED THEM*\n' + who + (t.phone ? ' (' + t.phone + ')' : '') +
+      ' messaged while you had the chat, and the chat was handed back without a reply.\n' +
+      'They have been waiting *' + mins + ' min*. Kiki will NOT pick this up on her own — she only ' +
+      'replies when a NEW message comes in, so this sits unanswered until somebody opens it.\n' +
+      'Open the chat and answer them.',
+      'Kiki 🤖', { sub, account: t.account,
+                   pushTitle: '🙋 ' + who + ' never got an answer',
+                   pushBody: 'Handed back with ' + mins + ' min unanswered' });
+    recent.unshift({ at: new Date().toISOString(), endpoint: 'resumed-unanswered', sub, mins, who });
+    if (recent.length > 120) recent.length = 120;
+  } catch (_) {}
+}
+
 const noPickupTick = setInterval(() => {
   try {
     const now = Date.now();
@@ -9050,6 +9100,8 @@ app.post('/inbox/resume', (req, res) => {
   const sub = String((req.body || {}).sub || '').replace(/[^0-9]/g, '');
   if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
   clearHumanPause(sub);
+  // Handing the chat back does NOT answer anything the customer sent meanwhile.
+  checkResumedUnanswered(sub);
   record(req, { endpoint: 'inbox-resume', sub });
   res.json({ ok: true });
 });
