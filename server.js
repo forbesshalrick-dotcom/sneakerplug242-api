@@ -1588,6 +1588,90 @@ function detectLang(text, prev) {
 }
 function L(map, sub) { return map[subLang.get(sub) || 'en'] || map.en; }
 
+// ── 🌍 EVERY OTHER LANGUAGE (Rodney 2026-08-23: "yes speak any language the
+// customer speaks") ───────────────────────────────────────────────────────────
+// L() above can only serve the four languages that are hand-written into the _T
+// maps. Everything else silently falls back to map.en — so fixing ONLY the prompt
+// would have re-created the exact split-brain of 2026-07-24, where a French
+// customer got a French reply from Kiki and an ENGLISH auto-nudge behind it. In
+// more languages, and just as confusing.
+//
+// So: when a customer writes in something outside the four, we learn the language
+// ONCE and translate the canned nudges into it on the way out.
+//
+// Cost control, in order:
+//   1. detectLang handles the big four for free — no call, unchanged, still first.
+//   2. looksEnglish() screens out ordinary English before any call is made.
+//   3. The language is asked for ONCE per subscriber and remembered.
+//   4. Translations are cached per (language, message). There are only ~9 canned
+//      messages, so a language costs a handful of calls in its lifetime.
+// Every step fails soft: if anything errors we send the English, which is exactly
+// what happens today. This can annoy someone; it can never block a message.
+const otherLang = new Map();      // sub -> language NAME ('Scottish Gaelic') or 'en'
+const nudgeCache = new Map();     // 'lang|english text' -> translated text
+
+// Cheap gate. Two common English words is enough to be sure, and short replies
+// like "ok", "9.5" or "A1" are not worth a network call in any language.
+const EN_WORDS = /\b(the|you|your|i|im|i'm|a|is|are|do|does|can|have|has|got|want|need|how|much|what|size|price|this|that|and|for|my|me|it|in|on|to|of|be|with|any|yes|no|ok|okay|please|thanks|thank|send|show|see|good|morning|night|hi|hello|hey|still|there|when|where|which|will|would|make|take|come|bring|buy|pay|deliver|delivery)\b/g;
+function looksEnglish(t) {
+  const s2 = String(t || '').toLowerCase();
+  if (s2.trim().length < 12) return true;               // too short to judge — assume English
+  return (s2.match(EN_WORDS) || []).length >= 2;
+}
+
+async function askAnthropic(system, user, maxTokens) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 12000);
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: maxTokens || 300, system, messages: [{ role: 'user', content: String(user).slice(0, 1200) }] }),
+    });
+    const j = await r.json();
+    return ((j && j.content && j.content[0] && j.content[0].text) || '').trim() || null;
+  } catch (_) { return null; } finally { clearTimeout(tm); }
+}
+
+/* Learn the customer's language once. Returns 'en' for English or anything we
+   cannot name — 'en' means "use the hand-written strings", i.e. today's behaviour. */
+async function learnLang(sub, text) {
+  if (!sub) return 'en';
+  if (otherLang.has(sub)) return otherLang.get(sub);
+  if (subLang.get(sub) && subLang.get(sub) !== 'en') return 'en';  // big four already handles it
+  if (looksEnglish(text)) return 'en';
+  const out = await askAnthropic(
+    'Name the language this message is written in. Reply with ONLY the English name of the language, nothing else. If it is English, or you cannot tell, reply exactly: English',
+    text, 20);
+  const lang = (!out || /^english$/i.test(out) || out.length > 30) ? 'en' : out.replace(/[."']/g, '').trim();
+  otherLang.set(sub, lang);
+  if (otherLang.size > 800) otherLang.delete(otherLang.keys().next().value);
+  if (lang !== 'en') {
+    try { recent.unshift({ at: new Date().toISOString(), endpoint: 'lang-learned', sub, lang }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+  }
+  return lang;
+}
+
+/* Put a canned English message into the customer's language. Cached, and falls
+   back to the English on any failure — a nudge must never fail to send. */
+async function say(englishText, sub) {
+  const lang = otherLang.get(sub);
+  if (!lang || lang === 'en' || !englishText) return englishText;
+  const k = lang + '|' + englishText;
+  if (nudgeCache.has(k)) return nudgeCache.get(k);
+  const out = await askAnthropic(
+    'You translate short WhatsApp messages for a Bahamian sneaker shop. Output ONLY the translation into ' + lang + '. '
+    + 'Keep it warm, short and casual, and keep the emojis. Leave prices, sizes, shoe names, order codes and web addresses exactly as they are. No preamble, no notes.',
+    englishText, 500);
+  const val = out || englishText;
+  nudgeCache.set(k, val);
+  if (nudgeCache.size > 300) nudgeCache.delete(nudgeCache.keys().next().value);
+  return val;
+}
+
+
 /* Wholesale nudge, translated the same way as the rest. Says nothing about pictures
    or a catalogue — the site link already went out. */
 const WS_ASKME_T = {
@@ -1764,8 +1848,8 @@ YOUR NAME IS KIKI. You're part of the ${storeName} team. If a customer asks your
 
 How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
-- LANGUAGE — MATCH THE CUSTOMER (IMPORTANT): DEFAULT to ENGLISH. ONLY use **Haitian Creole (Kreyòl)** if the customer is clearly WRITING to you in Creole, ONLY use **Spanish** if they're clearly writing in Spanish, and ONLY use **French** if they're clearly writing in French (\"Bonjour ! Puis-je…\" = French — reply in French and STAY in French for the whole chat) — then reply in that same language. Do NOT switch languages over a single borrowed word or a name; only switch when the message is genuinely in that language. When in doubt, stay in English. Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
-- ⚠️ TRANSLATE THEIR MESSAGE FOR THE OWNER (Creole/Spanish — NEVER SKIP, EVERY SINGLE REPLY): The shop owner reads English only — this translation line is his ONLY way to follow a Spanish/Creole chat, so LEAVING IT OFF LEAVES HIM BLIND (Rodney 2026-07-17: a whole Spanish chat came through with no translations and he couldn't tell what the customer wanted). So: whenever the customer's message is in Haitian Creole, Spanish, or French, reply to them normally in their language, then at the very END add a blank line and this EXACT single line: 🔎 _Customer said: "<their latest message in plain, natural English>"_. This is MANDATORY on EVERY such reply — no exceptions, not for a short message, not for a one-word reply, not for a bare size number or code. Even a lone "42" or "A1" still gets the line (🔎 _Customer said: "42 (size)"_ / _"A1 (the code)"_). NEVER add this line when the customer wrote in English (English needs no translation).
+- LANGUAGE — REPLY IN WHATEVER LANGUAGE THEY WROTE IN (Rodney 2026-08-23: \"yes speak any language the customer speaks\"). ANY language, not a fixed list. If you can read it, answer it — Haitian Creole, Spanish, French, Portuguese, Gaelic, anything. ⛔ NEVER tell a customer you cannot help in their language. That happened on 23 Aug: a customer wrote in Scottish Gaelic, you UNDERSTOOD him (you restated it correctly in the translation line) and told him in the same breath that you could not help in that language. Understanding him and refusing him at once is worse than not understanding at all. If you grasp the message, serve them; if you genuinely cannot, ask them to try again in English — but only then, and never as a policy. Do NOT switch languages over a single borrowed word or a name; only switch when the message is genuinely in that language. When in doubt, stay in English. Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
+- ⚠️ TRANSLATE THEIR MESSAGE FOR THE OWNER (Creole/Spanish — NEVER SKIP, EVERY SINGLE REPLY): The shop owner reads English only — this translation line is his ONLY way to follow a Spanish/Creole chat, so LEAVING IT OFF LEAVES HIM BLIND (Rodney 2026-07-17: a whole Spanish chat came through with no translations and he couldn't tell what the customer wanted). So: whenever the customer's message is in ANY language other than English, reply to them normally in their language, then at the very END add a blank line and this EXACT single line: 🔎 _Customer said: "<their latest message in plain, natural English>"_. This is MANDATORY on EVERY such reply — no exceptions, not for a short message, not for a one-word reply, not for a bare size number or code. Even a lone "42" or "A1" still gets the line (🔎 _Customer said: "42 (size)"_ / _"A1 (the code)"_). NEVER add this line when the customer wrote in English (English needs no translation).
 ${welcomeRule}
 - Talk like a real, friendly shop assistant having a normal conversation. Do NOT fire off photos the moment you see a number — but do NOT interrogate them either.
 - NEVER ask the customer whether they're "looking for something specific" or have "anything specific in mind", and never ask "what kind of shoe are you after". Don't make them name a model. Your DEFAULT move is simply to offer to show what we have, e.g. "Want me to show you what we've got in {size}? 👟" (or without the size if they haven't given one). Only dig into a specific shoe/brand/colour if THEY bring it up first. DELIVERY QUESTION (IMPORTANT — answer this FIRST, always): if a customer's very first message or any message mentions delivery — "do u deliver", "do you deliver", "delivery?", "can you bring it", "you does deliver" — answer it IMMEDIATELY: "Yes! We deliver right to your door in Nassau 🛵 What shoe and size are you looking for?" Do NOT send follow-up nudge messages to a customer whose delivery question was never answered.
@@ -2834,7 +2918,9 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
         const link = sz ? `${WEBSITE}/#size=${encodeURIComponent(sz)}` : WEBSITE;
         closing += `\n\nCan't see the pictures? 👉 ${link}${sz ? ` — every size ${sz} we have, with photos` : ''}`;
       }
-      try { await sendChunk(sub, [{ type: 'text', text: closing }], token); } catch (e) { /* non-fatal */ }
+      // Translated whole, AFTER the link is appended, so the sentence around the URL
+      // reads properly in their language. say() leaves web addresses alone.
+      try { await sendChunk(sub, [{ type: 'text', text: await say(closing, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
   // last_shoe: the FINAL photo that went out — Kiki's best guess when the customer
@@ -3519,9 +3605,12 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
     // It only fires if the customer stays quiet; after the last stage there's no `next`.
     if (next && next.text) scheduleNudge(sub, token, next.text, next.ms, next.next, next.isCloser);
     try {
-      await sendChunk(sub, [{ type: 'text', text }], token);
+      // Translated here rather than at schedule time: by now learnLang() has had
+      // minutes to finish, and a cached language costs nothing.
+      const outText = await say(text, sub);
+      await sendChunk(sub, [{ type: 'text', text: outText }], token);
       const h = convos.get(sub) || [];
-      h.push({ role: 'assistant', content: text }); // so Claude knows it asked
+      h.push({ role: 'assistant', content: outText }); // so Claude knows it asked — in the words actually sent
       rememberConvo(sub, trimHistory(h));
     } catch (e) { /* non-fatal */ }
   }, ms);
@@ -3909,7 +3998,7 @@ const reminderTick = setInterval(async () => {
     let askedCustomer = false;
     if (r.sub) {
       try {
-        const res = await sendChunk(r.sub, [{ type: 'text', text: L(DAY_ARRIVED_T, r.sub) }], tk);
+        const res = await sendChunk(r.sub, [{ type: 'text', text: await say(L(DAY_ARRIVED_T, r.sub), r.sub) }], tk);
         askedCustomer = !!(res && res.ok);
         // They've been asked a question — let a reply cancel any stale nudge chain.
         if (askedCustomer) { try { clearFollowUp(r.sub); } catch (_) {} }
@@ -5953,6 +6042,10 @@ function handleChat(req, res) {
   // Track the customer's language (conservative; English by default) so the automatic
   // nudges/handoff go out in Creole/Spanish only when they clearly speak it.
   if (sub && userText) { try { subLang.set(sub, detectLang(userText, subLang.get(sub))); } catch (_) {} }
+  // …and, for anything outside those four, learn the language ONCE so the canned
+  // nudges can follow the customer too. Deliberately not awaited: it must never
+  // delay a reply, and the nudges it feeds are minutes away.
+  if (sub && userText) { try { learnLang(sub, userText).catch(() => {}); } catch (_) {} }
 
   res.json({ ok: true }); // answer ManyChat instantly; do the AI work in the background
 
@@ -5981,7 +6074,7 @@ function handleChat(req, res) {
       // pretending we have them. Sits inside the 10-min throttle so a burst of phantom
       // events writes ONE line, not fifty.
       if (!staffNameFor(req)) try { inboxRecord(store, sub, { dir: 'in', sender: 'customer', text: '📩 New message — WhatsApp didn\'t pass the words through. Open the chat to read it.', name, phone: getPhone(req) || '' }); } catch (_) {}
-      sendChunk(sub, [{ type: 'text', text: L(EMPTY_ASK_T, sub) }], token).catch(() => {});
+      say(L(EMPTY_ASK_T, sub), sub).then(t2 => sendChunk(sub, [{ type: 'text', text: t2 }], token)).catch(() => {});
     }
     return;
   }
