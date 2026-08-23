@@ -3674,6 +3674,54 @@ async function _waSendManagerInner(text, token, image) {
       } catch (_) { /* try the other account */ }
     }
   }
+  // ⏰ IS THE 24-HOUR WINDOW EVEN OPEN? (Rodney 2026-08-23: "I'm still not receiving
+  // notifications on WhatsApp for the orders.")
+  //
+  // ⚠️ THIS CORRECTS YESTERDAY'S DIAGNOSIS. I blamed MANAGER_WA/MANAGER_WA_2 holding the
+  // businesses' own numbers. They did — but those are only the LEGACY FALLBACK. The primary
+  // path, MANAGER_SUB_BY_STORE, was CORRECT all along: "Driplomatics" subs 318550271 (OSC)
+  // and 2002253438 (TK) both carry phone +12424324406, which IS his phone.
+  //
+  // The real cause is WhatsApp's customer-care window. A business may only send free-form
+  // messages within 24h of the USER's last inbound. Measured when he reported it:
+  //   OSC  — his last inbound 138.8 h ago ("send price list")
+  //   TK   — his last inbound  59.4 h ago ("3, 5 and 7 did not sell")
+  // Both shut. ManyChat accepts the send and reports success, WhatsApp drops it — so every
+  // alert read as 'manager-alert-sent' while he got nothing. Templates would escape the
+  // window, but this workspace cannot send them: "Manychat's Credit Line was not shared".
+  //
+  // We cannot reopen it — only HE can, by messaging the bot. So make it VISIBLE instead of
+  // silent: flag it, push it to the app (a different channel, no window), and put it on the
+  // task board with the one action that fixes it.
+  try {
+    const stale = [];
+    for (const [store, subId] of Object.entries(MANAGER_SUB_BY_STORE)) {
+      const key = inboxSubIndex.get(String(subId));
+      const t = key ? inboxThreads.get(key) : null;
+      const lastIn = t && Array.isArray(t.msgs)
+        ? t.msgs.filter(m => m.dir === 'in').map(m => m.ts || 0).sort().pop() || 0
+        : 0;
+      const hrs = lastIn ? (Date.now() - lastIn) / 3600000 : 999;
+      if (hrs > 23) stale.push({ store, hrs: Math.round(hrs) });
+    }
+    if (stale.length) {
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'manager-alert-WINDOW-CLOSED',
+        detail: stale.map(x => `${x.store}:${x.hrs}h`).join(', ') });
+      if (recent.length > 120) recent.length = 120;
+      const k = 'winclosed';
+      if (Date.now() - (nonTextAlertAt.get(k) || 0) > 3 * 3600 * 1000) {
+        nonTextAlertAt.set(k, Date.now());
+        const list = stale.map(x => `• ${x.store} — ${x.hrs}h`).join('\n');
+        require('./shop').addAlert(
+          '📵 *WHATSAPP ALERTS ARE BLOCKED*\nWhatsApp only lets the bot message you for 24h after YOU message it, and that window has shut:\n' +
+          list + '\n\n👉 Send "hi" to ' + fmtStoreWa('12428033126') + ' (OSC) and ' + fmtStoreWa('12428256405') +
+          ' (Trendy Kicks) to switch order alerts back on.\nOrders are still being taken and are all on this board — you are just not being pinged.',
+          'Kiki 🤖', { pushTitle: '📵 WhatsApp order alerts blocked',
+                       pushBody: 'Send "hi" to the bot numbers to turn them back on' });
+      }
+    }
+  } catch (_) {}
+
   if (ownerOk) {
     // Say WHICH route delivered. There is a note elsewhere in this file that WhatsApp
     // subscribers can come back with phone:null, which would make this lookup find nobody —
