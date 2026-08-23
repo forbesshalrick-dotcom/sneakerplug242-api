@@ -1633,10 +1633,17 @@ const HANDOFF_T = {
 };
 // Owner's WhatsApp (digits only) for delivery-ready alerts. Defaults to Rodney's
 // number so it survives redeploys; MANAGER_WA env can override.
-const MANAGER_WA = (process.env.MANAGER_WA || '12428033126').replace(/[^0-9]/g, '');
-// Second owner phone (backup) so a dead battery on one phone never means a missed
-// delivery — every owner alert goes to BOTH. Fill MANAGER_WA_2 with the real number.
-const MANAGER_WA_2 = (process.env.MANAGER_WA_2 || '12428256405').replace(/[^0-9]/g, '');
+// 🔴 CORRECTED 2026-08-22 — Rodney: "send from both accounts to 4324406 from OSC and TK",
+// after two deliveries whose alerts never reached him.
+// The two numbers that used to sit here were **12428033126** and **12428256405** — and those
+// are the OFFICIAL SNEAKER CREW and TRENDY KICKS *business* numbers, i.e. the bots' own
+// WhatsApp lines, not his phone. Every owner alert was being addressed to the businesses
+// themselves. His phone is 1 242 432 4406.
+const MANAGER_WA = (process.env.MANAGER_WA || '12424324406').replace(/[^0-9]/g, '');
+// No second owner phone. It used to default to the Trendy Kicks business number, which was
+// never a backup — it was the same mistake twice. Set MANAGER_WA_2 only if a REAL second
+// phone exists.
+const MANAGER_WA_2 = (process.env.MANAGER_WA_2 || '').replace(/[^0-9]/g, '');
 const MANAGER_NUMBERS = [MANAGER_WA, MANAGER_WA_2].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
 
 // ── 🧾 CUSTOMER RECEIPT (Rodney 2026-07-20) ───────────────────────────────────
@@ -3634,6 +3641,33 @@ async function _waSendManagerInner(text, token, image) {
    * — he is a subscriber on some accounts and not others, and an alert that never
    * arrives is worse than one from the wrong number.
    */
+  // 🎯 THE OWNER, FROM BOTH RETAIL ACCOUNTS, BEFORE ANYTHING ELSE (Rodney 22 Aug).
+  // He asked for both on purpose: one account going quiet must not mean a missed delivery,
+  // and two alerts beat none. This runs FIRST because the subscriber-map path below was
+  // "succeeding" against ids that are not him, so it never fell through to the phone lookup
+  // and the failure was invisible.
+  let ownerOk = false;
+  if (MANAGER_WA) {
+    for (const st of ['Official Sneaker Crew', 'Trendy Kicks']) {
+      const stk = storeTokens.get(st);
+      if (!stk) continue;
+      try {
+        const osub = await findSubscriberByPhone(MANAGER_WA, stk);
+        if (!osub) continue;
+        const r = await sendChunk(osub, chunk, stk);
+        if (r && r.ok) ownerOk = true;
+      } catch (_) { /* try the other account */ }
+    }
+  }
+  if (ownerOk) {
+    // Say WHICH route delivered. There is a note elsewhere in this file that WhatsApp
+    // subscribers can come back with phone:null, which would make this lookup find nobody —
+    // so this must be observed, not assumed.
+    try { recent.unshift({ at: new Date().toISOString(), endpoint: 'manager-alert-route', route: 'owner-phone', to: MANAGER_WA }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+    return true;
+  }
+  try { recent.unshift({ at: new Date().toISOString(), endpoint: 'manager-alert-route', route: 'owner-phone-NOT-FOUND', to: MANAGER_WA }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+
   let anyDirect = false;
   const ownStore = token
     ? [...storeTokens.entries()].find(([, t]) => t === token)?.[0]
