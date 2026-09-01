@@ -1532,7 +1532,17 @@ const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
 // gets out when the pipe is swallowing, so it must give him a way back in — ask him to send
 // it again, the way the retail closer already does. Rodney's own wording stays first and
 // untouched; the invitation is added after it.
-const WHOLESALE_NUDGE_MSG = "Take your time looking through the site 👟 Let me know if you see something you like and I'll line it up ASAP.\n\n(If you already sent me a message and I didn't answer — send it once more 🙏 WhatsApp drops one now and then.)";
+// The link + code ride along on every nudge now, not just the first message
+// (2026-08-31, real customer "Jocelyn"): Rodney's report was "kiki told him to
+// checkout the stuff but she sent no website" — this nudge has always assumed
+// the site link already went out earlier in the chat, but the comment two
+// screens up already documents that assumption failing ("Boxer", "Nassau
+// buyer") — the first message is exactly the one ManyChat is most likely to
+// swallow, since it is often the very first thing sent to a brand-new
+// subscriber. A repeat costs nothing; a customer with no way back in costs a
+// sale.
+const WHOLESALE_SITE_LINE = `*sneakerinventory.com* — code *${(process.env.WHOLESALE_CODE || 'W242').toUpperCase()}* to get in.`;
+const WHOLESALE_NUDGE_MSG = `Take your time looking through the site 👟 ${WHOLESALE_SITE_LINE} Let me know if you see something you like and I'll line it up ASAP.\n\n(If you already sent me a message and I didn't answer — send it once more 🙏 WhatsApp drops one now and then.)`;
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
 // Detection is CONSERVATIVE (needs strong signals); default stays English, so an
@@ -1676,9 +1686,9 @@ async function say(englishText, sub) {
    or a catalogue — the site link already went out. */
 const WS_ASKME_T = {
   en: WHOLESALE_NUDGE_MSG,
-  es: "Tómate tu tiempo mirando el sitio 👟 Avísame si ves algo que te guste y te lo preparo enseguida.\n\n(Si ya me escribiste y no te contesté — mándalo otra vez 🙏 WhatsApp pierde alguno de vez en cuando.)",
-  ht: "Pran tan ou gade sit la 👟 Fè m konnen si ou wè yon bagay ou renmen, m ap prepare l touswit.\n\n(Si ou te deja ekri m e m pa reponn — voye l yon fwa ankò 🙏 WhatsApp pèdi youn tanzantan.)",
-  fr: "Prends ton temps sur le site 👟 Dis-moi si tu vois quelque chose qui te plaît et je te le prépare tout de suite.\n\n(Si tu m'as déjà écrit et que je n'ai pas répondu — renvoie-le 🙏 WhatsApp en perd un de temps en temps.)",
+  es: `Tómate tu tiempo mirando el sitio 👟 ${WHOLESALE_SITE_LINE} Avísame si ves algo que te guste y te lo preparo enseguida.\n\n(Si ya me escribiste y no te contesté — mándalo otra vez 🙏 WhatsApp pierde alguno de vez en cuando.)`,
+  ht: `Pran tan ou gade sit la 👟 ${WHOLESALE_SITE_LINE} Fè m konnen si ou wè yon bagay ou renmen, m ap prepare l touswit.\n\n(Si ou te deja ekri m e m pa reponn — voye l yon fwa ankò 🙏 WhatsApp pèdi youn tanzantan.)`,
+  fr: `Prends ton temps sur le site 👟 ${WHOLESALE_SITE_LINE} Dis-moi si tu vois quelque chose qui te plaît et je te le prépare tout de suite.\n\n(Si tu m'as déjà écrit et que je n'ai pas répondu — renvoie-le 🙏 WhatsApp en perd un de temps en temps.)`,
 };
 
 const ASKME_T = {
@@ -5023,7 +5033,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let photoNote = `(The customer sent a PHOTO. FIRST look at WHAT it actually shows before doing anything:
 • If it's a SHOE / sneaker → identify it and you MUST call search_inventory then send_photos (never just ask "what size?").
 • 🎽 STAFF EXCEPTION — CHECK THIS FIRST: if the prompt has a "STAFF CHAT" section (i.e. this person is one of OUR staff, recognized by their number) AND the photo is CASH / banknotes / a pile of money, it is their END-OF-SHIFT FLOAT COUNT — go STRAIGHT to the float-count flow: keep the photo as their proof, ASK THEM what they counted it to (you do NOT count the cash yourself — you can't read a pile of bills reliably), then call record_float_count with THEIR total per the staff rules. Do NOT call it a "banknote sent by accident", do NOT say "not a shoe", and NEVER pitch sneakers or ask a staff member their size (2026-07-17: a staff float photo on OSC got "that's cash, want to see what we've got? tell me your size" — staff were detected but Kiki still ran the customer script). The rest of THIS rule is for CUSTOMERS only.
-• If it's a RECEIPT, a payment / bank-transfer / SunCash screenshot, a cash photo, a shipping ticket, an ID, or ANY document or thing that is NOT a shoe → do NOT search inventory and do NOT send shoe photos. It is almost certainly PROOF OF PAYMENT for their order — warmly confirm you got it, e.g. "Got your receipt 🙏 payment confirmed — we'll get it sent right out!", AND on the SAME turn CALL notify_manager with everything already in this conversation (shoe + size, island/destination, payment = "PAID — receipt received [method]") so the team starts the order immediately (Rodney's rule 2026-07-13). ⚠️ Do NOT re-ask the shoe, size, or destination if they appear ANYWHERE earlier in the chat — re-confirming an order they already placed and PAID for reads like we lost it. And NEVER ask for a phone number — the system attaches their WhatsApp number automatically. Only if the shoe/size genuinely appears NOWHERE in the conversation do you ask, once, apologetically. ⚠️ BUT a receipt only exists where an ORDER exists: if there is NO order or payment talk anywhere in this conversation and the image is clearly a random FLYER / poster / event ad / raffle ticket / meme / forwarded broadcast (2026-07-14: someone forwarded Special Olympics raffle flyers), do NOT confirm any payment and do NOT call notify_manager — just reply lightly: "Hey! 👋 We're all about sneakers here — want to see what we've got? Tell me your size 👟".)${(userText && userText.trim()) ? ('\n\nThey also wrote: ' + userText) : ''}`;
+• If it's a RECEIPT, a payment / bank-transfer / SunCash screenshot, a cash photo, a shipping ticket, an ID, or ANY document or thing that is NOT a shoe → do NOT search inventory and do NOT send shoe photos. ⚠️ FIRST check whether a shoe and size ALREADY appear anywhere earlier in this conversation — that is what decides which of the next two branches you are in, and mixing them is the actual bug this replaced (2026-08-31, real customer "Jocelyn": a receipt arrived with no order in the chat, and Kiki said "payment confirmed — we'll get it sent right out!" in the SAME breath as "I'm not seeing an order in our chat yet" — confirming a payment for an order she had just said did not exist).
+  — IF a shoe + size DO appear earlier: it is almost certainly PROOF OF PAYMENT for that order — warmly confirm you got it, e.g. "Got your receipt 🙏 payment confirmed — we'll get it sent right out!", AND on the SAME turn CALL notify_manager with everything already in this conversation (shoe + size, island/destination, payment = "PAID — receipt received [method]") so the team starts the order immediately (Rodney's rule 2026-07-13). Do NOT re-ask the shoe, size, or destination — re-confirming an order they already placed and PAID for reads like we lost it. Never ask for a phone number — the system attaches it automatically.
+  — IF NO shoe or size appears ANYWHERE earlier in this conversation: this is a real payment document, but you cannot tell what it is FOR. Do NOT say "payment confirmed" and do NOT call notify_manager — there is nothing to confirm yet and nothing to alert the team about. Instead say so plainly and ask, e.g. "Got your receipt 🙏 — I don't have an order from you yet though, so I can't confirm what this is for. What shoe and size were you sending this for?" Once they answer, THEN you have an order and can confirm the payment on your next turn.
+  — IF there is NO order or payment talk anywhere in this conversation AND the image is clearly a random FLYER / poster / event ad / raffle ticket / meme / forwarded broadcast (2026-07-14: someone forwarded Special Olympics raffle flyers) rather than a real payment document — do NOT confirm any payment and do NOT call notify_manager — just reply lightly: "Hey! 👋 We're all about sneakers here — want to see what we've got? Tell me your size 👟".)${(userText && userText.trim()) ? ('\n\nThey also wrote: ' + userText) : ''}`;
   if (image) {
     const rs = recentlySent.get(sub);
     if (rs && rs.names && rs.names.length && (Date.now() - rs.ts) < 45 * 60 * 1000) {
@@ -9355,6 +9368,23 @@ app.post('/inbox/send-shoe', async (req, res) => {
   const brands = Array.isArray(b.brands) ? b.brands.map(String).filter(Boolean) : null;
   const results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query });
   if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing sent.', found: 0 });
+  // 🚦 A BROAD SEARCH CAN MATCH THE WHOLE CATALOGUE (2026-08-31, real customer, real money
+  // lost). Rodney picked "sizes 12 & 11" with no brand — that matched 76 shoes across the
+  // whole store, all 76 went out as one album, and every single one came back "sent" from
+  // ManyChat. The customer's real WhatsApp thread received NOTHING. This is the same wall
+  // as the 86-photo double-send below (proven: 6-8 photos deliver, 60+ is a ghost storm
+  // ManyChat lies about) — just reached through a size filter instead of a repeat tap.
+  // Unlike the ALBUM_MAX_PHOTOS attempt a few screens down, this does NOT try to truncate
+  // the id list and send a partial album — that was tried on the chat-bot path and TOOK
+  // ALBUMS TO sent=0 for real customers, because trimming the payload broke delivery in a
+  // way nobody could explain. Refusing the whole send and telling the operator to narrow
+  // it is the same shape as the duplicate-block refusal just below: never a silent partial.
+  const INBOX_ALBUM_MAX = 30;
+  if (results.length > INBOX_ALBUM_MAX) {
+    record(req, { endpoint: 'inbox-send-shoe-too-many', sub, account, found: results.length });
+    return res.json({ ok: false, tooMany: true, found: results.length, sent: 0,
+      error: 'That matched ' + results.length + ' shoes — too many for one WhatsApp send (' + INBOX_ALBUM_MAX + ' max, ManyChat silently drops anything past ~60 while reporting success). Narrow it by brand or model first.' });
+  }
   const pieces = [];
   if (b.color) pieces.push(String(b.color).trim());
   if (brands && brands.length) pieces.push(brands.join('/'));
