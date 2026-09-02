@@ -9368,23 +9368,13 @@ app.post('/inbox/send-shoe', async (req, res) => {
   const brands = Array.isArray(b.brands) ? b.brands.map(String).filter(Boolean) : null;
   const results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query });
   if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing sent.', found: 0 });
-  // 🚦 A BROAD SEARCH CAN MATCH THE WHOLE CATALOGUE (2026-08-31, real customer, real money
-  // lost). Rodney picked "sizes 12 & 11" with no brand — that matched 76 shoes across the
-  // whole store, all 76 went out as one album, and every single one came back "sent" from
-  // ManyChat. The customer's real WhatsApp thread received NOTHING. This is the same wall
-  // as the 86-photo double-send below (proven: 6-8 photos deliver, 60+ is a ghost storm
-  // ManyChat lies about) — just reached through a size filter instead of a repeat tap.
-  // Unlike the ALBUM_MAX_PHOTOS attempt a few screens down, this does NOT try to truncate
-  // the id list and send a partial album — that was tried on the chat-bot path and TOOK
-  // ALBUMS TO sent=0 for real customers, because trimming the payload broke delivery in a
-  // way nobody could explain. Refusing the whole send and telling the operator to narrow
-  // it is the same shape as the duplicate-block refusal just below: never a silent partial.
-  const INBOX_ALBUM_MAX = 30;
-  if (results.length > INBOX_ALBUM_MAX) {
-    record(req, { endpoint: 'inbox-send-shoe-too-many', sub, account, found: results.length });
-    return res.json({ ok: false, tooMany: true, found: results.length, sent: 0,
-      error: 'That matched ' + results.length + ' shoes — too many for one WhatsApp send (' + INBOX_ALBUM_MAX + ' max, ManyChat silently drops anything past ~60 while reporting success). Narrow it by brand or model first.' });
-  }
+  // 🚦 AUTO-BATCH LARGE ALBUMS (2026-09-01, Rodney's call). A broad "sizes 12 & 11"
+  // search matched 76 shoes and ManyChat returned 200 for all 76 while delivering ZERO.
+  // Instead of refusing, auto-batch into 20-photo chunks with gaps between them, so a
+  // size-7 search that hits 80+ shoes just goes out in 4-5 messages over ~30-40 seconds.
+  // Send lead-in once, then batches of up to 20 photos with 8-second delays between.
+  const BATCH_SIZE = 20;
+  const BATCH_DELAY_MS = 8000;
   const pieces = [];
   if (b.color) pieces.push(String(b.color).trim());
   if (brands && brands.length) pieces.push(brands.join('/'));
@@ -9415,9 +9405,29 @@ app.post('/inbox/send-shoe', async (req, res) => {
   inboxAlbumSentAt.set(albumKey, Date.now());
   setHumanPause(sub); clearFollowUp(sub);
   try {
-    const r = await sendShoePhotos(sub, results.map(x => x.id), token, true, null, leadIn);
-    record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: results.length, sent: r.sent });
-    res.json({ ok: r.sent > 0, found: results.length, sent: r.sent, error: r.sent > 0 ? undefined : ('Found ' + results.length + ' but none went out') });
+    const allIds = results.map(x => x.id);
+    let totalSent = 0;
+    const batches = [];
+    for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+      batches.push(allIds.slice(i, i + BATCH_SIZE));
+    }
+    // Send lead-in once, outside the photos
+    const leadMsg = [{ type: 'text', text: leadIn }];
+    await sendChunk(sub, leadMsg, token).catch(() => {});
+    // Auto-batch: send photos in chunks with delays between
+    for (let i = 0; i < batches.length; i++) {
+      const batchIds = batches[i];
+      const isLast = (i === batches.length - 1);
+      // Last batch gets the lead-in built into sendShoePhotos; earlier ones are photos-only
+      const batchLeadIn = isLast ? leadIn : '';
+      const r = await sendShoePhotos(sub, batchIds, token, true, null, batchLeadIn, false, i > 0);
+      totalSent += r.sent;
+      // Wait before the next batch (but not after the last one)
+      if (i < batches.length - 1) await new Promise(rs => setTimeout(rs, BATCH_DELAY_MS));
+    }
+    record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: results.length, sent: totalSent, batches: batches.length });
+    const batchNote = batches.length > 1 ? ` (${batches.length} batches)` : '';
+    res.json({ ok: totalSent > 0, found: results.length, sent: totalSent, batches: batches.length, error: totalSent > 0 ? undefined : ('Found ' + results.length + ' but none went out') });
   } catch (e) { res.json({ ok: false, error: String(e).slice(0, 160) }); }
 });
 
