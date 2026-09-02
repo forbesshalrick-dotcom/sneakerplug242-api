@@ -2019,9 +2019,83 @@ window.addEventListener('load',updateCartBadge);
 
 // ── POS REGISTER (staff in-person / at-the-door sales) ─────────────────────────
 let posSale = [];
-function openPOS(){ posSale=[]; posRenderSale(); var si=document.getElementById('pos-search'); if(si)si.value=''; var pr=document.getElementById('pos-results'); if(pr)pr.innerHTML=''; var rb=document.getElementById('role-badge'); if(rb)rb.style.display='none'; document.getElementById('pos-modal').style.display='flex'; setTimeout(function(){ try{document.getElementById('pos-search').focus();}catch(e){} },120); }
+function openPOS(){ posSale=[]; posRenderSale(); var si=document.getElementById('pos-search'); if(si)si.value=''; var pr=document.getElementById('pos-results'); if(pr)pr.innerHTML=''; var cf=document.getElementById('pos-custom-form'); if(cf){cf.style.display='none';cf.innerHTML='';} var rb=document.getElementById('role-badge'); if(rb)rb.style.display='none'; document.getElementById('pos-modal').style.display='flex'; setTimeout(function(){ try{document.getElementById('pos-search').focus();}catch(e){} },120); }
 function closePOS(){ document.getElementById('pos-modal').style.display='none'; var rb=document.getElementById('role-badge'); if(rb)rb.style.display=''; }
 function posCardBack(){ var grid=document.getElementById('pos-pay-grid'); if(grid) grid.style.display='grid'; var area=document.getElementById('pos-card-area'); if(area) area.innerHTML=''; }
+
+// ── Custom line item (Rodney, 2 Sep: "in case sneaker can't be found or where
+// in a hurry for self checkout") ────────────────────────────────────────────
+// A typed name + price, no catalog id behind it, so no stock is ever touched —
+// there is nothing in inventory to decrement for a shoe that was never entered.
+// It still needs to show up in the sales log, which is why posComplete below
+// has its own branch for it instead of silently skipping it like an unmatched
+// catalog id always has.
+function posOpenCustom(){
+  var f=document.getElementById('pos-custom-form'); if(!f) return;
+  var showing = f.style.display!=='none';
+  if(showing){ f.style.display='none'; f.innerHTML=''; return; }
+  f.style.display='block';
+  f.innerHTML='<div style="display:flex;gap:8px;">'
+    +'<input id="pos-custom-name" placeholder="What is it" style="flex:2;min-width:0;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface,#111);color:#fff;font-size:14px;">'
+    +'<input id="pos-custom-price" type="number" inputmode="decimal" placeholder="$" style="flex:1;min-width:0;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface,#111);color:#fff;font-size:14px;">'
+    +'</div><button onclick="posAddCustom()" style="margin-top:8px;width:100%;background:var(--accent);color:#000;border:none;padding:10px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer;">Add to sale</button>';
+  setTimeout(function(){ try{document.getElementById('pos-custom-name').focus();}catch(e){} },50);
+}
+function posAddCustom(){
+  var nameEl=document.getElementById('pos-custom-name'), priceEl=document.getElementById('pos-custom-price');
+  if(!nameEl||!priceEl) return;
+  var name=(nameEl.value||'').trim();
+  var price=parseFloat(priceEl.value);
+  if(!name){ showToast('Give it a name',true); return; }
+  if(!isFinite(price)||price<=0){ showToast('Give it a price',true); return; }
+  posSale.push({id:'custom-'+Date.now(), name:name, brand:'', color:'', size:'', price:price, image:'', custom:true});
+  try{_sfx.tap&&_sfx.tap();}catch(e){}
+  var f=document.getElementById('pos-custom-form'); if(f){ f.style.display='none'; f.innerHTML=''; }
+  posRenderSale();
+}
+
+// ── Customer pays on their own phone (Rodney, 2 Sep: "allow customers to pay
+// with their own phones, so no cards are saved on our phones. and its faster")
+// A QR/link to /pay carrying the total, so the CARD NUMBER is typed on the
+// customer's own device — staff never sees it and never hands their phone
+// over. There is no live connection back to this POS from that separate page,
+// so completion is a plain staff confirmation once the customer shows their
+// on-screen receipt — the same trust point as watching a Cash payment happen. ─
+function posCustomerPay(){
+  if(!posSale.length){ showToast('Add a shoe first',true); return; }
+  var grid=document.getElementById('pos-pay-grid'); if(grid) grid.style.display='none';
+  var area=document.getElementById('pos-customer-pay-area'); if(!area) return;
+  var total=posTotal();
+  var ref=posSale.map(function(it){return it.name;}).join(', ').slice(0,140);
+  var url='https://242plug.com/pay?amount='+encodeURIComponent(total.toFixed(2))+'&ref='+encodeURIComponent(ref);
+  area.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+    +'<span style="font-size:14px;font-weight:800;">📱 Customer Pay — $'+total.toFixed(2)+'</span>'
+    +'<button onclick="posCustomerPayBack()" style="background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;">&larr; back</button></div>'
+    +'<div style="background:#fff;border-radius:10px;padding:12px;display:flex;justify-content:center;"><div id="pos-cp-qr"></div></div>'
+    +'<div style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:8px;">They scan this with their own phone\'s camera</div>'
+    +'<button onclick="posCustomerPayCopy(\''+url.replace(/'/g, "\\'")+'\')" style="width:100%;margin-top:10px;background:var(--surface3,#222);color:#fff;border:1px solid var(--border);padding:11px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;">🔗 Share the link instead</button>'
+    +'<button onclick="posCustomerPayDone()" style="width:100%;margin-top:8px;background:var(--accent);color:#000;border:none;padding:13px;border-radius:9px;font-size:14px;font-weight:800;cursor:pointer;">✅ They paid — complete this sale</button>';
+  try{
+    var qrEl=document.getElementById('pos-cp-qr'); qrEl.innerHTML='';
+    new QRCode(qrEl,{text:url,width:170,height:170,colorDark:'#111111',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+  }catch(e){ document.getElementById('pos-cp-qr').innerHTML='<div style="width:170px;height:170px;background:#eee;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#666;padding:10px;text-align:center;">QR didn\'t load — use the link button below</div>'; }
+}
+function posCustomerPayBack(){
+  var grid=document.getElementById('pos-pay-grid'); if(grid) grid.style.display='grid';
+  var area=document.getElementById('pos-customer-pay-area'); if(area) area.innerHTML='';
+}
+function posCustomerPayCopy(url){
+  // A share sheet (WhatsApp/SMS/AirDrop) is the fastest hand-off when it exists;
+  // clipboard is the fallback everywhere else, including desktop testing.
+  if(navigator.share){ navigator.share({title:'Pay SneakerPlug242',url:url}).catch(function(){}); return; }
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(function(){ showToast('Link copied'); }); return; }
+  showToast('Link: '+url);
+}
+function posCustomerPayDone(){
+  posComplete('Card', {viaCustomerPhone:true});
+  var area=document.getElementById('pos-customer-pay-area'); if(area) area.innerHTML='';
+}
+
 function posSearch(q){
   q=(q||'').trim().toLowerCase();
   var res=document.getElementById('pos-results'); if(!res) return;
@@ -2062,6 +2136,7 @@ function posRenderSale(){
     +'<button onclick="posRemove('+i+')" style="background:none;border:none;color:#ff6666;font-size:22px;line-height:1;cursor:pointer;padding:0 4px;">&times;</button></div>'; }).join(''); }
   var tt=document.getElementById('pos-total'); if(tt) tt.textContent='$'+posTotal().toFixed(2);
   var ca=document.getElementById('pos-card-area'); if(ca) ca.innerHTML='';
+  var cp=document.getElementById('pos-customer-pay-area'); if(cp) cp.innerHTML='';
   var gr=document.getElementById('pos-pay-grid'); if(gr) gr.style.display='grid';
 }
 function posPay(method){
@@ -2084,14 +2159,22 @@ function posCardCheckout(){
     }).render('#pos-pp-btn').catch(function(){});
   }).catch(function(){ var c=document.getElementById('pos-pp-btn'); if(c)c.innerHTML='<div style="color:#ff6666;font-size:12px;text-align:center;">Couldn\'t load checkout</div>'; });
 }
-function posComplete(method){
+function posComplete(method, extra){
   var count=posSale.length, total=posTotal();
   posSale.forEach(function(it){
+    if(it.custom){
+      // A typed line item, no catalog id — nothing in stock to touch, but it
+      // still has to land in the sales log or Rodney's day total is short by
+      // exactly whatever got typed in here.
+      logSale({id:it.id, brand:'', name:it.name, color:'', image:'', price:it.price}, '', method, extra);
+      if(typeof addAudit==='function') addAudit('POS sale ('+method+')', it.name+' — custom item', 'sale', it.id);
+      return;
+    }
     var s=shoes.find(function(x){return x.id===it.id;}); if(!s) return;
     var idx=s.sizes.indexOf(it.size); if(idx>-1) s.sizes.splice(idx,1);
     if(s.sizes.length===0) s.sold=true;
     s.updatedAt=Date.now();
-    logSale(s, it.size, method);
+    logSale(s, it.size, method, extra);
     if(typeof addAudit==='function') addAudit('POS sale ('+method+')', s.brand+' '+s.name+' — size '+it.size, 'sale', s.id);
   });
   try{ save(); }catch(e){}
@@ -8506,6 +8589,8 @@ if('serviceWorker' in navigator){
   </div>
   <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
     <input id="pos-search" oninput="posSearch(this.value)" placeholder="🔍 Search shoe — name, brand, colour" style="width:100%;padding:13px;border-radius:11px;border:1px solid var(--border);background:var(--surface3,#1a1a1a);color:#fff;font-size:15px;box-sizing:border-box;">
+    <button onclick="posOpenCustom()" style="background:none;border:none;color:var(--accent);font-size:12.5px;font-weight:700;cursor:pointer;padding:8px 2px 0;">+ Custom item (shoe not found / in a hurry)</button>
+    <div id="pos-custom-form" style="display:none;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--surface3,#1a1a1a);"></div>
     <div id="pos-results" style="max-height:32vh;overflow:auto;margin-top:6px;"></div>
   </div>
   <div style="flex:1;min-height:0;overflow:auto;padding:12px 16px;">
@@ -8519,7 +8604,9 @@ if('serviceWorker' in navigator){
       <button onclick="posPay('Card')" style="background:#0a66ff;color:#fff;border:none;padding:14px;border-radius:11px;font-size:15px;font-weight:800;cursor:pointer;">💳 Card</button>
       <button onclick="posPay('Bank')" style="background:var(--surface3,#222);color:#fff;border:1px solid var(--border);padding:14px;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer;">🏦 Bank</button>
       <button onclick="posPay('SunCash')" style="background:var(--surface3,#222);color:#fff;border:1px solid var(--border);padding:14px;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer;">📲 SunCash</button>
+      <button onclick="posCustomerPay()" style="grid-column:1 / -1;background:none;color:var(--accent);border:1px solid var(--accent);padding:12px;border-radius:11px;font-size:14px;font-weight:800;cursor:pointer;">📱 Customer Pays On Their Own Phone</button>
     </div>
+    <div id="pos-customer-pay-area" style="margin-top:10px;"></div>
     <div id="pos-card-area" style="margin-top:10px;"></div>
   </div>
 </div>

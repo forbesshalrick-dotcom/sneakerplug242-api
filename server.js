@@ -9610,6 +9610,20 @@ app.get('/', (req, res, next) => {
 
 // The Inbox page itself — a slim, mobile-first staff page served straight from the
 // server (so the 242plug PWA stays slim and just links here with ?key=).
+// The customer's own self-checkout page — a link/QR the POS hands to a customer's
+// OWN phone, so they type their card details on their own device and staff never
+// touches a card or borrows the customer's phone. Rodney, 2 Sep: "allow customers
+// to pay with their own phones, so no cards are saved on our phones. and its
+// faster." Read once at boot exactly like storefront.html, below.
+let PAY_HTML = null;
+try { PAY_HTML = require('fs').readFileSync(require('path').join(__dirname, 'pay.html'), 'utf8'); }
+catch (e) { console.log('[pay] pay.html missing — customer self-checkout will 404:', e.message); }
+app.get('/pay', (req, res) => {
+  if (!PAY_HTML) return res.status(404).type('text/plain').send('not set up yet');
+  // A payment page is never something a stale cache should serve — always fresh.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate').type('html').send(PAY_HTML);
+});
+
 app.get('/inbox', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); // always serve the latest UI, never a stale cached page
   res.type('html').send(INBOX_HTML);
