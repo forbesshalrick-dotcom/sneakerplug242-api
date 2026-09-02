@@ -9731,6 +9731,17 @@ app.get('/console', (req, res) => {
 </div></body></html>`);
 });
 
+// ☎️ PHONE CALLS ANSWERED BY AI — Rodney 2026-09-02, on the OSC and TK numbers.
+// Mounted last so it can hand the voice agent the SAME searchInventory the WhatsApp bot
+// uses; a voice agent with its own copy of the stock would drift within a day.
+// Wrapped because a fault in the phone line must never take the shop's WhatsApp down.
+try {
+  require('./voice').mountVoice(app, { searchInventory, record, waSendManager });
+  console.log('[voice] phone-call brain mounted on /voice/fn');
+} catch (e) {
+  console.error('[voice] NOT mounted:', e && e.message);
+}
+
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
   console.log(`${catalog.length} shoes loaded`);
