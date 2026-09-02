@@ -5767,6 +5767,118 @@ function voidSale(saleId){
   showToast('Sale voided — shoe back in stock ✓');
 }
 
+// ── FIX THE SHOE ON A SALE (Rodney, 2 Sep: "an option on sale page to correct
+// the shoe or find the correct shoe in the system so the system updates") ──
+// Covers two real situations: a custom item typed in a hurry that staff can now
+// properly match to a catalog shoe, and a sale that was logged against the
+// wrong shoe entirely (picked the wrong search result at a busy moment).
+//
+// Implemented as VOID the old line + LOG a fresh one against the right shoe,
+// reusing voidSale's own restock step and posComplete's own decrement step
+// rather than inventing a third way to move stock. The reason is what those
+// two already do to stay safe on a live, shared register: /shop/sale is
+// insert-only server-side (it silently ignores a second push with the same
+// id), so quietly rewriting the existing sale record in place would fix this
+// device's copy and leave every other device holding the wrong one forever.
+// Void-then-relog needs no new server code — it moves through the exact two
+// endpoints already proven live tonight — and it leaves an honest trail: the
+// sales page shows the old line voided and a new correct one at the same
+// price and payment method, which is a completely ordinary correction to read
+// back later, not a silently rewritten history.
+var _fixingSaleId = null;
+function fixSaleShoe(saleId){
+  if(!_requireManager('fix a sale'))return;
+  var sales=getSales();
+  var sale=sales.find(function(x){return String(x.id)===String(saleId);});
+  if(!sale){ showToast('Sale not found',true); return; }
+  _fixingSaleId=saleId;
+  var ov=document.createElement('div');
+  ov.id='fix-sale-overlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);display:flex;align-items:flex-end;justify-content:center;';
+  ov.innerHTML='<div style="background:var(--surface,#111);width:100%;max-width:480px;max-height:82vh;border-radius:16px 16px 0 0;padding:16px;display:flex;flex-direction:column;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+      +'<div style="font-size:15px;font-weight:800;">🔧 Fix the shoe on this sale</div>'
+      +'<button onclick="fixSaleClose()" style="background:none;border:none;color:var(--text-muted);font-size:26px;line-height:1;cursor:pointer;">&times;</button>'
+    +'</div>'
+    +'<div style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px;">Currently logged as: <b style="color:#fff;">'+sale.brand+' '+sale.name+'</b>'+(sale.size?' &middot; size '+sale.size:'')+' &middot; $'+(parseFloat(sale.price)||0).toFixed(2)+'</div>'
+    +'<input id="fix-sale-search" oninput="fixSaleSearch(this.value)" placeholder="🔍 Search the correct shoe — name, brand, colour" style="width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--surface3,#1a1a1a);color:#fff;font-size:15px;box-sizing:border-box;">'
+    +'<div id="fix-sale-results" style="overflow:auto;margin-top:8px;flex:1;"></div>'
+  +'</div>';
+  document.body.appendChild(ov);
+  setTimeout(function(){ try{document.getElementById('fix-sale-search').focus();}catch(e){} },100);
+}
+function fixSaleClose(){
+  _fixingSaleId=null;
+  var ov=document.getElementById('fix-sale-overlay'); if(ov&&ov.parentNode) ov.parentNode.removeChild(ov);
+}
+function fixSaleSearch(q){
+  q=(q||'').trim().toLowerCase();
+  var res=document.getElementById('fix-sale-results'); if(!res) return;
+  if(!q){ res.innerHTML=''; return; }
+  var matches=shoes.filter(function(s){ return !s.sold && s.sizes.length && (s.brand+' '+s.name+' '+(s.color||'')+' '+(s.nickname||'')).toLowerCase().indexOf(q)>-1; }).slice(0,20);
+  if(!matches.length){ res.innerHTML='<div style="color:var(--text-muted);font-size:13px;padding:10px;">No matches</div>'; return; }
+  res.innerHTML=matches.map(function(s){ return '<div onclick="fixSalePickShoe(\''+s.id+'\')" style="display:flex;gap:10px;align-items:center;padding:9px 6px;border-bottom:1px solid var(--border);cursor:pointer;">'
+    +'<div style="width:44px;height:44px;background:#fff;border-radius:7px;overflow:hidden;flex-shrink:0;">'+(s.image?'<img src="'+s.image+'" style="width:100%;height:100%;object-fit:cover;">':'')+'</div>'
+    +'<div style="flex:1;min-width:0;"><div style="font-size:14px;font-weight:700;">'+s.name+'</div><div style="font-size:12px;color:var(--text-muted);">'+(s.color||'')+' &middot; $'+s.price+'</div></div>'
+    +'<span style="color:var(--accent);font-size:20px;">+</span></div>'; }).join('');
+}
+function fixSalePickShoe(shoeId){
+  var s=shoes.find(function(x){return x.id===shoeId;}); if(!s) return;
+  var sizes=uniqueSizes(s.sizes);
+  var res=document.getElementById('fix-sale-results'); if(!res) return;
+  res.innerHTML='<div style="padding:10px 6px;"><div style="font-size:14px;font-weight:700;margin-bottom:8px;">'+s.name+' — tap the size that actually sold:</div><div style="display:flex;flex-wrap:wrap;gap:7px;">'
+    +sizes.map(function(sz){ return '<button onclick="fixSaleConfirm(\''+shoeId+'\',\''+sz+'\')" style="background:var(--accent);color:#000;border:none;padding:9px 14px;border-radius:9px;font-weight:800;font-size:14px;cursor:pointer;">'+sz+'</button>'; }).join('')
+    +'</div><button onclick="fixSaleSearch(document.getElementById(\'fix-sale-search\').value)" style="margin-top:10px;background:none;border:none;color:var(--text-muted);font-size:13px;cursor:pointer;">&larr; back</button></div>';
+}
+function fixSaleConfirm(newShoeId, newSize){
+  var saleId=_fixingSaleId;
+  var sales=getSales();
+  var idx=sales.findIndex(function(x){return String(x.id)===String(saleId);});
+  if(idx<0){ showToast('Sale not found',true); fixSaleClose(); return; }
+  var oldSale=sales[idx];
+  var newShoe=shoes.find(function(x){return x.id===newShoeId;});
+  if(!newShoe){ showToast('Shoe not found',true); return; }
+  if(!confirm('Fix this sale?\n\nWas: '+oldSale.brand+' '+oldSale.name+(oldSale.size?' size '+oldSale.size:'')+'\nNow: '+newShoe.brand+' '+newShoe.name+' size '+newSize+'\n\nSame price ($'+(parseFloat(oldSale.price)||0).toFixed(2)+') and payment method carry over. This shows as a void + a new correct sale in the log.')) return;
+
+  // 1) Put the OLD shoe's size back — but only if it was really a catalog shoe and
+  //    still exists. A custom item or an already-deleted shoe has nothing to restock.
+  var oldShoe = oldSale.shoeId ? shoes.find(function(x){return x.id===oldSale.shoeId;}) : null;
+  if(oldShoe && oldSale.size){
+    oldShoe.sizes.push(String(oldSale.size));
+    oldShoe.sizes.sort(function(a,b){return parseFloat(a)-parseFloat(b);});
+    oldShoe.sold=false;
+    oldShoe.updatedAt=Date.now();
+  }
+
+  // 2) Take the NEW shoe's size — identical decrement to a normal POS sale.
+  var ni=newShoe.sizes.indexOf(newSize);
+  if(ni>-1) newShoe.sizes.splice(ni,1);
+  if(newShoe.sizes.length===0) newShoe.sold=true;
+  newShoe.updatedAt=Date.now();
+
+  // 3) Void the old sale record, log the corrected one — same server endpoints
+  //    voidSale and posComplete already use, so nothing new touches the shared register.
+  sales.splice(idx,1);
+  localStorage.setItem('sp_sales', JSON.stringify(sales));
+  try{ if(typeof shopPost==='function') shopPost('/shop/sale/void',{id:oldSale.id}).catch(function(){}); }catch(e){}
+  // logSale prices from shoe.price by default — the customer paid the ORIGINAL
+  // price, not whatever this shoe happens to be listed at now, so it rides in
+  // through `extra` and overwrites logSale's own price field before anything is
+  // written or pushed. (Not fixed up after the fact: logSale already writes to
+  // localStorage and returns before there is anything to correct, so a later
+  // patch would race the very first server push, which would go out wrong.)
+  var newSale=logSale(newShoe, newSize, oldSale.payment, {correctedFrom:oldSale.id, price:(parseFloat(oldSale.price)||newShoe.price)});
+  try{ if(typeof shopPost==='function') shopPost('/shop/sale',{sale:newSale}).catch(function(){}); }catch(e){}
+
+  try{ save(); }catch(e){}
+  if(typeof addAudit==='function') addAudit('Sale corrected', 'Was: '+oldSale.brand+' '+oldSale.name+(oldSale.size?' size '+oldSale.size:'')+' — Now: '+newShoe.brand+' '+newShoe.name+' size '+newSize, 'sale', newShoe.id);
+  try{_sfx.sell&&_sfx.sell();}catch(e){}
+  fixSaleClose();
+  renderSalesPage();
+  try{ renderInventory(); }catch(e){}
+  showToast('✅ Sale corrected — stock updated');
+}
+
 // ── 💵 EMPLOYEE END-OF-DAY PAY (Rodney 2026-07-16): staff pay THEMSELVES from the
 // float before leaving. Base $45/day ($6.50/hr) + $5 per delivery THEY made. They tick
 // their deliveries off today's sales, press OK, the site does the math, shows the
@@ -5945,6 +6057,7 @@ function renderSalesPage() {
         <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
           <div style="font-family:'Space Mono',monospace;font-size:14px;font-weight:700;color:var(--accent);">$${s.price.toFixed(2)}</div>
           ${s.hasProof?`<button onclick="viewProof('${s.id}')" title="View payment proof" style="background:none;border:1px solid rgba(120,220,120,0.55);color:#66dd88;border-radius:6px;font-size:13px;font-weight:700;padding:4px 8px;cursor:pointer;">📎</button>`:''}
+          <button onclick="fixSaleShoe('${s.id}')" title="Wrong shoe on this sale? Find the right one" style="background:none;border:1px solid rgba(120,170,255,0.5);color:#7db3ff;border-radius:6px;font-size:10px;font-weight:700;padding:5px 9px;cursor:pointer;">Fix</button>
           <button onclick="voidSale('${s.id}')" title="Void / reverse this sale" style="background:none;border:1px solid rgba(255,80,80,0.45);color:#ff6666;border-radius:6px;font-size:10px;font-weight:700;padding:5px 9px;cursor:pointer;">Void</button>
         </div>
       </div>`;
