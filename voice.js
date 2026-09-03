@@ -48,6 +48,12 @@ function spokenPrice(p) {
   return isNaN(n) ? String(p) : `${n % 1 === 0 ? n : n.toFixed(2)} dollars`;
 }
 
+// Catalog names are written for the eye ("Air Force 1 High — Black"). Nassau says "high top",
+// not "High" (Rodney, listening to a test call: "high shoes are referred to as high top").
+function spokenName(name) {
+  return String(name || '').replace(/\bHigh\b/gi, 'High Top');
+}
+
 // "7, 8, 9, 9.5, 10, 11, 12, 13" is unlistenable. Say the ends and the count.
 // One size stays exact ("only in a 10") because that is the whole answer.
 // "a 8" and "a 11" are the two that give a synthetic voice away instantly — both take "an".
@@ -274,8 +280,8 @@ function mountVoice(app, deps) {
         return {
           count: found.length,
           total_found: found.length,
-          shoes: top.map(s => ({ name: s.name, price: spokenPrice(s.price), sizes: spokenSizes(s.sizes), color: s.color })),
-          say: `${found.length === 1 ? 'I have one' : `I have ${found.length}`}. ${top.map(s => `${s.name}, ${spokenPrice(s.price)}, ${spokenSizes(s.sizes)}`).join('. ')}.`
+          shoes: top.map(s => ({ name: spokenName(s.name), price: spokenPrice(s.price), sizes: spokenSizes(s.sizes), color: s.color })),
+          say: `${found.length === 1 ? 'I have one' : `I have ${found.length}`}. ${top.map(s => `${spokenName(s.name)}, ${spokenPrice(s.price)}, ${spokenSizes(s.sizes)}`).join('. ')}.`
              + ` The pictures are the part that sells it though — message this same number on WhatsApp and I will send them straight over.`,
         };
       }
@@ -300,7 +306,7 @@ function mountVoice(app, deps) {
         const size = womens ? toMens(raw) : raw;
         const found = searchInventory({ query: args.query || args.shoe || '', size: isNaN(size) ? undefined : size });
         if (found.length) {
-          return { in_stock: true, say: `Yes, I have that in your size. ${found[0].name}, ${spokenPrice(found[0].price)}.` };
+          return { in_stock: true, say: `Yes, I have that in your size. ${spokenName(found[0].name)}, ${spokenPrice(found[0].price)}.` };
         }
         const anySize = searchInventory({ query: args.query || args.shoe || '' });
         if (anySize.length) {
