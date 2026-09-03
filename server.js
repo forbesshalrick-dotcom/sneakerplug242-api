@@ -6547,11 +6547,14 @@ async function waLookupPhoneId(wabaId) {
   const tok = waToken();
   if (!tok) return { ok: false, error: 'WA_TOKEN is not set on Railway' };
   try {
-    const r = await fetch(`${WA_GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`,
+    const r = await fetch(`${WA_GRAPH}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,messaging_limit_tier,code_verification_status`,
       { headers: { Authorization: `Bearer ${tok}` } });
     const d = await r.json();
     if (!r.ok) return { ok: false, error: (d && d.error && d.error.message) || `graph ${r.status}` };
-    return { ok: true, numbers: (d.data || []).map(n => ({ id: n.id, number: n.display_phone_number, name: n.verified_name })) };
+    return { ok: true, numbers: (d.data || []).map(n => ({
+      id: n.id, number: n.display_phone_number, name: n.verified_name,
+      quality: n.quality_rating, tier: n.messaging_limit_tier, verified: n.code_verification_status,
+    })) };
   } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
