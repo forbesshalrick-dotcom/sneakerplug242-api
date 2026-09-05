@@ -7619,6 +7619,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     <input id="shColor" placeholder="e.g. black, pink, grey" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
     <div class="picklabel" style="margin-top:12px">Add a message (optional)</div>
     <input id="shNote" placeholder="✍️ e.g. Fresh drops just for you 🔥" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px;color:var(--dim)"><input type="checkbox" id="shPicsOnly"> 📷 Pics only — no captions, no lead-in (bare photos clump into one album, easy to forward)</label>
     <div class="btns"><button class="cancel" id="shCancel">Cancel</button><button class="save" id="shSend">Send</button></div>
   </div>
 </div>
@@ -7816,7 +7817,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   function closeCtx(){ $('ctxModal').classList.remove('open'); }
   function setLabel(l){ if(!ctxTarget) return; post('/inbox/label',{sub:ctxTarget.sub,account:ctxTarget.account,text:l?l.text:'',color:l?l.color:''}).then(function(r){ if(r&&r.ok){ toast(l?('🏷️ '+l.text):'Label removed'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not label'); }); }
   function openPickerMulti(){ var arr=Object.keys(selected).map(function(k){return selected[k];}); if(!arr.length){ toast('Press & hold a contact to pick who to send to 📸'); return; } pickTargets=arr; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=arr.length>1?(' · '+arr.length+' contacts'):(' · '+arr[0].name); $('shoeModal').classList.add('open'); loadPickChips(); }
-  function resetPicker(){ pickSizes=[]; pickBrands=[]; pickMatch=false; $('shColor').value=''; $('shQuery').value=''; if($('shNote')) $('shNote').value=''; }
+  function resetPicker(){ pickSizes=[]; pickBrands=[]; pickMatch=false; $('shColor').value=''; $('shQuery').value=''; if($('shNote')) $('shNote').value=''; if($('shPicsOnly')) $('shPicsOnly').checked=false; }
   // Send one filter to every pickTarget — but FIRST a 4-second STOP window so a mistake
   // can be aborted before anything actually goes out.
   var pickBusy=false, sendTimer=null;
@@ -8509,6 +8510,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     if(pickBrands.length) f.brands=pickBrands.slice();
     var col=$('shColor').value.trim(), q=$('shQuery').value.trim(), note=$('shNote')?$('shNote').value.trim():'';
     if(col) f.color=col; if(q) f.query=q; if(note) f.note=note;
+    if($('shPicsOnly') && $('shPicsOnly').checked) f.photos_only=true;
     // Need at least a size, brand, colour, or typed shoe — a bare message alone isn't a filter.
     if(!(pickSizes.length||pickBrands.length||col||q)){ toast('Pick a size, brand, colour, or type a shoe first'); return; }
     var sizeLbl = pickSizes.length ? ((pickMatch?'matching ':'')+'size'+(pickSizes.length>1?'s':'')+' '+pickSizes.join(' & ')) : '';
@@ -9424,6 +9426,10 @@ app.post('/inbox/send-shoe', async (req, res) => {
   }
   inboxAlbumSentAt.set(albumKey, Date.now());
   setHumanPause(sub); clearFollowUp(sub);
+  // 📷 PICS ONLY (staff toggle on the Send pictures panel): bare photos, no label bubbles,
+  // no lead-in line at all — so WhatsApp clumps them into one album a staff member can
+  // forward to a customer in one tap, same behaviour already used for batch 2+ below.
+  const picsOnly = b.photos_only === true;
   try {
     const allIds = results.map(x => x.id);
     let totalSent = 0;
@@ -9431,16 +9437,19 @@ app.post('/inbox/send-shoe', async (req, res) => {
     for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
       batches.push(allIds.slice(i, i + BATCH_SIZE));
     }
-    // Send lead-in once, outside the photos
-    const leadMsg = [{ type: 'text', text: leadIn }];
-    await sendChunk(sub, leadMsg, token).catch(() => {});
+    // Send lead-in once, outside the photos — skipped entirely for a pics-only send.
+    if (!picsOnly) {
+      const leadMsg = [{ type: 'text', text: leadIn }];
+      await sendChunk(sub, leadMsg, token).catch(() => {});
+    }
     // Auto-batch: send photos in chunks with delays between
     for (let i = 0; i < batches.length; i++) {
       const batchIds = batches[i];
       const isLast = (i === batches.length - 1);
-      // Last batch gets the lead-in built into sendShoePhotos; earlier ones are photos-only
-      const batchLeadIn = isLast ? leadIn : '';
-      const r = await sendShoePhotos(sub, batchIds, token, true, null, batchLeadIn, false, i > 0);
+      // Last batch gets the lead-in built into sendShoePhotos; earlier ones are photos-only —
+      // a pics-only send stays bare on every batch, including the first.
+      const batchLeadIn = (isLast && !picsOnly) ? leadIn : '';
+      const r = await sendShoePhotos(sub, batchIds, token, true, null, batchLeadIn, false, i > 0 || picsOnly);
       totalSent += r.sent;
       // Wait before the next batch (but not after the last one)
       if (i < batches.length - 1) await new Promise(rs => setTimeout(rs, BATCH_DELAY_MS));
