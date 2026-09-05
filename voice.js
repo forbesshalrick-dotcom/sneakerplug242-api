@@ -303,6 +303,10 @@ function mountVoice(app, deps) {
         tool('size_check', 'Yes or no: do we have ONE named shoe in ONE named size.', {
           query: { type: 'string', description: 'The shoe they named.' },
           size:  { type: 'string', description: 'The size they need.' },
+          // If they named a colour, ALWAYS pass it. Without it we answer about whatever
+          // colourway happens to match the name, which is how "the black 97 in a 9.5"
+          // came back as a yes about the green one.
+          color: { type: 'string', description: 'The colour they named, if they named one. e.g. black' },
           for_who: { type: 'string', description: 'Say "womens" for a womens size.' },
         }, ['query', 'size']),
         tool('price_check', 'How much a shoe costs.', {
@@ -447,7 +451,12 @@ function mountVoice(app, deps) {
         const raw = parseFloat(args.size);
         const size = womens ? toMens(raw) : raw;
         const q = args.query || args.shoe || '';
-        const found = searchInventory({ query: q, size: isNaN(size) ? undefined : size });
+        // THE COLOUR WAS BEING THROWN AWAY (found 5 Sep 2026). size_check took a colour
+        // argument, never passed it on, and answered about whatever shoe happened to match
+        // the name — so "you got the BLACK 97 in a 9.5" came back about the GOLF GREEN one.
+        // A yes/no about the wrong colourway is worse than no answer at all.
+        const colour = String(args.color || args.colour || '').trim() || undefined;
+        const found = searchInventory({ query: q, color: colour, size: isNaN(size) ? undefined : size });
         // THE FALSE YES. searchInventory also returns the half-size UP on purpose, so this
         // said "yes, I have that in your size" about a shoe we only had half a size up in —
         // and the driver went out with the wrong shoe. A yes/no tool has to check the EXACT
