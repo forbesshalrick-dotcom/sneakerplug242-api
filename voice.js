@@ -345,7 +345,7 @@ function mountVoice(app, deps) {
     }
     let out;
     try {
-      out = await runTool(String(name), args, c);
+      out = await runTool(String(name), args, c, req);
     } catch (e) {
       out = { error: 'lookup failed', say: 'Give me one second — let me check that on WhatsApp for you.' };
     }
@@ -353,7 +353,10 @@ function mountVoice(app, deps) {
     res.json(out);
   });
 
-  async function runTool(name, args, c) {
+  // `req` is threaded through so a tool can leave its own row in /last. It used to be
+  // missing here, so take_message's record() call threw ReferenceError into a silent
+  // catch and no phone order ever appeared in the log.
+  async function runTool(name, args, c, req) {
     switch (name) {
 
       // What have you got? The bread-and-butter question on a call.
@@ -529,7 +532,7 @@ function mountVoice(app, deps) {
         } catch (_) {}
         // And leave a trail in /last, so "did the call produce anything?" is answerable
         // later without taking Rodney's word for whether his phone buzzed.
-        try { record(req, { endpoint: 'voice-message', voiceCall: c.id || null, voiceFrom: num, voiceWant: want, waOk }); } catch (_) {}
+        try { record(req, { endpoint: 'voice-message', voiceFrom: num, voiceWant: want, waOk }); } catch (_) {}
 
         // ⚠️ NO `say` HERE ON PURPOSE. The agent reads `say` out word for word, and this
         // one said "let me confirm that and call you right back" — on an order the caller had
