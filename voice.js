@@ -94,10 +94,17 @@ function rankForPhone(found) {
   // so ranking by depth never throws away the match the caller actually asked for.
   const idx = found.map((s, i) => ({ s, i }));
   idx.sort((a, b) => (stockDepth(b.s) - stockDepth(a.s)) || (a.i - b.i));
+  // A model only earns a place in the spread if we hold a REAL amount of it. Without this
+  // the one-per-model pass promoted single leftovers above deep sellers just because they
+  // were a different model — a 1-pair Jordan 13 landing above a 28-pair Jordan 4, which is
+  // exactly the "mostly one-off single pairs" complaint. Leftovers still come back, at the
+  // bottom, where they belong.
+  const WORTH_LEADING_WITH = 3;
   const seen = new Set(), first = [], rest = [];
   idx.forEach(({ s }) => {
     const k = modelKeyOf(s);
-    if (k && seen.has(k)) rest.push(s); else { seen.add(k); first.push(s); }
+    if ((k && seen.has(k)) || stockDepth(s) < WORTH_LEADING_WITH) { rest.push(s); return; }
+    seen.add(k); first.push(s);
   });
   return first.concat(rest);
 }
@@ -127,10 +134,19 @@ function modelsIn(found) {
   found.forEach(s => { const k = modelKeyOf(s); if (k) n[k] = (n[k] || 0) + 1; });
   return Object.keys(n).sort((a, b) => n[b] - n[a]).slice(0, 8);
 }
+// Case-folded, because the catalog holds both "Asics" and "ASICS" and the brand list came
+// back with the same brand twice — which reads out loud as "Asics, Crocs, Yeezy, Asics".
 function brandsIn(found) {
-  const n = {};
-  found.forEach(s => { const b = String(s.brand || '').trim(); if (b) n[b] = (n[b] || 0) + 1; });
-  return Object.keys(n).sort((a, b) => n[b] - n[a]);
+  const n = {}, label = {};
+  found.forEach(s => {
+    const b = String(s.brand || '').trim();
+    if (!b) return;
+    const k = b.toLowerCase();
+    n[k] = (n[k] || 0) + 1;
+    // Keep the nicest-looking spelling: "Asics" beats "ASICS", which TTS may spell out.
+    if (!label[k] || (b !== b.toUpperCase() && label[k] === label[k].toUpperCase())) label[k] = b;
+  });
+  return Object.keys(n).sort((a, b) => n[b] - n[a]).map(k => label[k]);
 }
 
 // One shoe, described for a machine AND for a mouth. The price goes back BOTH ways on purpose:
