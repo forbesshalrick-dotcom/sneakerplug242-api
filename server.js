@@ -4706,7 +4706,14 @@ const shiftTick = setInterval(async () => {
     byName.get(s.employee).push(SHIFT_HOURS_TXT[s.type] || s.type);
   }
   const scheduled = Array.from(byName.entries());
-  const socialShoes = scheduled.length ? pickDailySocialShoes(tomorrow, 7) : [];
+  // 📱 A STANDING DAILY JOB, NOT A SHIFT PERK (Rodney, 5 Sep 2026 — asked and answered).
+  // This used to read `scheduled.length ? pick… : []`, so the photo assignment only existed
+  // if somebody happened to have a shift the next day. 6 September had NOBODY rostered, so
+  // the whole content chain stopped dead: no assignment means no photos shot, which means
+  // nothing to post — and nothing anywhere said so. An empty square on the Schedule page
+  // must never be able to switch off the content pipeline. Picked unconditionally now.
+  // He was told and accepted that this means an assignment lands on her days off too.
+  const socialShoes = pickDailySocialShoes(tomorrow, 7);
   const taskMsg = buildTaskSection(socialShoes, tomorrow);
 
   // 🌴 WHO IS OFF TOMORROW (Rodney 2026-08-16). He asked for this after a delivery went to
@@ -4728,9 +4735,23 @@ const shiftTick = setInterval(async () => {
       const known = staffSubs[nm];
       if (known && known.sub) {
         const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+        // Someone off tomorrow still gets the shoots — that is the standing-job decision
+        // above. Without this branch, a day off (or an empty rota) silently cancelled it.
+        let mayPost = false;
+        try { mayPost = require('./shop').mayReceive((require('./shop').getEmployees() || {})[nm], 'post-list'); } catch (_) {}
+        const taskBit = (mayPost && socialShoes.length) ? taskMsg.replace("Tomorrow's tasks", 'Tomorrow') : '';
         const msg = `🌴 No shift for you tomorrow, ${nm} — enjoy the day off, you've earned it 🙌\n` +
-          `Rest up and we'll catch you when you're back 👟`;
-        try { await sendChunk(known.sub, [{ type: 'text', text: msg }], tk); } catch (_) {}
+          `Rest up and we'll catch you when you're back 👟` + taskBit;
+        try {
+          await sendChunk(known.sub, [{ type: 'text', text: msg }], tk);
+          if (taskBit) {
+            for (let i = 0; i < socialShoes.length; i++) {
+              const sh = socialShoes[i];
+              if (!sh.image) continue;
+              await sendChunk(known.sub, [{ type: 'image', url: sh.image }, { type: 'text', text: `${i + 1}. ${postLabel(sh)}` }], tk);
+            }
+          }
+        } catch (_) {}
       }
     }
     // One line to Rodney so an empty rota is never mistaken for a broken system.
@@ -4783,6 +4804,17 @@ if (shiftTick.unref) shiftTick.unref();
 // 📱 See or send today's social-media post list on demand (Rodney 2026-07-29 — the picks
 // silently vanished from a staff reminder and there was no way to check without waiting for
 // 6 PM). GET shows what's picked; add &send=1 to WhatsApp the list + photos to staff now.
+/* Match a staff member by name (any case, partial) or by the tail of their number. */
+function matchesWho(name, who) {
+  const w = String(who || '').trim().toLowerCase();
+  if (!w) return true;
+  if (String(name).toLowerCase().includes(w)) return true;
+  const d = w.replace(/[^0-9]/g, '');
+  if (!d) return false;
+  let num = '';
+  try { num = String((require('./shop').getEmployees() || {})[name] || ''); } catch (_) {}
+  return !!num && num.replace(/[^0-9]/g, '').endsWith(d);
+}
 app.get('/post-picks', async (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   const day = String(req.query.date || '').match(/^\d{4}-\d{2}-\d{2}$/)
@@ -4793,7 +4825,11 @@ app.get('/post-picks', async (req, res) => {
   if (req.query.send !== '1') return res.json({ date: day, count: list.length, shoes: list });
   const text = '📱 *POST THESE TO INSTAGRAM / FACEBOOK*\n' + shoes.map((s, i) => `${i + 1}. ${postLabel(s)}`).join('\n') + '\n\n📸 Photos coming right after this 👇';
   let staffWa = [];
-  try { staffWa = await require('./shop').blastEmployees(text, null, 'post-list'); } catch (_) {}   // 🔕 tagged: this is one of the two things restricted staff may receive
+  // &who=<name or number tail> sends to ONE person. Without it this fires the list AND
+  // seven photos at every staff line on file — five of them Rodney's own — which is both
+  // noise and a real risk: ManyChat jams when photos burst (see the album notes).
+  const who = String(req.query.who || '').trim();
+  try { staffWa = await require('./shop').blastEmployees(text, null, 'post-list', who || undefined); } catch (_) {}   // 🔕 tagged: one of the things restricted staff may receive
   // Photos go to each staff member we have a live subscriber id for.
   // Report WHO actually received the photos, not just how many (Rodney 2026-08-05: "make
   // sure Deashinique gets the message" — a bare count can't answer that). Each person's
@@ -4801,6 +4837,7 @@ app.get('/post-picks', async (req, res) => {
   const photoed = [];
   for (const [nm, known] of Object.entries(staffSubs || {})) {
     if (!known || !known.sub) continue;
+    if (who && !matchesWho(nm, who)) continue;   // &who= — photos follow the same target as the text
     const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
     if (!tk) { photoed.push({ name: nm, sent: 0, failed: shoes.length, why: 'no token for this staff line' }); continue; }
     let sent = 0, failed = 0;

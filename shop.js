@@ -1039,7 +1039,10 @@ const ALWAYS_COPY = ['Manager'];
 // her unless somebody deliberately says it should. The failure mode of the opposite design
 // is that she quietly starts getting the next new alert and nobody notices for weeks.
 const RESTRICTED_STAFF_TAILS = ['4684477'];
-const STAFF_TOPICS_ALLOWED = ['schedule', 'post-list'];
+// 'task-board' added 5 Sep 2026 (Rodney, asked and answered): a one-off task he TYPES for
+// her on the board should reach her. His ban was on the shop's own automated noise — order
+// alerts, delivery chases — not on him assigning her work. Everything untagged stays denied.
+const STAFF_TOPICS_ALLOWED = ['schedule', 'post-list', 'task-board'];
 function isRestrictedStaff(num) {
   const d = String(num || '').replace(/[^0-9]/g, '');
   return !!d && RESTRICTED_STAFF_TAILS.some(t => d.endsWith(t));
@@ -1093,11 +1096,21 @@ async function blastOnDuty(text, exceptName, topic) {
   return results;
 }
 
-async function blastEmployees(text, exceptName, topic) {
+/* `who` (optional): send to ONE person — matched on name (any case, partial) or on the
+   tail of their number. Without it this reaches every employee on file. */
+function matchesStaff(name, num, who) {
+  const w = String(who || '').trim().toLowerCase();
+  if (!w) return true;
+  if (String(name).toLowerCase().includes(w)) return true;
+  const d = w.replace(/[^0-9]/g, '');
+  return !!d && String(num || '').replace(/[^0-9]/g, '').endsWith(d);
+}
+async function blastEmployees(text, exceptName, topic, who) {
   const nums = state.employees || {};
   const results = [];
   for (const name of Object.keys(nums)) {
     if (exceptName && name.toLowerCase() === String(exceptName).toLowerCase()) continue;
+    if (!matchesStaff(name, nums[name], who)) continue;
     if (!mayReceive(nums[name], topic)) {                       // 🔕 topic gate — see blastOnDuty
       results.push({ name, ok: false, why: 'restricted staff — "' + (topic || 'untagged') + '" is not one of: ' + STAFF_TOPICS_ALLOWED.join(', ') });
       continue;
@@ -1547,7 +1560,7 @@ function mount(app) {
       // Only the staff actually rostered on this slot (Rodney 2026-08-15) — deliveries moved
       // to the rota on 14 Aug and he asked for tasks to follow. The author is still excluded,
       // and blastOnDuty falls back to the Manager rather than reaching nobody.
-      try { delivery = await blastOnDuty(msg, note.by); } catch (_) {}
+      try { delivery = await blastOnDuty(msg, note.by, 'task-board'); } catch (_) {}   // 🔕 a task he typed IS for her — see STAFF_TOPICS_ALLOWED
       // Web push to installed staff phones (works when the app is closed).
       const pushBody = note.kind === 'shoe' && note.shoeLabel ? `${note.text} — ${note.shoeLabel}` : note.text;
       sendPush(`New task from ${note.by}`, pushBody, '/').catch(() => {});
