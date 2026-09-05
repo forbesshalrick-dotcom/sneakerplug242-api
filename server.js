@@ -2056,7 +2056,7 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
     3. A TYPED ADDRESS, STREET, OR LANDMARK they stand behind — see the rule above. This COUNTS. Someone who types out where they live is serious.
     4. THEY'RE ON THE ROAD AND WANT TO MEET — "I'm out", "I'm by the mall now", "I'm coming to you", "where can we meet". Someone travelling toward you is committed; pass the meeting spot as the location.
 - 🚫 THE ONE THING THAT IS **NOT** A DELIVERY — SILENCE (this is the false alarm Rodney means): the customer said they want it, you asked where to bring it, and then NOTHING. No pin, no address, no meeting spot, no reply at all. That is NOT a delivery and a driver must NEVER be sent on it. Leave it at stage="order_confirmed" — Rodney still gets the heads-up that someone was buying — and let it sit. Do not invent a location, do not guess from an earlier chat, and do not upgrade it to delivery_ready just because they sounded keen. Keen is not an address.
-- Once you have the WHERE: call notify_manager with stage "delivery_ready" (name, shoe + size, and location = the address they typed, the coordinates/maps link, the meeting spot they named, OR "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). Include price/payment ONLY if the customer actually brought it up — otherwise leave those blank (payment is handled on arrival). Then reply warmly, EXACTLY in this spirit: "Perfect! 🙌 I've sent this straight to the team — they'll give you a call when the driver's close 👟". Do NOT invent an exact ETA, do NOT say "I'm on my way" yourself, and do NOT say the driver is heading out / leaving now / on his way — you are alerting the team, not driving, and nobody has actually been dispatched yet. If it is night and the "🌙 WE ARE CLOSED RIGHT NOW" line is present, say instead: "Got you 🙌 I've sent this straight to the team — you're on the 8 AM run and they'll call you when the driver's close 👟".
+- Once you have the WHERE: call notify_manager with stage "delivery_ready" (name, shoe + size, and location = the address they typed, the coordinates/maps link, the meeting spot they named, OR "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). Include price/payment ONLY if the customer actually brought it up — otherwise leave those blank (payment is handled on arrival). Then reply warmly, EXACTLY in this spirit: "Perfect! 🙌 I've sent this straight to the team — they'll text or call you when the driver's close, so keep your phone nearby 👟". Do NOT invent an exact ETA, do NOT say "I'm on my way" yourself, and do NOT say the driver is heading out / leaving now / on his way — you are alerting the team, not driving, and nobody has actually been dispatched yet. If it is night and the "🌙 WE ARE CLOSED RIGHT NOW" line is present, say instead: "Got you 🙌 I've sent this straight to the team — you're on the 8 AM run and they'll text or call you when the driver's close, so keep your phone nearby 👟".
 - AFTER the delivery is confirmed (you've already called notify_manager) — if the customer messages again asking "how long / you coming / where's the driver / you reaching?" — do NOT re-ask for their location or the order details. Say: "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". (The system also auto-sends a "we're still on the way!" reassurance if they go quiet for a while.)
 - FUTURE / SCHEDULED orders (IMPORTANT — don't be pushy): if the customer wants it on a LATER day or time (e.g. "Sunday", "Monday", "tomorrow", "next week", "later", "this weekend") — do NOT press them for the location pin right now, and do NOT keep saying you're "just waiting on the pin". Warmly lock in the day, then tell them they can send their WhatsApp location WHENEVER they're ready — even on the same day they want it — and we'll come as soon as possible. Say it once, relaxed, then let THEM come back to you. Still send the ONE stage="order_confirmed" alert when they commit (location = e.g. "scheduled for Sunday — location to come") — and because they named a FUTURE time, ALSO pass remind_in_hours (hours until 8:30 AM of the day they want it: "tomorrow"=24, "next week"=168, "Sunday"=hours till Sunday) so the owner automatically gets a ⏰ reminder alert when that day comes. Only call stage="delivery_ready" once they actually drop the location and say they're ready to receive — never before.
 
@@ -4667,7 +4667,12 @@ function pickDailySocialShoes(dateKey, n = 7) {
 function postLabel(shoe) {
   let sizes = '';
   try { sizes = sizesOf(shoe); } catch (_) {}
-  return displayName(shoe) + (sizes ? ` — sizes: ${sizes}` : ' — (no sizes in stock)');
+  // 💲 Price added 5 Sep 2026 (Rodney: "yes also send the sizing info so she knows"). The
+  // sizes were already here; the price was not, and she was writing captions without it.
+  // Price is public — it is on the website — so this leaks nothing. The PAIR COUNT still
+  // does not go out, for the reason above.
+  const price = shoe && shoe.price != null && !isNaN(shoe.price) ? ` — $${shoe.price}` : '';
+  return displayName(shoe) + price + (sizes ? ` — sizes: ${sizes}` : ' — (no sizes in stock)');
 }
 
 // Recurring extra tasks Rodney wants bundled into every evening's reminder —
@@ -4788,7 +4793,7 @@ app.get('/post-picks', async (req, res) => {
   if (req.query.send !== '1') return res.json({ date: day, count: list.length, shoes: list });
   const text = '📱 *POST THESE TO INSTAGRAM / FACEBOOK*\n' + shoes.map((s, i) => `${i + 1}. ${postLabel(s)}`).join('\n') + '\n\n📸 Photos coming right after this 👇';
   let staffWa = [];
-  try { staffWa = await require('./shop').blastEmployees(text, null); } catch (_) {}
+  try { staffWa = await require('./shop').blastEmployees(text, null, 'post-list'); } catch (_) {}   // 🔕 tagged: this is one of the two things restricted staff may receive
   // Photos go to each staff member we have a live subscriber id for.
   // Report WHO actually received the photos, not just how many (Rodney 2026-08-05: "make
   // sure Deashinique gets the message" — a bare count can't answer that). Each person's

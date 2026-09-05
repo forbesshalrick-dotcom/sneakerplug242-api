@@ -1024,7 +1024,41 @@ function onDutyNames(at) {
 // hears about his own business. Deliberately a union, not a replacement: whoever is on duty
 // still gets it, and the Set stops him being messaged twice when he IS the rostered one.
 const ALWAYS_COPY = ['Manager'];
-async function blastOnDuty(text, exceptName) {
+
+// ── 🔕 WHAT AN EMPLOYEE IS ALLOWED TO BE SENT (Rodney, 5 Sep 2026) ────────────
+// His words: Deashinique (4684477) should receive exactly TWO things and nothing else —
+// her work schedule, and the shoes to post. Everything else on the alert list (order
+// alerts, delivery chases, "a customer needs you", end-of-day checks, NOBODY PICKED UP)
+// is Rodney's business, not hers, and she had been getting all of it.
+//
+// Matched on the PHONE NUMBER, not the name — a name is a label on the Schedule page and
+// gets retyped; the number is the person.
+//
+// DENY BY DEFAULT, on purpose. A restricted person is only sent a message that explicitly
+// names an allowed topic, so any alert added later — by me or by anyone — does NOT reach
+// her unless somebody deliberately says it should. The failure mode of the opposite design
+// is that she quietly starts getting the next new alert and nobody notices for weeks.
+const RESTRICTED_STAFF_TAILS = ['4684477'];
+const STAFF_TOPICS_ALLOWED = ['schedule', 'post-list'];
+function isRestrictedStaff(num) {
+  const d = String(num || '').replace(/[^0-9]/g, '');
+  return !!d && RESTRICTED_STAFF_TAILS.some(t => d.endsWith(t));
+}
+/* May we send this person a message about `topic`? Unrestricted staff: always.
+   Restricted staff: only the topics above. */
+function mayReceive(num, topic) {
+  return !isRestrictedStaff(num) || STAFF_TOPICS_ALLOWED.indexOf(String(topic || '')) !== -1;
+}
+/* Drop restricted staff from a target list, and say who was dropped and why so the
+   decision shows up in the log instead of looking like a send that failed. */
+function filterTopic(names, nums, topic) {
+  const kept = [], held = [];
+  names.forEach(n => (mayReceive(nums[n], topic) ? kept : held).push(n));
+  if (held.length) console.log('[shop] topic gate:', held.join(', '), 'not sent "' + (topic || 'untagged') + '" — restricted to', STAFF_TOPICS_ALLOWED.join(' + '));
+  return { kept, held };
+}
+
+async function blastOnDuty(text, exceptName, topic) {
   const nums = state.employees || {};
   const duty = onDutyNames().filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase());
   let targets = duty.filter(n => nums[n]);
@@ -1035,23 +1069,39 @@ async function blastOnDuty(text, exceptName) {
   if (targets.length && copied.length) { targets = [...new Set([...targets, ...copied])]; scope = 'on-duty + owner copy'; }
   if (!targets.length && nums.Manager) { targets = ['Manager']; scope = 'manager-fallback (nobody rostered has a number)'; }
   if (!targets.length) { targets = Object.keys(nums).filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase()); scope = 'everyone-fallback (no numbers for the rota)'; }
+  // 🔕 The topic gate (see above). Applied LAST, after every fallback has run, so it can
+  // only ever remove a person — it can never be the reason an alert reaches nobody.
+  const gate = filterTopic(targets, nums, topic);
+  targets = gate.kept;
+  // ...and if the gate just emptied the list, the alert still has to land on somebody.
+  // Losing a delivery alert is far worse than one extra buzz — the same rule the rota
+  // fallbacks above follow. Only reachable if the restricted person was the ONLY target.
+  if (!targets.length && gate.held.length && nums.Manager) {
+    targets = ['Manager'];
+    scope = 'manager-fallback (only restricted staff matched this topic)';
+  }
   const results = [];
   for (const name of targets) {
     const digits = String(nums[name] || '').replace(/[^0-9]/g, '');
     const r = await waSendDetailed(digits, text, name);
     results.push({ name, ok: r.ok, via: r.via || undefined, why: r.why, onDuty: true });
   }
+  gate.held.forEach(n => results.push({ name: n, ok: false, why: 'restricted staff — "' + (topic || 'untagged') + '" is not one of: ' + STAFF_TOPICS_ALLOWED.join(', ') }));
   const skipped = Object.keys(nums).filter(n => targets.indexOf(n) === -1);
   console.log('[shop] on-duty alert →', targets.join(', ') || '(nobody)', '| scope:', scope, '| not rung (off duty):', skipped.join(', ') || 'none');
   results.scope = scope; results.skipped = skipped;
   return results;
 }
 
-async function blastEmployees(text, exceptName) {
+async function blastEmployees(text, exceptName, topic) {
   const nums = state.employees || {};
   const results = [];
   for (const name of Object.keys(nums)) {
     if (exceptName && name.toLowerCase() === String(exceptName).toLowerCase()) continue;
+    if (!mayReceive(nums[name], topic)) {                       // 🔕 topic gate — see blastOnDuty
+      results.push({ name, ok: false, why: 'restricted staff — "' + (topic || 'untagged') + '" is not one of: ' + STAFF_TOPICS_ALLOWED.join(', ') });
+      continue;
+    }
     const digits = String(nums[name] || '').replace(/[^0-9]/g, '');
     const r = await waSendDetailed(digits, text, name);
     results.push({ name, ok: r.ok, via: r.via || undefined, why: r.why });
@@ -2223,4 +2273,4 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
+module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
