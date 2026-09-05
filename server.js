@@ -2256,6 +2256,18 @@ function aliasTokens(s) {
   const isFoamFamily = name.includes('mule') || name.includes('mind') || brand.includes('croc') || name.includes('croc')
     || ((brand.includes('yeezy') || name.includes('yeezy')) && (name.includes('foam') || name.includes('rnr') || name.includes('slide')));
   if (isFoamFamily) out.push('slipper', 'slippers', 'slide', 'slides', 'sandal', 'sandals', 'mule', 'mules', 'croc', 'crocs', 'yeezy', 'yeezys', 'foam', 'mind', 'mine', 'mines');
+  // 👟 ADIDAS (Rodney, 5 Sep 2026 — found on the phone agent: "brand=Adidas returns 0 while
+  // 12 Yeezys are in stock"). There is NO shoe in the catalog with the brand "Adidas" — the
+  // adidas shoes we carry are filed under their sub-line, "Yeezy". So a customer asking for
+  // adidas was told flat out we had none, standing in front of a shelf of them. Every adidas
+  // sub-line now answers to the parent brand as well. Common misspellings included because
+  // this comes off voice transcription and out of thumbs on a phone.
+  if (/yeezy|adidas|samba|gazelle|campus|forum|superstar|stan smith|ultra ?boost|\bnmd\b|\bnizza\b/.test(`${brand} ${name}`)) {
+    out.push('adidas', 'addidas', 'adiddas', 'addidas', 'adias');
+  }
+  // 👟 JORDAN IS NIKE. Jordans sit under their own brand, so "you got any Nikes" used to skip
+  // all 71 of them. Only widens a search — a customer asking for "Jordan" still gets Jordans.
+  if (brand.includes('jordan') || name.includes('jordan')) out.push('nike');
   return out;
 }
 
@@ -2449,7 +2461,11 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
       return words.every(w => wordMatches(hay, hayWords, w));
     });
   }
-  return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand }));
+  // `sizes` is DEDUPED (sizesOf runs a Set), so it says which sizes exist, never how many
+  // pairs. `pairs` carries the depth: 20 pairs across 8 sizes vs one lonely 13 nobody wears.
+  // The phone agent leads with the deep ones — a single-pair leftover nearly always ends the
+  // call in "sorry, not your size" (Rodney, 5 Sep 2026). Additive: nothing else reads it yet.
+  return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand, pairs: (s.sizesRaw || []).length }));
 }
 
 // Cluster an album so every shoe of the SAME model sits together, in a sensible brand

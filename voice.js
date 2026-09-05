@@ -71,6 +71,82 @@ function spokenSizes(sizes, bare) {
   return `${nums.length} sizes, from ${aSize(nums[0])} up to ${aSize(nums[nums.length - 1])}`;
 }
 
+// A size string off searchInventory is "7, 8, 9.5". Does it actually hold THIS size?
+// Needed because searchInventory deliberately also returns the half-size UP.
+const sizeArray = s => String(s && s.sizes || '').split(',').map(x => parseFloat(x)).filter(n => !isNaN(n));
+const hasSize = (s, n) => !isNaN(n) && sizeArray(s).some(x => x === n);
+const sizeWord = n => (isNaN(n) || n == null ? 'that size' : aSize(n));
+
+// ── WHAT A CALLER SHOULD HEAR FIRST ───────────────────────────────────────────
+// Rodney, 5 Sep 2026: the phone agent was reading out the SAME four shoes on every call,
+// whatever was asked, and they were mostly one-off leftovers sitting in a single size.
+// Two separate causes, both here:
+//   1. searchInventory hands back catalog order, so `slice(0, 4)` returned whatever happened
+//      to sit at the top of the file. Now we LEAD WITH DEPTH — a shoe we hold in 9 sizes can
+//      be sold to whoever rings; one pair left in a 13 nearly always ends the call in "sorry".
+//   2. Four colourways of one Air Max makes it sound like we stock one shoe. ONE PER MODEL
+//      first, then come back for the rest.
+const stockDepth = s => (s && s.pairs != null && !isNaN(s.pairs) ? Number(s.pairs) : sizeArray(s).length);
+const modelKeyOf = s => String(s && s.name || '').toLowerCase().split(/[—(]/)[0].replace(/\s+/g, ' ').trim();
+
+function rankForPhone(found) {
+  // Stable: searchInventory's own ordering (pure-colour first, query relevance) breaks ties,
+  // so ranking by depth never throws away the match the caller actually asked for.
+  const idx = found.map((s, i) => ({ s, i }));
+  idx.sort((a, b) => (stockDepth(b.s) - stockDepth(a.s)) || (a.i - b.i));
+  const seen = new Set(), first = [], rest = [];
+  idx.forEach(({ s }) => {
+    const k = modelKeyOf(s);
+    if (k && seen.has(k)) rest.push(s); else { seen.add(k); first.push(s); }
+  });
+  return first.concat(rest);
+}
+
+// A caller nearly always already knows the colour they want, so the genuinely useful thing to
+// hand the agent is the SHORT list of colours we hold. That is what "black or white?" is built
+// from — and it is why the agent no longer needs the whole list read out to it.
+const COLOUR_WORDS = ['black', 'white', 'grey', 'blue', 'navy', 'red', 'green', 'brown', 'tan',
+  'cream', 'pink', 'purple', 'orange', 'yellow', 'beige', 'silver', 'gold', 'olive', 'burgundy'];
+// Counts the PRIMARY colour only — the first colour word in "Black/Red" is black. Counting
+// every word made a shelf of three shoes offer "black or red" when black and red were the same
+// shoe, and the caller picks red expecting a red shoe.
+function coloursIn(found) {
+  const n = {};
+  found.forEach(s => {
+    const hay = String(s.color || '').toLowerCase().replace(/\bgray\b/g, 'grey');
+    const first = COLOUR_WORDS
+      .map(w => ({ w, at: hay.indexOf(w) }))
+      .filter(x => x.at >= 0)
+      .sort((a, b) => a.at - b.at)[0];
+    if (first) n[first.w] = (n[first.w] || 0) + 1;
+  });
+  return Object.keys(n).sort((a, b) => n[b] - n[a]);
+}
+function modelsIn(found) {
+  const n = {};
+  found.forEach(s => { const k = modelKeyOf(s); if (k) n[k] = (n[k] || 0) + 1; });
+  return Object.keys(n).sort((a, b) => n[b] - n[a]).slice(0, 8);
+}
+function brandsIn(found) {
+  const n = {};
+  found.forEach(s => { const b = String(s.brand || '').trim(); if (b) n[b] = (n[b] || 0) + 1; });
+  return Object.keys(n).sort((a, b) => n[b] - n[a]);
+}
+
+// One shoe, described for a machine AND for a mouth. The price goes back BOTH ways on purpose:
+// `price` is a real number so the agent can answer "anything under 150", `price_spoken` is the
+// words to say. Sending only "180 dollars" left it unable to compare two shoes (5 Sep 2026).
+const shoeOut = s => ({
+  name: spokenName(s.name),
+  color: s.color,
+  brand: s.brand,
+  price: parseFloat(String(s.price).replace(/[^0-9.]/g, '')) || null,
+  price_spoken: spokenPrice(s.price),
+  sizes: s.sizes,
+  sizes_spoken: spokenSizes(s.sizes),
+  pairs: stockDepth(s),
+});
+
 // Women's − 1.5 = men's. Stock is ALWAYS men's (see server.js sizesOf / CLAUDE.md).
 // A caller saying "women's 8" means a men's 6.5 and getting this backwards sends a driver
 // out with a shoe a size and a half too big.
@@ -192,7 +268,12 @@ function mountVoice(app, deps) {
       agent: Object.assign({
         agent_name: 'Kiki — SNEAKERPLUG242 phone',
         general_prompt: VOICE_PROMPT,
-        begin_message: "Hello, good day. How can I help you?",
+        // EMPTY ON PURPOSE. A fixed begin_message can only ever say one thing, and the one it
+        // said was "Hello, good day" — which is not how anybody in Nassau greets anybody
+        // (Rodney's rule: never "good day"). Empty makes the agent speak first using the
+        // OPENING section of the prompt, which reads the Nassau clock and says good morning,
+        // good afternoon or good night. Do not put a string back here.
+        begin_message: '',
         webhook_url: `${req.protocol}://${req.get('host')}/voice/end?key=${VOICE_KEY}`,
       }, VOICE_AGENT_CONFIG),
       tools: [
@@ -276,13 +357,50 @@ function mountVoice(app, deps) {
               : `I am not seeing that one right now. Message this same number on WhatsApp and I will send you pictures of what we do have.`,
           };
         }
-        const top = found.slice(0, 4);
+        const ranked = rankForPhone(found);
+        const colours = coloursIn(found);
+        const askedColour = String(args.color || '').trim();
+        const askedFor = args.query || args.shoe || args.brand || askedColour;
+        const wantSize = size != null && !isNaN(size) ? size : null;
+        // searchInventory always throws in the half-size UP so we don't lose a sale over half
+        // a size. On WhatsApp that is right — the photo label shows the real size. On a call
+        // it made Kiki say a flat "yes, I have your size" for a shoe we only had a half up in.
+        const exact = wantSize == null ? ranked : ranked.filter(s => hasSize(s, wantSize));
+        const lead = (exact.length ? exact : ranked)[0];
+
+        // ── WHAT SHE SAYS OUT LOUD ────────────────────────────────────────────
+        // Rodney, 5 Sep 2026: this field was a four-shoe recital and the agent read it word
+        // for word down the phone. Nobody listens to four shoes. A caller wants ONE answer or
+        // ONE question, so `say` is now either the answer about one shoe, or the next question.
+        // Everything else is in the structured fields for the agent to reason over silently.
+        let say;
+        if (wantSize != null && exact.length) {
+          say = `Yes, I have that in ${sizeWord(wantSize)}. ${spokenName(lead.name)}, ${spokenPrice(lead.price)}, and delivery in Nassau is free.`;
+        } else if (wantSize != null) {
+          say = `Not in ${sizeWord(wantSize)} exactly, but I have ${spokenName(lead.name)} in ${spokenSizes(lead.sizes, true)}. The driver brings two sizes so you can try both at the door.`;
+        } else if (!askedFor) {
+          // A bare "what you got". Reading out 334 shoes is the worst possible answer — and
+          // so is "yeah, I have that", because they never named a that. Narrow it by brand.
+          say = `Plenty. What you looking for — ${brandsIn(found).slice(0, 3).join(', ')}?`;
+        } else if (!askedColour && colours.length > 1) {
+          say = `Yeah, I have that. ${colours.slice(0, 2).join(' or ')}?`;
+        } else {
+          say = `Yeah, I have that${askedColour ? ` in ${askedColour.toLowerCase()}` : ''}. What size you wear?`;
+        }
+
         return {
           count: found.length,
           total_found: found.length,
-          shoes: top.map(s => ({ name: spokenName(s.name), price: spokenPrice(s.price), sizes: spokenSizes(s.sizes), color: s.color })),
-          say: `${found.length === 1 ? 'I have one' : `I have ${found.length}`}. ${top.map(s => `${spokenName(s.name)}, ${spokenPrice(s.price)}, ${spokenSizes(s.sizes)}`).join('. ')}.`
-             + ` The pictures are the part that sells it though — message this same number on WhatsApp and I will send them straight over.`,
+          shown: Math.min(ranked.length, 8),
+          asked_size: wantSize,
+          exact_size_matches: wantSize == null ? null : exact.length,
+          colors_available: colours,
+          brands_available: brandsIn(found),
+          models_available: modelsIn(found),
+          // Eight, ranked, one per model — enough for the agent to answer a follow-up colour
+          // or size question without a second lookup, and it never reads them out.
+          shoes: ranked.slice(0, 8).map(shoeOut),
+          say,
         };
       }
 
@@ -290,12 +408,20 @@ function mountVoice(app, deps) {
       case 'price_check': {
         const found = searchInventory({ query: args.query || args.shoe || '' });
         if (!found.length) return { found: false, say: 'I cannot find that one. What colour was it?' };
-        const prices = [...new Set(found.map(s => spokenPrice(s.price)))];
+        // These used to be de-duplicated STRINGS in catalog order, so "they run from X to Y"
+        // read them out back to front — "from 180 dollars to 95 dollars" (5 Sep 2026).
+        // Sort the numbers, then speak them.
+        const nums = [...new Set(found.map(s => parseFloat(String(s.price).replace(/[^0-9.]/g, ''))).filter(n => !isNaN(n)))]
+          .sort((a, b) => a - b);
+        if (!nums.length) return { found: false, say: 'Let me check that price and call you right back.' };
         return {
           found: true,
-          say: prices.length === 1
-            ? `That one is ${prices[0]}.`
-            : `Those run from ${prices[0]} to ${prices[prices.length - 1]}, depending on the colour.`,
+          count: found.length,
+          price_low: nums[0],
+          price_high: nums[nums.length - 1],
+          say: nums.length === 1
+            ? `That one is ${spokenPrice(nums[0])}.`
+            : `Those run from ${spokenPrice(nums[0])} to ${spokenPrice(nums[nums.length - 1])}, depending on the colour.`,
         };
       }
 
@@ -304,15 +430,29 @@ function mountVoice(app, deps) {
         const womens = /women|lady|ladies|female|girl/i.test(String(args.for_who || args.gender || ''));
         const raw = parseFloat(args.size);
         const size = womens ? toMens(raw) : raw;
-        const found = searchInventory({ query: args.query || args.shoe || '', size: isNaN(size) ? undefined : size });
-        if (found.length) {
-          return { in_stock: true, say: `Yes, I have that in your size. ${spokenName(found[0].name)}, ${spokenPrice(found[0].price)}.` };
+        const q = args.query || args.shoe || '';
+        const found = searchInventory({ query: q, size: isNaN(size) ? undefined : size });
+        // THE FALSE YES. searchInventory also returns the half-size UP on purpose, so this
+        // said "yes, I have that in your size" about a shoe we only had half a size up in —
+        // and the driver went out with the wrong shoe. A yes/no tool has to check the EXACT
+        // size (5 Sep 2026). The near-miss is still a good answer, just an honest one.
+        const exact = isNaN(size) ? found : found.filter(s => hasSize(s, size));
+        if (exact.length) {
+          const s = rankForPhone(exact)[0];
+          return { in_stock: true, exact: true, count: exact.length, shoes: rankForPhone(exact).slice(0, 4).map(shoeOut),
+            say: `Yes, I have that in ${sizeWord(size)}. ${spokenName(s.name)}, ${spokenPrice(s.price)}.` };
         }
-        const anySize = searchInventory({ query: args.query || args.shoe || '' });
+        if (found.length) {
+          const s = rankForPhone(found)[0];
+          return { in_stock: false, exact: false, near: true, shoes: rankForPhone(found).slice(0, 4).map(shoeOut),
+            say: `Not in ${sizeWord(size)} exactly — I have it in ${spokenSizes(s.sizes, true)}. In Nassau the driver brings two sizes so you can try both at the door and keep the one that fits.` };
+        }
+        const anySize = searchInventory({ query: q });
         if (anySize.length) {
+          const s = rankForPhone(anySize)[0];
           return {
-            in_stock: false,
-            say: `Not in that size, but I have it in ${spokenSizes(anySize[0].sizes, true)}. In Nassau the driver brings two sizes so you can try both at the door and keep the one that fits.`,
+            in_stock: false, exact: false, shoes: rankForPhone(anySize).slice(0, 4).map(shoeOut),
+            say: `Not in ${sizeWord(size)}, but I have it in ${spokenSizes(s.sizes, true)}. In Nassau the driver brings two sizes so you can try both at the door and keep the one that fits.`,
           };
         }
         return { in_stock: false, say: 'I am not seeing that one at all right now.' };
@@ -387,27 +527,75 @@ HOW YOU SOUND
 Bahamian, warm, quick. Short sentences. You are on a phone call, not writing a message.
 Never say emoji names, never spell out punctuation, never read out a dollar sign.
 One question at a time. Let them finish talking.
+Never stretch a word out or sing it. Bahamians talk short and fast. Say things the way a
+busy person says them, not the way an announcer reads them.
+
+SAYING WHO YOU ARE — KEEP IT SHORT
+Bahamians do not announce themselves. A long introduction is the most robotic thing you can do.
+If they ask who they are speaking to, say ONE of these and stop:
+- "Kiki speaking, how can I help you?"
+- "You speaking with Kiki."
+Never follow your name with a list of what you do. Never say anything like "I help you with
+sneakers, prices, sizes and delivery" — that is a machine reading a menu off a card. If you
+want to move them along, just ask them something normal: "you looking for some sneakers?"
+
+THE SHOP NAME
+Say SNEAKERPLUG242 as little as you possibly can. Once in a whole call is plenty and none at
+all is fine. Only say it if they straight out ask what shop this is. Never bolt it onto your
+name. The one place it sits well is right at the end: "thank you for shopping with us."
+
+YOU CANNOT SEE ANYTHING
+You are on a phone call. You cannot see their screen, their phone, a photo, a list or a
+calendar. Never describe or guess at something you think they are showing you. If you did not
+catch what they said, just say "sorry, say that again for me?" — never invent what it might be.
+
+NEVER READ OUT THE WHOLE LIST — THIS IS HOW YOU HANDLE A SHOE REQUEST
+When somebody names a shoe they nearly always already know the colour they want. Reading out
+every colour and every size we hold is the most robotic thing you can do. Do not do it.
+Ask two short questions instead, ONE AT A TIME:
+1. The colour, offered as a simple choice out of what we actually have: "black or white?"
+2. Then the size: "and what size?"
+Then give them a straight answer on that ONE shoe:
+- If we have it: "yes, we have that in an eight and a half, it's 120 dollars, free delivery."
+- If we do not: "no, I ain't got the eight and a half in white right now. I have it in black
+  and a couple other colours."
+Only name the other colours if they ask for them. Never dump the stock list.
+One colour, one size, one answer.
+The tools hand you back a colors_available list and up to eight shoes. That is for YOU to read
+silently and pick from — it is never something to read out loud.
+
+THEY ARE TELLING YOU THEY ARE ON ANOTHER ISLAND
+If they say anything like "I have to send the money", "I'll send someone for it", or "somebody
+picking it up for me", that nearly always means they are NOT in Nassau.
+Ask them plain: "oh, you on the island?"
+If they say yes, tell them the extra straight away: "it's 10 dollars extra by boat, or 35 by
+plane." Islands pay first, so try before you buy does not apply to them.
 
 NEVER LEAVE THE LINE SILENT
 Silence makes people think the call dropped and hang up. So:
 - While they are talking, make small sounds back — "mm-hm", "right", "ok", "I hear you".
-- The MOMENT you go to look stock up, say out loud first: "1 min, let me check that for you".
-  Say it BEFORE the tool, not after.
-- If a lookup is taking a while, fill it: "still looking…", "bear with me one sec".
+- The MOMENT you go to look stock up, say out loud first: "one minute, let me check that for
+  you". Say it BEFORE the tool, not after.
+- If a lookup is taking a while, fill it: "still looking…", "bear with me one second".
 - If you are thinking, a small "uhm" or "so…" is better than nothing.
 Never go more than about two seconds without a sound.
 
 THE ONE THING A CALL IS FOR
-Photos sell the shoes and you cannot send photos down a phone line. So your job is to answer
-their question honestly, then move them to WhatsApp on this same number, or take a message.
+You CANNOT send photos on a phone call. You can only tell them where to get them. Photos are
+what sell the shoes, so your job is to answer their question honestly, then send them to
+WhatsApp on this same number for the pictures.
+Say it plain, like this: "message this same number on WhatsApp and I'll send you the pictures,
+just text your size."
+Never say you are sending, texting or emailing a photo yourself. You are not. They message
+first, then the pictures come.
 Do not try to close a whole sale out loud.
 
 WHAT YOU MUST NEVER DO
 - Never invent a shoe, a price, or a size. If check_stock did not return it, we do not have it —
-  but check_stock only SPEAKS the first 4 matches even when more exist (count can be higher than
-  what you were told about). If the caller names a colour, size or detail you were not already
-  told about by name, call check_stock AGAIN with that exact detail before saying no. Only say
-  "I don't have that" after a check_stock call that was actually asked about that specific thing.
+  but check_stock only hands you the best 8 matches even when count is higher. If the caller
+  names a colour, size or detail you were not already told about by name, call check_stock
+  AGAIN with that exact detail before saying no. Only say "I don't have that" after a
+  check_stock call that was actually asked about that specific thing.
 - Never promise a special order. We sell what is on the shelf.
 - Never send a caller to friends, Google or reviews to work out their size. We bring two sizes.
 - Never quote island shipping unless THEY say they are on another island. Plain "delivery"
@@ -448,14 +636,25 @@ YOUR TOOLS
   number is already known from caller ID — do not ask for it or read it back to confirm.
 
 OPENING
-You answer the phone the way a person does, not the way a company does. Just:
-"Hello, good day. How can I help you?"
-Never open with a big welcome, never announce the shop name, never say "welcome to" anything.
-If they ask who they reached, THEN tell them SNEAKERPLUG242 and that you are Kiki.
+The time in Nassau right now is {{current_time_America/Nassau}}.
+Your very first words are one short sentence, said fast, all in one breath:
+- Before 12 noon: "Hello, good morning, how can I help you?"
+- From 12 noon until 6 in the evening: "Hello, good afternoon, how can I help you?"
+- After 6 in the evening: "Hello, good night, how can I help you?"
+HOW TO SAY IT — this matters as much as the words:
+- It is ONE sentence, not two. Never stop between the greeting and the question.
+- Say it quick. The whole thing takes about one second. Snap "hello" out short, do not
+  hold it or stretch it.
+- Flat and friendly, not sung. No rising tune on the greeting.
+- Think of a busy shop person grabbing the phone, not a receptionist announcing a company.
+In the Bahamas "good night" is how you GREET someone in the evening, it is not goodbye.
+Never say "good day". Never open with a big welcome, never announce the shop name, never say
+"welcome to" anything. Say nothing else at all until they speak. If they ask who they
+reached, keep it to a few words — see SAYING WHO YOU ARE above.
 
 CLOSING
 Confirm what happens next in one line, then: "Message this same number on WhatsApp and I'll
-send you the pictures right now."`;
+send you the pictures right now, just text your size."`;
 
 module.exports = {
   mountVoice, VOICE_PROMPT, VOICE_KEY, VOICE_LINES,
