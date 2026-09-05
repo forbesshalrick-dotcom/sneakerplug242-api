@@ -501,15 +501,41 @@ function mountVoice(app, deps) {
       // while the customer is still warm. Goes out on WhatsApp AND into /last.
       case 'take_message': {
         const who = String(args.name || '').trim() || 'A caller';
+        const raw = digits(args.phone || c.from);
         const num = prettyPhone(args.phone || c.from);
         const want = String(args.what_they_want || args.message || '').trim();
         c.message = { who, num, want };
         const text = `📞 *PHONE CALL — ${c.line || 'shop line'}*\n`
                    + `👤 ${who}\n📱 ${num}\n`
+                   + (raw ? `💬 https://wa.me/${raw}\n` : '')
                    + (want ? `👟 ${want}\n` : '')
                    + `\nKiki answered the call. They are waiting to hear back.`;
-        try { await waSendManager(text); } catch (_) { /* the alert is logged either way */ }
-        return { saved: true, say: `Ok, let me confirm that and call you right back.` };
+
+        // 🚨 A PHONE ORDER USED TO EXIST IN ONE PLACE ONLY: a WhatsApp message.
+        // Found 5 Sep 2026 — a live call left a real order (AF1 all black, 10, Marathon Mall)
+        // and Rodney never saw it. take_message answered {saved:true} and the only copy of
+        // that order went out through WhatsApp, which has a 24-HOUR WINDOW: if Rodney has
+        // not written to the bot in the last day, WhatsApp drops the message and ManyChat
+        // still reports success. So "sent" was true and the order was gone.
+        // The delivery alerts already learned this and post to the task board as well.
+        // The board has no window and pushes to his phone, so it is the copy that survives.
+        let waOk = false;
+        try { waOk = await waSendManager(text); } catch (_) { /* the board copy still stands */ }
+        try {
+          require('./shop').addAlert(text, 'Kiki 📞', {
+            pushTitle: `📞 Phone order — ${who}`,
+            pushBody: (want || 'They want a call back').slice(0, 90),
+          });
+        } catch (_) {}
+        // And leave a trail in /last, so "did the call produce anything?" is answerable
+        // later without taking Rodney's word for whether his phone buzzed.
+        try { record(req, { endpoint: 'voice-message', voiceCall: c.id || null, voiceFrom: num, voiceWant: want, waOk }); } catch (_) {}
+
+        // ⚠️ NO `say` HERE ON PURPOSE. The agent reads `say` out word for word, and this
+        // one said "let me confirm that and call you right back" — on an order the caller had
+        // ALREADY confirmed, which makes it sound like nothing was actually booked. Kiki
+        // closes the call in her own words now.
+        return { saved: true, delivered_to_whatsapp: waOk, on_task_board: true };
       }
 
       default:

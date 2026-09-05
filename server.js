@@ -3447,9 +3447,32 @@ function inboxRecord(account, sub, m) {
 // driver is and must not talk over a live handover. Making the silence VISIBLE is the fix —
 // deciding to hand back is Rodney's call, not a timer's.
 let _lastStale = [];                 // stores whose 24h window was shut on the last attempt
-const noPickupAlerted = new Map();   // sub -> last alert ts
+const noPickupAlerted = new Map();   // sub -> { at, lastIn } of the last alert we sent
+// 🛑 OFF BY DEFAULT SINCE 5 Sep 2026. Set NO_PICKUP_ALERTS=on in Railway to bring it back.
+//
+// Rodney, 5 Sep: "all BS waste of credits". His Trendy Kicks chat was a full page of the
+// same three customers repeating all day and all night — KMB at 51, then 84, then 151
+// minutes — each repeat a real WhatsApp message off the staff line.
+//
+// TWO faults, and the second is why he could never make it stop:
+//
+//  1. It re-alerted every 30 minutes for up to 3 hours, so ONE unanswered chat was worth
+//     six messages. Three chats = eighteen. Fixed below: once per chat per DAY, and only
+//     again if the customer has actually said something new since.
+//
+//  2. IT CANNOT SEE HIM ANSWER. When Rodney replies from the WhatsApp app itself (not the
+//     inbox), ManyChat pauses that contact and STOPS CALLING THIS SERVER — his reply is
+//     never recorded, so `lastOut` never moves and the thread looks unanswered forever.
+//     That is why the alert said "someone replied by hand" and still counted it as nobody
+//     picking up, and why checking every chat changed nothing. The exit condition was
+//     genuinely unreachable.
+//
+// Fault 2 is not fixed by a cooldown — the watchdog is blind to the one event that should
+// end the wait. So it stays OFF until it can be shown firing once, for a chat with no reply
+// from anyone. An alert nobody can act on trains him to ignore the channel that matters.
+const NO_PICKUP_ON = String(process.env.NO_PICKUP_ALERTS || '').toLowerCase() === 'on';
 const NO_PICKUP_AFTER_MS = 12 * 60 * 1000;   // waiting this long with no answer = nobody came
-const NO_PICKUP_REALERT_MS = 30 * 60 * 1000; // at most one nudge per customer per half hour
+const NO_PICKUP_REALERT_MS = 24 * 60 * 60 * 1000; // ONE per customer per day, never per half hour
 // ⏳ CEILING, added within the hour of shipping this. The first live run alerted on TWELVE
 // threads at once and fired twelve WhatsApp messages at staff. Only four were real: the rest
 // ended on a trailing "K" / "Ok" / "Coming" up to SIX DAYS ago — a customer acknowledging and
@@ -3510,6 +3533,7 @@ function checkResumedUnanswered(sub) {
 }
 
 const noPickupTick = setInterval(() => {
+  if (!NO_PICKUP_ON) return;          // 🛑 see the block above — off until it can tell the truth
   try {
     const now = Date.now();
     let sentThisTick = 0;
@@ -3532,9 +3556,13 @@ const noPickupTick = setInterval(() => {
       if (!(lastIn > lastOut)) continue;                    // they are not actually waiting
       if (now - lastIn < NO_PICKUP_AFTER_MS) continue;      // give the human a fair chance first
       if (now - lastIn > NO_PICKUP_STALE_MS) continue;      // too old to be a live wait — see above
-      const prev = noPickupAlerted.get(t.sub) || 0;
-      if (now - prev < NO_PICKUP_REALERT_MS) continue;
-      noPickupAlerted.set(t.sub, now);
+      // Once per chat per day, AND never twice for the same silence: if the customer has
+      // not said anything new since the last alert, repeating it tells him nothing he was
+      // not already told. The minute counter climbing is not new information.
+      const prev = noPickupAlerted.get(t.sub) || { at: 0, lastIn: 0 };
+      if (now - prev.at < NO_PICKUP_REALERT_MS) continue;
+      if (lastIn <= prev.lastIn) continue;
+      noPickupAlerted.set(t.sub, { at: now, lastIn });
       sentThisTick++;
       if (noPickupAlerted.size > 500) noPickupAlerted.delete(noPickupAlerted.keys().next().value);
       const who = t.name || t.phone || ('customer ' + t.sub);
