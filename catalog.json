@@ -7582,5 +7582,27 @@
   ],
   "nickname": "",
   "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co634-thumb.jpg"
+ },
+ {
+  "id": "asicswhtblu001",
+  "brand": "Asics",
+  "name": "Asics",
+  "color": "White/Blue",
+  "price": 130,
+  "sizes": ["5.5","6.5","7","7.5","8","8.5","9","9","9.5","9.5","10","10","10.5","10.5","11","11","11","11.5","11.5","11.5"],
+  "sizesRaw": ["5.5","6.5","7","7.5","8","8.5","9","9","9.5","9.5","10","10","10.5","10.5","11","11","11","11.5","11.5","11.5"],
+  "nickname": "",
+  "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicswhtblu001-thumb.jpg"
+ },
+ {
+  "id": "asicsblkpnksil001",
+  "brand": "Asics",
+  "name": "Asics",
+  "color": "Black/Pink/Silver",
+  "price": 130,
+  "sizes": ["5.5","5.5","6.5","6.5","7","7","7.5","7.5","8","8","8","8.5","8.5","8.5","9","9","9","9.5","9.5","10","10","10","11","11"],
+  "sizesRaw": ["5.5","5.5","6.5","6.5","7","7","7.5","7.5","8","8","8","8.5","8.5","8.5","9","9","9","9.5","9.5","10","10","10","11","11"],
+  "nickname": "",
+  "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsblkpnksil001-thumb.jpg"
  }
 ]
