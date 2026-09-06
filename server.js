@@ -2361,7 +2361,14 @@ function aliasOnly(s, words) {
   const real = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''}`
     .toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue');
   const realWords = real.split(/[^a-z0-9.]+/).filter(Boolean);
-  return words.every(w => wordMatches(real, realWords, w)) ? 0 : 1;
+  // Short words have to match as WHOLE words here. wordMatches deliberately allows a loose
+  // substring so "bred" finds "Bred Reimagined", but at two or three letters that gets silly:
+  // "tn" is inside "Lightning", so the Lightning Jordan 4 counted as a direct answer to a TN
+  // question and would have led the album ahead of the actual Air Max Plus TNs. This only
+  // tightens RANKING — the search above is untouched, so nothing stops being found.
+  return words.every(w => (w.length <= 3 && !/^\d+$/.test(w))
+    ? realWords.includes(w)
+    : wordMatches(real, realWords, w)) ? 0 : 1;
 }
 
 // The static catalog.json never changes, but the website marks shoes/sizes sold
@@ -2697,13 +2704,19 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     // every word they asked for go first, and the family matches follow behind them.
     // The sort is stable and keyed ONLY on this, so the purest-colour order set above — and
     // Kiki's own order within a colour — is kept intact inside each group.
-    rows.sort((a, b) => aliasOnly(a.s, words) - aliasOnly(b.s, words));
+    // Tagged onto the row, not just used to sort, because the phone agent re-ranks by stock
+    // depth afterwards and would otherwise throw this ordering away (see rankForPhone).
+    rows.forEach(r => { r.direct = aliasOnly(r.s, words); });
+    rows.sort((a, b) => a.direct - b.direct);
   }
   // `sizes` is DEDUPED (sizesOf runs a Set), so it says which sizes exist, never how many
   // pairs. `pairs` carries the depth: 20 pairs across 8 sizes vs one lonely 13 nobody wears.
   // The phone agent leads with the deep ones — a single-pair leftover nearly always ends the
   // call in "sorry, not your size" (Rodney, 5 Sep 2026). Additive: nothing else reads it yet.
-  return rows.map(({ s, id }) => ({ id, name: displayName(s), price: `$${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand, pairs: (s.sizesRaw || []).length }));
+  // `direct` is 0 when the shoe's own words answer everything they asked for and 1 when it
+  // only arrived on a family alias. Carried out of here so callers that re-rank (the phone)
+  // can keep "a yeezy ask leads with a yeezy" while still sorting by depth inside each group.
+  return rows.map(({ s, id, direct }) => ({ id, name: displayName(s), price: `${s.price}`, sizes: sizesOf(s), color: s.color, brand: s.brand, pairs: (s.sizesRaw || []).length, direct: direct || 0 }));
 }
 
 // Cluster an album so every shoe of the SAME model sits together, in a sensible brand

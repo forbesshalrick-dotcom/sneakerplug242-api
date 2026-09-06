@@ -93,20 +93,38 @@ function rankForPhone(found) {
   // Stable: searchInventory's own ordering (pure-colour first, query relevance) breaks ties,
   // so ranking by depth never throws away the match the caller actually asked for.
   const idx = found.map((s, i) => ({ s, i }));
-  idx.sort((a, b) => (stockDepth(b.s) - stockDepth(a.s)) || (a.i - b.i));
+  // 🥇 WHAT THEY ASKED FOR BEATS WHAT WE HAVE MOST OF. Depth-first on its own let a 15-pair
+  // Nike Mind answer the word "yeezy", because the foam family is deliberately searched as one
+  // shoe (Rodney, 14 Jul) and the deepest member of the family won. searchInventory now marks
+  // each row `direct` — 0 if the shoe's OWN name/colour carries every word they said, 1 if it
+  // only came back on a family alias — so depth now decides the order INSIDE those two groups
+  // rather than across them. A vague ask ("slippers", "what you got") tags every row the same,
+  // so it stays pure depth-first exactly as before.
+  idx.sort((a, b) => ((a.s.direct || 0) - (b.s.direct || 0))
+                  || (stockDepth(b.s) - stockDepth(a.s))
+                  || (a.i - b.i));
   // A model only earns a place in the spread if we hold a REAL amount of it. Without this
   // the one-per-model pass promoted single leftovers above deep sellers just because they
   // were a different model — a 1-pair Jordan 13 landing above a 28-pair Jordan 4, which is
   // exactly the "mostly one-off single pairs" complaint. Leftovers still come back, at the
   // bottom, where they belong.
   const WORTH_LEADING_WITH = 3;
-  const seen = new Set(), first = [], rest = [];
-  idx.forEach(({ s }) => {
-    const k = modelKeyOf(s);
-    if ((k && seen.has(k)) || stockDepth(s) < WORTH_LEADING_WITH) { rest.push(s); return; }
-    seen.add(k); first.push(s);
-  });
-  return first.concat(rest);
+  // Run the one-per-model spread SEPARATELY over each group. Run over the whole list it
+  // interleaved them again — the caller asked for yeezys, we led with a yeezy and then put a
+  // Nike Mind and a Crocs at two and three, because they were the next different models. The
+  // point of the spread is variety among the shoes they actually want, not variety instead.
+  const spread = (list) => {
+    const seen = new Set(), first = [], rest = [];
+    list.forEach(({ s }) => {
+      const k = modelKeyOf(s);
+      if ((k && seen.has(k)) || stockDepth(s) < WORTH_LEADING_WITH) { rest.push(s); return; }
+      seen.add(k); first.push(s);
+    });
+    return first.concat(rest);
+  };
+  const asked = idx.filter(({ s }) => !(s.direct || 0));
+  const family = idx.filter(({ s }) => (s.direct || 0));
+  return spread(asked).concat(spread(family));
 }
 
 // A caller nearly always already knows the colour they want, so the genuinely useful thing to
@@ -513,7 +531,13 @@ function mountVoice(app, deps) {
           };
         }
         const ranked = rankForPhone(found);
-        const colours = coloursIn(found);
+        // "Yeah, I have that. black or brown?" is built from these, so they have to describe the
+        // shoe they ASKED for. Off the full result set a yeezy question could offer them the
+        // green of a Crocs. Fall back to everything when nothing matched directly, so a vague
+        // ask ("slippers", "what you got") still gets the whole shelf's colours as before.
+        const direct = found.filter(s => !(s.direct || 0));
+        const pool = direct.length ? direct : found;
+        const colours = coloursIn(pool);
         const askedColour = String(args.color || '').trim();
         const askedFor = args.query || args.shoe || args.brand || askedColour;
         const wantSize = size != null && !isNaN(size) ? size : null;
@@ -536,7 +560,7 @@ function mountVoice(app, deps) {
         } else if (!askedFor) {
           // A bare "what you got". Reading out 334 shoes is the worst possible answer — and
           // so is "yeah, I have that", because they never named a that. Narrow it by brand.
-          say = `Plenty. What you looking for — ${brandsIn(found).slice(0, 3).join(', ')}?`;
+          say = `Plenty. What you looking for — ${brandsIn(pool).slice(0, 3).join(', ')}?`;
         } else if (!askedColour && colours.length > 1) {
           say = `Yeah, I have that. ${colours.slice(0, 2).join(' or ')}?`;
         } else {
@@ -550,8 +574,8 @@ function mountVoice(app, deps) {
           asked_size: wantSize,
           exact_size_matches: wantSize == null ? null : exact.length,
           colors_available: colours,
-          brands_available: brandsIn(found),
-          models_available: modelsIn(found),
+          brands_available: brandsIn(pool),
+          models_available: modelsIn(pool),
           // Eight, ranked, one per model — enough for the agent to answer a follow-up colour
           // or size question without a second lookup, and it never reads them out.
           shoes: ranked.slice(0, 8).map(shoeOut),
