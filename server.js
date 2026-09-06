@@ -1513,6 +1513,10 @@ const THIRD_MSG = "Let me know if you'd like to see the catalog or what we have 
 const DELIVERY_FOLLOWUP_MS = Number(process.env.DELIVERY_FOLLOWUP_MS) || 20 * 60 * 1000; // 20 minutes
 const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 🚗 The driver will call you when he's close 👟";
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
+// 📏 HER DRAFT ASKING A CUSTOMER WHAT SIZE THEY WEAR. Only the QUESTION shapes — a
+// confirmation like "in a 13?" or "want it in your size?" is not a re-ask and must still
+// get through. Used by the guard in the chat loop (search: size-reask-blocked).
+const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s+|ur\s+|the\s+|you\s+)?size\b|\bsize\s+(?:you|u|ya)\b|\byour\s+size\s*\?/i;
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
 // ⚠️ WHOLESALE gets a DIFFERENT nudge (Rodney 2026-08-17). On Sneaker Inventory the
@@ -1875,7 +1879,14 @@ ${welcomeRule}
 - NO SPECIAL ORDERS (IMPORTANT): We do NOT take special orders. NEVER offer one — never say "special order", "we can order it in", "DM for special orders", or "we'll send the exact pair once it arrives". When we genuinely don't have what they asked for, kindly say we don't have that one right now, then IMMEDIATELY pivot to showing what we DO have that's close — their size, that brand, or a similar colour — and keep steering toward a shoe we actually have in stock.
 - "IS THIS PRE-ORDER?" / "ARE THESE PRE-ORDERED?" (Rodney 2026-07-26): a customer asking this is asking whether they'd have to pay first and WAIT for it to arrive. The answer is NO — every shoe shown in the photos/album is already here on the island (Nassau), in stock, and ready for delivery right away. NEVER read this as the customer wanting to pre-order and start asking for a "preferred delivery date" — that's backwards and stalls a sale that could close today. Reply plainly, e.g. "Nah, this is already here and ready to go 👟 Not a pre-order — we can get it to you right away. What size you need?" then keep moving toward getting their size + location.
 - CAN'T FIND IT → OFFER TO SEND WHAT WE HAVE, NEVER ASK FOR "ANOTHER NAME" (IMPORTANT): If you genuinely can't find the shoe they named (after searching the model AND broader terms), do NOT ask them to "try another name", "spell it differently", "give me a different name", or "type it another way" — that dead-ends the sale. Instead, say you can't find that exact one and OFFER TO SHOW what we've got, exactly like: "Hmm, I can't find that exact one in our system 🙈 Would you like me to send what we DO have? Just tell me your size 👟". Then when they say yes or give a size, call search_inventory + send_photos of a good batch. Always turn a miss into a chance to show them options.
-- EXACT SIZE OUT → CHECK THE SHOE'S OTHER SIZES AND OFFER THE NEAREST (CRITICAL): When a customer wants a SPECIFIC shoe (e.g. "White Thunder", "the all-white Air Force 1") in a size we don't have, do NOT jump straight to a different colour or model, and do NOT just say "we don't have it in a 10" and stop. ⚠️ You MUST first search_inventory for that shoe by NAME ONLY, with NO size filter — searching the name + their size just tells you it's missing in THAT size; searching the name alone shows you EVERY size it comes in. THEN offer the CLOSEST sizes we DO have of that SAME shoe. Example: customer wants "White Thunder in a 10", we don't have a 10 but the White Thunder comes in 5.5, 6.5, 9.5, 10.5, 11 → reply "We don't have the White Thunder in a 10 right now, but we've got it in a 9.5 and a 10.5 👟 — want me to send it?". Never leave a near size unmentioned. (For the all-white Air Force 1 with no 11 but a 10, 10.5, 12: "…isn't in an 11 right now, but we've got it in a 10, a 10.5 and a 12 👟 — want me to send it?"). To help them say yes, OFFER THE MOVE DIRECTLY as a clear action, and back it with the try-on (Rodney 2026-08-13 — he confirmed he WANTS the short sizing line; an older version of this rule banned it, which is why the instructions used to contradict what he had told her): ONE short, confident line about the nearest size, then the try-on offer. If the nearest size is BIGGER: "We've got it in a [size] and it runs a touch small, so a [size] wears like a [their size] 👟 — I can bring both so you try them at the door, want me to send it?". If it's SMALLER: "We can size down to [size] 👟 — I'll bring both so you can try them, want me to send it?". Keep it to ONE line plus the offer — a short sizing nudge is good selling, a paragraph about foot shape is not. NEVER send them to friends, Google or reviews to work it out. Only AFTER they pass on the near sizes should you suggest a different colour or model. Always try to keep them on the shoe they actually asked for.
+- EXACT SIZE OUT → CHECK THE SHOE'S OTHER SIZES AND OFFER THE NEAREST (CRITICAL): When a customer wants a SPECIFIC shoe (e.g. "White Thunder", "the all-white Air Force 1") in a size we don't have, do NOT jump straight to a different colour or model, and do NOT just say "we don't have it in a 10" and stop. ⚠️ You MUST first search_inventory for that shoe by NAME ONLY, with NO size filter — searching the name + their size just tells you it's missing in THAT size; searching the name alone shows you EVERY size it comes in. THEN offer the CLOSEST sizes we DO have of that SAME shoe. Example: customer wants "White Thunder in a 10", we don't have a 10 but the White Thunder comes in 5.5, 6.5, 9.5, 10.5, 11 → reply "We don't have the White Thunder in a 10 right now, but we've got it in a 9.5 and a 10.5 👟 — want me to send it?". Never leave a near size unmentioned. (For the all-white Air Force 1 with no 11 but a 10, 10.5, 12: "…isn't in an 11 right now, but we've got it in a 10, a 10.5 and a 12 👟 — want me to send it?"). To help them say yes, OFFER THE MOVE DIRECTLY as a clear action, and back it with the try-on (Rodney 2026-08-13 — he confirmed he WANTS the short sizing line; an older version of this rule banned it, which is why the instructions used to contradict what he had told her): ONE short, confident line about the nearest size, then the try-on offer. If the nearest size is BIGGER: "We've got it in a [size] and it runs a touch small, so a [size] wears like a [their size] 👟 — I can bring both so you try them at the door, want me to send it?". If it's SMALLER: "We can size down to [size] 👟 — I'll bring both so you can try them, want me to send it?". Keep it to ONE line plus the offer — a short sizing nudge is good selling, a paragraph about foot shape is not. NEVER send them to friends, Google or reviews to work it out. Only AFTER they pass on the near sizes should you suggest a different colour or model. Always try to keep them on the shoe they actually asked for. ⚠️ "NEAREST" MEANS HALF A SIZE, OR ONE SIZE AT THE ABSOLUTE MOST. Two sizes away is not a near size, it is a shoe that does not fit, and offering it is not helping — it is selling at somebody (Rodney 2026-09-06, on a real chat: a customer said he wears a 14/15, and Kiki offered him a 13 twice with "some of these run big, so they might work for you"). If the gap is bigger than one size, this rule does NOT apply — go to the rule below instead.
+- 🛑 WHEN WE GENUINELY DON'T CARRY IT — ANSWER, THEN STOP. TAKE THE LEAD, NOT THE SALE (Rodney 2026-09-06, CRITICAL — a real chat on the TK line). A customer said "I already check the site. Yall don't carry 14 or 15", then "14/15 I'm a big guy". Kiki asked his size (he had just given it), offered him a 13, and when he repeated himself offered him the 13 AGAIN with "some of these run big, so they might work for you". Rodney: *"why does Kiki always have to finish a sentence off asking them to buy... it's not natural to force a buy on every sentence, sometimes you gotta go with the flow of the convo. why ask the size again. why offer size 13?"* Three separate faults, all three are banned:
+  • **NEVER ASK WHAT THEY ALREADY TOLD YOU.** Read the messages above yours before you type. He gave his size AND said he'd already checked the site — asking "what size do you wear?" after that tells him nobody is reading. Same for anything else he's already said: his size, his colour, his budget, whether he's seen the site.
+  • **NEVER PUSH A SIZE OR A SHOE THEY RULED OUT.** If he needs a 14 and we stop at 13, a 13 is not "the closest we can get you" — it is a shoe that does not fit. "Some of these run big" is a sales line, not help, and to a man who wears a 15 it is insulting. Do not offer it once, and absolutely never twice. The try-on offer does NOT rescue it either — bringing him two shoes that are both too small is still bringing him nothing.
+  • **NOT EVERY MESSAGE HAS TO END IN A CLOSE.** "Nah, we stop at a 13 right now 🙏" is a COMPLETE answer. Send it and stop. There must be a path in the conversation for "we genuinely don't have it" that is not also a pitch. Forcing a buy onto the end of every single sentence is the thing that makes you read like a machine.
+  THE ONE THING WORTH OFFERING INSTEAD IS TO TAKE HIS DETAILS. When we truly cannot serve him today, the honest, useful move is a callback when we can: say plainly what we top out at, then offer to take his name and size so someone rings him when bigger sizes land — "I'll take your name and size and have someone hit you up soon as we get 14s and 15s in 👟". If he says yes, call get_agent with his size and what he's after in the reason, so a real person has the lead on the board. That is worth far more to Rodney than a forced 13 — a big-size customer who gets told the truth comes back, one who gets sold at does not.
+  ⚠️ SAY THE REAL CEILING, NEVER A NUMBER YOU GUESSED. Run search_inventory in the size they asked for FIRST. Only if it genuinely comes back with nothing do you say we don't carry it, and the top size you quote must be one you actually saw in the results — never a number you assumed. This whole rule is for a size our stock does not reach at all; for a shoe that's simply out in their size, use the EXACT SIZE OUT rule above.
+
 - 👟 "HOW DO THESE RUN?" — WE BRING TWO SIZES, THEY TRY THEM ON (Rodney 2026-08-13, a real complaint: a customer sent a photo and asked "How do these run" and Kiki told them to *ask friends who have the same pair, or check online reviews*. Rodney: "Why does the customer have to call a friend and do research online when we have the shoes they need, and all they have to do is try it on?"). NEVER send a customer away to friends, Google, YouTube or reviews to work out their size — that is the answer of a shop that does not have the shoe in its hand. We do. **In Nassau the driver brings BOTH sizes, they try both on at the door, keep the one that fits and pay for that one.** That is the whole answer to any fit question, and it is a REASON TO BUY, not a disclaimer. So when they ask "how do these run", "do they run big/small", "true to size?", "will this fit me?", "I'm between sizes", "what size should I get?" — reply short and confident, and you MAY lead with ONE quick sizing line if it helps them decide — that is Rodney's own way of selling it (e.g. "it runs a touch small so an 8 wears like a 7.5"). Then always land on the try-on: "…and I'll bring both sizes so you can try them at the door and keep the one that fits 👟 What's your size?". If you have no particular sizing view, just go straight to the try-on: "Don't worry about that — we'll bring your size AND the next one up so you can try both on and keep the one that fits 👟 What's your size?". Then get their size and send the pictures. What is banned is the LECTURE, not the tip: do NOT say "it depends on the shoe and your foot", do NOT list what could vary, do NOT hedge, and NEVER send them off to friends, Google, YouTube or reviews. One line, then the offer. ⚠️ ISLAND ORDERS ARE DIFFERENT: shipping to a Family Island is PAY-FIRST, so there is no try-on at the door — never promise it to them. For an island customer, help them choose instead: tell them which sizes that shoe actually comes in, recommend the closest to what they gave, and let them pick before they pay.
 - ✅ THEY AGREED TO A SIZE → SEARCH + SEND IT *NOW*, NEVER STALL OR FAKE A GLITCH (Rodney 2026-07-19, CRITICAL — a women's-6.5 customer said "6.5 is fine", then "Please", then "Ok", and Kiki NEVER sent: she kept re-asking "want me to send those?", then claimed "I'm having trouble pulling up the album" and passed her to a team member — a dead sale): the MOMENT a customer accepts/asks for a size — "6.5 is fine", "yeah", "ok", "please", "send them", "that works", "let me see" — you MUST on THAT turn call search_inventory for the brand/model in the size they AGREED to (not the size you started with — if they moved from a 6 to a 6.5, search the 6.5), then call send_photos of everything it returns. Do NOT ask "want me to send those?" a second time — they already said yes; asking again instead of sending is the #1 way we lose the sale. Set womens=true whenever the size is a WOMEN'S size (e.g. "women's 6.5") — the search maps it to our men's stock automatically, so a women's 6.5 DOES pull real pairs (never assume we're out of a women's size without searching womens=true first).
   ⛔ NEVER INVENT A TECHNICAL PROBLEM. You have NO "albums", "collections", or "folders" to load — you have search_inventory. NEVER say "I'm having trouble pulling up the album", "can't pull it up", "having trouble loading", "the system is acting up", or anything implying a glitch. That is never the reason — if you got nothing back, it just means we don't stock that exact size, so say so honestly and offer the closest sizes / other pairs in that brand (search the model or brand alone to see what we DO have). ⚠️ THE ONE EXCEPTION (Rodney 2026-08-02): if send_photos genuinely comes back with sent:0 after real matching shoes were found (requested > 0) — a REAL send failure, not "we don't stock it" — the system has ALREADY texted the customer an honest line with the 242plug.com link. Do NOT also apologize or explain yourself on top of it; that's how the banned "trouble loading" phrasing was slipping out. Just stay quiet on that turn, or answer anything else they asked.
@@ -3097,6 +3108,74 @@ const convos = new Map();    // subscriberId -> message history
 // said it once (history gets trimmed to 24 msgs, so a size given early can fall out — this
 // survives that). Set when Kiki searches a single size; injected back into her context.
 const custSize = new Map();   // sub -> { size, ts }
+
+// 📏 READ THE SIZE OUT OF THE CUSTOMER'S OWN WORDS — not just out of Kiki's searches.
+//
+// Rodney 2026-09-06, a real Trendy Kicks chat that cost a repeat customer. He wrote
+// "I already check the site. Yall don't carry 14 or 15" and Kiki's very next line was
+// "what size do you wear?". He wrote "14/15 I'm a big guy" and she offered him a 13,
+// "some of these run big, so they might work for you". He had said his size TWICE.
+//
+// The prompt has told her never to re-ask a size for months, and the map above was meant to
+// be the belt and braces behind it. It never fired — because custSize was only ever written
+// from INSIDE the search tool, so a size was only remembered once Kiki had actually searched
+// it. A size we do not stock is exactly the size she never searches. So the one customer who
+// most needs to be heard was the one customer the safety net was never armed for. This reads
+// the size straight off what he typed, before she writes a word.
+const SIZE_MIN = 3, SIZE_MAX = 18;
+function normSize(x) {
+  const n = parseFloat(String(x).toLowerCase().replace(/\s*1\/2/, '.5').replace(/\s+and\s+a\s+half/, '.5'));
+  return isNaN(n) ? '' : String(n);
+}
+function sizeFromCustomerWords(text) {
+  // Strip the things that LOOK like a size and are not — money, pair counts, phone numbers,
+  // times. Reading "$120" as a size would be worse than reading nothing at all.
+  const s = String(text || '').toLowerCase().replace(/[\u2019\u2018]/g, "'")
+    .replace(/\$\s*\d+(?:\.\d+)?/g, ' ')
+    .replace(/\b\d+\s*(?:dollars?|bucks|pairs?|pair|pcs?|%)\b/g, ' ')
+    .replace(/\b\d[\d\s().-]{6,}\b/g, ' ')
+    .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ');
+  const HALF = '(?:\\.5|\\s*1/2|\\s+and\\s+a\\s+half)?';
+  const NUM = '(\\d{1,2}' + HALF + ')';
+  const ok = (x) => { const n = parseFloat(normSize(x)); return n >= SIZE_MIN && n <= SIZE_MAX; };
+  // A RANGE first — "14/15", "14 or 15", "14-15". Two sizes in one breath is a big-foot
+  // customer telling you he sits between them; keep BOTH so nobody quietly rounds him down.
+  const r = s.match(new RegExp(NUM + '\\s*(?:/|-|\\bor\\b|\\bto\\b)\\s*' + NUM));
+  if (r && ok(r[1]) && ok(r[2])) {
+    const a = normSize(r[1]), b = normSize(r[2]);
+    return a === b ? a : (a + '/' + b);
+  }
+  // Then a single size that has a size WORD attached to it, so a stray number in an ordinary
+  // sentence is never mistaken for one.
+  // Never read "send 3 pics" or "2 pairs" as a size.
+  const NOTCOUNT = '(?!\\s*(?:pics?|photos?|pictures?|pairs?|shoes?|kicks?))';
+  for (const cue of [
+    'size\\s*(?:is\\s*)?' + NUM, NUM + '\\s*(?:in\\s+)?size\\b',
+    'wears?\\s+(?:a\\s+|an\\s+)?' + NUM, "i'?m\\s+(?:a\\s+|an\\s+)" + NUM,
+    'need\\s+(?:a\\s+|an\\s+)' + NUM, 'take\\s+(?:a\\s+|an\\s+)' + NUM,
+    'in\\s+(?:a\\s+|an\\s+)' + NUM, NUM + 's\\b',
+    // "send 10.5", "shoot me the 8s", "lemme get a 12" — Bahamians talk short.
+    '(?:send|shoot|show|get|gimme|lemme have)\\s+(?:me\\s+)?(?:a\\s+|an\\s+|the\\s+)?' + NUM + NOTCOUNT + '\\b',
+    // A half size is only ever a shoe size — "10 and a half", "9 1/2", or a bare "10.5".
+    '(\\d{1,2}\\s*(?:1/2|and\\s+a\\s+half))', '(\\d{1,2}\\.5)' + NOTCOUNT + '\\b',
+  ]) {
+    const m = s.match(new RegExp('\\b' + cue));
+    if (m && ok(m[1])) return normSize(m[1]);
+  }
+  return '';
+}
+// Every men's size actually on the shelf right now. Used to tell the difference between
+// "we're out of his size today" and "we do not go that big at all".
+function sizesWeStock() {
+  const out = new Set();
+  try {
+    const m = liveShoeMap();
+    for (const id in m) for (const x of ((m[id] && m[id].sizesRaw) || [])) {
+      const n = parseFloat(x); if (!isNaN(n)) out.add(n);
+    }
+  } catch (_) {}
+  return out;
+}
 // sub -> ts of the last 🙋 AGENT NEEDED alert, so one chat can't spam the owner's phone
 const humanAskAlerted = new Map();
 // PERSIST conversations to the /data volume so a redeploy/restart mid-chat doesn't
@@ -3744,6 +3823,17 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
 function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS, isCloser: true }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token, wholesale) {
+  // 📏 Don't open with "What size you looking for?" to somebody who already told us (Rodney
+  // 2026-09-06). A customer back inside the 12h size window has said it once already, and
+  // this nudge is often the ONLY message that arrives — so it must not be the dumb one.
+  const cs = custSize.get(sub);
+  if (!wholesale && cs && cs.size && (Date.now() - (cs.ts || 0)) < 12 * 60 * 60 * 1000) {
+    let carried = true;
+    try { const have = sizesWeStock(); if (have.size) carried = String(cs.size).split('/').map(parseFloat).filter(n => !isNaN(n)).some(n => have.has(n)); } catch (_) {}
+    // If we don't even go that big, leave him alone rather than nudge a man we can't serve.
+    if (!carried) return;
+    return scheduleNudge(sub, token, `Want me to send what we got in a ${cs.size}? 👟`, WELCOME_NUDGE_MS);
+  }
   scheduleNudge(sub, token, wholesale ? L(WS_ASKME_T, sub) : L(ASKME_T, sub), WELCOME_NUDGE_MS);
 }
 
@@ -5161,10 +5251,32 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     ownerNotes.delete(sub); // consume once
   }
   // 📏 REMEMBERED SIZE: the customer already told you their size earlier — reuse it, don't re-ask.
+  // Read it off THIS message first (see sizeFromCustomerWords) so the net is armed on the very
+  // turn he says it — the turn AFTER is the one he has already walked away on.
+  try {
+    const saidNow = sizeFromCustomerWords(userText);
+    if (saidNow) { custSize.set(sub, { size: saidNow, ts: Date.now(), fromCustomer: true }); saveConvos(); }
+  } catch (_) {}
   let sizeCtx = '';
   const cs = custSize.get(sub);
+  let knownSize = '';
   if (cs && cs.size && (Date.now() - (cs.ts || 0)) < 12 * 60 * 60 * 1000) {
-    sizeCtx = `\n\n[THIS CUSTOMER'S SIZE = ${cs.size} (they told you earlier in this chat). When they ask to see ANY other shoe, brand or model next — "any New Balance?", "show me Jordans", "what you got in ___" — go STRAIGHT to search_inventory + send_photos in size ${cs.size} on this turn. Do NOT reply "what size you looking for?" — you already know it. Only ask again if they clearly want a DIFFERENT size.]`;
+    knownSize = String(cs.size);
+    // Do we actually go that big / that small? "Out of his size today" and "we do not carry
+    // that size at all" are two completely different conversations, and the second one is
+    // the one that went wrong: she asked again, then pushed a 13 at a man who wears a 15.
+    let ceiling = 0, carried = true;
+    try {
+      const have = sizesWeStock();
+      if (have.size) {
+        ceiling = Math.max.apply(null, Array.from(have));
+        const wanted = knownSize.split('/').map(parseFloat).filter(n => !isNaN(n));
+        carried = !wanted.length || wanted.some(n => have.has(n));
+      }
+    } catch (_) {}
+    sizeCtx = carried
+      ? `\n\n[THIS CUSTOMER'S SIZE = ${knownSize} (they told you earlier in this chat). When they ask to see ANY other shoe, brand or model next — "any New Balance?", "show me Jordans", "what you got in ___" — go STRAIGHT to search_inventory + send_photos in size ${knownSize} on this turn. Do NOT reply "what size you looking for?" — you already know it. Only ask again if they clearly want a DIFFERENT size.]`
+      : `\n\n[THIS CUSTOMER'S SIZE = ${knownSize}, AND WE DO NOT CARRY IT. They have already told you — NEVER ask their size again, not once. The biggest size on our shelf right now is a ${ceiling}. Do NOT offer them anything more than ONE size below what they asked for: a ${ceiling} to somebody who wears a ${knownSize} is not "the closest we can get you", it is a shoe that does not fit, and "some of these run big" is a sales line, not help. Do NOT use the try-on offer to bridge that gap either — bringing him two shoes that are both too small is still bringing him nothing. Say plainly and warmly that we top out at a ${ceiling} right now, and then STOP SELLING — that is a complete answer on its own. The ONE thing worth offering instead is a CALL BACK: take his name and size so somebody rings him the moment bigger sizes land, e.g. "I'll take your name and size and have someone hit you up soon as we get ${knownSize}s in 👟". If he says yes, call get_agent with his size and what he's after in the reason so a real person has the lead on the board. A big-size customer who gets told the truth comes back; one who gets sold at does not.]`;
   }
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
@@ -5194,6 +5306,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
+  let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
   let forcedPhotosOnce = false; // guard so the force above can only fire once per turn (never loops)
   // 🎯 SIZE-ALBUM COMPLETENESS tracking (Rodney 2026-07-19: "what you got in 10.5 11" showed
@@ -5327,6 +5440,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         continue;                       // one clean retry
       }
       turnText = '';                    // it did it twice — say nothing rather than leak
+    }
+    // 📏 NEVER ASK A SIZE HE HAS ALREADY GIVEN YOU (Rodney 2026-09-06). The prompt has said
+    // this for months and it still went out to a real customer twice inside ninety seconds,
+    // so this is the assertion behind the words: if we KNOW his size and her draft asks for
+    // it anyway, the draft does not get sent — she is told once and writes it again.
+    // Unlike the leak guard above, a second offence is still SENT: an awkward question is
+    // bad, and dead silence in the middle of a sale is worse.
+    if (turnText && knownSize && SIZE_REASK_RE.test(turnText)) {
+      sizeReAsks++;
+      record(req, { endpoint: 'size-reask-blocked', sub, store: ctx.store || '', size: knownSize, attempt: sizeReAsks, text: turnText.slice(0, 200) });
+      if (sizeReAsks === 1) {
+        history.push({ role: 'user', content: `(SYSTEM NOTE — the customer cannot see this: you just asked this customer what size they wear and THEY HAVE ALREADY TOLD YOU — it is ${knownSize}. Asking again tells them nobody is reading, and it is the single fastest way to lose them. Write your reply again using the size you already have, and do not ask for it. If we genuinely don't carry that size, say so plainly, stop there, and offer to take their name so somebody calls them when it lands — do not push a smaller size at them. Do not mention this note.)` });
+        continue;                       // one clean retry
+      }
     }
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
