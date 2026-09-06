@@ -1072,6 +1072,12 @@ function _applyCatalogOverrides(){
     if(ov)_OVERRIDE_FIELDS.forEach(function(f){if(ov[f]!=null)s[f]=ov[f];});
   });}catch(e){}
 }
+// Some shoes are stored as "Air Force 1" and some as "Nike Air Force 1", so gluing the brand
+// on the front gave us "Nike Nike Air Force 1" — on the "I want this!" message that goes to
+// Kiki, on receipts, and all through the activity log. Only add the brand if it isn't there.
+function bn(brand,name){var b=String(brand||'').trim(),n=String(name||'').trim();
+  if(!b)return n; if(!n)return b;
+  return n.toLowerCase().indexOf(b.toLowerCase())===0 ? n : b+' '+n;}
 function showToast(msg,err=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(err?' error':'');setTimeout(()=>t.className='toast',3500);}
 
 // ─── SOUND ENGINE ─────────────────────────────────────────────
@@ -1743,7 +1749,7 @@ function checkReorderAlerts(){
 function sendReorderWA(id){
   const s=shoes.find(x=>x.id===id);if(!s)return;
   if(!settings.wa_supplier){showToast('Add supplier number in Settings first',true);showPage('settings');return;}
-  const msg=encodeURIComponent('🔄 RESTOCK NEEDED\n\nShoe: '+s.brand+' '+s.name+'\nSizes left: '+s.sizes.join(', ')+'\nStock: '+s.sizes.length+' pair(s)\n\nPlease restock ASAP.');
+  const msg=encodeURIComponent('🔄 RESTOCK NEEDED\n\nShoe: '+bn(s.brand,s.name)+'\nSizes left: '+s.sizes.join(', ')+'\nStock: '+s.sizes.length+' pair(s)\n\nPlease restock ASAP.');
   openWA(settings.wa_supplier,msg);
 }
 function toggleReorder(id){
@@ -1786,7 +1792,7 @@ function confirmWantThis(){
     ? '\n\n📍 DELIVERY LOCATION (Ready NOW):\n' + locData.label + '\n' + locData.url
     : '\n\nHow do I pay and arrange pickup/delivery?';
   const msg=encodeURIComponent(
-    '👟 I want this!\n\n'+s.brand+' '+s.name+
+    '👟 I want this!\n\n'+bn(s.brand,s.name)+
     '\nColor: '+(s.color||'N/A')+
     '\nCondition: '+s.condition+
     '\nPrice: '+price+
@@ -1973,7 +1979,7 @@ function renderCartPayPal(){
 function onCartPaid(det){
   px('paid');
   const oid=(det&&det.id)?det.id:'';
-  const lines=cart.map(it=>'• '+it.brand+' '+it.name+(it.color?' ('+it.color+')':'')+' — size '+it.size+' — $'+(parseFloat(it.price)||0).toFixed(2)).join('\n')
+  const lines=cart.map(it=>'• '+bn(it.brand,it.name)+(it.color?' ('+it.color+')':'')+' — size '+it.size+' — $'+(parseFloat(it.price)||0).toFixed(2)).join('\n')
     +'\n• Card processing fee (4%) — $'+cardFee().toFixed(2);
   const total=cardTotal().toFixed(2);
   const count=cart.length;
@@ -2176,7 +2182,7 @@ function posComplete(method, extra){
     if(s.sizes.length===0) s.sold=true;
     s.updatedAt=Date.now();
     logSale(s, it.size, method, extra);
-    if(typeof addAudit==='function') addAudit('POS sale ('+method+')', s.brand+' '+s.name+' — size '+it.size, 'sale', s.id);
+    if(typeof addAudit==='function') addAudit('POS sale ('+method+')', bn(s.brand,s.name)+' — size '+it.size, 'sale', s.id);
   });
   try{ save(); }catch(e){}
   try{_sfx.sell&&_sfx.sell();}catch(e){}
@@ -2229,7 +2235,7 @@ function confirmSoldSize(){
   s.updatedAt=Date.now();
   // ── Log the sale ──
   const sale=logSale(s, soldSizeSelected, '', wantReceipt?{customerWa:normalizeBahamasWa(custWa)}:null);
-  if(typeof addAudit==='function')addAudit('Size '+soldSizeSelected+' sold',s.brand+' '+s.name+(s.color?' — '+s.color:''),'sale',s.id);
+  if(typeof addAudit==='function')addAudit('Size '+soldSizeSelected+' sold',bn(s.brand,s.name)+(s.color?' — '+s.color:''),'sale',s.id);
   save();document.getElementById('sold-modal').classList.remove('open');
   renderInventory();_sfx.sell();showToast('Size '+soldSizeSelected+' marked sold ✓');
   // hand the receipt to WhatsApp last so it doesn't block the sale being recorded
@@ -2574,8 +2580,8 @@ function cycleGrid() {
   _sfx.tap();
 }
 function setTab(tab){currentTab=tab;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+tab).classList.add('active');renderInventory();}
-function markUnsold(id){const s=shoes.find(x=>x.id===id);if(s){s.sold=false;s.updatedAt=Date.now();save();renderInventory();_sfx.pop();addAudit('Shoe relisted',s.brand+' '+s.name,'inventory',s.id);showToast('Relisted ✓');}}
-function deleteShoe(id){if(!_requireDelete('delete a shoe'))return;if(!confirm('Delete this shoe?'))return;const _ds=shoes.find(x=>x.id===id);shoes=shoes.filter(x=>x.id!==id);const deletedIds=JSON.parse(localStorage.getItem('sp_deleted')||'[]');if(!deletedIds.includes(id)){deletedIds.push(id);localStorage.setItem('sp_deleted',JSON.stringify(deletedIds));}if(typeof shopPost==='function')shopPost('/shop/deleted',{ids:[id]}).catch(function(){});save();renderInventory();_sfx.error();if(_ds)addAudit('Shoe deleted',_ds.brand+' '+_ds.name,'inventory');showToast('Shoe deleted');}
+function markUnsold(id){const s=shoes.find(x=>x.id===id);if(s){s.sold=false;s.updatedAt=Date.now();save();renderInventory();_sfx.pop();addAudit('Shoe relisted',bn(s.brand,s.name),'inventory',s.id);showToast('Relisted ✓');}}
+function deleteShoe(id){if(!_requireDelete('delete a shoe'))return;if(!confirm('Delete this shoe?'))return;const _ds=shoes.find(x=>x.id===id);shoes=shoes.filter(x=>x.id!==id);const deletedIds=JSON.parse(localStorage.getItem('sp_deleted')||'[]');if(!deletedIds.includes(id)){deletedIds.push(id);localStorage.setItem('sp_deleted',JSON.stringify(deletedIds));}if(typeof shopPost==='function')shopPost('/shop/deleted',{ids:[id]}).catch(function(){});save();renderInventory();_sfx.error();if(_ds)addAudit('Shoe deleted',bn(_ds.brand,_ds.name),'inventory');showToast('Shoe deleted');}
 
 // ── Typo-tolerant search helpers ─────────────────────────────────────────────
 // Bounded edit distance so the search bar forgives misspellings/alt spellings
@@ -2960,7 +2966,7 @@ function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))re
   }
   // Log explicitly with detail (brand+name) — showToast wrapper will also fire but won't duplicate
   var _auditAction = editingId ? 'Shoe edited' : 'Shoe added';
-  var _auditDetail = shoe.brand+' '+shoe.name+(shoe.color?' — '+shoe.color:'');
+  var _auditDetail = bn(shoe.brand,shoe.name)+(shoe.color?' — '+shoe.color:'');
   // Spell out WHAT changed (sizes added/removed, price, colour) so the Log is useful, not just "Shoe edited".
   if(editingId){var _chg=[];var _sd=_sizeDiffStr(_oldSizes,shoe.sizes);if(_sd)_chg.push(_sd);if(_oldPrice!=null&&Number(_oldPrice)!==Number(shoe.price))_chg.push('price $'+_oldPrice+' → $'+shoe.price);if(_oldColor!=null&&_oldColor!==(shoe.color||''))_chg.push('colour '+(_oldColor||'—')+' → '+(shoe.color||'—'));if(_chg.length)_auditDetail+=' — '+_chg.join(', ');}
   addAudit(_auditAction, _auditDetail, 'inventory', shoe.id, shoe.image||null);
@@ -3315,7 +3321,7 @@ function wsRenderProducts(){
     if(!wholesaleProducts.length){el.innerHTML='<p style="color:var(--text-muted);font-size:14px;">No wholesale products yet.</p>';}
     else{el.innerHTML=wholesaleProducts.map(function(p){
       return '<div class="ws-card">'+wsCardImg(p.image)+
-        '<div class="ws-card-body"><div class="ws-card-name">'+wsEsc(p.brand)+' '+wsEsc(p.name)+'</div>'+
+        '<div class="ws-card-body"><div class="ws-card-name">'+wsEsc(bn(p.brand,p.name))+'</div>'+
         (p.color?'<div class="ws-card-color">'+wsEsc(p.color)+'</div>':'')+
         '<div class="ws-card-price">$'+Number(p.price||0)+' <span style="font-size:11px;color:var(--text-muted);font-weight:400">/ pair</span></div>'+
         (p.sizes?'<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">Sizes: '+wsEsc(p.sizes)+'</div>':'')+
@@ -3323,7 +3329,7 @@ function wsRenderProducts(){
         '</div></div>';
     }).join('');}
   }
-  if(sel){sel.innerHTML='<option value="">Select a shoe…</option>'+wholesaleProducts.map(function(p){return '<option value="'+p.id+'">'+wsEsc(p.brand+' '+p.name+(p.color?' — '+p.color:''))+' ($'+Number(p.price||0)+')</option>';}).join('');}
+  if(sel){sel.innerHTML='<option value="">Select a shoe…</option>'+wholesaleProducts.map(function(p){return '<option value="'+p.id+'">'+wsEsc(bn(p.brand,p.name)+(p.color?' — '+p.color:''))+' ($'+Number(p.price||0)+')</option>';}).join('');}
 }
 
 function wsAddLine(){
@@ -3334,7 +3340,7 @@ function wsAddLine(){
   if(!qty||qty<1){showToast('Enter a quantity',true);return;}
   var p=wholesaleProducts.find(function(x){return x.id===pid;});
   if(!p)return;
-  wsOrder.push({pid:pid,name:p.brand+' '+p.name+(p.color?' — '+p.color:''),price:Number(p.price||0),size:size,qty:qty});
+  wsOrder.push({pid:pid,name:bn(p.brand,p.name)+(p.color?' — '+p.color:''),price:Number(p.price||0),size:size,qty:qty});
   var q=document.getElementById('ws-sel-qty');if(q)q.value='1';
   var s=document.getElementById('ws-sel-size');if(s)s.value='';
   wsRenderOrder();
@@ -3391,7 +3397,7 @@ function wsSaveProduct(){
   saveWholesale();
   var m=document.getElementById('ws-product-modal');if(m)m.classList.remove('open');
   renderWholesale();
-  if(typeof addAudit==='function')addAudit('Wholesale product added',brand+' '+name,'wholesale');
+  if(typeof addAudit==='function')addAudit('Wholesale product added',bn(brand,name),'wholesale');
   showToast('Product added ✓');
 }
 function wsRemoveProduct(id){
@@ -3407,7 +3413,7 @@ function wsRenderPending(){
     '<p style="color:var(--text-muted);font-size:12px;margin-bottom:12px;">Auto-detected new Jordan / Nike releases. Approve to add to wholesale, or reject.</p>'+
     '<div class="ws-grid">'+wholesalePending.map(function(r){
       return '<div class="ws-card">'+wsCardImg(r.image)+
-        '<div class="ws-card-body"><div class="ws-card-name">'+wsEsc(r.brand+' '+r.name)+'</div>'+
+        '<div class="ws-card-body"><div class="ws-card-name">'+wsEsc(bn(r.brand,r.name))+'</div>'+
         (r.color?'<div class="ws-card-color">'+wsEsc(r.color)+'</div>':'')+
         (r.retail?'<div style="font-size:12px;color:var(--text-dim);margin-top:2px;">Retail $'+wsEsc(String(r.retail))+'</div>':'')+
         '<div style="display:flex;gap:6px;margin-top:8px;"><button class="btn btn-primary" style="flex:1;font-size:12px;padding:6px;" onclick="wsApprovePending(\''+r.id+'\')">Approve</button><button class="btn btn-ghost" style="flex:1;font-size:12px;padding:6px;" onclick="wsRejectPending(\''+r.id+'\')">Reject</button></div>'+
@@ -3419,7 +3425,7 @@ function wsApprovePending(id){
   wholesaleProducts.unshift({id:'ws'+Date.now(),brand:r.brand,name:r.name,color:r.color||'',price:Number(r.retail)||0,sizes:r.sizes||'',image:r.image||'',createdAt:Date.now()});
   wholesalePending=wholesalePending.filter(function(x){return x.id!==id;});
   saveWholesale();renderWholesale();showToast('Approved ✓');
-  if(typeof addAudit==='function')addAudit('Release approved',r.brand+' '+r.name,'wholesale');
+  if(typeof addAudit==='function')addAudit('Release approved',bn(r.brand,r.name),'wholesale');
 }
 function wsRejectPending(id){wholesalePending=wholesalePending.filter(function(x){return x.id!==id;});saveWholesale();renderWholesale();showToast('Rejected');}
 

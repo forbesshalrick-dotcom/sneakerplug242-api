@@ -2465,8 +2465,28 @@ function stockCensus() {
   const listedOnly = [];
   inCatalog.forEach(id => { if (!inShop.has(id) && !deleted.has(id)) listedOnly.push(id); });
 
+  // 🖼️ THE SAME BUG WEARING A DIFFERENT HAT. send_photos does `if (!s.image) continue;` —
+  // so a shoe that IS in both lists but has no picture is quietly dropped out of every album.
+  // Kiki finds it, says we have it, and then never shows it. That is how the black Air Max 95
+  // arrived on 2026-09-06: entered from a phone call, no photo taken yet. Shout for the photo
+  // rather than let it go silent, because silent is exactly what cost us the last two.
+  const noPhoto = [];
+  try {
+    const byId = {};
+    shopShoes.forEach(x => { if (x && x.id != null) byId[String(x.id)] = x; });
+    catalog.forEach(s2 => {
+      if (!s2 || s2.id == null || (s2.image || '').trim()) return;
+      const ov = byId[String(s2.id)];
+      const pairs = ov && Array.isArray(ov.sizes) ? ov.sizes.length : 0;
+      if (!pairs || (ov && ov.sold)) return;      // no stock = nothing to show anyway
+      noPhoto.push({ id: String(s2.id), pairs, name: (s2.name || '').trim(),
+                     color: (s2.color || '').trim(), sizes: sizeTally(ov.sizes) });
+    });
+  } catch (_) {}
+
   invisible.sort((a, b) => b.pairs - a.pairs);
-  return { invisible, junk, listedOnly, shopCount: shopShoes.length, catalogCount: inCatalog.size };
+  noPhoto.sort((a, b) => b.pairs - a.pairs);
+  return { invisible, junk, noPhoto, listedOnly, shopCount: shopShoes.length, catalogCount: inCatalog.size };
 }
 // "5.5 x9, 6.5 x1" — the shape Rodney counts in, so he can match it to the shelf.
 function sizeTally(sizes) {
@@ -2484,24 +2504,44 @@ async function runStockCensus(why) {
   console.log(`[census] ${c.shopCount} in the shop, ${c.catalogCount} in the catalog — `
     + `${c.invisible.length} INVISIBLE, ${c.junk.length} empty orphans, ${c.listedOnly.length} listed-only`);
   c.invisible.forEach(r => console.error(`[census] 🔴 INVISIBLE TO KIKI: ${r.id} — ${r.pairs} pairs (${r.sizes})`));
-  if (!c.invisible.length) { _lastCensusSig = ''; return c; }
-  const sig = c.invisible.map(r => r.id + ':' + r.pairs).join('|');
+  (c.noPhoto || []).forEach(r => console.error(`[census] 📷 NO PHOTO: ${r.id} — ${r.name} ${r.color} — ${r.pairs} pairs`));
+  if (!c.invisible.length && !(c.noPhoto || []).length) { _lastCensusSig = ''; return c; }
+  const sig = c.invisible.map(r => r.id + ':' + r.pairs).join('|')
+    + '||' + (c.noPhoto || []).map(r => r.id + ':' + r.pairs).join('|');
   if (sig === _lastCensusSig) return c;      // same shoes as last time — he already knows
   _lastCensusSig = sig;
+  const nph = c.noPhoto || [];
   const pairs = c.invisible.reduce((n, r) => n + r.pairs, 0);
-  const msg = `🕵️ *${pairs} PAIRS ARE INVISIBLE TO KIKI*\n\n`
-    + `${c.invisible.length === 1 ? 'This shoe is' : 'These shoes are'} in the shop app but missing from `
-    + `the bot's catalogue, so she tells customers we don't have ${c.invisible.length === 1 ? 'it' : 'them'} `
-    + `while ${c.invisible.length === 1 ? 'it sits' : 'they sit'} on the shelf:\n\n`
-    + c.invisible.map(r => `• *${r.id}* — ${r.pairs} pairs (${r.sizes})`).join('\n')
-    + `\n\nNothing is lost — the pairs are safe, and the shop app still shows them. They just `
-    + `need adding to the bot's catalogue before she can sell them. Search that code in the shop `
-    + `app to see which shoe it is.\n\n_Spotted by the automatic catalogue check, ${why}._`;
+  const nphPairs = nph.reduce((n, r) => n + r.pairs, 0);
+  const parts = [];
+  if (c.invisible.length) {
+    parts.push(`🕵️ *${pairs} PAIRS ARE INVISIBLE TO KIKI*\n\n`
+      + `${c.invisible.length === 1 ? 'This shoe is' : 'These shoes are'} in the shop app but missing from `
+      + `the bot's catalogue, so she tells customers we don't have ${c.invisible.length === 1 ? 'it' : 'them'} `
+      + `while ${c.invisible.length === 1 ? 'it sits' : 'they sit'} on the shelf:\n\n`
+      + c.invisible.map(r => `• *${r.id}* — ${r.pairs} pairs (${r.sizes})`).join('\n')
+      + `\n\nNothing is lost — the pairs are safe, and the shop app still shows them. They just `
+      + `need adding to the bot's catalogue before she can sell them. Search that code in the shop `
+      + `app to see which shoe it is.`);
+  }
+  if (nph.length) {
+    parts.push(`📷 *${nphPairs} PAIRS HAVE NO PHOTO YET*\n\n`
+      + `Kiki knows about ${nph.length === 1 ? 'this one' : 'these'} and will tell a customer we have `
+      + `${nph.length === 1 ? 'it' : 'them'} — but with no picture ${nph.length === 1 ? 'it' : 'they'} `
+      + `can never go out in an album, so nobody ever SEES ${nph.length === 1 ? 'it' : 'them'}:\n\n`
+      + nph.map(r => `• *${r.id}* — ${[r.name, r.color].filter(Boolean).join(' — ')} — ${r.pairs} pairs (${r.sizes})`).join('\n')
+      + `\n\nOne clear photo of each is all it needs.`);
+  }
+  if (!parts.length) return c;
+  const msg = parts.join('\n\n———\n\n') + `\n\n_Spotted by the automatic catalogue check, ${why}._`;
+  const title = c.invisible.length
+    ? `🕵️ ${pairs} pairs Kiki can't see`
+    : `📷 ${nphPairs} pairs with no photo`;
+  const body = c.invisible.length
+    ? 'In the shop app, missing from her catalogue'
+    : 'She can find them but can never show them';
   try {
-    require('./shop').addAlert(msg, 'Kiki 🤖', {
-      pushTitle: `🕵️ ${pairs} pairs Kiki can't see`,
-      pushBody: 'In the shop app, missing from her catalogue',
-    });
+    require('./shop').addAlert(msg, 'Kiki 🤖', { pushTitle: title, pushBody: body });
   } catch (_) {}
   return c;
 }

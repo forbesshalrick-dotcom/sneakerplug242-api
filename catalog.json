@@ -1993,6 +1993,17 @@
   "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkbl001-thumb.jpg"
  },
  {
+  "id": "airmax95bk001",
+  "brand": "Nike",
+  "name": "Air Max 95",
+  "color": "Black",
+  "price": 130,
+  "sizes": ["5.5"],
+  "sizesRaw": ["5.5"],
+  "nickname": "",
+  "image": ""
+ },
+ {
   "id": "nikemulewhite001",
   "brand": "Nike",
   "name": "Nike mind 001",
