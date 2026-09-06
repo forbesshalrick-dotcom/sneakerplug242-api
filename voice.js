@@ -380,6 +380,18 @@ function mountVoice(app, deps) {
     if (!auth(req, res)) return;
     res.json({ count: callLog.length, rev: callRev, calls: getCallLog(req.query.limit) });
   });
+  // Bin one row. A test call, or a wrong number that logged itself twice — a list he can't
+  // tidy is a list he stops trusting. Key goes in the BODY, not the query string: a key on the
+  // end of a URL ends up in logs and in his browser history.
+  app.post('/voice/call-log/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = String((req.body && (req.body.id || req.body.call_id)) || '').trim();
+    const before = callLog.length;
+    callLog = callLog.filter(c => c && c.call_id !== id);
+    const removed = before - callLog.length;
+    if (removed) { callRev++; saveCallLog(); }
+    res.json({ ok: true, removed, total: callLog.length });
+  });
 
   // ── Everything the voice platform needs, ready to paste ─────────────────────
   // Retell wants each tool declared with a name, a description, its arguments, and — the
