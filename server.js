@@ -637,6 +637,16 @@ app.get(['/feed.csv', '/catalog-feed.csv'], (req, res) => {
 // Added because a driver was asked to choose between five copies of one order and there
 // was no way to see the records without SSH, which this Railway project does not have.
 // Read-only, key-gated, and deliberately shows the fields the fold decides on.
+// 🕵️ The stock census on demand — the same check that runs on every deploy, so any chat
+// can answer "is anything invisible to Kiki right now?" without pushing to find out.
+app.get('/census', async (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(401).json({ error: 'bad key' });
+  const c = stockCensus();
+  if (!c) return res.status(503).json({ error: 'shop not loaded yet' });
+  if (String(req.query.alert) === '1') await runStockCensus('run by hand').catch(() => {});
+  res.json(c);
+});
+
 app.get('/debug-deliveries', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   const day = nassauNow().toISOString().slice(0, 10);
@@ -2340,6 +2350,100 @@ function liveShoeMap() {
 function liveCatalog() {
   const m = liveShoeMap();
   return Object.keys(m).map(id => ({ s: m[id], id: +id }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 🕵️ STOCK CENSUS — SHOES THE SHOP HAS THAT KIKI CANNOT SEE
+//
+// Look at liveShoeMap() directly above: it walks `catalog`, and for each entry it
+// looks up the shop's record. Which means a shoe the SHOP app has but catalog.json
+// does NOT is never even considered — it is not "out of stock", it does not exist.
+// Kiki will tell a customer to their face that we don't carry it while the pairs sit
+// on the shelf. Nothing anywhere shouted about that; you only found out when a
+// customer did.
+//
+// It has now cost real money twice:
+//   • 2026-09-05  airmax97black001 — black Air Max 97, in the shop, absent from the
+//                 catalog. Invisible until somebody asked for it.
+//   • 2026-09-06  8 pairs of black Air Force 1s missed the same way.
+// Two is a pattern, so this is the check that runs itself.
+//
+// The two directions are NOT the same problem and must not be reported the same way:
+//   ORPHAN  = in the shop, missing from the catalog  → 🔴 invisible stock, real money
+//             standing still. This is the one that shouts.
+//   LISTED-ONLY = in the catalog, no shop record     → 🟡 harmless by design.
+//             liveShoeMap deliberately drops these ("a shoe the shop app has never
+//             pushed is UNKNOWN stock, not stock" — Rodney 2026-08-19). Counted so
+//             the number is visible, never alerted on.
+//
+// An orphan carrying ZERO pairs is junk, not money — those are the old numeric ids
+// (4, 24, 56, 81, 157, 180, 235, 349) still waiting on Rodney's word to be binned.
+// They are listed but they never trigger the alert, or the alert becomes noise and
+// noise gets ignored, and then the next real one goes unread too.
+function stockCensus() {
+  const inCatalog = new Set();
+  try { catalog.forEach(s => { if (s && s.id != null) inCatalog.add(String(s.id)); }); } catch (_) {}
+  let shopShoes = [], deleted = new Set();
+  try {
+    shopShoes = require('./shop').getShoes() || [];
+    (require('./shop').getDeleted() || []).forEach(id => deleted.add(String(id)));
+  } catch (_) { return null; }         // shop not ready yet — say nothing rather than lie
+
+  const invisible = [], junk = [];
+  const inShop = new Set();
+  shopShoes.forEach(s => {
+    if (!s || s.id == null) return;
+    const id = String(s.id);
+    inShop.add(id);
+    if (inCatalog.has(id) || deleted.has(id)) return;
+    const pairs = Array.isArray(s.sizes) ? s.sizes.length : 0;
+    const row = { id, pairs, sold: !!s.sold, price: s.price == null ? null : s.price,
+                  sizes: sizeTally(s.sizes) };
+    // Sold-out and empty are not money — only pairs on the shelf are.
+    (pairs > 0 && !s.sold ? invisible : junk).push(row);
+  });
+  const listedOnly = [];
+  inCatalog.forEach(id => { if (!inShop.has(id) && !deleted.has(id)) listedOnly.push(id); });
+
+  invisible.sort((a, b) => b.pairs - a.pairs);
+  return { invisible, junk, listedOnly, shopCount: shopShoes.length, catalogCount: inCatalog.size };
+}
+// "5.5 x9, 6.5 x1" — the shape Rodney counts in, so he can match it to the shelf.
+function sizeTally(sizes) {
+  const c = {};
+  (Array.isArray(sizes) ? sizes : []).forEach(x => { const k = String(x); c[k] = (c[k] || 0) + 1; });
+  return Object.keys(c).sort((a, b) => parseFloat(a) - parseFloat(b))
+    .map(k => k + (c[k] > 1 ? ' x' + c[k] : '')).join(', ');
+}
+
+// Only shout when the ANSWER changes. A redeploy is not news; a newly-invisible shoe is.
+let _lastCensusSig = '';
+async function runStockCensus(why) {
+  const c = stockCensus();
+  if (!c) return null;
+  console.log(`[census] ${c.shopCount} in the shop, ${c.catalogCount} in the catalog — `
+    + `${c.invisible.length} INVISIBLE, ${c.junk.length} empty orphans, ${c.listedOnly.length} listed-only`);
+  c.invisible.forEach(r => console.error(`[census] 🔴 INVISIBLE TO KIKI: ${r.id} — ${r.pairs} pairs (${r.sizes})`));
+  if (!c.invisible.length) { _lastCensusSig = ''; return c; }
+  const sig = c.invisible.map(r => r.id + ':' + r.pairs).join('|');
+  if (sig === _lastCensusSig) return c;      // same shoes as last time — he already knows
+  _lastCensusSig = sig;
+  const pairs = c.invisible.reduce((n, r) => n + r.pairs, 0);
+  const msg = `🕵️ *${pairs} PAIRS ARE INVISIBLE TO KIKI*\n\n`
+    + `${c.invisible.length === 1 ? 'This shoe is' : 'These shoes are'} in the shop app but missing from `
+    + `the bot's catalogue, so she tells customers we don't have ${c.invisible.length === 1 ? 'it' : 'them'} `
+    + `while ${c.invisible.length === 1 ? 'it sits' : 'they sit'} on the shelf:\n\n`
+    + c.invisible.map(r => `• *${r.id}* — ${r.pairs} pairs (${r.sizes})`).join('\n')
+    + `\n\nNothing is lost — the pairs are safe, and the shop app still shows them. They just `
+    + `need adding to the bot's catalogue before she can sell them. Search that code in the shop `
+    + `app to see which shoe it is.\n\n_Spotted by the automatic catalogue check, ${why}._`;
+  try {
+    require('./shop').addAlert(msg, 'Kiki 🤖', {
+      pushTitle: `🕵️ ${pairs} pairs Kiki can't see`,
+      pushBody: 'In the shop app, missing from her catalogue',
+    });
+  } catch (_) {}
+  return c;
 }
 
 function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes, sneakers_only } = {}) {
@@ -10095,4 +10199,9 @@ try {
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
   console.log(`${catalog.length} shoes loaded`);
+  // 🕵️ Count the shelf against the catalogue on every deploy. Twice now a shoe has sat in
+  // the shop app, missing from catalog.json, invisible to Kiki, and the only thing that
+  // found it was a customer asking for it. 30s so shop.js has finished loading its files —
+  // a census run too early reports every shoe as missing and cries wolf on the first boot.
+  setTimeout(() => { runStockCensus('right after the last deploy').catch(() => {}); }, 30 * 1000);
 });
