@@ -4654,8 +4654,38 @@ function pendingDeliveries() {
 // was last asked about so a bare "done" has something safe to attach to, and give up on
 // records nobody ever answered so they stop poisoning the queue.
 let lastAskedDelivery = null;
+
+// ── 🛑 THE CHASE IS OFF (Rodney 2026-09-06) ──────────────────────────────────
+// "Especially when I have multiple shoes for the day, I have multiple of these messages for
+// multiple shoes, so that gets crazy... it's just eating my credits." One shoe this morning
+// cost him five WhatsApp messages before 9:09am — the alert, the ask, then the identical
+// "STILL NEED AN ANSWER ON THIS ONE" every ~25 minutes.
+//
+// It is switched off rather than slowed down, because IT CANNOT SUCCEED. The whole point is
+// that he replies DONE n and the server takes the pair off the site. That reply has never once
+// been accepted: 4324406 is deliberately TEST_CUSTOMER_RAW, so staffNameFor() returns null for
+// it and his "DONE 1" is parsed as an album code instead. His words: "that's not been
+// successful ever since I started it." So it has been chasing him, forever, for an answer the
+// system is incapable of hearing — and charging him a message every 25 minutes to do it.
+//
+// ⚠️ DO NOT SWITCH THIS BACK ON BY FIXING THE "DONE n" REGEX. STAFF_ACTION_RE matches on
+// message TEXT with no sender check, and the album script tells real customers to reply with
+// the code under the photo — so a buyer typing "done 2" would be promoted to staff and start
+// moving stock. Gate on state, or on managerNameForNumber(). Nothing else.
+//
+// WHAT HE ACTUALLY ASKED FOR is a SPOKEN reminder, not messages: "I thought it was gonna be a
+// voice saying, you know, just remind me to log the shoe into the platform as sold." The inbox
+// app already speaks ("New order. New order." / "Need agent."), so that is where the
+// replacement belongs — it costs nothing per reminder, can never spam WhatsApp, and only nags
+// him while he is actually looking at the app.
+//
+// Everything else about deliveries is untouched: the records are still kept, the 9 PM
+// end-of-day list still shows what is open, and DONE n by number still works the day it works.
+const DELIVERY_CHASE_ON = String(process.env.DELIVERY_CHASE || '').toLowerCase() === 'on';
+
 function askAboutDelivery(rec) { askAboutDeliveries([rec]); }
 function askAboutDeliveries(list) {
+  if (!DELIVERY_CHASE_ON) return;     // 🛑 see the block above — off until DONE n can be heard
   if (!list || !list.length) return;
   const now = Date.now();
   // 🏪 SAY WHICH SHOP (Rodney 2026-08-20: "Official sneaker crew never sent a delivery
@@ -4706,6 +4736,7 @@ function retireStaleDeliveries() {
 // giving up after 4 asks so nobody is nagged all night. Whatever is still open by 9 PM lands
 // in the end-of-day list instead.
 const deliveryChaseTick = setInterval(() => {
+  if (!DELIVERY_CHASE_ON) return;     // 🛑 nothing to compute if nothing can be sent
   const now = Date.now();
   retireStaleDeliveries();
   // 8 minutes, then every 20. Rodney had finished the drop and started the next one before
