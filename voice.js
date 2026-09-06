@@ -235,6 +235,110 @@ const VOICE_AGENT_CONFIG = {
   normalize_for_speech: true,          // reads "$130" and "9.5" like a person would
 };
 
+// ── 📞 THE CALL LOG ───────────────────────────────────────────────────────────
+//
+// Rodney, 5 Sep 2026: "my call logs never show up ... how will I know who called, each log
+// should have a recording of the call so I can know if I have to fix anything or return call."
+//
+// WHY THIS EXISTS. WhatsApp keeps every message he has ever had. The phone kept NOTHING —
+// somebody could ring, ask for a nine and a half, and vanish with no trace he could look at
+// later. This is the shelf those calls sit on, and the Inbox reads it into the same list as
+// the chats so the phone and the messages are finally one screen.
+//
+// WHY IT IS POSTED IN RATHER THAN BUILT HERE. Calls arrive over two different pipes: Retell
+// on its own webhook (/voice/end below), and the WhatsApp-call bridge running on the other
+// Mac. Both POST the same shape. Dedupe is on call_id, so one call can be posted twice —
+// once the moment it ends, again later when the recording has finished uploading — without
+// turning into two rows in his list.
+const CALL_LOG_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'call-log.json');
+    }
+  } catch (_) {}
+  return null;   // no disk mounted (a local run): the log still works, it just won't survive a restart
+})();
+const CALL_LOG_MAX = 500;
+let callLog = [];
+try {
+  if (CALL_LOG_FILE && require('fs').existsSync(CALL_LOG_FILE)) {
+    callLog = JSON.parse(require('fs').readFileSync(CALL_LOG_FILE, 'utf8')) || [];
+    console.log('[voice] restored', callLog.length, 'call log entr(ies)');
+  }
+} catch (_) { callLog = []; }
+// Bumped on every write. The Inbox polls this number so a call that lands while he is
+// staring at the list pops in on its own, the same way a new message does.
+let callRev = callLog.length;
+function saveCallLog() {
+  try { if (CALL_LOG_FILE) require('fs').writeFileSync(CALL_LOG_FILE, JSON.stringify(callLog)); } catch (_) {}
+}
+
+// Which business the call came in on. Rodney picked the colours himself: "green for osc,
+// blue for tk, yellow for ff foot fetish." The Inbox colours the row off this tag and
+// nothing else, so an odd or missing line has to land somewhere sane — OTH, never a crash.
+const CALL_TAGS = [
+  ['trendy kicks', 'TK'], ['trendy', 'TK'], ['tk', 'TK'],
+  ['official sneaker crew', 'OSC'], ['sneaker crew', 'OSC'], ['osc', 'OSC'],
+  ['foot fetish', 'FF'], ['footfetish', 'FF'], ['ff', 'FF'],
+];
+function callTag(line) {
+  const s = String(line || '').trim().toLowerCase();
+  if (!s) return 'OTH';
+  for (const [k, tag] of CALL_TAGS) if (s === k) return tag;
+  for (const [k, tag] of CALL_TAGS) if (k.length > 2 && s.includes(k)) return tag;
+  return 'OTH';
+}
+
+// Add or update one call. Returns the stored row.
+//
+// ⚠️ A SECOND POST ONLY EVER FILLS IN BLANKS. The recording finishes uploading well after
+// the call ends, so the bridge posts the same call again carrying nothing but call_id and a
+// URL. An earlier version rebuilt the whole row from that second post and quietly replaced
+// the caller's name, the business and the time with defaults — the call was still in the
+// list, but it had lost who rang and which line they rang. So: only fields the poster
+// ACTUALLY SENT are written; everything else is left exactly as it was.
+function addCall(rec) {
+  const r = rec || {};
+  const id = String(r.call_id || r.callId || r.id || '').trim() || ('call-' + (r.epoch || Date.now()));
+  const has = (...keys) => keys.some(k => r[k] !== undefined && r[k] !== null && String(r[k]).trim() !== '');
+  const patch = {};
+  if (has('epoch', 'at')) patch.ts = Number(r.epoch) || Date.parse(r.at || '') || Date.now();
+  if (has('at')) patch.at = String(r.at).trim();
+  if (has('line')) patch.line = String(r.line).trim();
+  if (has('tag', 'line')) patch.tag = callTag(r.tag || r.line);
+  // "unknown" IS THE HONEST ANSWER and it stays. A web call carries no caller ID at all —
+  // the name is read off the WhatsApp ring by the bridge on the other Mac, which is the only
+  // place the caller's identity exists. Calls from before that was built come in as unknown.
+  // Writing "Caller" instead would read like we knew and didn't say.
+  if (has('caller', 'name')) patch.caller = String(r.caller || r.name).trim();
+  if (has('phone')) patch.phone = prettyPhone(r.phone);
+  if (has('seconds', 'duration')) patch.seconds = Math.max(0, Math.round(Number(r.seconds || r.duration)) || 0);
+  if (has('ended_because', 'ended')) patch.ended_because = String(r.ended_because || r.ended).trim();
+  if (has('summary')) patch.summary = String(r.summary).trim();
+  if (has('recording', 'recording_url')) patch.recording = String(r.recording || r.recording_url).trim();
+  if (has('transcript')) patch.transcript = String(r.transcript).trim();
+
+  const i = callLog.findIndex(c => c && c.call_id === id);
+  const base = i > -1 ? callLog[i] : {
+    call_id: id, ts: Date.now(), at: new Date().toISOString(), line: 'shop line', tag: 'OTH',
+    caller: 'unknown', phone: '', seconds: 0, ended_because: '', summary: '', recording: '', transcript: '',
+  };
+  const entry = Object.assign({}, base, patch, { call_id: id });
+  if (i > -1) callLog[i] = entry; else callLog.push(entry);
+
+  callLog.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  if (callLog.length > CALL_LOG_MAX) callLog.length = CALL_LOG_MAX;
+  callRev++;
+  saveCallLog();
+  return entry;
+}
+function getCallLog(limit) {
+  const n = Math.max(1, Math.min(CALL_LOG_MAX, parseInt(limit, 10) || 100));
+  return callLog.slice(0, n);
+}
+function getCallRev() { return callRev; }
+
 function mountVoice(app, deps) {
   const { searchInventory, record, waSendManager, express } = deps;
 
@@ -259,6 +363,22 @@ function mountVoice(app, deps) {
   app.get('/voice/prompt', (req, res) => {
     if (!auth(req, res)) return;
     res.type('text/plain').send(VOICE_PROMPT);
+  });
+
+  // ── 📞 CALL LOG IN / OUT (see THE CALL LOG block above) ─────────────────────
+  // POST one call, or a whole batch as {calls:[...]} — a backfill of everything already
+  // sitting in the bridge's calls.jsonl is then a single request, not one per call.
+  app.post('/voice/call-log', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const list = Array.isArray(b) ? b : (Array.isArray(b.calls) ? b.calls : [b]);
+    const saved = list.filter(x => x && typeof x === 'object').map(addCall);
+    try { record(req, { endpoint: 'voice-call-log', callsIn: saved.length }); } catch (_) {}
+    res.json({ ok: true, saved: saved.length, total: callLog.length, rev: callRev });
+  });
+  app.get('/voice/call-log', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({ count: callLog.length, rev: callRev, calls: getCallLog(req.query.limit) });
   });
 
   // ── Everything the voice platform needs, ready to paste ─────────────────────
@@ -567,6 +687,22 @@ function mountVoice(app, deps) {
                  + `\nKiki answered but no message was left. Worth a call back.`;
       try { await waSendManager(text); } catch (_) {}
     }
+    // 📞 Leave a row in the call log whatever happened — message left or not, answered or
+    // hung up on. This is the only trace a phone call has ever had (see THE CALL LOG above).
+    try {
+      addCall({
+        call_id: callId,
+        epoch: Date.parse(c.at || '') || Date.now(),
+        line,
+        caller: (c.message && c.message.who) || call.from_name || call.caller_name || '',
+        phone: call.from_number || call.from || c.from || '',
+        seconds: secs || 0,
+        ended_because: call.disconnection_reason || call.ended_reason || '',
+        summary: (c.message && c.message.want) || (c.asked.length ? 'Asked about: ' + c.asked.join('; ') : ''),
+        recording: call.recording_url || (call.call_analysis && call.call_analysis.recording_url) || '',
+        transcript: typeof call.transcript === 'string' ? call.transcript : '',
+      });
+    } catch (_) {}
     calls.delete(callId);
     res.json({ ok: true });
   });
@@ -724,4 +860,5 @@ module.exports = {
   mountVoice, VOICE_PROMPT, VOICE_KEY, VOICE_LINES,
   VOICE_AGENT_CONFIG, TOOL_FILLERS, FILLERS_WHILE_LISTENING,
   spokenPrice, spokenSizes, toMens, prettyPhone,
+  addCall, getCallLog, getCallRev, callTag,
 };

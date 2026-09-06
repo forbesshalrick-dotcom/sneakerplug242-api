@@ -6873,7 +6873,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     --bg:#05050a;--bg2:#0a0812;--surface:rgba(255,255,255,.05);--surface-2:rgba(255,255,255,.08);
     --ink:#E9EFF6;--dim:#94A3B5;--ink-3:#6F7C8E;
     --card:rgba(255,255,255,.028);--line:rgba(255,255,255,.075);
-    --tk:#1E6BFF;--osc:#00B257;--si:#F0142F;--sb:#8A2BFF;--oth:#6C4DFF;--warn:#F08000;
+    --tk:#1E6BFF;--osc:#00B257;--si:#F0142F;--sb:#8A2BFF;--oth:#6C4DFF;--warn:#F08000;--ff:#E8A81C;
     --shadow:0 10px 30px rgba(0,0,0,.5);
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace}
   /* ☀️ LIGHT — the toggle in the search bar sets data-theme on <html>. Only surfaces and ink
@@ -6885,7 +6885,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     --bg:#FFFFFF;--bg2:#FFFFFF;--surface:#FFFFFF;--surface-2:#F4F6F9;
     --ink:#0C121A;--dim:#525E6E;--ink-3:#8892A2;
     --card:#FFFFFF;--line:#E2E7EE;
-    --tk:#1E6BFF;--osc:#00B257;--si:#F0142F;--sb:#8A2BFF;--oth:#6C4DFF;--warn:#F08000;
+    --tk:#1E6BFF;--osc:#00B257;--si:#F0142F;--sb:#8A2BFF;--oth:#6C4DFF;--warn:#F08000;--ff:#E8A81C;
     --acc:#1D5FD8;--acc2:#03835A;
     --shadow:0 1px 2px rgba(12,18,26,.05),0 10px 26px -16px rgba(12,18,26,.22)}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -7337,7 +7337,19 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 60%,transparent)}
     50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--c) 0%,transparent)}}
   .tab.t-ALL{--c:var(--ink)} .tab.t-TK{--c:var(--tk)} .tab.t-OSC{--c:var(--osc)}
-  .tab.t-SI{--c:var(--si)} .tab.t-SB{--c:var(--sb)} .tab.t-OTH{--c:var(--oth)}
+  .tab.t-SI{--c:var(--si)} .tab.t-SB{--c:var(--sb)} .tab.t-OTH{--c:var(--oth)} .tab.t-FF{--c:var(--ff)}
+
+  /* 📞 CALL ROWS sit in the SAME list as the chats, in the same account colour — the phone
+     and the messages are one screen, which is the whole point. The player is a real audio
+     element and it is always showing: Rodney asked to TAP AND HEAR it, not to copy a link
+     out to somewhere else. It is the row's own colour so it reads as part of the row. */
+  .row.call{align-items:flex-start}
+  .row.call .av{font-size:20px}
+  .row.call .lt{white-space:normal}
+  .row.call audio{width:100%;height:32px;margin-top:7px;display:block;border-radius:9px;
+    background:color-mix(in srgb,var(--rowc) 10%,transparent)}
+  .row.call audio::-webkit-media-controls-panel{background:color-mix(in srgb,var(--rowc) 12%,transparent)}
+  .row.call .norec{font-size:11.5px;color:var(--ink-3);margin-top:5px;display:block}
   @media (prefers-reduced-motion:reduce){.tab[data-alert="1"] .n{animation:none}}
 
   /* Selection is the ACCOUNT's colour, never a fixed pink. Rodney: "the pink and green chat
@@ -7745,7 +7757,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   var KEY = qkey || (function(){ try { return localStorage.getItem(LS) || ''; } catch(e){ return ''; } })();
   // Set once, before any thread list is drawn — consumed by the first loadThreads().
   try { window.__deepSub = new URLSearchParams(location.search).get('sub') || null; } catch(e){ window.__deepSub = null; }
-  var cur = null, lastRev = -1, threadTimer = null, lastThreadSig = '', lastListSig = null; // null (not '') so an EMPTY first load still replaces the "Loading…" placeholder
+  var cur = null, lastRev = -1, lastCallRev = -1, threadTimer = null, lastThreadSig = '', lastListSig = null; // null (not '') so an EMPTY first load still replaces the "Loading…" placeholder
   var pendingImages = [], quoteText = null, agentLabel = false;
   function $(id){return document.getElementById(id)}
   // Kiki's avatar — set KIKI_AVATAR to a served image URL to use the custom illustration;
@@ -7777,14 +7789,14 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   // the tabs read these same numbers, so an SI tab and an SI row are the identical red
   // rather than two shades that nearly match. Each hue is picked to hold up on BOTH a white
   // page and a near-black one, since he flips between them.
-  function accCols(tag){ return tag==='TK'?['#1E6BFF','#5AA0FF']:tag==='OSC'?['#00B257','#2FE58C']:tag==='SI'?['#F0142F','#FF6B7A']:tag==='SB'?['#8A2BFF','#B98CFF']:['#6C4DFF','#00C8E0']; }
+  function accCols(tag){ return tag==='TK'?['#1E6BFF','#5AA0FF']:tag==='OSC'?['#00B257','#2FE58C']:tag==='SI'?['#F0142F','#FF6B7A']:tag==='SB'?['#8A2BFF','#B98CFF']:tag==='FF'?['#E8A81C','#FFD65A']:['#6C4DFF','#00C8E0']; }
   // ── ACCOUNT TABS ──────────────────────────────────────────────────────────
   // One strip across the top, one tab per business, built from the REAL threads so a count
   // can never drift from what's underneath it. A tab glows in its own colour when that
   // account has someone waiting — and stops the moment the last one is read, because a badge
   // that keeps shouting about finished work is the thing that trains you to ignore it.
   var acctFilter='ALL';
-  var ACCT_NAMES={TK:'Trendy Kicks',OSC:'Sneaker Crew',SI:'Inventory',SB:'Shoe Box',OTH:'Other'};
+  var ACCT_NAMES={TK:'Trendy Kicks',OSC:'Sneaker Crew',SI:'Inventory',SB:'Shoe Box',FF:'Foot Fetish',OTH:'Other'};
   function buildTabs(threads){
     var box=$('acctTabs'); if(!box) return;
     var order=[], seen={}, unread={}, total={};
@@ -7966,6 +7978,8 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     return d.getFullYear()===n.getFullYear() ? s : (s+' '+d.getFullYear());
   }
   function tagCls(t){ return (t==='TK'||t==='OSC'||t==='SB')?t:'OTH'; }
+  // "1m 04s" reads faster than "64 seconds" when he's scanning a list of calls.
+  function callLen(sec){ sec=Math.max(0,parseInt(sec,10)||0); return sec<60?(sec+'s'):(Math.floor(sec/60)+'m '+String(sec%60).padStart(2,'0')+'s'); }
   function countdown(until){ var s=Math.max(0,Math.floor((until-Date.now())/1000)); var m=Math.floor(s/60); return m>0?(m+' min'):(s+'s'); }
 
   /* 🧑‍💼 STAFF ROWS STAY WHITE. Rodney 2026-08-17: "leave my 2 driplomatics tab in all
@@ -7982,18 +7996,60 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     return false;
   }
   function loadThreads(){
-    api('/inbox/threads').then(function(d){
+    // 📞 THE PHONE AND THE MESSAGES ARE ONE LIST (Rodney, 5 Sep 2026: "my call logs never
+    // show up"). Both are fetched together and merged by time, so a call he missed at 2am
+    // sits in the list exactly where it happened instead of on a separate screen he'd never
+    // think to open. A failed call fetch resolves to an empty list — the chats still draw.
+    Promise.all([
+      api('/inbox/threads'),
+      api('/inbox/calls').catch(function(){ return {calls:[]}; })
+    ]).then(function(both){
+      var d = both[0] || {};
       if(d && d.error){ try{ localStorage.removeItem(LS); }catch(e){} promptKey("That key didn't work — check it and try again."); return; }
       lastRev = d.rev; $('rev').textContent='#'+d.rev;
-      var ts = (d.threads||[]);
+      var callRows = ((both[1]||{}).calls||[]).map(function(c){
+        return { __call:true, sub:'call:'+c.call_id, tag:c.tag||'OTH', lastTs:c.ts,
+                 name:(c.caller&&c.caller!=='unknown')?c.caller:'', phone:c.phone||'',
+                 caller:c.caller, seconds:c.seconds, summary:c.summary, line:c.line,
+                 ended_because:c.ended_because, recording:c.recording, transcript:c.transcript };
+      });
+      lastCallRev = (both[1]||{}).rev || 0;
+      var ts = (d.threads||[]).concat(callRows).sort(function(a,b){ return (b.lastTs||0)-(a.lastTs||0); });
       // No-flicker guard for the list too: only rebuild rows when the visible data changed.
-      var lsig = ts.map(function(t){ return t.sub+':'+t.lastTs+':'+(t.unread||0)+':'+(t.paused?1:0)+':'+(t.pinned?1:0)+':'+(t.label||'')+':'+String(t.custPrev||'').slice(0,24)+':'+String(t.replyPrev||'').slice(0,24); }).join(',');
+      var lsig = ts.map(function(t){
+        // A call's own fields go into the signature too — otherwise the no-flicker guard
+        // would decide "nothing changed" and a recording arriving late would never appear.
+        if(t.__call) return t.sub+':'+t.lastTs+':'+(t.seconds||0)+':'+(t.recording?1:0)+':'+String(t.caller||'')+':'+String(t.summary||'').slice(0,24);
+        return t.sub+':'+t.lastTs+':'+(t.unread||0)+':'+(t.paused?1:0)+':'+(t.pinned?1:0)+':'+(t.label||'')+':'+String(t.custPrev||'').slice(0,24)+':'+String(t.replyPrev||'').slice(0,24);
+      }).join(',');
       if(lsig===lastListSig) return; // list unchanged — leave the DOM alone
       lastListSig = lsig;
-      if(!ts.length){ $('threads').innerHTML='<div class="empty">No conversations yet. When a customer messages TK or OSC, they show up here.</div>'; return; }
+      if(!ts.length){ $('threads').innerHTML='<div class="empty">Nothing yet. Messages to TK or OSC — and calls to the shop line — show up here.</div>'; return; }
       var totalUnread = 0;
       $('threads').innerHTML = ts.map(function(t){
         totalUnread += (t.unread||0);
+        // ── 📞 A CALL, drawn in the same shape as a chat row ────────────────────
+        // Everything Rodney asked to see, in the order he asked for it: WHO called (name
+        // off the WhatsApp ring — "unknown" for anything older than that, which is the
+        // truth and not a bug), which business the call came in on (the colour), when,
+        // how long, what it was about, and the recording as a player he can just tap.
+        if(t.__call){
+          var cc = accCols(t.tag);
+          var who = t.name || t.phone || 'Unknown caller';
+          var what = t.summary || (t.ended_because ? ('Ended: '+t.ended_because) : 'No message left');
+          var sub2 = esc(t.line||'') + ' · ' + callLen(t.seconds);
+          return '<div class="row call" style="--rowc:'+cc[0]+';--rowg:'+cc[0]+'44" data-sub="'+esc(t.sub)+'" data-name="'+esc(who)+'" data-phone="'+esc(t.phone||'')+'" data-tag="'+esc(t.tag)+'">'
+            +'<div class="av" style="background:linear-gradient(135deg,'+cc[0]+','+cc[1]+')">📞</div>'
+            +'<div class="body">'
+              +'<div class="toprow"><div class="nm"><span class="nmtext">'+esc(who)+'</span></div>'
+                +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+esc(t.tag)+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
+              +'<span class="lt cust"><b class="ctag">Call:</b> '+esc(what)+'</span>'
+              +'<span class="lt rep">'+sub2+'</span>'
+              +(t.recording
+                  ? '<audio controls preload="none" src="'+esc(t.recording)+'"></audio>'
+                  : '<span class="norec">No recording saved for this one</span>')
+            +'</div></div>';
+        }
         var rawName = (t.name||'').trim();
         var label = custLabel(rawName, t.phone);   // real phone only (server '' when unknown) — never the subscriber id
         var av = initials(rawName) || '#';
@@ -8024,6 +8080,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       buildTabs(ts);   // rebuild the account strip from the threads we just drew
       applyFilter();   // and re-apply BOTH the search text and the chosen account tab
       Array.prototype.forEach.call(document.querySelectorAll('.row'), function(el){
+        // A call row has no conversation behind it, so it gets none of this — no open, no
+        // long-press menu, no multi-select. Tapping it does exactly one thing: play.
+        if(el.classList.contains('call')) return;
         var timer=null, longed=false;
         el.onclick=function(){ if(longed){ longed=false; return; } if(selMode){ toggleSel(el); return; } openThread(el.getAttribute('data-sub'), el.getAttribute('data-acct'), el.getAttribute('data-name'), el.getAttribute('data-tag'), el.getAttribute('data-phone')); };
         var start=function(){ longed=false; timer=setTimeout(function(){ longed=true; if(navigator.vibrate) try{navigator.vibrate(15);}catch(e){} if(selMode) toggleSel(el); else openCtx(el); }, 420); };
@@ -8867,7 +8926,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   // Near-live: poll the open thread every 3s; otherwise cheap-poll rev for the list.
   threadTimer = setInterval(function(){
     if(cur){ loadThread(false); }
-    else { api('/inbox/rev').then(function(d){ if(d && d.rev!==lastRev) loadThreads(); }).catch(function(){}); }
+    else { api('/inbox/rev').then(function(d){ if(d && (d.rev!==lastRev || d.calls!==lastCallRev)) loadThreads(); }).catch(function(){}); }
   }, 3000);
   // keep the Orders count badge fresh while a thread is open
   setInterval(function(){ if(cur) refreshOrderBadge(); }, 20000);
@@ -8906,7 +8965,28 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
 // ── 📥 UNIFIED INBOX API ──────────────────────────────────────────────────────
 // Cheap change-poll (mirrors /shop/rev): the Inbox polls this every few seconds and
 // only reloads the thread list when the number changed.
-app.get('/inbox/rev', (req, res) => { if (!consoleAuth(req, res)) return; res.json({ rev: inboxRev }); });
+app.get('/inbox/rev', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  // `calls` rides along on the same cheap poll so a phone call that lands while he is looking
+  // at the list appears on its own, exactly like a new message does. A call does NOT bump
+  // inboxRev (it isn't a message), so without this the list would only pick it up on a reload.
+  let callRev = 0;
+  try { callRev = require('./voice').getCallRev(); } catch (_) {}
+  res.json({ rev: inboxRev, calls: callRev });
+});
+
+// 📞 THE CALL LOG, for the Inbox list. Read-only, and deliberately on the INBOX key rather
+// than the voice key: this is the phone's history shown inside the app Rodney already has
+// open on his home screen, so it opens with the key his phone has saved.
+// The recording URL is passed straight through — it is a public link and the phone's own
+// audio player streams it, which is what makes it tap-and-hear instead of copy-and-paste.
+app.get('/inbox/calls', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  let calls = [];
+  let rev = 0;
+  try { const v = require('./voice'); calls = v.getCallLog(req.query.limit || 60) || []; rev = v.getCallRev(); } catch (_) {}
+  res.json({ rev, calls });
+});
 
 // Custom Inbox assets — Kiki's avatar + the chat backdrop. Filled in from the images
 // Rodney sends (base64). Empty = 404, and the page falls back to the emoji avatar +
