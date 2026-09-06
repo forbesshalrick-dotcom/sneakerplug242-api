@@ -7439,21 +7439,31 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
      account's colour and never a generic blue. When an account has unread messages the
      count pill fills solid and breathes in that same colour, so a glance across the strip
      tells him WHICH business is waiting, not just that something is. */
-  /* All the accounts must fit across a phone WITHOUT scrolling — when "Inventory" fell off
-     the edge it read as though that business wasn't there. Hence 30px tall, tight type, and
-     flex:1 so they share the width instead of leaving a gap. */
-  .tabs{display:flex;gap:0;padding:0 8px;margin:0 2px;border-bottom:1px solid var(--line);
-    overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+  /* All the accounts still want to be visible at once on a phone — when "Inventory" fell off
+     the edge it read as though that business wasn't there. Hence 30px tall and tight type.
+     They no longer share the width by shrinking, though; see the note below. */
+  /* 🏷️ THE TAB STRIP SCROLLS — IT NEVER SQUASHES (Rodney 2026-09-06: "can you write the
+     names slanted so they dont overwrite each other"). Six lines had turned it into
+     "...etish | Trend...Kicks | ...eaker...rew" — unreadable. The strip was ALREADY a
+     scroller; what beat it was 'flex:1 1 auto' on the tabs below, which let every label
+     shrink until the words ran into each other instead of letting the row scroll. Tabs are
+     now 'flex:0 0 auto' — each one keeps its full width and the row slides sideways, the
+     way every phone app does it. Labels stay upright and whole, and a seventh and eighth
+     line will not break it either. */
+  .tabs{display:flex;gap:0;padding:0 12px 0 8px;margin:0 2px;border-bottom:1px solid var(--line);
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;flex-shrink:0;
+    -webkit-overflow-scrolling:touch;scroll-behavior:smooth;
+    scroll-snap-type:x proximity;overscroll-behavior-x:contain}
   .tabs::-webkit-scrollbar{display:none}
-  .tab{--c:var(--dim);position:relative;flex:1 1 auto;min-width:0;display:inline-flex;
+  .tab{--c:var(--dim);position:relative;flex:0 0 auto;scroll-snap-align:center;display:inline-flex;
     align-items:center;justify-content:center;gap:4px;
-    height:30px;padding:0 5px;background:none;border:0;cursor:pointer;
+    height:30px;padding:0 9px;background:none;border:0;cursor:pointer;
     font-family:'Inter',-apple-system,sans-serif;font-size:11.5px;font-weight:650;white-space:nowrap;
     letter-spacing:-.015em;
     /* always its own colour, just held back when it isn't the one you're on — the strip
        itself is the key to the colour coding */
     color:var(--c);opacity:.6}
-  .tab::after{content:'';position:absolute;left:5px;right:5px;bottom:-1px;height:2px;background:transparent;border-radius:2px 2px 0 0}
+  .tab::after{content:'';position:absolute;left:9px;right:9px;bottom:-1px;height:2px;background:transparent;border-radius:2px 2px 0 0}
   .tab[aria-selected="true"]{opacity:1}
   .tab[aria-selected="true"]::after{background:var(--c)}
   .tab:active{transform:scale(.95)}
@@ -7936,16 +7946,35 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     var allUnread=Object.keys(unread).length>0;
     var html='<button class="tab" role="tab" data-f="ALL" aria-selected="'+(acctFilter==='ALL')+'"'
       +(allUnread?' data-alert="1"':'')+' style="--c:var(--ink)">All <span class="n">'+(threads||[]).length+'</span></button>';
-    order.forEach(function(g){
-      var c=accCols(g)[0];
-      html+='<button class="tab" role="tab" data-f="'+g+'" aria-selected="'+(acctFilter===g)+'"'
-        +(unread[g]?' data-alert="1"':'')+' style="--c:'+c+'">'
-        +esc(ACCT_NAMES[g]||g)+' <span class="n">'+total[g]+'</span></button>';
-    });
-    box.innerHTML=html;
+    function paint(shortLabels){
+      var h=html;
+      order.forEach(function(g){
+        var c=accCols(g)[0];
+        var label = shortLabels ? (g==='OTH'?'Other':g) : (ACCT_NAMES[g]||g);
+        h+='<button class="tab" role="tab" data-f="'+g+'" aria-selected="'+(acctFilter===g)+'"'
+          +(unread[g]?' data-alert="1"':'')+' style="--c:'+c+'">'
+          +esc(label)+' <span class="n">'+total[g]+'</span></button>';
+      });
+      box.innerHTML=h;
+    }
+    // 🏷️ FULL NAMES IF THEY FIT, HIS OWN SHORT TAGS IF THEY DON'T (Rodney 2026-09-06:
+    // "can you write the names slanted so they dont overwrite each other"). Six lines had
+    // squashed the strip into "...etish | Trend...Kicks | ...eaker...rew". Rotating the
+    // words would have made them legible-ish and harder to read; this keeps them upright.
+    // On his phone the six drop to TK / OSC / FF / SI / Other — the exact tags he already
+    // reads on every row, so there is nothing new to learn — and all six fit at once. On
+    // anything wider the full names come back on their own. If even the tags overflow (a
+    // ninth line one day) the strip still scrolls sideways rather than squashing: no
+    // arrangement of accounts can make two labels sit on top of each other again.
+    paint(false);
+    if (box.scrollWidth > box.clientWidth + 1) paint(true);
+    // The strip scrolls now, so the tab he is ON must never be the one off the edge.
+    try{ var sel=box.querySelector('.tab[aria-selected="true"]');
+         if(sel && sel.scrollIntoView) sel.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){}
     Array.prototype.forEach.call(box.querySelectorAll('.tab'), function(b){
       b.onclick=function(){
         acctFilter=b.getAttribute('data-f');
+        try{ b.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'}); }catch(e){}
         Array.prototype.forEach.call(box.querySelectorAll('.tab'), function(x){
           x.setAttribute('aria-selected', String(x===b));
         });
