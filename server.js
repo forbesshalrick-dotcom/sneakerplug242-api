@@ -578,8 +578,67 @@ function priceLabel(shoe, bold) {
   const was = (shoe.wasPrice != null && Number(shoe.wasPrice) > Number(shoe.price)) ? '  ~$' + shoe.wasPrice + '~' : '';
   return (bold ? '🔥 *SALE ' + p + '*' : '🔥 SALE ' + p) + was;
 }
+// 🗣️ SAY IT THE WAY A CUSTOMER SAYS IT — NEVER READ THE WAREHOUSE NAME ALOUD
+//
+// Rodney, on a live call where Kiki said "Yeezy Foam R N R" and "Nike Mind zero zero one":
+// *"you don't wanna be speaking codes"*. The catalogue is a stockroom list — it carries style
+// codes, letter suffixes and doubled brand words ("Nike Nike Air Max Plus"), and every one of
+// those went straight out to a customer's ear because this is the only place a shoe gets a
+// name. Nobody walks into a shop and asks for a Foam R N R.
+//
+// ⚠️ THE TRAP: this must strip a WAREHOUSE code without ever eating a MODEL number. "001" is a
+// code. "9060", "2002R", "1906", "550", "97" are the names of the shoes. Get that wrong and
+// a New Balance 9060 becomes "New Balance", which is worse than the code was. So the letter
+// codes are an explicit list — no clever pattern — and the only numbers touched are the
+// 00x warehouse suffixes.
+//
+// ⚠️ DISPLAY ONLY. Search matches on the raw `name` (see the `hay` line in searchInventory),
+// so renaming here can never stop a shoe being found. Do not "tidy" catalog.json instead —
+// that WOULD break matching.
+const SPOKEN_JUNK = [
+  // Warehouse letter codes people never say out loud.
+  /\bRNR\b/gi, /\bMMW\b/gi, /\bDMP\b/gi, /\bSE\b/g, /\bPRM\b/gi, /\bOG\b/g,
+  // "TN3" reads as "T N three". Bare "TN" STAYS — that one people genuinely say.
+  /\bTN\d\b/gi,
+  // "001", "002" — the stockroom suffix. Bounded to 00x so 9060/1906/2002 are untouchable.
+  /\b00\d\b/g,
+  // "Retro" is stockroom-speak; nobody asks for an "Air Jordan 4 Retro", they ask for a Jordan 4.
+  /\bRetro\b/gi,
+];
+function spokenModel(rawName, brand) {
+  let n = ' ' + String(rawName || '').replace(/\s+/g, ' ').trim() + ' ';
+  SPOKEN_JUNK.forEach(re => { n = n.replace(re, ' '); });
+  n = n.replace(/\s+/g, ' ').trim();
+  // "Nike Nike Air Max Plus" — the brand word got stored twice. Collapse any immediate repeat.
+  n = n.replace(/\b(\w+)(\s+\1\b)+/gi, '$1');
+  // Drop a leading brand the model already carries. Nobody says "Nike Air Force ones" or
+  // "Jordan Air Jordan 4" — they say "Air Force ones" and "Jordan 4s".
+  // ⚠️ ONLY where the model genuinely stands alone. "Air Force 1", "Air Max Plus" and "Dunk Low"
+  // are complete names — nobody says "Nike Air Force ones". But "Roshe", "Shox", "Scorpion" and
+  // "Drift" are NOT: strip the brand off those and you have made the name worse, not shorter.
+  // So this is deliberately narrow: only names starting "Air …" or "Dunk …" lose the brand.
+  const b = String(brand || '').trim();
+  if (b && n.toLowerCase().startsWith(b.toLowerCase() + ' ') && n.length > b.length + 1) {
+    const rest = n.slice(b.length + 1).trim();
+    if (/^(air\s|dunk\b)/i.test(rest)) n = rest;
+  }
+  // "Air Jordan 4" → "Jordan 4". The "Air" is on the box, not in anybody's mouth.
+  n = n.replace(/^Air\s+Jordan\b/i, 'Jordan');
+  // A lowercase warehouse entry ("Nike mind 001") should still read like a name.
+  n = n.replace(/\b[a-z]/g, (c, i) => (i === 0 || n[i - 1] === ' ') ? c.toUpperCase() : c);
+  return n.trim();
+}
+// "Nike" + "Nike Air Force 1" is how we ended up sending customers "Nike Nike Air Force 1".
+// Some catalogue names already carry the brand and some don't, so never just glue the two
+// together — only add the brand when the name isn't already wearing it.
+function brandPlusName(brand, name) {
+  const b = String(brand || '').trim(), n = String(name || '').trim();
+  if (!b) return n;
+  if (!n) return b;
+  return n.toLowerCase().startsWith(b.toLowerCase()) ? n : b + ' ' + n;
+}
 function displayName(shoe) {
-  const name = (shoe.name || '').trim();
+  const name = spokenModel(shoe.name, shoe.brand);
   // Prefer a colourway nickname when we have one ("Air Jordan 4 Retro (Thunder)").
   if (shoe.nickname && shoe.nickname.trim()) return `${name} (${shoe.nickname.trim()})`;
   // Otherwise fall back to the COLOUR so the shoe is still uniquely identified — most
@@ -614,10 +673,10 @@ app.get(['/feed.csv', '/catalog-feed.csv'], (req, res) => {
   const site = 'https://' + WEBSITE;
   const lines = ['id,title,description,availability,condition,price,link,image_link,brand,google_product_category'];
   liveCatalog().forEach(({ s }) => {
-    const title = [s.brand, s.name, s.color].filter(Boolean).join(' ').slice(0, 150);
+    const title = [brandPlusName(s.brand, s.name), s.color].filter(Boolean).join(' ').slice(0, 150);
     const sizes = [...new Set((s.sizesRaw || []).map(x => String(parseFloat(x))))]
       .sort((a, b) => parseFloat(a) - parseFloat(b)).join(', ');
-    const desc = ([s.brand, s.name, s.color].filter(Boolean).join(' ') + (sizes ? ` — sizes ${sizes}` : '')).slice(0, 480) || s.name || 'Sneaker';
+    const desc = ([brandPlusName(s.brand, s.name), s.color].filter(Boolean).join(' ') + (sizes ? ` — sizes ${sizes}` : '')).slice(0, 480) || s.name || 'Sneaker';
     const avail = (s.sizesRaw && s.sizesRaw.length) ? 'in stock' : 'out of stock';
     const price = (parseFloat(s.price) || 0).toFixed(2) + ' USD';
     const link = site + '/?shoe=' + encodeURIComponent(s.id);
@@ -1778,7 +1837,7 @@ function fmtStoreWa(num) {
 // Build the receipt text a customer receives, from a shared-register sale record.
 function buildCustomerReceiptText(sale) {
   const order = 'SP-' + String(sale.id).slice(-6);
-  const item = ((sale.brand ? sale.brand + ' ' : '') + (sale.shoeLabel || sale.name || sale.shoeId || '')).trim();
+  const item = brandPlusName(sale.brand, sale.shoeLabel || sale.name || sale.shoeId || '');
   const price = (sale.price != null && sale.price !== '') ? Number(sale.price) : null;
   const lines = [];
   lines.push('🧾 *SNEAKERPLUG 242 — RECEIPT*');
@@ -1989,7 +2048,8 @@ ${modelList}
 - 🎨 A COLOUR (OR BRAND) WITHOUT A SIZE IS STILL ENOUGH — SEND THE PICTURES (Rodney 2026-08-01): same chat, the customer added "I saw sum in the black collection in ya ads" and Kiki asked for their size *again* instead of showing a single black shoe. When a customer asking to browse gives you ANY descriptor at all — a colour ("black", "all white"), a brand, a model, "the ones in your ad" — that is your cue to SEARCH IT AND SEND PHOTOS RIGHT NOW, even with no size yet. Show first, then ask the size to narrow: "Here's the black ones we got 👇 What size you wear? I'll show you what's in it 👟". Asking for a size twice while sending zero pictures is how you lose a customer who was ready to buy. (You still ask for the size when they've given you NOTHING to go on — a bare "any pics?" with no colour, brand or model.)
 - "LET ME KNOW WHEN YOU GET IT" → SEARCH & SHOW WHAT WE HAVE NOW FIRST (IMPORTANT): When a customer asks you to tell them when we "get" / "restock" / "get in" a shoe — e.g. "let me know when you get the fire red Jordans", "tell me when the [X] come back" — do NOT just promise to keep an eye out. They usually ASSUME we don't have it when we actually DO, or we have something very close. ALWAYS search_inventory their words FIRST and send_photos of what we've got right now. Example: "fire red Jordan 4" → we don't have that exact colourway, but we DO have red Jordan 4s (Red Cement, White/Red "Valentine's", Red Thunder, Bred) → show them: "We've actually got a few red Jordan 4s in RIGHT NOW 👇 — take a look, one of these might be it!". Only if the search truly returns nothing close do you kindly say we don't have that one right now and you'll let them know if it comes in.
 - DON'T LOOP — GET A TEAM MEMBER WHEN YOU'RE STUCK (IMPORTANT): Never repeat the same line twice. If your next message would just say AGAIN what you already said — "I can't see pictures", "I'm not finding that in our system", "check the name printed under the photo" — STOP. Saying the same thing over and over is confusing and unprofessional. Instead, call get_agent ONCE and warmly tell the customer a real person will take it from here, e.g. "Let me get a team member to jump in and help you with this right now 🙌 They'll be right with you 👟". Then stop looping and let the human take over. (Always search_inventory their exact words FIRST — only escalate if you genuinely still can't help after that. Don't escalate on the first message.) ⚠️ NOT-IN-STOCK IS NEVER A REASON TO HAND OFF: a shoe being sold out, or a model we simply don't carry (like "Jordan 14"), is totally normal — do NOT call get_agent for it. Just say we don't have that one right now and show/offer what we DO have in that size or a similar model. Only EVER hand off if the customer clearly asks for a real person, is visibly upset, or you've genuinely tried and truly can't help with ANYTHING — never as your reply to a plain "do you have X?".
-- ALL-BLACK FOR SCHOOL / WORK (IMPORTANT): If a customer wants black shoes for school or work — "black tennis for school", "all black for work", "plain black", "triple black", "black shoes for my job", "the school needs all black" — they need shoes that are FULLY black, no other colours. Search as normal, then take ONLY the pairs whose colour is solid black — the colour reads like "Black", "Triple Black", "All Black" or "Black/Black". Do NOT include mixed colourways that merely contain black (e.g. "Black/Red", "Black/White", "Black/Volt", "Black/Grey"). Then **call send_photos with those black pairs — SEND THE ACTUAL PHOTOS, never just type their names and prices in a text list.** The customer must SEE the shoes (photo + labelled name/price/size), exactly like every other time we show shoes. If none are fully black, tell them kindly we don't have an all-black pair right now and offer to show the closest darker options we've got. ("tennis" is just how locals say sneakers.)
+- 🗣️ SAY THE SHOE THE WAY A CUSTOMER SAYS IT — NEVER READ A CODE OUT LOUD (Rodney 2026-09-06, listening to a live call where Kiki said "Yeezy Foam R N R" and "Nike Mind zero zero one" — his words: *"you don't wanna be speaking codes"*): our catalogue is a STOCKROOM list. It carries style codes, letter suffixes and shop ids that nobody on earth says in a shop. NEVER speak or type a letter code, a style number or a SKU at a customer — not "RNR", not "MMW", not "zero zero one", not "DMP", not the shoe id like "co574". Talk the way they do: **Yeezy Foams**, **Nike Minds**, **Jordan 4s**, **Air Force 1s**, **Air Max Plus** (or **TNs**), **97s**, **95s**, **90s**, **9060s**, **2002Rs**, **panda Dunks**. Drop "Retro" and drop "Low"/"High" unless that's how they asked for it. ⚠️ But a MODEL NUMBER is the shoe's actual name, not a code — "9060", "2002R", "1906", "550", "97" all stay; stripping those makes it worse, not friendlier. KEEP a colourway nickname when that IS how people ask — Black Cat, Panda, Golf Green, Gamma Blue. And never double the brand: it's "Air Force 1s", never "Nike Nike Air Force 1". (The tidy name under a photo is handled for you; this rule is about how you TALK about a shoe in a sentence and, especially, on the phone.)
+- ⚫ "BLACK" MEANS **ALL** BLACK — LEAD WITH THE SOLID ONES (Rodney 2026-09-06, his own words: *"when customers say what do you have in black, they mean ALL black... most times they're looking for work shoes or school shoes"*): this is EVERY black ask, not just the ones that say school or work — "what you got in black", "any black ones", "black tennis", "plain black", "triple black", "all black for work", "the school needs all black". Around here a black shoe is usually a WORK or SCHOOL shoe, and a Black/Red is no use to someone whose job says plain black. So: search as normal, then SPLIT the results in two. ⚠️ THE SLASH IN THE COLOUR FIELD IS THE TELL — "Black", "All Black", "Triple Black" and "Black/Black" are solid; anything with a second colour after the slash ("Black/Red", "Black/White", "Black/Volt", "Black/Grey") is NOT. (1) FIRST call send_photos with ONLY the solid-black pairs — actual photos, never a typed list of names and prices; the customer has to SEE them. (2) Then say plainly that's the lot: "That's all I have in all black right now 👟". (3) THEN, and only then, offer the mixed ones — and SAY THE SECOND COLOUR OUT LOUD so nobody is surprised: "I've also got some with a bit of red in them, and a black and white — want to see those? 👟". Never slip a Black/Red into the first album as though it were all black. If we have NO solid black at all, say so kindly first, then offer the mixed ones by name the same way. ("tennis" is just how locals say sneakers.)
 - TWO COLOURS ASKED — SHOW THE COMBO **AND** EACH COLOUR ON ITS OWN (IMPORTANT): When a customer names TWO colours together — "yellow and black", "red and white", "blue and green" (e.g. "5.5/6 yellow and black") — they want to see everything in those colours, so send THREE sets of photos, ALL in the size(s) they gave: (1) pairs that have BOTH colours together (search the two colours as one query, e.g. "yellow and black" — this catches combos like the Thunder); THEN (2) pairs that are FULLY the FIRST colour on its own (solid — colour reads like "Yellow"/"All Yellow", NOT "Yellow/Black"); THEN (3) pairs that are FULLY the SECOND colour on its own (solid "Black"/"All Black"/"Triple Black", not a mixed "Black/…"). Use a SEPARATE send_photos call for each set, each with its own short lead-in — e.g. "This is what we have in yellow and black rite now 👇 Ready to Order!", then "And here's what we got in all yellow 👇", then "And in all black 👇". Skip a set only if that search truly returns nothing. Keep every set in the size(s) they asked for.
 - NEVER LIST SHOES AS TEXT (IMPORTANT, applies everywhere): any time you are showing the customer which shoes we have — one, two, or twenty — you MUST call send_photos so they SEE the pictures. NEVER type the shoe names/prices in a message as a text list (e.g. "we've got: • Nike Shox — Black $130 • Yeezy Foam — Black $70"). A photo with its labelled name/price/size beats a text list every time. If you found matches, send their photos; only use words alone when there are genuinely ZERO matches.
 - Brands: only bring up a brand if the CUSTOMER does.
