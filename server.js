@@ -2355,6 +2355,15 @@ function aliasTokens(s) {
   return out;
 }
 
+// 0 if the shoe's own words answer every word they asked for, 1 if it only got here on a
+// family alias. Same normalising as the haystack above, minus aliasTokens.
+function aliasOnly(s, words) {
+  const real = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''}`
+    .toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue');
+  const realWords = real.split(/[^a-z0-9.]+/).filter(Boolean);
+  return words.every(w => wordMatches(real, realWords, w)) ? 0 : 1;
+}
+
 // The static catalog.json never changes, but the website marks shoes/sizes sold
 // (and deletes shoes) in the shared /shop backend. Overlay that live data so the
 // bot never offers something that's already gone. A shoe is hidden entirely when
@@ -2678,6 +2687,17 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
       const hayWords = hay.split(/[^a-z0-9.]+/).filter(Boolean);
       return words.every(w => wordMatches(hay, hayWords, w));
     });
+    // 🥇 A SHOE THAT REALLY IS WHAT THEY ASKED FOR LEADS THE ONES THAT ONLY MATCHED BY FAMILY.
+    // The alias list above is there to WIDEN a search — "slippers" has to pull the Crocs, the
+    // Nike Minds and the Yeezy Foams, because to a customer they're all the same shoe. But it
+    // was also letting a Crocs answer the word "yeezy": the filter kept catalogue order, so
+    // asking for "yeezy foam" led with a Nike Mind and a Crocs and buried the actual Yeezys
+    // third (found 2026-09-06, with 23 pairs of Foams on the shelf). Widening is right;
+    // outranking the real thing is not. So rows whose OWN name/brand/nickname/colour carry
+    // every word they asked for go first, and the family matches follow behind them.
+    // The sort is stable and keyed ONLY on this, so the purest-colour order set above — and
+    // Kiki's own order within a colour — is kept intact inside each group.
+    rows.sort((a, b) => aliasOnly(a.s, words) - aliasOnly(b.s, words));
   }
   // `sizes` is DEDUPED (sizesOf runs a Set), so it says which sizes exist, never how many
   // pairs. `pairs` carries the depth: 20 pairs across 8 sizes vs one lonely 13 nobody wears.
