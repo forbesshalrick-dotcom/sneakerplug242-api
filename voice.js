@@ -853,11 +853,19 @@ function mountVoice(app, deps) {
         const rawNum = usable(args.phone) || usable(args.from_number) || usable(args.number) || usable(c.from);
         const raw = rawNum;
         const num = rawNum ? prettyPhone(rawNum) : '';
+        // 🔎 WHEN THERE IS GENUINELY NO NUMBER, GIVE HIM SOMETHING TO SEARCH FOR. Some contacts
+        // have no number anywhere — WhatsApp shows only a saved name ("WhatsApp Web 04372"), and
+        // the browser bot now correctly OMITS the phone fields rather than inventing one. It
+        // passes `thread` instead: the chat title exactly as WhatsApp displays it. Telling Rodney
+        // "find David in the Chats screen" is useless if the chat is not called David — this is
+        // the string he can actually search.
+        const thread = String(args.thread || args.contact || '').trim().slice(0, 60);
         const want = String(args.what_they_want || args.message || '').trim();
         c.message = { who, num: num || 'not given', want };
         const text = `📞 *PHONE CALL — ${c.line || 'shop line'}*\n`
                    + `👤 ${who}\n`
-                   + (num ? `📱 ${num}\n` : `📱 ⚠️ NO NUMBER CAME THROUGH — find ${who} in the Chats screen\n`)
+                   + (num ? `📱 ${num}\n`
+                          : `📱 ⚠️ NO NUMBER CAME THROUGH — open Chats and look for ${thread ? `"${thread}"` : who}\n`)
                    + (raw ? `💬 https://wa.me/${raw}\n` : '')
                    + (want ? `👟 ${want}\n` : '')
                    + `\nKiki answered the call. They are waiting to hear back.`;
@@ -889,8 +897,11 @@ function mountVoice(app, deps) {
         // Tell the caller when the number was missing, so a bot that CAN resolve it fixes its
         // own payload instead of us silently filing another contactless order.
         return { saved: true, delivered_to_whatsapp: waOk, on_task_board: true,
-                 contact_number: num || null,
-                 warning: num ? undefined : 'No usable phone number was sent with this order — pass the customer\'s real number in `phone`. The order was saved without one.' };
+                 contact_number: num || null, contact_thread: thread || null,
+                 warning: num ? undefined
+                   : (thread
+                      ? 'Order saved. No phone number exists for this contact — it is filed under the chat name "' + thread + '" so Rodney can find it in Chats. Nothing to fix.'
+                      : 'No usable phone number was sent with this order — pass the customer\'s real digits in `phone`, or `thread` (the chat name) if the contact genuinely has no number. The order was saved without either, so it is hard to trace back.') };
       }
 
       default:
