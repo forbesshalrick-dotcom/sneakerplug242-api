@@ -840,12 +840,24 @@ function mountVoice(app, deps) {
       // while the customer is still warm. Goes out on WhatsApp AND into /last.
       case 'take_message': {
         const who = String(args.name || '').trim() || 'A caller';
-        const raw = digits(args.phone || c.from);
-        const num = prettyPhone(args.phone || c.from);
+        // 📵 A JUNK NUMBER MUST NEVER WIN OVER A REAL ONE (2026-09-07). The browser bot sent
+        // `"phone": "{{from_number}}"` — an unsubstituted template — on all five of David's
+        // order alerts, and because the old line was `args.phone || c.from`, a non-empty junk
+        // string beat the number we actually knew. The alerts reached the task board reading
+        // "📱 {{from_number}}" with no wa.me link, so even when Rodney saw the order he had no
+        // way to call the customer back. The models also write prose into this field —
+        // "customer's WhatsApp number", "[customer's number]", "same as their WhatsApp number".
+        // So: take the first candidate that is actually a phone number, and if none is, say so
+        // in words instead of printing a template at him.
+        const usable = v => { const d = digits(v); return d.length >= 7 && d.length <= 15 ? d : ''; };
+        const rawNum = usable(args.phone) || usable(args.from_number) || usable(args.number) || usable(c.from);
+        const raw = rawNum;
+        const num = rawNum ? prettyPhone(rawNum) : '';
         const want = String(args.what_they_want || args.message || '').trim();
-        c.message = { who, num, want };
+        c.message = { who, num: num || 'not given', want };
         const text = `📞 *PHONE CALL — ${c.line || 'shop line'}*\n`
-                   + `👤 ${who}\n📱 ${num}\n`
+                   + `👤 ${who}\n`
+                   + (num ? `📱 ${num}\n` : `📱 ⚠️ NO NUMBER CAME THROUGH — find ${who} in the Chats screen\n`)
                    + (raw ? `💬 https://wa.me/${raw}\n` : '')
                    + (want ? `👟 ${want}\n` : '')
                    + `\nKiki answered the call. They are waiting to hear back.`;
@@ -874,7 +886,11 @@ function mountVoice(app, deps) {
         // one said "let me confirm that and call you right back" — on an order the caller had
         // ALREADY confirmed, which makes it sound like nothing was actually booked. Kiki
         // closes the call in her own words now.
-        return { saved: true, delivered_to_whatsapp: waOk, on_task_board: true };
+        // Tell the caller when the number was missing, so a bot that CAN resolve it fixes its
+        // own payload instead of us silently filing another contactless order.
+        return { saved: true, delivered_to_whatsapp: waOk, on_task_board: true,
+                 contact_number: num || null,
+                 warning: num ? undefined : 'No usable phone number was sent with this order — pass the customer\'s real number in `phone`. The order was saved without one.' };
       }
 
       default:
