@@ -647,6 +647,7 @@ function mountVoice(app, deps) {
     try {
       out = await runTool(String(name), args, c, req);
     } catch (e) {
+      if (process.env.VOICE_DEBUG) console.error('[voice/fn]', e && e.stack || e);
       out = { error: 'lookup failed', say: 'Give me one second — let me check that on WhatsApp for you.' };
     }
     record(req, { endpoint: 'voice-fn', voiceFn: String(name), voiceCall: callId, voiceArgs: args });
@@ -717,10 +718,27 @@ function mountVoice(app, deps) {
           say = `Yeah, I have that${askedColour ? ` in ${askedColour.toLowerCase()}` : ''}. What size you wear?`;
         }
 
+        // 🔴 7 Sep 2026 — this cost a sale, and here is exactly how.
+        //
+        // A customer asked for all black in an 8.5. `shoes` was `ranked.slice(0,8)` — eight
+        // shoes that had NOT been narrowed to the size he asked for, so the list handed over
+        // included shoes with no 8.5 at all. The text bot answers out of this list, so it told
+        // him the only all-black 8.5s were the Shox and the Air Max 97. There were six. He
+        // then found the Asics himself on the website and sent the card back, which is a
+        // customer doing our job for us.
+        //
+        // Two changes, both additive so the phone agent cannot regress:
+        //   · when a size was asked, the eight now come from the shoes that ACTUALLY have it
+        //     (`exact`), which is the same set `lead` has always been picked from;
+        //   · `all_in_size` lists every match in that size, compactly. On a call the agent
+        //     ignores it — it was never going to read eight shoes out, let alone forty. In a
+        //     TEXT chat the customer genuinely wants the list, and eight was never a real
+        //     limit there, just one inherited from the phone.
+        const shortlist = exact.length ? exact : ranked;
         return {
           count: found.length,
           total_found: found.length,
-          shown: Math.min(ranked.length, 8),
+          shown: Math.min(shortlist.length, 8),
           asked_size: wantSize,
           exact_size_matches: wantSize == null ? null : exact.length,
           colors_available: colours,
@@ -728,7 +746,19 @@ function mountVoice(app, deps) {
           models_available: modelsIn(pool),
           // Eight, ranked, one per model — enough for the agent to answer a follow-up colour
           // or size question without a second lookup, and it never reads them out.
-          shoes: ranked.slice(0, 8).map(shoeOut),
+          shoes: shortlist.slice(0, 8).map(shoeOut),
+          // `sizes` is not always a plain array on the way through here — go via shoeOut,
+          // which is the one place that already knows how to shape a shoe, so this can never
+          // drift from it again. (It threw on `.join` the first time and the catch above
+          // swallowed it into a bland "lookup failed", which would have made Kiki go quiet
+          // on every line at once.)
+          all_in_size: wantSize == null ? null : exact.slice(0, 40).map(s => {
+            const o = shoeOut(s);
+            return {
+              name: o.name, color: o.color, price: o.price,
+              sizes: Array.isArray(o.sizes) ? o.sizes.join(', ') : String(o.sizes || ''),
+            };
+          }),
           say,
         };
       }
