@@ -733,12 +733,25 @@ app.get('/debug-deliveries', (req, res) => {
   });
 });
 
+// ⚠️ READ THE `browserLines` NOTE BELOW BEFORE "FIXING" A MISSING TOKEN.
+// Foot Fetish is absent from this list and that is CORRECT, not a bug. It is a browser-bot line:
+// a Chrome profile on the other Mac sits in WhatsApp Web and answers it directly, reporting to us
+// through /voice/msg-log, which never learns a ManyChat token. The line works — checked 2026-09-07,
+// all 15 FF threads end with US, zero customers waiting — so the bot is doing its job on a line
+// this server cannot send on at all. Nobody designed that asymmetry and it reads as broken.
+// Do NOT paste a ManyChat token in to "fix" it: FF has no ManyChat account, and borrowing another
+// shop's token is the bug we removed — it delivered a Foot Fetish reply under Trendy Kicks' name.
 app.get('/debug-tokens', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const browser = [...new Set([...inboxThreads.values()].map(t => t.account).filter(a => a && !storeTokens.has(a)))];
   res.json({
     storesWithToken: [...storeTokens.keys()],
     hasLastToken: !!lastToken,
     managerStores: Object.keys(MANAGER_SUB_BY_STORE).map(store => ({ store, hasToken: storeTokens.has(store) })),
+    browserLines: browser,
+    browserLinesNote: browser.length
+      ? 'These lines have NO send token ON PURPOSE — a browser bot on another machine answers them in WhatsApp Web directly. They receive fine. /inbox/send refuses them rather than borrowing another shop\'s account. Not something to fix by adding a token.'
+      : 'none',
   });
 });
 
