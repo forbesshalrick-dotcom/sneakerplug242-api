@@ -3799,8 +3799,17 @@ function inboxHas(account, sub, ts, text) { return inboxFind(account, sub, ts, t
 // messages this server already has, stamped seconds apart. Those would sail past an exact
 // match and double his history. `sameText` is deliberately looser than the skip rule so a dry
 // run can say "this will duplicate" BEFORE anything is written, rather than after.
-function inboxFind(account, sub, ts, text) {
+// `window` bounds the sameText warning. It MUST be bounded, and here is what it cost to
+// learn that: unbounded, this scanned 200 messages back and flagged any identical text at any
+// distance — so a customer saying "ok" on Monday and "ok" on Wednesday counted as a duplicate.
+// Over a three-day backfill that fires constantly and the warning becomes noise you learn to
+// ignore, which is worse than no warning at all. A genuine replay duplicate lands within
+// SECONDS of the original (clock skew between two machines, or two bots answering 14s apart),
+// never days. 10 minutes is generous for the real thing and excludes the honest repeats.
+const DUP_WINDOW_MS = 10 * 60 * 1000;
+function inboxFind(account, sub, ts, text, window) {
   const out = { exact: false, sameText: false };
+  const win = window == null ? DUP_WINDOW_MS : window;
   try {
     const t = inboxThreads.get(threadKey(account, sub));
     if (!t || !t.msgs || !t.msgs.length) return out;
@@ -3809,8 +3818,9 @@ function inboxFind(account, sub, ts, text) {
     for (let i = t.msgs.length - 1, seen = 0; i >= 0 && seen < 200; i--, seen++) {
       const m = t.msgs[i];
       if (!m || m.text !== want) continue;
-      out.sameText = true;
-      if (Math.abs((m.ts || 0) - ts) <= 1000) { out.exact = true; return out; }
+      const gap = Math.abs((m.ts || 0) - ts);
+      if (gap <= 1000) { out.exact = true; return out; }
+      if (gap <= win) out.sameText = true;
     }
   } catch (_) {}
   return out;
@@ -9852,6 +9862,72 @@ app.get('/inbox/thread', (req, res) => {
   if (t.unread) { t.unread = 0; inboxRev++; saveInbox(); }
   queueTranslations(t); // background — the English lines appear on the next poll
   res.json({ ok: true, account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || (accountTag(t.account) === 'SB' ? t.sub : '') || '', avatar: t.avatar || '', msgs: t.msgs, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub) });
+});
+
+// 📥 EXPORT — read a chat WITHOUT marking it read.
+//
+// Two jobs, one endpoint. Rodney asked for a way to download a conversation; and separately,
+// anything auditing the inbox needs to read threads without side effects. `/inbox/thread`
+// cannot do that job — it clears `unread` and saves (line ~9853), so a session that reads a
+// few dozen threads to check something silently wipes the badges telling him who still needs
+// an answer. That is a genuinely destructive read, so this is the endpoint to use instead:
+// it never writes, never clears a badge, and never queues translations.
+//
+//   /inbox/export?key=&sub=12425551234            one chat, JSON
+//   /inbox/export?key=&sub=...&format=txt         one chat, as a readable transcript
+//   /inbox/export?key=&all=1                      every chat, JSON (for a backup)
+//   &since=<epoch ms> / &until=<epoch ms>         limit the date range
+function exportThread(t) {
+  return {
+    account: t.account, tag: accountTag(t.account), sub: t.sub,
+    name: t.name || '', phone: t.phone || '', label: t.label || '',
+    unread: t.unread || 0, lastTs: t.lastTs || 0,
+    msgs: (t.msgs || []).map(m => ({
+      dir: m.dir, sender: m.sender, text: m.text || '', ts: m.ts || 0,
+      img: m.img || undefined, loc: m.loc || undefined,
+    })),
+  };
+}
+const WHO = { customer: 'Customer', rodney: 'You', system: '—' };
+function threadToText(t) {
+  const lines = [];
+  lines.push(`${t.name || t.phone || t.sub}  (${t.account})`);
+  lines.push(`${(t.msgs || []).length} messages`);
+  lines.push('');
+  for (const m of (t.msgs || [])) {
+    const d = new Date(m.ts || 0);
+    const when = isNaN(d) ? '' : d.toISOString().replace('T', ' ').slice(0, 16);
+    const who = WHO[m.sender] || 'Kiki';
+    const body = m.loc ? '📍 Location' : (m.img ? '📷 Photo ' + (m.text || '') : (m.text || ''));
+    lines.push(`[${when}] ${who}: ${body}`);
+  }
+  return lines.join('\n');
+}
+app.get('/inbox/export', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const since = Number(req.query.since) || 0;
+  const until = Number(req.query.until) || 0;
+  const clip = (t) => {
+    if (!since && !until) return t;
+    const c = { ...t, msgs: (t.msgs || []).filter(m => (!since || (m.ts || 0) >= since) && (!until || (m.ts || 0) <= until)) };
+    return c;
+  };
+  if (req.query.all) {
+    const out = [...inboxThreads.values()].map(t => clip(exportThread(t))).filter(t => t.msgs.length);
+    return res.json({ ok: true, threads: out.length, msgs: out.reduce((n, t) => n + t.msgs.length, 0), data: out });
+  }
+  const sub = String(req.query.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'pass ?sub= or ?all=1' });
+  // A customer can legitimately sit in more than one account, so return every match.
+  const found = [...inboxThreads.values()].filter(t => String(t.sub) === sub
+    && (!req.query.account || String(t.account) === String(req.query.account)));
+  if (!found.length) return res.status(404).json({ ok: false, error: 'no such chat' });
+  if (String(req.query.format) === 'txt') {
+    res.set('Content-Type', 'text/plain; charset=utf-8');
+    res.set('Content-Disposition', `attachment; filename="chat-${sub}.txt"`);
+    return res.send(found.map(t => threadToText(clip(exportThread(t)))).join('\n\n' + '─'.repeat(40) + '\n\n'));
+  }
+  res.json({ ok: true, found: found.length, data: found.map(t => clip(exportThread(t))) });
 });
 
 // Send Rodney's reply to the customer on the RIGHT account, and AUTO-PAUSE Kiki.

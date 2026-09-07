@@ -469,6 +469,35 @@ function mountVoice(app, deps) {
     let saved = 0, skipped = 0, dupText = 0;
     const samples = [];
 
+    // 🧠 A dry run must also see the rows THIS BATCH would insert.
+    //
+    // Caught by M5 helper, and they were right: a dry run writes nothing, so every row was
+    // being compared against the database as it stood BEFORE the batch — while the real run
+    // compares each row against a database its own earlier rows are filling in. Two rows that
+    // collide with each other inside one payload were therefore invisible to the check, and
+    // since a normal import is a single batch, the number could read a clean 0 on a payload
+    // that was full of them. A safety check that is blind in the exact case it exists for is
+    // worse than none, because it gets believed. So dry mode keeps its own shadow copy of what
+    // it would have written and checks against that too.
+    const pending = new Map(); // "account|sub" -> [{ts, text}]
+    const pendingHit = (account, sub, ts, text) => {
+      const arr = pending.get(account + '|' + sub);
+      if (!arr) return { exact: false, sameText: false };
+      const out = { exact: false, sameText: false };
+      for (let i = arr.length - 1, seen = 0; i >= 0 && seen < 200; i--, seen++) {
+        if (arr[i].text !== text) continue;
+        const gap = Math.abs(arr[i].ts - ts);
+        if (gap <= 1000) { out.exact = true; return out; }
+        if (gap <= 10 * 60 * 1000) out.sameText = true;
+      }
+      return out;
+    };
+    const pendingAdd = (account, sub, ts, text) => {
+      const k = account + '|' + sub;
+      if (!pending.has(k)) pending.set(k, []);
+      pending.get(k).push({ ts, text });
+    };
+
     for (const row of list) {
       if (!row || typeof row !== 'object') { skipped++; continue; }
       const sub = String(row.thread || row.phone || '').replace(/[^0-9]/g, '');
@@ -481,18 +510,30 @@ function mountVoice(app, deps) {
 
       // Replaying the same file twice must not double every line. Cheap and good enough:
       // an identical text at an identical second in the same thread is the same message.
-      const hit = deps.inboxFind
-        ? deps.inboxFind(account, sub, at, them || kiki)
-        : { exact: !!(deps.inboxHas && deps.inboxHas(account, sub, at, them || kiki)), sameText: false };
+      const probe = them || kiki;
+      let hit = deps.inboxFind
+        ? deps.inboxFind(account, sub, at, probe)
+        : { exact: !!(deps.inboxHas && deps.inboxHas(account, sub, at, probe)), sameText: false };
+      // In a dry run the earlier rows of this same batch are not in the database yet, so ask
+      // the shadow copy as well. In a real run they ARE in the database, so this adds nothing.
+      if (dry && !hit.exact) {
+        const p = pendingHit(account, sub, at, probe);
+        hit = { exact: p.exact, sameText: hit.sameText || p.sameText };
+      }
       if (hit.exact) { skipped++; continue; }
 
-      // Already on the server under a different timestamp — the case the skip rule misses.
+      // Already present under a different timestamp — the case the skip rule misses.
       if (hit.sameText) {
         dupText++;
-        if (samples.length < 12) samples.push({ account, thread: sub, at: new Date(at).toISOString(), text: String(them || kiki).slice(0, 90) });
+        if (samples.length < 12) samples.push({ account, thread: sub, at: new Date(at).toISOString(), text: String(probe).slice(0, 90) });
       }
 
-      if (dry) { saved++; continue; }
+      if (dry) {
+        if (them) pendingAdd(account, sub, at, them);
+        if (kiki) pendingAdd(account, sub, at + 1000, kiki);
+        saved++;
+        continue;
+      }
 
       // quiet: already answered on the Mac. No unread badge, no push, no staff WhatsApp.
       if (them) deps.inboxRecord(account, sub, { dir: 'in',  sender: 'customer', text: them, ts: at,        quiet: true, phone: String(row.thread || '') });
