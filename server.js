@@ -1586,6 +1586,12 @@ const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 
 // confirmation like "in a 13?" or "want it in your size?" is not a re-ask and must still
 // get through. Used by the guard in the chat loop (search: size-reask-blocked).
 const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s+|ur\s+|the\s+|you\s+)?size\b|\bsize\s+(?:you|u|ya)\b|\byour\s+size\s*\?/i;
+// 📍 Her "drop me your location pin" copy, in the shapes the prompt actually produces.
+// Used by the guard in the chat loop (search: pin-reask-blocked) so we stop telling a
+// customer to send the thing he has already sent. Deliberately NOT matching a bare
+// "where are you?" — asking where to meet is fine and must still get through; it is the
+// tap-by-tap pin instructions, sent twice, that make us look like nobody is reading.
+const PIN_ASK_RE = /\blocation pin\b|\bdrop (?:your|ur|a|the)\s+(?:whatsapp\s+)?(?:location|pin)\b|send your current location|→\s*location\s*→/i;
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
 // ⚠️ WHOLESALE gets a DIFFERENT nudge (Rodney 2026-08-17). On Sneaker Inventory the
@@ -1614,7 +1620,12 @@ const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
 // swallow, since it is often the very first thing sent to a brand-new
 // subscriber. A repeat costs nothing; a customer with no way back in costs a
 // sale.
-const WHOLESALE_SITE_LINE = `*sneakerinventory.com* — code *${(process.env.WHOLESALE_CODE || 'W242').toUpperCase()}* to get in.`;
+// Rodney 2026-09-06: do NOT state an access code here. W242 is the code for OUR OWN
+// /wholesale page — it was never valid on sneakerinventory.com, which gates on a
+// separate "trade password". Commit 0bfab4a repointed the URL and left the code in the
+// sentence, so every wholesale enquiry since has been sent to a door its key won't open.
+// The real trade password must NOT be pasted in here — this repo is public.
+const WHOLESALE_SITE_LINE = `*sneakerinventory.com* — message them for the trade password, or email *trade@sneakerinventory.com*.`;
 const WHOLESALE_NUDGE_MSG = `Take your time looking through the site 👟 ${WHOLESALE_SITE_LINE} Let me know if you see something you like and I'll line it up ASAP.\n\n(If you already sent me a message and I didn't answer — send it once more 🙏 WhatsApp drops one now and then.)`;
 
 // ── Multilingual AUTO-messages: only used when the customer clearly writes es/ht ──
@@ -2126,7 +2137,7 @@ LOCATION: If they ask where you're located, tell them: we're on Carmichael Road 
 - 🏪 "NVM YOU NEED A STORE" — THE OBJECTION, NOT THE QUESTION (Rodney 2026-08-19, from a real chat where we LOST the customer). Answering "do you have a store?" is handled above. This is different: it is when they hear the answer and DISMISS the business over it — "nvm you need a store", "so you're not a real shop", "I'd rather come see it". What Kiki said was "No worries! If you change your mind, we're here anytime 🙏" — which is polite, apologetic, and lets a buyer walk without ever being told what we actually are. NEVER do that again. Rodney's own words: "that's not our form of business nor do we strive to open a store. we strive to become Retailers only — Amazon style business, only buy and ship. we are innovators." So: do NOT apologise, do NOT treat it as a shortcoming, and do NOT say "if you change your mind". Say what we ARE, with pride, in ONE short line, then keep selling. Something like: "We're online only — same as Amazon 📦 no store on purpose. You pick it, we bring it to your door free, same day. That's the whole idea 👟" AND STOP THERE — Rodney cut the closing question on 2026-08-19. Do not tack "want me to send it over?" or any other ask onto the end of it. Someone who has just said "nvm" is not ready to be closed, and there is nothing to send yet because they have not picked a shoe — asking makes it sound like a pitch instead of an answer. State what we are, then let it land. The point to land: a shop costs money that would otherwise come off the price, and delivery to their door is MORE convenient than driving to one, not less. ⚠️ Never insult the customer or imply they are behind the times — Rodney's pride in the model is right, but a buyer who feels talked down to never comes back. Confident, never defensive, never apologetic. If after that they still want a physical shop, let them go warmly in ONE line and stop — do not chase.
 
 LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The flow is simple: (1) customer says WHAT they want (shoe + size), (2) the MOMENT they commit to buying, call notify_manager with stage "order_confirmed" so the owner knows a sale is happening RIGHT NOW, (3) you get their LOCATION and ask them to text "sent", (4) once the location is sent, call notify_manager AGAIN with stage "delivery_ready". You do NOT ask about or wait on payment — that's handled on arrival by default (only discuss payment if THEY ask). When a customer in Nassau has picked a pair and wants it brought to them:
-- 🚨 ALERT THE OWNER AT COMMITMENT, NOT JUST AT THE PIN (Rodney's rule 2026-07-13 — a real $260 order slipped by unnoticed because the pin never registered): as soon as the customer has picked their shoe + size and is clearly buying (arranging where to meet, "bring it", "I'll take it"), call notify_manager with stage="order_confirmed" and location="not sent yet" ON THAT SAME TURN — even though you don't have the pin. Then keep going and get the pin as normal. Call it with stage "order_confirmed" only ONCE per order — if the order then changes (extra pair, different size), do NOT re-send order_confirmed; the update goes in the later delivery_ready alert.
+- 🚨 FILE THE ORDER AT COMMITMENT, NOT JUST AT THE PIN (Rodney's rule 2026-07-13 — a real $260 order slipped by unnoticed because the pin never registered): as soon as the customer has picked their shoe + size and is clearly buying (arranging where to meet, "bring it", "I'll take it"), call notify_manager with stage="order_confirmed" and location="not sent yet" ON THAT SAME TURN — even though you don't have the pin. Then keep going and get the pin as normal. Call it with stage "order_confirmed" only ONCE per order — if the order then changes (extra pair, different size), do NOT re-send order_confirmed; the update goes in the later delivery_ready alert. ⚠️ SINCE 2026-09-06 THIS CALL IS SILENT: it FILES the order (so it can never be lost, and shows on the shop website) but sends the owner NOTHING, because he refuses to be messaged about an order with no location — "how could an order be confirmed if the location is not sent?" So NEVER tell the customer the team has been told, that a driver is coming, or that anything is on its way off the back of this call alone. Nobody has been woken yet. The team is only actually alerted at stage="delivery_ready".
 - 🛑 CONFIRM THE SHOE BEFORE YOU EVER ASK FOR A LOCATION (CRITICAL, Rodney 2026-07-19): NEVER ask for the location pin until the customer has actually CONFIRMED which shoe AND size they want. A photo THEY sent is NOT a confirmation, and a shoe you GUESSED from a photo is NOT confirmed until they say yes. When they send a photo, SHOW your best-guess pair and ask "is this the one? 👟" — get a clear yes on the shoe + size FIRST. Jumping straight to "where should we meet you?" off an unconfirmed guess is what caused the mess on 2026-07-19 (wrong shoe guessed → asked for location → their next shoe photo got misread as the pin → phantom driver). Shoe + size confirmed → THEN ask for the location.
 - ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin — tap 📎 (or ＋) → Location → Send your current location — then text me \"sent\" so I know it came through 👟".
 - ⚠️ NEVER KEEP ASKING FOR THE PIN once they've SAID they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here". TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
@@ -2176,7 +2187,7 @@ Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". 
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything (the Jordan pricing rule above is the one known exception, so you can always quote a Jordan: $120 for a Jordan 1, $180 for any other).
 💬 "CAN I GET A DEAL / DISCOUNT / HOW MUCH FOR 2?" — FRAME THE PRICE AS THE DEAL, NEVER SAY "NO DISCOUNTS" (Rodney 2026-07-20, IMPORTANT): when a customer asks for a discount, a lower price, or a deal on buying more than one, do NOT reply coldly with "no discounts on multiples" or "the price is firm" — that's harsh and kills the vibe. Instead frame it warmly and positively: the price is ALREADY our best, already-dropped price. Say it like: "That's already our best price 🙏 we just went DOWN on it so everyone can catch a deal 🔥" then give the honest total (e.g. two pairs = the two prices added up). Be friendly, never dismissive.
 🏷️ QUOTE EACH SHOE'S OWN PRICE — DON'T LUMP THEM (Rodney 2026-07-20): NOT every Jordan is $180 — Air Jordan 1s (and Dunks) are $120, Air Max 95 is $130, etc. So NEVER say "all Jordans are $180" or blanket-price a mixed order. Price each pair by its ACTUAL price (from search_inventory, or the Jordan rule above: Jordan 1 = $120, any other Jordan = $180), and when they're buying two different shoes, add their two real prices for the total — don't assume they're the same.
-🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, refer them to a good supplier we know. Send exactly: "Here's a good supplier you can check out 👟 *sneakerinventory.com* — use code *${(process.env.WHOLESALE_CODE || 'W242').toUpperCase()}* to browse their full catalog 🙌" Then stop — don't push them to buy retail or ask their size next.`;
+🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, refer them to a good supplier we know. Send exactly: "Here's a good supplier you can check out 👟 *sneakerinventory.com* — message them for the trade password to get in, or email *trade@sneakerinventory.com* 🙌" NEVER give out an access code or password for that site — you do not have one, and W242 is NOT it. Then stop — don't push them to buy retail or ask their size next.`;
 }
 
 const AI_TOOLS = [
@@ -2228,7 +2239,7 @@ const AI_TOOLS = [
   },
   {
     name: 'notify_manager',
-    description: "Alert the shop owner + team about a sale. Call it TWICE per order: (1) stage=\"order_confirmed\" the MOMENT the customer commits to buying (shoe + size picked, arranging the meet-up) — location can be \"not sent yet\"; the owner must hear about EVERY order the second it exists, never only after the pin. (2) stage=\"delivery_ready\" once they've given their location OR said they sent it — a dropped WhatsApp pin, OR a message like \"sent\" / \"dropped it\" (you CAN'T see the pin, so trust them — and a SYSTEM NOTE flagging their previous text re-delivered = the pin arriving). Payment is NOT required for either call — it's handled on arrival. ⚠️ CRITICAL: NEVER type \"the driver is heading out\" / \"letting the team know\" WITHOUT calling this tool on the SAME turn — if you skip the tool, the team gets NO alert and the customer waits for nobody. It pings the owner on WhatsApp (both phones) and posts to the shop website. Do NOT call it for a plain question. Send order_confirmed only ONCE per order.",
+    description: "Alert the shop owner + team about a sale. Call it TWICE per order: (1) stage=\"order_confirmed\" the MOMENT the customer commits to buying (shoe + size picked, arranging the meet-up) — location can be \"not sent yet\". This first call is SILENT — since 2026-09-06 it FILES the order so it can never be lost and posts it to the shop website, but it messages NOBODY, so never tell the customer the team has been told or a driver is coming off the back of it. (2) stage=\"delivery_ready\" once they've given their location OR said they sent it — a dropped WhatsApp pin, OR a message like \"sent\" / \"dropped it\" (you CAN'T see the pin, so trust them — and a SYSTEM NOTE flagging their previous text re-delivered = the pin arriving). Payment is NOT required for either call — it's handled on arrival. ⚠️ CRITICAL: NEVER type \"the driver is heading out\" / \"letting the team know\" WITHOUT calling this tool on the SAME turn — if you skip the tool, the team gets NO alert and the customer waits for nobody. At stage=\"delivery_ready\" it pings the owner on WhatsApp (both phones) and posts to the shop website; at stage=\"order_confirmed\" it only posts to the website. Do NOT call it for a plain question. Send order_confirmed only ONCE per order.",
     input_schema: {
       type: 'object',
       properties: {
@@ -3230,6 +3241,12 @@ const lastIncoming = new Map();
 const photoConfirmSeen = new Map();
 const lastIncomingText = new Map(); // sub -> the text of that latest message
 const lastReplayAt = new Map(); // sub -> when a non-text replay (pin/sticker/undelivered photo) last arrived
+// sub -> when we last sent this customer's DELIVERY READY alert. An order that grows a second
+// pair after that must not re-send the whole thing at both his phones (Rodney 2026-09-06).
+const lastDeliveryReady = new Map();
+// sub -> when we last asked this customer for their location pin. Asking once is helpful;
+// asking twice, after they have already dropped one, reads as nobody being on the other end.
+const pinAsked = new Map();
 const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
 const EMPTY_ASK_T = {
   en: "Hey! 👋 Would you like to see some pictures, or what we have in stock? 👟",
@@ -5576,6 +5593,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
+  let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
   let forcedPhotosOnce = false; // guard so the force above can only fire once per turn (never loops)
   // 🎯 SIZE-ALBUM COMPLETENESS tracking (Rodney 2026-07-19: "what you got in 10.5 11" showed
@@ -5723,6 +5741,40 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         history.push({ role: 'user', content: `(SYSTEM NOTE — the customer cannot see this: you just asked this customer what size they wear and THEY HAVE ALREADY TOLD YOU — it is ${knownSize}. Asking again tells them nobody is reading, and it is the single fastest way to lose them. Write your reply again using the size you already have, and do not ask for it. If we genuinely don't carry that size, say so plainly and STOP THERE — do not push a smaller size at them, and do not offer a call back or take their details either. Do not mention this note.)` });
         continue;                       // one clean retry
       }
+    }
+    // 📍 NEVER ASK FOR A PIN HE HAS ALREADY SENT (Rodney 2026-09-06). At 10:07 a customer
+    // dropped a real WhatsApp location — the map renders in the thread — and Kiki answered by
+    // telling him how to drop a location pin. Same family as the size re-ask above: a state we
+    // cannot see, so we ask again. ManyChat never hands us the pin itself; all we ever get is
+    // the previous text re-delivered (see nonTextReplay), and if even that doesn't fire we are
+    // blind. So the guard does not try to detect the pin — it refuses to ask TWICE:
+    //   • something non-text landed in this thread in the last 10 minutes  → he sent SOMETHING
+    //   • or we already gave him the tap-by-tap in the last 30 minutes     → he has been told
+    // Either way the answer is a human opening the chat and looking, not a customer being sent
+    // round the loop again. That escalation goes to the FREE task board, never WhatsApp — the
+    // whole point today is to stop spending messages on things a human glance settles.
+    if (turnText && PIN_ASK_RE.test(turnText)) {
+      const replayAt = lastReplayAt.get(sub) || 0;
+      const askedAt  = pinAsked.get(sub) || 0;
+      const somethingArrived = replayAt && (Date.now() - replayAt) < 10 * 60 * 1000;
+      const alreadyAsked     = askedAt  && (Date.now() - askedAt)  < 30 * 60 * 1000;
+      if ((somethingArrived || alreadyAsked) && pinReAsks < 1) {
+        pinReAsks++;
+        record(req, { endpoint: 'pin-reask-blocked', sub, store: ctx.store || '', why: somethingArrived ? 'attachment-arrived' : 'already-asked', text: turnText.slice(0, 200) });
+        try {
+          require('./shop').addAlert(
+            `📍 GO LOOK AT THIS CHAT — Kiki was about to ask ${subName.get(sub) || 'a customer'} for their location pin for the SECOND time. ` +
+            (somethingArrived ? 'Something non-text just arrived in the thread, so they have probably already sent it and we cannot see it.'
+                              : 'We already gave them the tap-by-tap and they have not managed it.') +
+            ' Open the conversation, read the pin (or the address) off it yourself, and reply by hand.',
+            'Kiki 🤖', { sub: String(sub), account: ctx.store || '' });
+        } catch (_) {}
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: do NOT ask for their location pin again. Either they have already sent it and it simply cannot be shown to you, or you have already given them the tap-by-tap once. Asking a second time tells them nobody is reading. A human has been asked to open this chat and read the location off it. Write your reply again WITHOUT any pin instructions: acknowledge warmly that you have got it and someone is sorting the drop-off — for example "Got it 👍 someone\'s picking this up now and will message you straight back about the drop-off." If they typed an ADDRESS anywhere in this conversation, use that and call notify_manager with stage "delivery_ready" and location = the address, starting it with "ADDRESS (no pin): ". Do not mention this note.)' });
+        continue;                       // one clean retry
+      }
+      // First honest ask of this conversation — let it go, and remember we've now asked.
+      pinAsked.set(sub, Date.now());
+      if (pinAsked.size > 500) { const f = pinAsked.keys().next().value; pinAsked.delete(f); }
     }
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
@@ -6197,8 +6249,49 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             // decide whether we bother asking.
           } catch (_) {}
         }
+        // ── 🛑 ONE MESSAGE PER ORDER, AND ONLY WHEN HE CAN ACT ON IT (Rodney 2026-09-06) ──
+        // This morning ONE customer cost him six sends: an "order_confirmed" at 09:24, a SECOND
+        // "order_confirmed" at 09:24 when a pair was added, then the real DELIVERY READY at
+        // 09:27 — each going to both his phones, which he does want. His rule: "I only need that
+        // message once. Two times she sends the order information without a location — it says
+        // location not sent. How could an order be confirmed if the location is not sent? …
+        // If the person said later, or they're gonna text back, then the delivery is NOT
+        // confirmed yet — I don't need that message as yet."
+        //
+        // So a location-less "order_confirmed" no longer buys a WhatsApp message. It is a
+        // conversation in progress, not an order. Only DELIVERY READY (a pin, a typed address,
+        // an agreed meet-up) is worth waking him for — that was the only one of the three he
+        // actually needed.
+        //
+        // ⚠️ THIS REVERSES HIS OWN RULE OF 2026-07-13, which existed because a real $260 order
+        // slipped by unnoticed when the pin never registered. That is why ONLY THE SENDING is
+        // dropped and nothing else: noteDeliveryForCheck() above still files the order, so it
+        // still shows in /debug-deliveries and in the 9 PM end-of-day list, and the two FREE
+        // in-app channels below (the website Tasks board + the Inbox thread) still get it
+        // instantly. Nothing goes missing — it just stops costing him a message to find out.
+        // If an order ever does go quiet again, the answer is a spoken nudge in the inbox app,
+        // NOT switching this back on. Same reasoning as the delivery chase (see DELIVERY_CHASE_ON).
+        const alertable = !earlyStage;
+        // 🔁 AN ORDER THAT GROWS IS NOT A NEW ORDER. Today's customer added a second pair and
+        // got the entire alert again. If we have already told him this customer is ready in the
+        // last 45 minutes, he gets ONE short "order updated" line instead of the full card —
+        // he still needs to know a pair was added (the driver is carrying it), he does not need
+        // the name, number, address and chat link read out to him twice.
+        const prevReady = lastDeliveryReady.get(sub) || 0;
+        const isAmendment = alertable && prevReady && (Date.now() - prevReady) < 45 * 60 * 1000;
+        const outLines = isAmendment
+          ? ['🔁 *ORDER UPDATED* — same customer, same drop-off',
+             inp.customer_name ? `👤 ${inp.customer_name}` : null,
+             inp.shoe ? `👟 now: ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : null,
+             inp.price ? `💰 ${inp.price}` : null,
+            ].filter(Boolean).join('\n')
+          : lines;
         let waOk = false;
-        try { waOk = await waSendManager(lines, token, alertImg); } catch (_) {}
+        if (alertable) {
+          try { waOk = await waSendManager(outLines, token, isAmendment ? null : alertImg); } catch (_) {}
+          lastDeliveryReady.set(sub, Date.now());
+          if (lastDeliveryReady.size > 500) { const f = lastDeliveryReady.keys().next().value; lastDeliveryReady.delete(f); }
+        }
         try { require('./shop').addAlert(lines, 'Kiki 🤖', { sub: String(sub), account: ctx.store || '', img: alertImg || '' }); } catch (_) {} // shows on the website Tasks board
         // 📥 Drop the order/delivery straight into the customer's Inbox thread too, so the
         // unified Inbox shows deliveries (not just WhatsApp + the Tasks board). dir:'in' so it
@@ -6215,14 +6308,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // WhatsApp alert bounced (usually the 24h window closed — "Subscriber is not
         // active", 2026-07-14: two order alerts silently never reached Rodney): flag it
         // loudly on the task board so the app push still wakes someone.
-        if (!waOk) { try { require('./shop').addAlert('⚠️ The WhatsApp owner-alert for the order above BOUNCED — text the store line from the owner phone to reopen the 24h window.', 'Kiki 🤖'); } catch (_) {} }
+        // `alertable &&` or a suppressed early alert reports itself as a BOUNCE every time —
+        // waOk is false because we never tried, not because WhatsApp refused it.
+        if (alertable && !waOk) { try { require('./shop').addAlert('⚠️ The WhatsApp owner-alert for the order above BOUNCED — text the store line from the owner phone to reopen the 24h window.', 'Kiki 🤖'); } catch (_) {} }
         // WhatsApp ONLY the staff actually rostered on this slot (Rodney 2026-08-14) — an
         // off-duty phone should not buzz for a delivery. Nobody rostered = the Manager covers
         // it; outside opening hours it goes to the Manager, not to someone asleep.
         let staffWa = [];
-        try { staffWa = await require('./shop').blastOnDuty(lines, null); } catch (_) {}
+        if (alertable) { try { staffWa = await require('./shop').blastOnDuty(outLines, null); } catch (_) {} }
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
-        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', remindH: inp.remind_in_hours || null, waOk, staffWa, staffOk });
+        // `suppressed` so /last shows plainly WHY no message went out — otherwise a silent
+        // early stage looks identical to a send that failed, and the next person debugging a
+        // "missing alert" chases a ghost.
+        record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', remindH: inp.remind_in_hours || null, waOk, staffWa, staffOk, suppressed: alertable ? null : 'no-location-yet', amended: !!isAmendment });
         // FUTURE ORDER → also re-alert the owner when the day the customer named arrives
         // (Rodney's design 2026-07-13: heads-up now + a ⏰ reminder at the time it's for).
         const remindH = Number(inp.remind_in_hours);
