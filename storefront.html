@@ -8001,8 +8001,30 @@ function syncInventory(){
      also needs sales, staff and roles). A customer holds no key, so it reads the public
      write-less /shop/stock feed — which carries shoes and deletions and nothing else.
      Either way the shopper ends up seeing CONFIRMED stock, which is the whole point. */
+  /* 🔑 A STAFF KEY THAT NO LONGER WORKS MUST DEGRADE TO A SHOPPER, NOT TO A BROKEN PAGE
+     (Rodney 2026-09-07 — "sizes not showing for client").
+
+     _hasShopKey() is presence-only (`return !!SHOP_KEY`) — it does not check that the key
+     still WORKS. So any phone holding a stale, revoked or half-copied key took the staff
+     door, got 401, and shopGet threw. That landed in the .catch below, set _invFailed, and
+     every card on the page then read "Message us to check sizes" — permanently, without
+     ever trying the public feed it is perfectly entitled to read.
+
+     Rodney hit this on his own phone inside WhatsApp's in-app browser, which is a separate
+     storage context and a good place for an aged key to sit unnoticed.
+
+     A shopper holding NO key was never affected — they already take the public door. Only
+     set _invFailed when BOTH doors fail; that is the genuine "we cannot see the shelf" case
+     the message was written for. The key is deliberately NOT deleted here: a write failing
+     loudly later is better than silently signing staff out on a blip. */
   var source = _hasShopKey()
-    ? shopGet('/shop/state')
+    ? shopGet('/shop/state').catch(function(err){
+        if (err && /http 40[13]/.test(String(err && err.message || ''))) {
+          try{ console.warn('[sp242] staff key rejected — reading the public shelf instead'); }catch(e){}
+          return shopGetPublic('/shop/stock');
+        }
+        throw err;
+      })
     : shopGetPublic('/shop/stock');
   return source.then(function(st){
     var serverIds={}; (st.shoes||[]).forEach(function(s){ serverIds[s.id]=1; });
