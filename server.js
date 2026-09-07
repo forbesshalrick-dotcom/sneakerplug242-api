@@ -10015,6 +10015,19 @@ app.post('/inbox/send', async (req, res) => {
     || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
     || lastToken || process.env.MANYCHAT_TOKEN || null;
   if (!token && !waChannel.get(sub)) return res.json({ ok: false, error: 'No account token learned for this customer yet — have them message the bot once, then reply.' });
+  // 🚫 NEVER reply to one shop's customer through a DIFFERENT shop's account.
+  // The browser-bot lines (Foot Fetish) reach us through /voice/msg-log, which never learns a
+  // ManyChat token — so `token` above silently fell through to lastToken/MANYCHAT_TOKEN, i.e.
+  // Trendy Kicks or OSC. Two ways that goes wrong, both bad: the customer is unknown to that
+  // account and the send just fails, or — worse — they ALSO message that shop, in which case
+  // Rodney's Foot Fetish reply is delivered to them under the wrong shop's name. Proven
+  // 2026-09-07: /debug-tokens has TK, OSC and Sneaker Inventory only, while the inbox carries
+  // 15 Foot Fetish threads with a live reply box. If we know the line and have no way to send
+  // on it, say so instead of guessing.
+  if (account && !storeTokens.get(account) && !waChannel.get(sub)) {
+    record(req, { endpoint: 'inbox-send-blocked-wrong-account', sub, account, tag: accountTag(account) });
+    return res.json({ ok: false, error: 'This chat is on ' + (account || 'another line') + ', and there\'s no way to send from that line yet — replying here would go out from a different shop. Answer this one in WhatsApp on the machine that runs it.' });
+  }
   // The moment we reply as a human, Kiki pauses for this customer (refreshed each reply)
   // and any pending nudge is cancelled so she never talks over us.
   setHumanPause(sub);
