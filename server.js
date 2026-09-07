@@ -7480,6 +7480,26 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .row:active{background:rgba(255,255,255,.04)}
   .row .av{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;color:#fff;font-family:'Space Grotesk'}
   .row.unread{background:linear-gradient(90deg, rgba(124,92,255,.09), transparent)}
+  /* ⏳ WAITING ON YOU. Deliberately a different signal from unread: unread means he has
+     not LOOKED at it, waiting means he has not ANSWERED it. A thread he opened, read and
+     walked away from is still the customer's turn — that is exactly the one that goes cold,
+     and it clears its unread dot the moment he opens it. */
+  .row.waiting{box-shadow:inset 3px 0 0 #ffb020}
+  .wait{display:inline-flex;align-items:center;gap:4px;background:rgba(255,176,32,.14);color:#ffb020;
+        border:1px solid rgba(255,176,32,.35);border-radius:999px;padding:1px 7px;font-size:10px;
+        font-weight:700;white-space:nowrap;margin-left:6px}
+  #waitBar{display:flex;align-items:center;gap:8px;width:calc(100% - 24px);margin:0 12px 8px;
+           background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.4);color:#ffb020;
+           border-radius:12px;padding:9px 12px;font:inherit;font-size:13px;font-weight:700;
+           cursor:pointer;text-align:left}
+  #waitBar .wdot{width:8px;height:8px;border-radius:50%;background:#ffb020;flex:0 0 auto}
+  #waitBar .wx{margin-left:auto;font-size:11px;font-weight:600;opacity:.8}
+  #waitBar.on{background:rgba(255,176,32,.24)}
+  #waitBar.on .wx::before{content:'showing only these — tap for all'}
+  #waitBar.on .wx{font-size:0}
+  [data-theme="light"] .row.waiting{box-shadow:inset 3px 0 0 #b06d00}
+  [data-theme="light"] .wait{color:#8a5400;background:rgba(255,176,32,.18);border-color:rgba(138,84,0,.3)}
+  [data-theme="light"] #waitBar{color:#8a5400}
   .row .mid{flex:1;min-width:0}
   .row .nm{font-size:15.5px;font-weight:700;display:flex;align-items:center;gap:7px;letter-spacing:.2px}
   .row.unread .nm{color:#fff}
@@ -8129,6 +8149,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     <button class="sbtn" id="themeBtn" title="Switch between the white and the dark look">☀️</button>
     <a class="sbtn" id="siteBtn" href="https://242plug.com" target="_blank" rel="noopener" title="Open 242plug.com — the website" style="text-decoration:none;display:flex;align-items:center;justify-content:center;font-size:16px">🛒</a>
   </div>
+  <!-- ⏳ "4 customers waiting on you" — tap to show only those, tap again for everyone.
+       Hidden entirely when nobody is waiting, so a clear inbox stays clear. -->
+  <button id="waitBar" style="display:none"><span class="wdot"></span><span id="waitTxt"></span><span class="wx">show only these</span></button>
   <!-- Account tabs. Built from the real threads in JS so the counts are never a lie. -->
   <div class="tabs" id="acctTabs" role="tablist" aria-label="Accounts"></div>
   <div class="scroll" id="threads"><div class="empty">Loading…</div></div>
@@ -8482,6 +8505,20 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     });
   }
   function ago(ts){ if(!ts)return''; var s=Math.floor((Date.now()-ts)/1000); if(s<60)return'now'; if(s<3600)return Math.floor(s/60)+'m'; if(s<86400)return Math.floor(s/3600)+'h'; var d=new Date(ts); return (d.getMonth()+1)+'/'+d.getDate(); }
+  /* How long they have been waiting, said the way a person says it — 5m, 3h, 2d, 2w.
+     Deliberately NOT ago(): that switches to a calendar date after 24h ("9/6"), which
+     answers "when" when the question Rodney is asking is "how long". Facebook says 2w and
+     that is the number that made him ask for this. */
+  function waitedFor(ts){
+    if(!ts) return '';
+    var s=Math.floor((Date.now()-ts)/1000);
+    if(s<60) return 'just now';
+    if(s<3600) return Math.floor(s/60)+'m';
+    if(s<86400) return Math.floor(s/3600)+'h';
+    var d=Math.floor(s/86400);
+    if(d<7) return d+'d';
+    return Math.floor(d/7)+'w';
+  }
   function clock(ts){ var d=new Date(ts); var h=d.getHours(), ap=h>=12?'PM':'AM'; h=h%12||12; return h+':'+String(d.getMinutes()).padStart(2,'0')+' '+ap; }
   // 📅 DAY DIVIDERS (Rodney 2026-07-28: "all messages are together, cannot tell which day it
   // starts fresh"). dayKey = a stable YYYY-M-D so we only draw a divider when the calendar
@@ -8543,7 +8580,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
         // A call's own fields go into the signature too — otherwise the no-flicker guard
         // would decide "nothing changed" and a recording arriving late would never appear.
         if(t.__call) return t.sub+':'+t.lastTs+':'+(t.seconds||0)+':'+(t.recording?1:0)+':'+String(t.caller||'')+':'+String(t.summary||'').slice(0,24);
-        return t.sub+':'+t.lastTs+':'+(t.unread||0)+':'+(t.paused?1:0)+':'+(t.pinned?1:0)+':'+(t.label||'')+':'+String(t.custPrev||'').slice(0,24)+':'+String(t.replyPrev||'').slice(0,24);
+        // waitingSince belongs in here: without it the no-flicker guard decides "nothing
+        // changed" and the waiting marker never appears or never clears.
+        return t.sub+':'+t.lastTs+':'+(t.unread||0)+':'+(t.paused?1:0)+':'+(t.pinned?1:0)+':'+(t.label||'')+':'+(t.waitingSince||0)+':'+String(t.custPrev||'').slice(0,24)+':'+String(t.replyPrev||'').slice(0,24);
       }).join(',');
       if(lsig===lastListSig) return; // list unchanged — leave the DOM alone
       lastListSig = lsig;
@@ -8591,14 +8630,23 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
           if(t.replyPrev) lns += '<span class="lt rep">'+(t.replyWho?('<b>'+esc(t.replyWho)+':</b> '):'')+esc(unB(t.replyPrev))+'</span>';
           pv = lns || ('<span class="lt">'+esc(unB(t.lastText||'…'))+'</span>');
         }
-        return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+(isStaffPhone(t.phone)?' staff':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-phone="'+esc(t.phone||'')+'" data-tag="'+t.tag+'">'
+        // Staff chatter is not a customer waiting on him, so it never gets the marker.
+        var isWait = !!t.waitingSince && !isStaffPhone(t.phone);
+        var waitHtml = isWait ? '<span class="wait">\u23F3 waiting '+waitedFor(t.waitingSince)+'</span>' : '';
+        return '<div class="row'+(t.unread?' unread':'')+(t.pinned?' pinned':'')+(isWait?' waiting':'')+(isStaffPhone(t.phone)?' staff':'')+'" style="--rowc:'+c[0]+';--rowg:'+c[0]+'44" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-name="'+esc(rawName)+'" data-phone="'+esc(t.phone||'')+'" data-tag="'+t.tag+'">'
           +'<div class="av setav" style="'+avStyle+'" data-sub="'+t.sub+'" data-acct="'+esc(t.account)+'" data-tag="'+t.tag+'" title="Tap to set a photo">'+avInner+'</div>'
           +'<div class="body">'
-            +'<div class="toprow"><div class="nm">'+pinHtml+'<span class="nmtext">'+custLabelHTML(rawName, t.phone, t.tag)+'</span>'+lblHtml+(t.unread?'<span class="dot"></span>':'')+'</div>'
+            +'<div class="toprow"><div class="nm">'+pinHtml+'<span class="nmtext">'+custLabelHTML(rawName, t.phone, t.tag)+'</span>'+lblHtml+waitHtml+(t.unread?'<span class="dot"></span>':'')+'</div>'
               +'<div class="meta"><span class="tagbox"><span class="tag '+tagCls(t.tag)+'">'+t.tag+'</span><span class="kiki '+(t.paused?'koff':'kon')+'" data-sub="'+t.sub+'" style="background:'+(t.paused?'#ff3b5c':c[0])+'" title="'+(t.paused?'Kiki is OFF — tap to turn her back on':'Kiki is ON — tap to pause her')+'">'+(t.paused?'✕':'✓')+'</span></span><span class="tm">'+ago(t.lastTs)+'</span></div></div>'
             +pv
           +'</div></div>';
       }).join('');
+      // Tag each row for the "only who is waiting" filter — applyFilter reads attributes,
+      // not the thread objects, so the state has to live on the element.
+      Array.prototype.forEach.call(document.querySelectorAll('#threads .row'), function(el){
+        el.setAttribute('data-waiting', el.classList.contains('waiting') ? '1' : '0');
+      });
+      drawWaitBar(ts);
       var nb=$('navChatBadge'); if(nb){ if(totalUnread>0){ nb.textContent=totalUnread>99?'99':totalUnread; nb.style.display='flex'; } else nb.style.display='none'; }
       buildTabs(ts);   // rebuild the account strip from the threads we just drew
       applyFilter();   // and re-apply BOTH the search text and the chosen account tab
@@ -9400,6 +9448,21 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   // owned el.style.display separately the last one to run would wipe out the other — type a
   // name while on the Inventory tab and you'd get matches from every account. Both funnel
   // through here instead, and a row shows only when it passes BOTH.
+  /* ⏳ "N customers waiting on you" — the cheap version Rodney said he would use
+     immediately, plus the filter that turns it into a work queue.
+
+     Counted from the rows actually on screen rather than from the server's waitingCount,
+     so the number can never disagree with the list underneath it (staff chatter is
+     excluded row-side, and the server does not know which numbers are staff). */
+  var waitOnly=false;
+  function drawWaitBar(){
+    var bar=$('waitBar'); if(!bar) return;
+    var n=document.querySelectorAll('#threads .row.waiting').length;
+    if(!n){ bar.style.display='none'; waitOnly=false; bar.classList.remove('on'); return; }
+    bar.style.display='flex';
+    $('waitTxt').textContent = n===1 ? '1 customer waiting on you' : (n+' customers waiting on you');
+    bar.classList.toggle('on', waitOnly);
+  }
   function applyFilter(){
     var raw=(($('search')||{}).value||'').toLowerCase().trim();
     var qd=raw.replace(/[^0-9]/g,''); // digits-only, so a typed phone matches the number
@@ -9407,9 +9470,11 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       var nm=(el.getAttribute('data-name')||'').toLowerCase(), sub=el.getAttribute('data-sub')||'', ph=(el.getAttribute('data-phone')||'').replace(/[^0-9]/g,'');
       var hit = !raw || nm.indexOf(raw)>-1 || sub.indexOf(raw)>-1 || (qd && (sub.indexOf(qd)>-1 || ph.indexOf(qd)>-1));
       var inAcct = (acctFilter==='ALL') || (el.getAttribute('data-tag')===acctFilter);
-      el.style.display=(hit && inAcct)?'':'none';
+      var inWait = !waitOnly || el.getAttribute('data-waiting')==='1';
+      el.style.display=(hit && inAcct && inWait)?'':'none';
     });
   }
+  if($('waitBar')) $('waitBar').onclick=function(){ waitOnly=!waitOnly; drawWaitBar(); applyFilter(); };
   $('search').oninput = applyFilter;
   if($('themeBtn')) $('themeBtn').onclick = function(){
     applyTheme(document.documentElement.getAttribute('data-theme')==='dark' ? 'light' : 'dark');
@@ -9575,7 +9640,39 @@ app.get('/inbox/threads', (req, res) => {
       else if (!replyPrev && (m.sender === 'kiki' || m.sender === 'rodney')) { replyPrev = bodyOf(m); replyWho = m.sender === 'rodney' ? 'You' : 'Kiki'; }
       if (custPrev && replyPrev) break;
     }
+    /* ⏳ WHOSE TURN IS IT, AND HOW LONG HAVE THEY WAITED (Rodney 2026-09-07:
+       "facebook shows how long same as whatsapp. only my chat website doesnt have modern
+       tools like that.")
+
+       Facebook Marketplace marks a thread "Karma is waiting for your response · 2w". The
+       inbox already had the clock — what it never had was the STATE. So a thread that is
+       perfectly fine and a customer who has been ignored for a fortnight looked identical.
+
+       Two different numbers, and only the second one is worth money:
+         lastTs      — age of the newest message, whoever sent it
+         waitingSince— the FIRST message of the current unanswered run
+
+       That is why this walks BACKWARDS through the run of customer messages and keeps
+       overwriting: it ends on the OLDEST unanswered one. If a customer sent three messages
+       over two weeks, he has been waiting two weeks, not since the last one.
+
+       'system' rows are ours, not either side's — they must not count as an answer or the
+       marker would clear itself. Anything from kiki or rodney ends the run: we spoke last.
+
+       Why this list matters more here than it does on Facebook: Kiki answers nearly every
+       thread herself. So an unanswered inbound is BY DEFINITION one she could not handle —
+       a photo that would not send, a question she refused, a thread a human touched. This
+       is his work queue, and until now it was invisible among threads that are perfectly
+       fine. */
+    let waitingSince = 0;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]; if (!m) continue;
+      if (m.sender === 'system') continue;
+      if (m.sender === 'customer') { waitingSince = m.ts || 0; continue; }
+      break;
+    }
     return {
+      waiting: waitingSince > 0, waitingSince,
       // `phone` is the REAL number only: t.phone for ManyChat; for direct-API Shoe Box the sub IS
       // the phone. Never expose a ManyChat subscriber_id as a phone (it's not callable/real).
       account: t.account, tag: accountTag(t.account), sub: t.sub, name: t.name || '', phone: t.phone || (accountTag(t.account) === 'SB' ? t.sub : '') || '', avatar: t.avatar || '',
@@ -9586,7 +9683,9 @@ app.get('/inbox/threads', (req, res) => {
     };
     // pinned chats float to the top no matter how old, then newest-first
   }).sort((a, b) => (b.pinned - a.pinned) || ((b.lastTs || 0) - (a.lastTs || 0))).slice(0, 100);
-  res.json({ rev: inboxRev, threads: list });
+  // The count for the "N customers waiting on you" pill. Counted AFTER the slice so the
+  // number can never claim more than the list can actually show.
+  res.json({ rev: inboxRev, threads: list, waitingCount: list.filter(t => t.waiting).length });
 });
 
 // 🌐 INBOX TRANSLATION (Rodney 2026-07-28). Kiki answers customers in whatever language
