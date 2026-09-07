@@ -3786,18 +3786,34 @@ function inboxRecord(account, sub, m) {
 // backfill twice would otherwise duplicate every message in his history. Same thread, same
 // second, same words = the same message. Only the tail is scanned — a replay lands near the
 // end of whatever it matches, and walking 400 messages per row would make a big backfill crawl.
-function inboxHas(account, sub, ts, text) {
+function inboxHas(account, sub, ts, text) { return inboxFind(account, sub, ts, text).exact; }
+
+// Two different questions, and the difference is the whole safety of the backfill.
+//
+//   exact    — same thread, same second, same words. This is what actually skips a row.
+//   sameText — same thread, same words, ANY time. This is what WARNS us.
+//
+// Why both. The dedupe above matches within a second, and the two machines' clocks do not
+// agree that closely. Meanwhile the server already holds Kiki replies for TK and OSC in the
+// very window the backfill covers ("Kiki: No worries! Take your time"), so a replay can hold
+// messages this server already has, stamped seconds apart. Those would sail past an exact
+// match and double his history. `sameText` is deliberately looser than the skip rule so a dry
+// run can say "this will duplicate" BEFORE anything is written, rather than after.
+function inboxFind(account, sub, ts, text) {
+  const out = { exact: false, sameText: false };
   try {
     const t = inboxThreads.get(threadKey(account, sub));
-    if (!t || !t.msgs || !t.msgs.length) return false;
+    if (!t || !t.msgs || !t.msgs.length) return out;
     const want = String(text == null ? '' : text).slice(0, 4000);
+    if (!want) return out;
     for (let i = t.msgs.length - 1, seen = 0; i >= 0 && seen < 200; i--, seen++) {
       const m = t.msgs[i];
-      if (!m) continue;
-      if (Math.abs((m.ts || 0) - ts) <= 1000 && m.text === want) return true;
+      if (!m || m.text !== want) continue;
+      out.sameText = true;
+      if (Math.abs((m.ts || 0) - ts) <= 1000) { out.exact = true; return out; }
     }
   } catch (_) {}
-  return false;
+  return out;
 }
 
 // ── 🔔 NOBODY PICKED UP (Rodney 2026-08-21) ──────────────────────────────────
@@ -10595,7 +10611,7 @@ try {
   // inboxRecord/inboxHas let /voice/msg-log file the browser bot's conversations into the
   // SAME thread list as the ManyChat ones. Passed in rather than imported so voice.js keeps
   // no opinion about how the inbox is stored.
-  require('./voice').mountVoice(app, { searchInventory, record, waSendManager, inboxRecord, inboxHas });
+  require('./voice').mountVoice(app, { searchInventory, record, waSendManager, inboxRecord, inboxHas, inboxFind });
   console.log('[voice] phone-call brain mounted on /voice/fn');
 } catch (e) {
   console.error('[voice] NOT mounted:', e && e.message);

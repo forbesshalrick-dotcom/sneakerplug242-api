@@ -454,7 +454,20 @@ function mountVoice(app, deps) {
     if (!auth(req, res)) return;
     const b = req.body || {};
     const list = Array.isArray(b) ? b : (Array.isArray(b.messages) ? b.messages : [b]);
-    let saved = 0, skipped = 0;
+
+    // 🧪 DRY RUN. `{"dry":true}` (or ?dry=1) writes NOTHING and reports what a real run would do.
+    //
+    // This exists because the skip rule and the real risk are not the same shape. A row is only
+    // skipped when the text matches AND the clock agrees to within a second — but the Mac's
+    // clock and this server's clock will not agree that closely, and this server ALREADY holds
+    // Kiki replies for Trendy Kicks and Official Sneaker Crew inside the window being replayed.
+    // So a message this server already has can arrive stamped a few seconds off, sail past the
+    // skip, and land a second time. `dupText` counts exactly those: same thread, same words,
+    // different second. If it comes back above zero, a real run WILL double part of his history
+    // and the fix is to send only the `kiki` half, or to narrow the date range — not to press on.
+    const dry = !!(b.dry || b.dryRun || req.query.dry);
+    let saved = 0, skipped = 0, dupText = 0;
+    const samples = [];
 
     for (const row of list) {
       if (!row || typeof row !== 'object') { skipped++; continue; }
@@ -468,7 +481,18 @@ function mountVoice(app, deps) {
 
       // Replaying the same file twice must not double every line. Cheap and good enough:
       // an identical text at an identical second in the same thread is the same message.
-      if (deps.inboxHas && deps.inboxHas(account, sub, at, them || kiki)) { skipped++; continue; }
+      const hit = deps.inboxFind
+        ? deps.inboxFind(account, sub, at, them || kiki)
+        : { exact: !!(deps.inboxHas && deps.inboxHas(account, sub, at, them || kiki)), sameText: false };
+      if (hit.exact) { skipped++; continue; }
+
+      // Already on the server under a different timestamp — the case the skip rule misses.
+      if (hit.sameText) {
+        dupText++;
+        if (samples.length < 12) samples.push({ account, thread: sub, at: new Date(at).toISOString(), text: String(them || kiki).slice(0, 90) });
+      }
+
+      if (dry) { saved++; continue; }
 
       // quiet: already answered on the Mac. No unread badge, no push, no staff WhatsApp.
       if (them) deps.inboxRecord(account, sub, { dir: 'in',  sender: 'customer', text: them, ts: at,        quiet: true, phone: String(row.thread || '') });
@@ -478,8 +502,10 @@ function mountVoice(app, deps) {
       saved++;
     }
 
-    try { record(req, { endpoint: 'voice-msg-log', msgsIn: saved, skipped, source: String(b.source || (list[0] && list[0].source) || '') }); } catch (_) {}
-    res.json({ ok: true, saved, skipped });
+    try { record(req, { endpoint: 'voice-msg-log', msgsIn: saved, skipped, dupText, dry, source: String(b.source || (list[0] && list[0].source) || '') }); } catch (_) {}
+    const out = { ok: true, saved, skipped, dupText };
+    if (dry) { out.dry = true; out.wouldSave = saved; out.saved = 0; out.duplicateSamples = samples; }
+    res.json(out);
   });
   // Bin one row. A test call, or a wrong number that logged itself twice — a list he can't
   // tidy is a list he stops trusting. Key goes in the BODY, not the query string: a key on the
