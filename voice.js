@@ -398,6 +398,89 @@ function mountVoice(app, deps) {
     if (!auth(req, res)) return;
     res.json({ count: callLog.length, rev: callRev, calls: getCallLog(req.query.limit) });
   });
+
+  // ── 💬 MESSAGE LOG IN (Rodney, 7 Sep 2026: "my inbox app is dead") ──────────
+  //
+  // It was never dead. It was HALF dead, which is worse, because it looked like it worked.
+  //
+  // When Trendy Kicks, Official Sneaker Crew and Foot Fetish moved onto the browser bot on
+  // the other Mac, the calls kept arriving here (that bridge posts to /voice/call-log) and
+  // the messages stopped. Nothing on the Mac posted a conversation anywhere. So his Chats
+  // list froze mid-sentence: Sneaker Inventory rows still filled in, because SI is still on
+  // ManyChat and flows through this server, while OSC and TK rows showed a phone call and
+  // nothing else. Every text those two lines had sent or received for weeks existed only in
+  // a jsonl file on a laptop.
+  //
+  // 🚨 LOG-ONLY. THIS MUST NEVER PRODUCE A REPLY.
+  // Everything posted here has ALREADY been answered by the bot on the Mac. If this were
+  // wired into the chat path the customer would be answered a second time, by a different
+  // bot, with different stock in front of it. `inboxRecord` stores and does nothing else —
+  // keep it that way, and never call sendChunk/handleChat from this route.
+  //
+  // Posted in for the same reason the call log is: two different pipes (this server for the
+  // ManyChat lines, the Mac for the browser-bot lines) need to land in one list.
+  const MSG_LINE_ACCOUNT = {
+    TK:  'Trendy Kicks',
+    OSC: 'Official Sneaker Crew',
+    FF:  'Foot Fetish',
+    SI:  'Sneaker Inventory',
+  };
+  function msgAccount(row) {
+    // The line wins over the shop name: the bot always knows which line it answered on,
+    // whereas `shop` is a display string and drifts. 4324406 is Foot Fetish's number and the
+    // bot files that line by number, so callTag would call it OTH — mapped explicitly.
+    const raw = String(row.line || '').trim();
+    let tag = /4324406/.test(raw) ? 'FF' : callTag(raw);
+    if (tag === 'OTH' && row.shop) tag = callTag(String(row.shop));
+    return MSG_LINE_ACCOUNT[tag] || String(row.shop || row.line || 'Other').slice(0, 60);
+  }
+  // "2026-09-07T15:32:12" with no timezone is LOCAL time on his Mac. Parsing that with
+  // new Date() in a UTC container shifts every row by four hours, which is exactly the
+  // UTC-date trap that broke the schedule page. Treated as local-to-him and converted.
+  const MSG_TZ_OFFSET_MIN = Number(process.env.MSG_LOG_TZ_OFFSET_MIN || -240); // EDT
+  function msgWhen(at) {
+    if (!at) return Date.now();
+    const s = String(at).trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(s);
+    if (m) {
+      const utc = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+      return utc - MSG_TZ_OFFSET_MIN * 60000;
+    }
+    const t = Date.parse(s);
+    return Number.isFinite(t) ? t : Date.now();
+  }
+
+  app.post('/voice/msg-log', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const list = Array.isArray(b) ? b : (Array.isArray(b.messages) ? b.messages : [b]);
+    let saved = 0, skipped = 0;
+
+    for (const row of list) {
+      if (!row || typeof row !== 'object') { skipped++; continue; }
+      const sub = String(row.thread || row.phone || '').replace(/[^0-9]/g, '');
+      if (!sub) { skipped++; continue; }
+      const account = msgAccount(row);
+      const them = String(row.them || '').slice(0, 1000);
+      const kiki = String(row.kiki || '').slice(0, 2000);
+      if (!them && !kiki) { skipped++; continue; }
+      const at = msgWhen(row.at);
+
+      // Replaying the same file twice must not double every line. Cheap and good enough:
+      // an identical text at an identical second in the same thread is the same message.
+      if (deps.inboxHas && deps.inboxHas(account, sub, at, them || kiki)) { skipped++; continue; }
+
+      // quiet: already answered on the Mac. No unread badge, no push, no staff WhatsApp.
+      if (them) deps.inboxRecord(account, sub, { dir: 'in',  sender: 'customer', text: them, ts: at,        quiet: true, phone: String(row.thread || '') });
+      if (kiki) deps.inboxRecord(account, sub, { dir: 'out', sender: 'kiki',     text: kiki, ts: at + 1000, quiet: true });
+      const n = parseInt(row.photos, 10) || 0;
+      if (n > 0) deps.inboxRecord(account, sub, { dir: 'out', sender: 'system', text: '📷 sent ' + n + (n === 1 ? ' photo' : ' photos'), ts: at + 2000, quiet: true });
+      saved++;
+    }
+
+    try { record(req, { endpoint: 'voice-msg-log', msgsIn: saved, skipped, source: String(b.source || (list[0] && list[0].source) || '') }); } catch (_) {}
+    res.json({ ok: true, saved, skipped });
+  });
   // Bin one row. A test call, or a wrong number that logged itself twice — a list he can't
   // tidy is a list he stops trusting. Key goes in the BODY, not the query string: a key on the
   // end of a URL ends up in logs and in his browser history.

@@ -3728,13 +3728,31 @@ function inboxRecord(account, sub, m) {
     if (!t) { t = { account: account || '', sub: String(sub), name: m.name || '', phone: m.phone || '', msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(key, t); }
     if (m.name && !t.name) t.name = m.name;
     if (m.phone && !t.phone) t.phone = m.phone;
-    const msg = { id: inboxMsgId(), dir: m.dir, sender: m.sender, text, ts: Date.now() };
+    // ⏱️ An explicit `ts` is for REPLAYING history that already happened (see /voice/msg-log).
+    // Live callers pass nothing and get now, exactly as before. Without this, a backfill of
+    // three weeks of chat all lands stamped "this second" and every waiting-time in the list
+    // reads "just now" — the log would be there and still tell him nothing true.
+    const when = Number(m.ts) > 0 ? Number(m.ts) : Date.now();
+    const msg = { id: inboxMsgId(), dir: m.dir, sender: m.sender, text, ts: when };
     if (img) msg.img = img;
     if (loc) msg.loc = loc;
-    t.msgs.push(msg);
+    // Replayed history can arrive out of order. Keep msgs sorted by time or the "who spoke
+    // last" walk in /inbox/threads reads the wrong end of the array and calls an answered
+    // chat unanswered.
+    const last = t.msgs[t.msgs.length - 1];
+    if (last && when < (last.ts || 0)) {
+      let i = t.msgs.length;
+      while (i > 0 && (t.msgs[i - 1].ts || 0) > when) i--;
+      t.msgs.splice(i, 0, msg);
+    } else {
+      t.msgs.push(msg);
+    }
     if (t.msgs.length > INBOX_MAX_MSGS) t.msgs.splice(0, t.msgs.length - INBOX_MAX_MSGS);
-    t.lastTs = msg.ts;
-    if (m.dir === 'in') t.unread = (t.unread || 0) + 1; // cleared when Rodney opens the thread or replies
+    t.lastTs = Math.max(t.lastTs || 0, msg.ts);   // never drag the list backwards on a replay
+    // 🤫 `quiet` = this exchange was ALREADY handled somewhere else and is being filed for the
+    // record. It must not raise an unread badge and must not buzz his phone — a backfill would
+    // otherwise fire one WhatsApp alert per historical message.
+    if (m.dir === 'in' && !m.quiet) t.unread = (t.unread || 0) + 1; // cleared when Rodney opens the thread or replies
     inboxSubIndex.set(String(sub), key);
     if (inboxThreads.size > INBOX_MAX_THREADS) {
       const oldest = [...inboxThreads.entries()].sort((a, b) => (a[1].lastTs || 0) - (b[1].lastTs || 0))[0];
@@ -3755,7 +3773,7 @@ function inboxRecord(account, sub, m) {
     //
     // Tappable straight into the thread. Tagged per-thread so two customers never overwrite
     // each other — the mistake the agent alerts already learned the hard way.
-    if (m.dir === 'in' && isHumanPaused(sub)) {
+    if (m.dir === 'in' && !m.quiet && isHumanPaused(sub)) {
       try {
         const who = t.name || t.phone || 'A customer';
         const body = img ? '📷 sent a photo' : (loc ? '📍 sent their location' : text.slice(0, 120));
@@ -3764,6 +3782,24 @@ function inboxRecord(account, sub, m) {
     }
   } catch (_) {}
 }
+// Has this exact line already been filed? Guards the replay in /voice/msg-log: running the
+// backfill twice would otherwise duplicate every message in his history. Same thread, same
+// second, same words = the same message. Only the tail is scanned — a replay lands near the
+// end of whatever it matches, and walking 400 messages per row would make a big backfill crawl.
+function inboxHas(account, sub, ts, text) {
+  try {
+    const t = inboxThreads.get(threadKey(account, sub));
+    if (!t || !t.msgs || !t.msgs.length) return false;
+    const want = String(text == null ? '' : text).slice(0, 4000);
+    for (let i = t.msgs.length - 1, seen = 0; i >= 0 && seen < 200; i--, seen++) {
+      const m = t.msgs[i];
+      if (!m) continue;
+      if (Math.abs((m.ts || 0) - ts) <= 1000 && m.text === want) return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 // ── 🔔 NOBODY PICKED UP (Rodney 2026-08-21) ──────────────────────────────────
 // The human pause has no floor. When a person replies in a thread, Kiki goes silent for 45
 // minutes — correct, that is the whole point — but if that person then walks away, the
@@ -9619,6 +9655,11 @@ function accountTag(account) {
   // no colour of its own, which meant it rendered in the fallback blue-purple and looked like
   // Trendy Kicks at a glance. Rodney: "the purple is closer to the blue that's there."
   if (a.includes('sneaker inventory') || a.includes('sneakerinventory')) return 'SI';
+  // Foot Fetish had no case either, so it tagged "FOO" and rendered in the fallback purple —
+  // Rodney asked for it "yellow like the calls". The colour was already there (accCols has
+  // FF at #E8A81C); nothing ever returned the tag that reaches it. Its number is spelled out
+  // because the browser bot files that line as 4324406 rather than by name.
+  if (a.includes('foot fetish') || a.includes('footfetish') || a.includes('4324406')) return 'FF';
   return (account || '?').slice(0, 3).toUpperCase();
 }
 
@@ -10551,7 +10592,10 @@ app.get('/console', (req, res) => {
 // uses; a voice agent with its own copy of the stock would drift within a day.
 // Wrapped because a fault in the phone line must never take the shop's WhatsApp down.
 try {
-  require('./voice').mountVoice(app, { searchInventory, record, waSendManager });
+  // inboxRecord/inboxHas let /voice/msg-log file the browser bot's conversations into the
+  // SAME thread list as the ManyChat ones. Passed in rather than imported so voice.js keeps
+  // no opinion about how the inbox is stored.
+  require('./voice').mountVoice(app, { searchInventory, record, waSendManager, inboxRecord, inboxHas });
   console.log('[voice] phone-call brain mounted on /voice/fn');
 } catch (e) {
   console.error('[voice] NOT mounted:', e && e.message);
