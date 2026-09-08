@@ -2286,4 +2286,10 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
+// 📱 HOW MANY PHONES WOULD A PUSH ACTUALLY GO TO? Read-only, no send. server.js asks this
+// before telling Rodney an alert "did not reach you" — since 08 Sep, WhatsApp is no longer the
+// only route to his phone, and claiming an alert was lost when the board push delivered it is
+// how a warning stops being believed.
+function pushCount() { return (webpush && Array.isArray(state.subs)) ? state.subs.length : 0; }
+
+module.exports = { pushCount, mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };

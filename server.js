@@ -665,8 +665,11 @@ const BOOT_ID = Math.random().toString(36).slice(2, 8);
 // `alertPing` answers "are order alerts reaching his phone?" without having to make a sale
 // to find out. 'ok' until this process actually watches one fail — see _pingBroken above for
 // why a fresh boot reports ok rather than inheriting an outage it did not witness.
-app.get('/health', (req, res) => res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null,
-  alertPing: _pingBroken ? 'down' : 'ok', alertPingSince: _pingBroken ? new Date(_pingBrokenAt).toISOString() : null }));
+app.get('/health', (req, res) => {
+  let phones = 0; try { phones = require('./shop').pushCount(); } catch (_) {}
+  res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null,
+    alertPing: _pingState, alertPingSince: _pingBrokenAt ? new Date(_pingBrokenAt).toISOString() : null, pushPhones: phones });
+});
 
 // Meta / WhatsApp Business catalogue product feed (CSV). Connect this URL as a
 // SCHEDULED data feed in Meta Commerce Manager and Meta re-pulls it automatically,
@@ -4257,17 +4260,33 @@ function noteSendFailure(sub, body, token) {
 // written to the task board — what failed was the message to his phone, and nothing anywhere
 // recorded that. An alert that silently fails is worse than no alert, because the job looks
 // done. Now /last carries the outcome.
-// 📶 IS THE PING BACK? (2026-09-08) — Rodney's alerts stopped reaching his phone and the
-// first he knew of it was missing orders. The board copy always survives, so no order is
-// lost, but he had no way to tell whether the phone ping was working again short of making
-// a sale and waiting. These two track that so the server can tell him instead.
+// 📶 CAN WE STILL REACH HIS PHONE? (2026-09-08)
 //
-// Deliberately NOT persisted to disk. On boot both reset, so a fresh deploy can never
-// announce "alerts are back" for an outage it never witnessed — the announcement only
-// fires if THIS process saw the failure itself. Missing an announcement because a deploy
-// landed mid-outage is a far smaller harm than telling him the ping is fixed when it isn't.
-let _pingBroken = false;
+// Rewritten the same night it was written, because the assumption under it died. Rodney:
+// "no more renewal I'm hooked up for free now straight to the browser." ManyChat is not
+// coming back on Trendy Kicks or Official Sneaker Crew — that is a permanent move to the
+// browser bot, not an outage waiting on a bill.
+//
+// So a flag that only watches WhatsApp would sit red forever and teach him to ignore a red
+// signal, which is worse than having no signal at all. And the "📵 AN ORDER ALERT DID NOT
+// REACH YOU" note would fire on every single order while the board push was delivering it
+// perfectly well — crying wolf on the one warning that has to be believed.
+//
+// WhatsApp is no longer the only road to his phone. `addAlert` web-pushes every alert to
+// installed staff phones, and that has nothing to do with ManyChat. So the honest question
+// is not "did WhatsApp work" but "did ANY route reach him":
+//
+//   ok        — WhatsApp delivered.
+//   push-only — WhatsApp is gone but registered phones still get the push. Expected state
+//               now, on TK and OSC. NOT an emergency and must not be announced as one.
+//   down      — neither route. Nobody is being told about orders. THIS is the alarm.
+//
+// Deliberately NOT persisted. On boot it resets, so a fresh deploy can never announce a
+// recovery it never witnessed. Missing an announcement because a deploy landed mid-outage
+// is a far smaller harm than telling him the ping is fixed when it is not.
+let _pingBroken = false;      // true only while genuinely down — NEITHER route working
 let _pingBrokenAt = 0;
+let _pingState = 'ok';        // 'ok' | 'push-only' | 'down'
 
 async function waSendManager(text, token, image) {
   let ok = false;
@@ -4278,24 +4297,41 @@ async function waSendManager(text, token, image) {
         endpoint: ok ? 'manager-alert-sent' : 'manager-alert-FAILED',
         preview: String(text || '').replace(/\n/g, ' | ').slice(0, 70) });
       if (recent.length > 120) recent.length = 120;
-      if (ok && _pingBroken) {
-        // Recovered. Say so ONCE, on the transition only — an "it's working" note on every
-        // alert would be noise he learns to scroll past, which is how the real one gets missed.
+      // How many phones would the board push reach? This alert is about to be added to the
+      // board by the caller, and addAlert pushes. So WhatsApp failing does NOT mean he is
+      // uninformed — it only means uninformed if there is no phone on the other end either.
+      let _phones = 0; try { _phones = require('./shop').pushCount(); } catch (_) {}
+      const _reached = ok || _phones > 0;
+
+      if (_reached && _pingBroken) {
+        // Recovered from a genuine blackout. Say so ONCE, on the transition only — an
+        // "it's working" note on every alert is noise he learns to scroll past, which is
+        // exactly how the real one gets missed.
         _pingBroken = false;
         const mins = Math.round((Date.now() - _pingBrokenAt) / 60000);
         const howLong = mins >= 120 ? `${Math.round(mins / 60)} hours`
                       : mins >= 2   ? `${mins} minutes` : 'a moment';
         try {
           require('./shop').addAlert(
-            '📶 *ORDER PINGS ARE BACK ON YOUR PHONE*\n'
-            + `They were down for about ${howLong}. That alert just reached WhatsApp, so you do not\n`
-            + 'have to make a sale to find out whether it is fixed.\n\n'
+            '📶 *ORDER ALERTS ARE REACHING YOUR PHONE AGAIN*\n'
+            + `Nothing could reach you for about ${howLong} — not WhatsApp, and no phone was\n`
+            + 'signed up for notifications either. That just changed, so you do not have to make\n'
+            + 'a sale to find out whether it is fixed.\n\n'
             + 'Nothing was lost while it was down — every order still landed on this board.',
             'Kiki 🤖',
-            { pushTitle: '📶 Order pings are back', pushBody: `Alerts reached your phone again after ~${howLong}` });
+            { pushTitle: '📶 Order alerts are reaching you again', pushBody: `Back after ~${howLong}` });
         } catch (_) {}
       }
-      if (!ok) {
+      _pingState = ok ? 'ok' : (_phones > 0 ? 'push-only' : 'down');
+
+      if (!ok && _phones > 0) {
+        // WhatsApp is gone on this line and that is now NORMAL — he moved TK and OSC to the
+        // browser bot on purpose because it is free. The push carried it. Say nothing: an
+        // alarm that fires on every single order is an alarm he stops reading.
+        try { recent.unshift({ at: new Date().toISOString(), endpoint: 'manager-alert-via-push', phones: _phones,
+          preview: String(text || '').replace(/\n/g, ' | ').slice(0, 60) }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+      }
+      if (!ok && _phones === 0) {
         if (!_pingBroken) { _pingBroken = true; _pingBrokenAt = Date.now(); }
         console.error('[manager-alert] DID NOT REACH HIM:', String(text || '').slice(0, 80));
         // The alert genuinely did not land. NOW the window is worth raising — and only
@@ -4306,16 +4342,20 @@ async function waSendManager(text, token, image) {
         const k = 'winclosed';
         if (Date.now() - (nonTextAlertAt.get(k) || 0) > 3 * 3600 * 1000) {
           nonTextAlertAt.set(k, Date.now());
-          let msg = '📵 *AN ORDER ALERT DID NOT REACH YOU*\n';
-          if (shut.length) {
-            msg += 'WhatsApp only lets the bot message you for 24h after YOU message it, and that has run out:\n'
-                 + shut.map(x => `• ${x.store} — ${x.hrs}h since you last wrote`).join('\n')
-                 + '\n\n👉 Send "hi" to ' + fmtStoreWa('12428033126') + ' (OSC) and ' + fmtStoreWa('12428256405')
-                 + ' (Trendy Kicks) to switch order alerts back on.\n';
-          }
-          if (never.length) {
-            msg += (shut.length ? '\n' : '') + 'These have never had a message from you, so the bot has never been allowed to write to you there:\n'
-                 + never.map(x => `• ${x.store}`).join('\n') + '\n';
+          // ⚠️ This only fires now when NOTHING can reach him — no WhatsApp AND no phone
+          // signed up for notifications. The old copy told him to message the Trendy Kicks
+          // and OSC numbers to switch alerts back on. That advice died on 08 Sep when he
+          // moved those two lines to the browser bot for free: there is no ManyChat to wake
+          // up, so following it would do nothing and he would conclude the warning is junk.
+          // Notifications are the route that still works, so that is what it asks for.
+          let msg = '📵 *NOTHING CAN REACH YOUR PHONE RIGHT NOW*\n'
+                  + 'An order came in and there was no way to tell you about it.\n\n'
+                  + '👉 Open the shop app and allow notifications. That is the route that still\n'
+                  + 'works — it does not go through WhatsApp, so it keeps working now the shops\n'
+                  + 'answer through the browser.\n';
+          if (shut.length || never.length) {
+            msg += '\nWhatsApp is closed on: '
+                 + shut.concat(never).map(x => x.store).join(', ') + '.\n';
           }
           msg += '\nThe order itself is safe and on this board — you just were not pinged.';
           try { require('./shop').addAlert(msg, 'Kiki 🤖', { pushTitle: '📵 An order alert did not reach you', pushBody: 'Open the board — the order is safe' }); } catch (_) {}
