@@ -662,7 +662,11 @@ const wa = messages => ({ version: 'v2', content: { type: 'whatsapp', messages: 
 // Unique per running process. If /health returns >1 distinct `boot` value across rapid
 // calls, more than one copy of the bot is running (which breaks in-memory dedupe/memory).
 const BOOT_ID = Math.random().toString(36).slice(2, 8);
-app.get('/health', (req, res) => res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null }));
+// `alertPing` answers "are order alerts reaching his phone?" without having to make a sale
+// to find out. 'ok' until this process actually watches one fail — see _pingBroken above for
+// why a fresh boot reports ok rather than inheriting an outage it did not witness.
+app.get('/health', (req, res) => res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null,
+  alertPing: _pingBroken ? 'down' : 'ok', alertPingSince: _pingBroken ? new Date(_pingBrokenAt).toISOString() : null }));
 
 // Meta / WhatsApp Business catalogue product feed (CSV). Connect this URL as a
 // SCHEDULED data feed in Meta Commerce Manager and Meta re-pulls it automatically,
@@ -4253,6 +4257,18 @@ function noteSendFailure(sub, body, token) {
 // written to the task board — what failed was the message to his phone, and nothing anywhere
 // recorded that. An alert that silently fails is worse than no alert, because the job looks
 // done. Now /last carries the outcome.
+// 📶 IS THE PING BACK? (2026-09-08) — Rodney's alerts stopped reaching his phone and the
+// first he knew of it was missing orders. The board copy always survives, so no order is
+// lost, but he had no way to tell whether the phone ping was working again short of making
+// a sale and waiting. These two track that so the server can tell him instead.
+//
+// Deliberately NOT persisted to disk. On boot both reset, so a fresh deploy can never
+// announce "alerts are back" for an outage it never witnessed — the announcement only
+// fires if THIS process saw the failure itself. Missing an announcement because a deploy
+// landed mid-outage is a far smaller harm than telling him the ping is fixed when it isn't.
+let _pingBroken = false;
+let _pingBrokenAt = 0;
+
 async function waSendManager(text, token, image) {
   let ok = false;
   try { ok = await _waSendManagerInner(text, token, image); }
@@ -4262,7 +4278,25 @@ async function waSendManager(text, token, image) {
         endpoint: ok ? 'manager-alert-sent' : 'manager-alert-FAILED',
         preview: String(text || '').replace(/\n/g, ' | ').slice(0, 70) });
       if (recent.length > 120) recent.length = 120;
+      if (ok && _pingBroken) {
+        // Recovered. Say so ONCE, on the transition only — an "it's working" note on every
+        // alert would be noise he learns to scroll past, which is how the real one gets missed.
+        _pingBroken = false;
+        const mins = Math.round((Date.now() - _pingBrokenAt) / 60000);
+        const howLong = mins >= 120 ? `${Math.round(mins / 60)} hours`
+                      : mins >= 2   ? `${mins} minutes` : 'a moment';
+        try {
+          require('./shop').addAlert(
+            '📶 *ORDER PINGS ARE BACK ON YOUR PHONE*\n'
+            + `They were down for about ${howLong}. That alert just reached WhatsApp, so you do not\n`
+            + 'have to make a sale to find out whether it is fixed.\n\n'
+            + 'Nothing was lost while it was down — every order still landed on this board.',
+            'Kiki 🤖',
+            { pushTitle: '📶 Order pings are back', pushBody: `Alerts reached your phone again after ~${howLong}` });
+        } catch (_) {}
+      }
       if (!ok) {
+        if (!_pingBroken) { _pingBroken = true; _pingBrokenAt = Date.now(); }
         console.error('[manager-alert] DID NOT REACH HIM:', String(text || '').slice(0, 80));
         // The alert genuinely did not land. NOW the window is worth raising — and only
         // now. Push and the task board have no 24h window of their own, so this still
