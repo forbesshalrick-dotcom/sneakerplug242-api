@@ -1665,7 +1665,12 @@ function mount(app) {
     const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
     if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
     if (!webpush) return res.json({ ok: false, why: 'web-push not installed' });
-    const subs = Array.isArray(state.subs) ? state.subs : [];
+    // ?by=Manager rings only Rodney's own phones. Without it this wakes every registered
+    // device, and the answer to "does MY phone ring" is not worth waking the staff at 3am
+    // to get. Substring match, case-insensitive, so ?by=mana works.
+    const _who = String(req.query.by || '').trim().toLowerCase();
+    let subs = Array.isArray(state.subs) ? state.subs : [];
+    if (_who) subs = subs.filter(s => String(s.by || '').toLowerCase().includes(_who));
     const payload = JSON.stringify({
       title: req.query.title || '🔔 Test from Kiki',
       body: req.query.body || 'If you can read this, notifications are working on this phone.',
@@ -1678,7 +1683,7 @@ function mount(app) {
       try { await webpush.sendNotification(s, payload); out.push({ by: s.by || 'staff', host, tail, ok: true }); }
       catch (e) { out.push({ by: s.by || 'staff', host, tail, ok: false, code: e && e.statusCode, why: String((e && e.body) || (e && e.message) || e).slice(0, 120) }); }
     }
-    res.json({ ok: true, tried: out.length, accepted: out.filter(x => x.ok).length, devices: out });
+    res.json({ ok: true, filteredBy: _who || null, tried: out.length, accepted: out.filter(x => x.ok).length, devices: out });
   });
 
   // Re-seed a note that already exists on a device but is missing on the server
