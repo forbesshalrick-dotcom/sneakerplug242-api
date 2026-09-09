@@ -71,6 +71,7 @@ const state = {
   deletedStaff: loadFile('deletedStaff.json', []), // names permanently removed — devices must never re-add these
   proofs: loadFile('proofs.json', {}),      // saleId -> {media_type, data(base64), by, at} — payment screenshots pinned to a sale (kept OUT of /shop/state so the poll payload stays small)
   subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
+  pushSeen: loadFile('pushSeen.json', []),  // proof a notification was DRAWN on a screen — sw.js posts here after showNotification. Persisted so "has one EVER landed?" survives a deploy.
   logins: loadFile('logins.json', {}),      // SERVER-side login patterns: { name: {hash, salt} } — hashed, never plaintext
   rev: loadFile('rev.json', { n: 1 }),
   dateTasks: loadFile('dateTasks.json', {}), // { "YYYY-MM-DD": [{id,text,by,at}] } — queued into THAT evening's WhatsApp reminder (not an instant alert like notes/tasks above)
@@ -1577,6 +1578,12 @@ function mount(app) {
     if (!sub || !sub.endpoint) return res.status(400).json({ error: 'no subscription' });
     sub.by = b.by || 'staff';
     sub.at = new Date().toISOString();
+    // 📱 WHAT KIND OF PHONE IS THIS? Eight devices were registered and every push came back
+    // "accepted" while Rodney saw nothing, and there was no way to tell from here whether any
+    // of them was even his handset. An iPhone's push address lives on push.apple.com and an
+    // Android or desktop Chrome's on fcm.googleapis.com, so the host is already a hint — this
+    // records the rest, once, at sign-up. Trimmed hard: it is a label, not a tracking record.
+    try { sub.ua = String(req.get('user-agent') || '').slice(0, 180); } catch (_) {}
     state.subs = (state.subs || []).filter((s) => s.endpoint !== sub.endpoint);
     state.subs.push(sub);
     if (state.subs.length > 200) state.subs = state.subs.slice(-200);
@@ -1643,6 +1650,12 @@ function mount(app) {
           at: s.at || null,
           host,                                    // fcm/apple/mozilla — tells us the phone type
           tail: String(s.endpoint || '').slice(-8), // enough to tell two devices apart
+          ua: s.ua || null,                        // only on sign-ups from 09 Sep on
+          // Has anything this device drew ever been reported back? sw.js posts to
+          // /shop/push/seen the moment a notification exists on screen, so this is the
+          // difference between "Google accepted it" and "a human could have seen it".
+          everDrew: (Array.isArray(state.pushSeen) ? state.pushSeen : [])
+            .some((r) => r.tail && String(s.endpoint || '').endsWith(r.tail)),
         };
       }),
     });
@@ -1661,6 +1674,38 @@ function mount(app) {
   //
   // Worth knowing, because it is the thing he assumed: on Android you do NOT have to install
   // the app for this to work. A plain Chrome tab is enough once notifications are allowed.
+  // ✅ PROOF A NOTIFICATION REACHED A SCREEN. sw.js posts here straight after
+  // showNotification, so unlike "accepted by Google" this cannot be true while Rodney sees
+  // nothing. It is the only honest signal in the chain and it needs no key: it carries no
+  // data worth faking and the worst a stranger can do is make us think alerts are working,
+  // which is why `tail` is checked against the phones we already know about.
+  app.post('/shop/push/seen', (req, res) => {
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const tail = String(b.tail || '').slice(-24);
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    const known = tail.length >= 12 && subs.some(x => String(x.endpoint || '').endsWith(tail));
+    const row = { at: new Date().toISOString(), tail: tail || null, known,
+                  title: String(b.title || '').slice(0, 80), tag: String(b.tag || '').slice(0, 40) };
+    state.pushSeen = [row].concat(Array.isArray(state.pushSeen) ? state.pushSeen : []).slice(0, 100);
+    // Persisted deliberately: the question this answers is "has ANY alert ever been drawn on
+    // a real screen", and an answer that resets on every deploy could never say "never".
+    persist('pushSeen.json');
+    res.json({ ok: true });
+  });
+  app.get('/shop/push/seen', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    const seen = Array.isArray(state.pushSeen) ? state.pushSeen : [];
+    const tails = {};
+    for (const r of seen) if (r.tail) tails[r.tail] = (tails[r.tail] || 0) + 1;
+    // `everSeen` counts ONLY reports from a device the server knows about. A stranger posting
+    // here must not be able to make the alert channel look healthy — that is the exact lie
+    // this endpoint exists to catch.
+    const real = seen.filter((r) => r.known);
+    res.json({ ok: true, everSeen: real.length > 0, count: real.length, unknownReports: seen.length - real.length,
+               newest: real[0] || null, byDevice: tails, recent: seen.slice(0, 25) });
+  });
+
   // ❓ IS THIS EXACT PHONE ON THE LIST THE SERVER SENDS TO? The failure we could not see was
   // a phone signed up against one address while the server holds another — the send is then
   // "accepted" forever and nothing ever appears. Only the phone itself knows its own address,
