@@ -4288,6 +4288,66 @@ let _pingBroken = false;      // true only while genuinely down — NEITHER rout
 let _pingBrokenAt = 0;
 let _pingState = 'ok';        // 'ok' | 'push-only' | 'down'
 
+// 📮 A THIRD ROAD TO HIS PHONE, OWNED BY NOBODY ELSE.
+//
+// Rodney, 09 Sep: "I'm not getting any notifications for any new orders... if a delivery come
+// in, I won't know until I go and check manually." By then both existing roads were shut:
+// ManyChat is cancelled, so waSendManager gets `owner-phone-NOT-FOUND` on his own number every
+// time; and the browser push is "accepted" by eight devices while his screen stays dark.
+//
+// Both of those roads depend on somebody else's platform staying friendly. This one does not.
+// The browser bot already sits logged into WhatsApp Web on the other Mac and messages
+// customers as an ordinary person — no 24-hour business window, no ManyChat subscriber lookup,
+// no notification permission. It just cannot know there is anything to send, because it only
+// ever talks TO this server and never asks it for work.
+//
+// So: every alert meant for Rodney is parked here. The bot polls, sends it as a normal
+// WhatsApp message, and acks. Nothing is dropped on failure — an un-acked item stays and is
+// offered again, because the whole point is that a missed order alert costs a sale.
+// Capped and in-memory: this is a delivery queue for the next few minutes, not a record. The
+// board is where alerts live permanently.
+const ownerQueue = [];
+function queueForOwner(text) {
+  try {
+    const t = String(text || '').trim();
+    if (!t) return;
+    // Same alert twice in a minute is the browser bot re-filing one order, not two orders.
+    // Rodney has had one job land on his board five times; do not do that to his WhatsApp.
+    const now = Date.now();
+    if (ownerQueue.some(q => q.text === t && now - q.at < 60000)) return;
+    ownerQueue.unshift({ id: now.toString(36) + Math.random().toString(36).slice(2, 8),
+                         at: now, atISO: new Date(now).toISOString(), text: t, tries: 0 });
+    if (ownerQueue.length > 50) ownerQueue.length = 50;
+  } catch (_) {}
+}
+
+// The bot asks "anything for Rodney?". Oldest first — an order from ten minutes ago matters
+// more than one from ten seconds ago, and arriving out of order reads as chaos.
+app.get('/alerts/for-owner', (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const now = Date.now();
+  // Anything older than 30 minutes is not news any more, it is history, and history belongs on
+  // the board. Sending it would tell him a driver is needed for a job already done.
+  const live = ownerQueue.filter(q => now - q.at < 30 * 60000);
+  ownerQueue.length = 0; ownerQueue.push(...live);
+  const out = live.slice().reverse().slice(0, 10);
+  for (const q of out) q.tries++;
+  res.json({ ok: true, count: out.length, alerts: out.map(q => ({ id: q.id, at: q.atISO, tries: q.tries, text: q.text })) });
+});
+
+// Acked = it is on his phone. Only then does it leave. A send that failed must simply not ack.
+app.post('/alerts/ack', (req, res) => {
+  if (req.query.key !== DEBUG_KEY && (req.body || {}).key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const ids = [].concat((req.body || {}).ids || (req.body || {}).id || []);
+  let gone = 0;
+  for (const id of ids) {
+    const i = ownerQueue.findIndex(q => q.id === String(id));
+    if (i >= 0) { ownerQueue.splice(i, 1); gone++; }
+  }
+  try { recent.unshift({ at: new Date().toISOString(), endpoint: 'owner-alert-delivered-by-bot', n: gone }); } catch (_) {}
+  res.json({ ok: true, acked: gone, left: ownerQueue.length });
+});
+
 async function waSendManager(text, token, image) {
   let ok = false;
   try { ok = await _waSendManagerInner(text, token, image); }
@@ -4301,6 +4361,10 @@ async function waSendManager(text, token, image) {
       // board by the caller, and addAlert pushes. So WhatsApp failing does NOT mean he is
       // uninformed — it only means uninformed if there is no phone on the other end either.
       let _phones = 0; try { _phones = require('./shop').pushCount(); } catch (_) {}
+      // Park it for the browser bot regardless of what WhatsApp or the push said. Both of
+      // those have reported success while he saw nothing, so neither is allowed to decide
+      // that he has been told. The bot sends and acks, or the item stays and is offered again.
+      queueForOwner(text);
       const _reached = ok || _phones > 0;
 
       if (_reached && _pingBroken) {
