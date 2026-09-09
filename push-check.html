@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Do alerts reach this phone?</title>
+<style>
+  :root{ --bg:#0d0f13; --card:#171a21; --line:#272b35; --txt:#eef1f6; --dim:#98a0ae;
+         --ok:#25c26e; --bad:#ff5a5a; --warn:#ffb020; --acc:#4a8cff; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       padding:18px 14px 60px;-webkit-text-size-adjust:100%}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:14px;margin:0 0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 12px}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .dot{flex:0 0 auto;font-size:18px;line-height:1.3}
+  .k{font-weight:600}
+  .v{color:var(--dim);font-size:14px;word-break:break-all}
+  button{width:100%;padding:16px;margin:10px 0 0;border:0;border-radius:12px;
+         font-size:17px;font-weight:700;color:#fff;background:var(--acc)}
+  button.g{background:#2a7d4f} button.d{background:#3a3f4b}
+  button:disabled{opacity:.5}
+  .hint{color:var(--dim);font-size:13px;margin:6px 2px 0}
+  .verdict{border-radius:14px;padding:14px;margin:0 0 12px;font-weight:700;font-size:16px}
+  .verdict.ok{background:#10321f;border:1px solid var(--ok);color:#8ff0bb}
+  .verdict.bad{background:#3a1414;border:1px solid var(--bad);color:#ffb3b3}
+  .verdict.warn{background:#3a2c10;border:1px solid var(--warn);color:#ffd98a}
+  .verdict .f{font-weight:400;font-size:14px;margin-top:6px;display:block;color:var(--txt)}
+</style>
+</head>
+<body>
+<h1>Do alerts reach this phone?</h1>
+<p class="sub">Nothing here messages a customer. It only rings your own phone.</p>
+
+<div id="verdict"></div>
+
+<div class="card" id="report"><div class="row"><span class="dot">⏳</span><div><div class="k">Checking…</div></div></div></div>
+
+<div class="card">
+  <button id="b1">1 · Ring this phone from the phone itself</button>
+  <p class="hint">Skips the internet completely. If <b>nothing appears</b>, it's your phone's settings blocking it — not the shop.</p>
+
+  <button id="b2" class="g">2 · Re-link this phone to the shop</button>
+  <p class="hint">Signs this phone up fresh for alerts. Fixes it if the old sign-up went stale.</p>
+
+  <button id="b3">3 · Send a real alert from the shop to this phone</button>
+  <p class="hint">The full journey, same road a real order takes. This is the one that has to work.</p>
+
+  <button id="b4" class="d">Send this page's findings to Claude</button>
+  <p class="hint">So I can read what your phone said instead of you typing it out.</p>
+</div>
+
+<script>
+var R = { at:new Date().toISOString(), href:location.href, origin:location.origin,
+          ua:navigator.userAgent, secure:window.isSecureContext,
+          standalone: (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true };
+var SUB = null, ROWS = [];
+
+function row(state, k, v){ ROWS.push({state:state,k:k,v:v}); }
+function paint(){
+  var h='';
+  for(var i=0;i<ROWS.length;i++){
+    var d = ROWS[i].state==='ok'?'✅':ROWS[i].state==='bad'?'❌':ROWS[i].state==='warn'?'⚠️':'•';
+    h += '<div class="row"><span class="dot">'+d+'</span><div><div class="k">'+ROWS[i].k+'</div>'
+       + (ROWS[i].v?'<div class="v">'+ROWS[i].v+'</div>':'') + '</div></div>';
+  }
+  document.getElementById('report').innerHTML = h;
+}
+function verdict(cls, head, foot){
+  document.getElementById('verdict').innerHTML =
+    '<div class="verdict '+cls+'">'+head+(foot?'<span class="f">'+foot+'</span>':'')+'</div>';
+}
+function say(cls, head, foot){ verdict(cls, head, foot); }
+
+function shopKey(){ try{ return localStorage.getItem('sp_shop_key') || ''; }catch(e){ return ''; } }
+
+function post(path, body, withKey){
+  var h = {'Content-Type':'application/json'};
+  if (withKey && shopKey()) h['X-Shop-Key'] = shopKey();
+  return fetch(path, {method:'POST', headers:h, body:JSON.stringify(body||{})})
+    .then(function(r){ return r.json().catch(function(){ return {ok:false, why:'server sent something unreadable ('+r.status+')'}; }); });
+}
+
+function b64(s){
+  var pad='='.repeat((4 - s.length % 4) % 4);
+  var raw = atob((s+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  var out = new Uint8Array(raw.length);
+  for (var i=0;i<raw.length;i++) out[i]=raw.charCodeAt(i);
+  return out;
+}
+var VAPID='BPq6mcx1D_CUpEjdWBW-1PWXPtQ20UiLfE5V22xUr1LHqe-ZwnOpbGe5x3EuPcoH7J9a1m3VE6vaN7IjqPnbAzU';
+
+function run(){
+  ROWS=[];
+  R.perm = (window.Notification && Notification.permission) || 'unsupported';
+  R.hasSW = 'serviceWorker' in navigator;
+  R.hasPush = 'PushManager' in window;
+
+  row(R.secure?'ok':'bad','Page opened securely', R.origin);
+  row(R.perm==='granted'?'ok':'bad','Notifications allowed for this site',
+      R.perm==='granted' ? 'Yes' :
+      R.perm==='denied'  ? 'BLOCKED — this alone stops every alert' :
+      R.perm==='default' ? 'Never answered — tap button 2 and choose Allow' : R.perm);
+  if(!R.hasSW || !R.hasPush){
+    row('bad','This browser can do notifications', 'No. If this is Safari, open it in Chrome, or add the shop to your Home Screen first.');
+    paint(); say('bad','This browser can\'t receive alerts at all.','Open the shop in Chrome, or add it to your Home Screen and open it from there.');
+    return;
+  }
+  row('ok','This browser can do notifications','Yes');
+  paint();
+
+  navigator.serviceWorker.register('/sw.js').then(function(){
+    return navigator.serviceWorker.ready;
+  }).then(function(reg){
+    R.swScope = reg.scope;
+    R.swScript = (reg.active && reg.active.scriptURL) || null;
+    R.swState = (reg.active && reg.active.state) || 'none';
+    row(R.swState==='activated'?'ok':'warn','The bit that draws the notification is running', R.swScript+' ('+R.swState+')');
+    paint();
+    return reg.pushManager.getSubscription().then(function(sub){
+      if(!sub) return null;
+      SUB = sub; R.endpoint = sub.endpoint; R.tail = sub.endpoint.slice(-24);
+      return sub;
+    });
+  }).then(function(sub){
+    if(!sub){
+      row('bad','This phone is signed up for shop alerts','No — tap button 2');
+      paint();
+      say('bad','This phone is not signed up for alerts.','Tap button 2. Nothing can reach it until that\'s done.');
+      return;
+    }
+    row('ok','This phone is signed up for alerts here','…'+R.tail);
+    paint();
+    return fetch('/shop/push/known?tail='+encodeURIComponent(R.tail))
+      .then(function(r){return r.json();})
+      .then(function(j){
+        R.knownToServer = !!j.known; R.serverPhones = j.total;
+        if(j.known){
+          row('ok','The shop knows about this exact phone', 'Yes — it is 1 of '+j.total+' signed-up phones');
+          say('warn','Everything on this phone checks out.','So tap button 3. If nothing appears after that, the block is in your phone\'s own settings, not the shop.');
+        } else {
+          row('bad','The shop knows about this exact phone',
+              'NO. This phone is signed up on a different address than the shop sends to — that is why alerts vanish. Tap button 2.');
+          say('bad','Found it. This phone is signed up in the wrong place.','Tap button 2 to re-link it, then button 3 to prove it.');
+        }
+        paint();
+      }).catch(function(){ paint(); });
+  }).catch(function(e){
+    row('bad','The bit that draws the notification is running', String(e && e.message || e));
+    paint(); say('bad','The notification worker would not start on this phone.', String(e && e.message || e));
+  });
+}
+
+document.getElementById('b1').onclick = function(){
+  var b=this; b.disabled=true; b.textContent='1 · Watch your screen…';
+  Promise.resolve().then(function(){
+    if(Notification.permission!=='granted') return Notification.requestPermission();
+    return 'granted';
+  }).then(function(p){
+    if(p!=='granted'){ say('bad','You have Notifications turned off for this site.','Tap the padlock in the address bar → Notifications → Allow. Then reload this page.'); b.disabled=false; b.textContent='1 · Ring this phone from the phone itself'; return; }
+    return navigator.serviceWorker.ready.then(function(reg){
+      return reg.showNotification('🔔 Test — no internet involved', {
+        body:'If you can see this, your phone CAN show alerts. The problem is further down the line.',
+        icon:'/inbox/icon-192.png', badge:'/inbox/icon-192.png', tag:'plug242-local', renotify:true });
+    }).then(function(){
+      R.localShown = true;
+      say('warn','Sent to your own screen just now.','See it? Your phone is fine — go to button 2, then 3. Nothing at all? Your phone\'s system settings are blocking Chrome. Open Settings → Notifications → Chrome and switch it on.');
+      b.disabled=false; b.textContent='1 · Ring this phone again';
+    });
+  }).catch(function(e){
+    R.localErr=String(e&&e.message||e);
+    say('bad','Your phone refused to draw the notification.', R.localErr);
+    b.disabled=false; b.textContent='1 · Ring this phone from the phone itself';
+  });
+};
+
+document.getElementById('b2').onclick = function(){
+  var b=this; b.disabled=true; b.textContent='2 · Re-linking…';
+  Promise.resolve().then(function(){
+    if(Notification.permission!=='granted') return Notification.requestPermission();
+    return 'granted';
+  }).then(function(p){
+    if(p!=='granted') throw new Error('You chose Block. Tap the padlock in the address bar → Notifications → Allow, then try again.');
+    return navigator.serviceWorker.ready;
+  }).then(function(reg){
+    return reg.pushManager.getSubscription().then(function(old){
+      // Drop the old one first. A stale sign-up is exactly the fault we are hunting, and
+      // keeping it would just hand the server back the same dead address.
+      return old ? old.unsubscribe().catch(function(){}) : null;
+    }).then(function(){
+      return reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:b64(VAPID) });
+    });
+  }).then(function(sub){
+    SUB=sub; R.endpoint=sub.endpoint; R.tail=sub.endpoint.slice(-24);
+    if(!shopKey()) throw new Error('This phone is not signed in to the shop app. Open the shop, sign in, then come back and tap this again.');
+    return post('/shop/push/subscribe', { sub: sub.toJSON ? sub.toJSON() : sub, by:'Manager' }, true);
+  }).then(function(j){
+    if(j && j.ok===false) throw new Error(j.error || j.why || 'the shop would not accept it');
+    R.relinked = true;
+    say('ok','This phone is linked to the shop now.','Tap button 3 to prove a real alert lands.');
+    b.disabled=false; b.textContent='2 · Re-link this phone';
+    run();
+  }).catch(function(e){
+    R.relinkErr = String(e && e.message || e);
+    say('bad','Could not link this phone.', R.relinkErr);
+    b.disabled=false; b.textContent='2 · Re-link this phone to the shop';
+  });
+};
+
+document.getElementById('b3').onclick = function(){
+  var b=this; b.disabled=true; b.textContent='3 · Sent — watch your screen…';
+  if(!SUB){ say('bad','Nothing to send to yet.','Tap button 2 first.'); b.disabled=false; b.textContent='3 · Send a real alert from the shop to this phone'; return; }
+  post('/shop/push/selftest', { endpoint: SUB.endpoint }, false).then(function(j){
+    R.selftest = j;
+    if(j && j.ok){
+      say('warn','The shop says it sent it.','Now the only thing that matters: did it actually appear on your screen? If yes — alerts are fixed. If nothing came, tell me and I know exactly where it dies.');
+    } else {
+      say('bad','The shop could not send to this phone.', (j && (j.why||j.error)) || 'unknown');
+    }
+    b.disabled=false; b.textContent='3 · Send it again';
+  }).catch(function(e){
+    say('bad','Could not reach the shop.', String(e&&e.message||e));
+    b.disabled=false; b.textContent='3 · Send a real alert from the shop to this phone';
+  });
+};
+
+document.getElementById('b4').onclick = function(){
+  var b=this; b.disabled=true; b.textContent='Sending…';
+  R.rows = ROWS; R.signedIn = !!shopKey();
+  post('/shop/push/diag', { report: R }, false).then(function(){
+    b.textContent='Sent ✓';
+  }).catch(function(){ b.textContent='Could not send'; b.disabled=false; });
+};
+
+run();
+</script>
+</body>
+</html>

@@ -1661,6 +1661,50 @@ function mount(app) {
   //
   // Worth knowing, because it is the thing he assumed: on Android you do NOT have to install
   // the app for this to work. A plain Chrome tab is enough once notifications are allowed.
+  // ❓ IS THIS EXACT PHONE ON THE LIST THE SERVER SENDS TO? The failure we could not see was
+  // a phone signed up against one address while the server holds another — the send is then
+  // "accepted" forever and nothing ever appears. Only the phone itself knows its own address,
+  // so it has to be the one to ask. Takes the last chunk of that address, which is already a
+  // long random token, and answers yes/no. No key: it reveals nothing you did not already have.
+  app.get('/shop/push/known', (req, res) => {
+    const tail = String(req.query.tail || '');
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    const known = tail.length >= 12 && subs.some(s => String(s.endpoint || '').endsWith(tail));
+    res.json({ ok: true, known, total: subs.length });
+  });
+
+  // 📱 RING THIS EXACT PHONE — no key needed, and safe without one: it will only push to a
+  // subscription the server ALREADY holds, and the endpoint string is a long unguessable
+  // token the caller must already possess. Used by /push-check so Rodney can prove the last
+  // step from his own hand. "Accepted by Google" was true for weeks while nothing rang, so a
+  // server-side success is worth nothing here — only he can see whether it appears.
+  app.post('/shop/push/selftest', async (req, res) => {
+    if (!webpush) return res.json({ ok: false, why: 'web-push not installed' });
+    const ep = String((req.body && req.body.endpoint) || '');
+    const sub = (Array.isArray(state.subs) ? state.subs : []).find(s => s.endpoint === ep);
+    if (!sub) return res.json({ ok: false, why: 'this phone is not linked to the shop yet' });
+    const payload = JSON.stringify({ title: '🔔 It works', body: 'Notifications can reach this phone. This is what an order alert will look like.', url: '/', tag: 'plug242-selftest' });
+    try { await webpush.sendNotification(sub, payload); res.json({ ok: true }); }
+    catch (e) { res.json({ ok: false, why: String((e && e.body) || (e && e.message) || e).slice(0, 160), code: e && e.statusCode }); }
+  });
+
+  // 🩺 WHAT DID HIS PHONE ACTUALLY REPORT? The whole reason this went undetected is that every
+  // signal the server had said success. This lets the check page post its findings back, so a
+  // session can read the client-side truth (permission state, worker, subscription) instead of
+  // asking him to read a screen out. Kept in memory only — it is a diagnostic, not a record.
+  const _diags = [];
+  app.post('/shop/push/diag', (req, res) => {
+    const r = (req.body && typeof req.body === 'object') ? req.body : {};
+    _diags.unshift({ at: new Date().toISOString(), ...r });
+    if (_diags.length > 20) _diags.length = 20;
+    res.json({ ok: true });
+  });
+  app.get('/shop/push/diag', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    res.json({ ok: true, count: _diags.length, diags: _diags });
+  });
+
   app.get('/shop/push/test', async (req, res) => {
     const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
     if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
@@ -1671,6 +1715,8 @@ function mount(app) {
     const _who = String(req.query.by || '').trim().toLowerCase();
     let subs = Array.isArray(state.subs) ? state.subs : [];
     if (_who) subs = subs.filter(s => String(s.by || '').toLowerCase().includes(_who));
+    const _tail = String(req.query.tail || '').trim();
+    if (_tail) subs = subs.filter(s => String(s.endpoint || '').endsWith(_tail));
     const payload = JSON.stringify({
       title: req.query.title || '🔔 Test from Kiki',
       body: req.query.body || 'If you can read this, notifications are working on this phone.',

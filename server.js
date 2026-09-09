@@ -10592,6 +10592,21 @@ app.get('/sw.js', (req, res) => {
      .send(SW_JS);
 });
 
+// 🩺 /push-check — the one thing he can tap that tells the truth.
+// For weeks the server said every push was "accepted" while nothing appeared on his phone,
+// because everything we could measure sits on the sending side. This page runs on HIS phone,
+// on the same address as the shop app (so it can see the same sign-up and read the same saved
+// key), and walks the last three steps one at a time: can the phone draw a notification at
+// all, is this phone on the list the server actually sends to, and does a real send land.
+// Whichever step goes quiet is the fault — no more guessing from the far end of the wire.
+let PUSHCHK = null;
+try { PUSHCHK = require('fs').readFileSync(require('path').join(__dirname, 'push-check.html'), 'utf8'); }
+catch (e) { console.log('[push-check] page missing:', e.message); }
+app.get(['/push-check', '/push-check.html'], (req, res) => {
+  if (!PUSHCHK) return res.status(404).type('text/plain').send('no page');
+  res.set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-cache').send(PUSHCHK);
+});
+
 let STORE_HTML = null, STORE_HTML_GZ = null;
 (function buildStoreHtml(){
   try {
