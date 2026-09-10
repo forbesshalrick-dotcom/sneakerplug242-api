@@ -26,6 +26,20 @@ if (webpush) {
   catch (e) { console.log('[shop] VAPID setup failed — push disabled:', e.message); webpush = null; }
 }
 
+// 🔴 THE REASON RODNEY'S PHONE STAYED SILENT (2026-09-10).
+// web-push defaults every message to Urgency: normal. Google turns that into a NORMAL-priority
+// FCM message, and Android will NOT wake a dozing phone for one — it parks it until the phone
+// happens to come alive on its own. That is the exact symptom we chased for two nights: Google
+// answers "accepted", the subscription is alive, and the notification is simply never drawn.
+// Two labelled test alerts were fired at his two registered phones and NEITHER was drawn, while
+// the same devices had drawn 16 notifications earlier when the phones were awake and in use.
+// `urgency: 'high'` is the documented way to say "this is worth waking the device for" — it is
+// what a chat app sends. This shop's push volume is tiny (16 in a day), so there is no battery
+// or throttling cost worth weighing against a delivery order nobody sees.
+// TTL 1 day, not the 4-week default: a delivery job that surfaces next week is worse than
+// useless, because a driver could act on an order that was filled days ago.
+const PUSH_OPTS = { TTL: 86400, urgency: 'high' };
+
 // Shared key the website sends with every request. It lives in the (public)
 // client JS so it's a gate against random scanners, not a strong secret — the
 // note endpoint is also rate-limited below to blunt abuse.
@@ -1133,6 +1147,7 @@ async function blastEmployees(text, exceptName, topic, who) {
 
 // Send a web-push notification to every subscribed staff device. Best-effort:
 // dead/expired subscriptions (HTTP 404/410) are pruned so the list stays clean.
+let lastPushFail = null;   // last non-expiry refusal from the push service — evidence, not a guess
 async function sendPush(title, body, url, tag) {
   if (!webpush || !Array.isArray(state.subs) || !state.subs.length) return 0;
   // `tag` (2026-08-21): a shared tag REPLACES the previous notification. That is right for
@@ -1142,8 +1157,14 @@ async function sendPush(title, body, url, tag) {
   const payload = JSON.stringify({ title: title || 'THE PLUG 242', body: body || 'New delivery / task', url: url || '/', tag: tag || 'plug242-task' });
   let sent = 0; const dead = [];
   await Promise.all(state.subs.map(async (s) => {
-    try { await webpush.sendNotification(s, payload); sent++; }
-    catch (e) { if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint); }
+    try { await webpush.sendNotification(s, payload, PUSH_OPTS); sent++; }
+    catch (e) {
+      if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint);
+      // Anything else was being thrown away, so a rejected send looked identical to a
+      // delivered one from the outside. Keep the last one so /shop/push/status can say it.
+      else { try { lastPushFail = { at: new Date().toISOString(), tail: String(s.endpoint || '').slice(-8),
+                                    code: e && e.statusCode, why: String((e && e.body) || (e && e.message) || e).slice(0, 160) }; } catch (_) {} }
+    }
   }));
   if (dead.length) {
     state.subs = state.subs.filter((s) => dead.indexOf(s.endpoint) === -1);
@@ -1684,6 +1705,15 @@ function mount(app) {
             .some((r) => r.tail && String(s.endpoint || '').endsWith(r.tail)),
         };
       }),
+      // Sending options in force. Recorded here because "why did nothing arrive" was answered
+      // for two nights by reading the sending side and finding it healthy — the setting that
+      // was actually wrong (normal urgency, which Android parks while the phone dozes) was
+      // never visible anywhere. Now it is.
+      urgency: PUSH_OPTS.urgency,
+      ttlSeconds: PUSH_OPTS.TTL,
+      // The push service's own last refusal. Nothing else in here is evidence: a live
+      // subscription and an "accepted" both stay true while the phone shows nothing.
+      lastPushFail,
     });
   });
 
@@ -1841,7 +1871,7 @@ function mount(app) {
     const sub = (Array.isArray(state.subs) ? state.subs : []).find(s => s.endpoint === ep);
     if (!sub) return res.json({ ok: false, why: 'this phone is not linked to the shop yet' });
     const payload = JSON.stringify({ title: '🔔 It works', body: 'Notifications can reach this phone. This is what an order alert will look like.', url: '/', tag: 'plug242-selftest' });
-    try { await webpush.sendNotification(sub, payload); res.json({ ok: true }); }
+    try { await webpush.sendNotification(sub, payload, PUSH_OPTS); res.json({ ok: true }); }
     catch (e) { res.json({ ok: false, why: String((e && e.body) || (e && e.message) || e).slice(0, 160), code: e && e.statusCode }); }
   });
 
@@ -1883,7 +1913,7 @@ function mount(app) {
     for (const s of subs) {
       let host = ''; try { host = new URL(s.endpoint).host; } catch (_) {}
       const tail = String(s.endpoint || '').slice(-8);
-      try { await webpush.sendNotification(s, payload); out.push({ by: s.by || 'staff', host, tail, ok: true }); }
+      try { await webpush.sendNotification(s, payload, PUSH_OPTS); out.push({ by: s.by || 'staff', host, tail, ok: true }); }
       catch (e) { out.push({ by: s.by || 'staff', host, tail, ok: false, code: e && e.statusCode, why: String((e && e.body) || (e && e.message) || e).slice(0, 120) }); }
     }
     res.json({ ok: true, filteredBy: _who || null, tried: out.length, accepted: out.filter(x => x.ok).length, devices: out });
