@@ -8705,6 +8705,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     $('threads').innerHTML = '<div class="empty">'+(msg||'Enter your staff Inbox key to continue.')
       +'<br><br><input id="pk" placeholder="Inbox key" autocomplete="off" style="width:82%;max-width:290px;padding:11px;border-radius:9px;border:1px solid #2a3140;background:#11151d;color:#e7e9ee;font-size:14px">'
       +'<br><br><button id="pkg" style="background:#2f6df6;border:0;color:#fff;padding:10px 24px;border-radius:9px;font-size:14px;cursor:pointer">Open Inbox</button></div>';
+    // Pre-fill with whatever is saved. If a key IS stored and simply stopped working,
+    // he can see it rather than staring at an empty box with nothing to type.
+    try{ var had = localStorage.getItem(LS) || KEY || ''; if(had) $('pk').value = had; }catch(e){}
     var go=function(){ var v=$('pk').value.trim(); if(!v) return; try{ localStorage.setItem(LS,v); }catch(e){} KEY=v; loadThreads(); };
     $('pkg').onclick=go; $('pk').addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
   }
@@ -8851,7 +8854,13 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       api('/inbox/calls').catch(function(){ return {calls:[]}; })
     ]).then(function(both){
       var d = both[0] || {};
-      if(d && d.error){ try{ localStorage.removeItem(LS); }catch(e){} promptKey("That key didn't work — check it and try again."); return; }
+      // ⚠️ DO NOT DELETE THE SAVED KEY HERE. It used to wipe localStorage on
+      // ANY error, so one bad answer — a redeploy, a dropped 4G packet, a server blip —
+      // permanently signed Rodney out of the installed app, on a phone with no way to get
+      // the key back. That is exactly what happened on 10 Sep. Keep the key; if it really
+      // is wrong, typing a new one overwrites it anyway.
+      if(d && d.error){ promptKey(KEY ? "That key didn't work — check it and try again."
+                                      : "Enter your staff Inbox key to continue."); return; }
       lastRev = d.rev; $('rev').textContent='#'+d.rev;
       var callRows = ((both[1]||{}).calls||[]).map(function(c){
         return { __call:true, sub:'call:'+c.call_id, tag:c.tag||'OTH', lastTs:c.ts,
