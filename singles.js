@@ -18,6 +18,13 @@
 // They are shown side by side, each labelled for what it is:
 //   • IN STOCK NOW  — computed live, correct today, catalogue photo.
 //   • PHOTOGRAPHED  — the 4 Sep snapshot, real photos, frozen and honest about it.
+//
+// Rodney 2026-09-10, second ask: "can there be a button that shows the shoes that
+// are on the website but not on the singles page". That is the THIRD tab,
+// EVERYTHING ELSE — the other 197 shoes, deliberately sorted fewest-pairs-first so
+// the 2-pair rows sit at the top. Those are next week's singles, which makes the
+// tab an early warning rather than just a leftovers bin. The 6 shoes showing ZERO
+// pairs lead it, in red: they are still on the website with nothing behind them.
 const fs = require('fs');
 const path = require('path');
 
@@ -47,34 +54,68 @@ function photos() {
 // list with one entry per PAIR, so that is simply length 1.
 // ⚠️ Deliberately NOT "the last pair in a size" — 545 size-slots are down to one
 // pair, which is a wall of noise, not a tab you would ever open twice.
-function liveSingles() {
+// Every shoe on the shelf that is not sold, in one place, so the two live tabs
+// can never disagree about what "on the website" means.
+function shelf() {
   let shoes = [];
   try { shoes = require('./shop').getShoes() || []; } catch (_) {}
-  const cat = catalogue();
-  return shoes
-    .filter((s) => s && Array.isArray(s.sizes) && s.sizes.length === 1 && !s.sold)
-    .map((s) => {
-      const c = cat[String(s.id)] || {};
-      return {
-        id: s.id,
-        brand: c.brand || '',
-        name: c.name || '',
-        nickname: c.nickname || '',
-        color: c.color || '',
-        size: String(s.sizes[0]),
-        price: s.price || c.price || null,
-        img: c.image || '',
-        // 9 of the 140 have no catalogue row at all, so the card has to survive
-        // with nothing but an id. Saying so is more use than hiding it.
-        known: !!cat[String(s.id)],
-      };
-    })
+  return shoes.filter((s) => s && Array.isArray(s.sizes) && !s.sold);
+}
+
+function dress(s) {
+  const c = catalogue()[String(s.id)] || {};
+  return {
+    id: s.id,
+    brand: c.brand || '',
+    name: c.name || '',
+    nickname: c.nickname || '',
+    color: c.color || '',
+    size: String(s.sizes[0] == null ? '' : s.sizes[0]),
+    pairs: s.sizes.length,
+    // Sizes repeat, one entry per pair. Fold them so a card reads "8, 9 ×2, 11"
+    // instead of "8, 9, 9, 11" — a staff member counting stock needs the count.
+    sizeList: foldSizes(s.sizes),
+    price: s.price || c.price || null,
+    img: c.image || '',
+    // 9 of the 140 have no catalogue row at all, so the card has to survive
+    // with nothing but an id. Saying so is more use than hiding it.
+    known: !!catalogue()[String(s.id)],
+  };
+}
+
+function foldSizes(sizes) {
+  const n = {};
+  sizes.forEach((z) => { const k = String(z); n[k] = (n[k] || 0) + 1; });
+  return Object.keys(n)
+    .sort((a, b) => (parseFloat(a) || 0) - (parseFloat(b) || 0))
+    .map((k) => (n[k] > 1 ? k + ' \u00d7' + n[k] : k))
+    .join(', ');
+}
+
+function liveSingles() {
+  return shelf()
+    .filter((s) => s.sizes.length === 1)
+    .map(dress)
     // The 9 with no catalogue row have no brand or name to sort by, so they would
     // otherwise land at the very top as a block of blank cards. Push them to the
     // bottom — they still need doing, they just should not be the first thing seen.
     .sort((a, b) => (a.known === b.known)
       ? (a.brand + ' ' + a.name).localeCompare(b.brand + ' ' + b.name)
       : (a.known ? -1 : 1));
+}
+
+// "On the website but NOT on the singles page" — literally the rest of the shelf.
+// Zero-pair rows are INCLUDED on purpose: they are the most urgent thing here,
+// because a customer can still see and ask for a shoe there is nothing behind.
+function liveRest() {
+  return shelf()
+    .filter((s) => s.sizes.length !== 1)
+    .map(dress)
+    // Fewest pairs first. A 2-pair shoe is one sale away from being a single, so
+    // the top of this list is the useful part; a 12-pair shoe needs no attention.
+    .sort((a, b) => (a.pairs !== b.pairs)
+      ? a.pairs - b.pairs
+      : (a.brand + ' ' + a.name).localeCompare(b.brand + ' ' + b.name));
 }
 
 // Catalogue names already carry the brand on most rows ("Jordan" + "Air Jordan 1"
@@ -98,7 +139,7 @@ function mount(app) {
   // else (a future stock screen) can reuse the same definition of "single".
   app.get('/singles.json', (req, res) => {
     res.set('Cache-Control', 'no-store');
-    res.json({ live: liveSingles(), photographed: photos(), photographedAt: '2026-09-04' });
+    res.json({ live: liveSingles(), rest: liveRest(), photographed: photos(), photographedAt: '2026-09-04' });
   });
 
   app.get('/singles', (req, res) => {
@@ -110,12 +151,21 @@ function mount(app) {
 
 function page() {
   const live = liveSingles();
+  const rest = liveRest();
   const pics = photos();
+  const gone = rest.filter((o) => o.pairs === 0).length;
+  // On the singles tab the badge is the one size left, because that IS the shoe.
+  // On the everything-else tab it is the pair count, because that is the question
+  // being asked there — a size on its own would read as "one pair, size 8".
+  const badge = (o) => (o.pairs == null || o.pairs === 1)
+    ? { txt: o.size, cls: 'sz' }
+    : (o.pairs === 0 ? { txt: 'none left', cls: 'sz gone' } : { txt: o.pairs + ' pairs', cls: 'sz' });
   const card = (o) => `<a class="c${o.img ? '' : ' nopic'}" ${o.full ? `href="${esc(o.full)}" target="_blank" rel="noopener"` : ''}>
-    <div class="ph">${o.img ? `<img loading="lazy" src="${esc(o.img)}" alt="">` : `<span class="noimg">no photo</span>`}<span class="sz">${esc(o.size)}</span></div>
+    <div class="ph">${o.img ? `<img loading="lazy" src="${esc(o.img)}" alt="">` : `<span class="noimg">no photo</span>`}<span class="${badge(o).cls}">${esc(badge(o).txt)}</span></div>
     <div class="meta">
       <div class="nm">${esc(title(o)) || esc(o.id)}</div>
       <div class="cl">${esc(o.color || (o.known === false ? 'not in the catalogue yet' : ''))}</div>
+      ${o.pairs > 1 ? `<div class="szs">${esc(o.sizeList)}</div>` : ''}
       <div class="ft"><span class="pr">${o.price ? '$' + esc(o.price) : '—'}</span><span class="id">${esc(o.id || o.sku || '')}</span></div>
     </div></a>`;
 
@@ -135,8 +185,10 @@ function page() {
   h1{margin:0;font-size:20px;letter-spacing:.5px}
   .sub{color:var(--dim);font-size:12px}
   .tabs{display:flex;gap:6px;margin-top:10px}
-  .tb{flex:1;appearance:none;border:0;background:transparent;color:var(--dim);font:inherit;font-size:13px;
-      font-weight:600;padding:9px 6px;border-bottom:2px solid transparent;cursor:pointer}
+  /* Three tabs across a 360px phone: shrink the type rather than let a label wrap. */
+  .tb{flex:1;min-width:0;appearance:none;border:0;background:transparent;color:var(--dim);font:inherit;
+      font-size:12.5px;font-weight:600;padding:9px 4px;border-bottom:2px solid transparent;cursor:pointer;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tb[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--hot)}
   .tb .n{font-family:var(--mono);font-size:11px;color:var(--hot)}
   .tools{display:flex;gap:8px;padding:10px 14px}
@@ -155,6 +207,10 @@ function page() {
   .meta{padding:8px 9px 9px}
   .nm{font-size:13px;font-weight:650;line-height:1.25;text-wrap:balance}
   .cl{color:var(--dim);font-size:11.5px;margin-top:2px;line-height:1.3}
+  .szs{margin-top:4px;font-family:var(--mono);font-size:11px;color:#9aa3b8;line-height:1.35;
+       word-break:break-word}
+  .sz.gone{background:rgba(120,20,20,.85);border-color:rgba(255,120,120,.45);color:#ffd9d9}
+  .note.warn{background:#1c1213;border-color:#4a2226;color:#f0c2c2}
   .ft{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
   .pr{color:var(--ok);font-family:var(--mono);font-size:12.5px;font-weight:700}
   .id{color:#5c657a;font-family:var(--mono);font-size:10.5px}
@@ -170,6 +226,7 @@ function page() {
   <div class="ttl"><h1>👟 SINGLES</h1><span class="sub">last pair left</span></div>
   <div class="tabs" role="tablist">
     <button class="tb" id="t-live" role="tab" aria-selected="true">In stock now <span class="n">${live.length}</span></button>
+    <button class="tb" id="t-rest" role="tab" aria-selected="false">Everything else <span class="n">${rest.length}</span></button>
     <button class="tb" id="t-pic" role="tab" aria-selected="false">Photographed <span class="n">${pics.length}</span></button>
   </div>
 </header>
@@ -179,6 +236,17 @@ function page() {
   <p class="note">Worked out from the shelf <b>right now</b> — every shoe you have exactly <b>one pair</b> of.
   This changes on its own as things sell, so it is always today's answer. Photos are the catalogue photos.</p>
   <div class="grid" id="g-live">${live.map(card).join('') || '<div class="empty">Nothing is down to its last pair.</div>'}</div>
+</div>
+
+<div id="v-rest" hidden>
+  ${gone ? `<p class="note warn">\u26a0\ufe0f <b>${gone} of these have nothing left at all</b> \u2014 zero pairs, but still
+  sitting on the website where a customer can see them and ask. They are first in the list, marked
+  <b>none left</b> in red. Either restock them or take them down.</p>` : ''}
+  <p class="note">Everything on the website that is <b>not</b> a single \u2014 the other <b>${rest.length}</b> shoes.
+  Sorted <b>fewest pairs first</b>, so the top of this list is what is about to become a single. The badge on each
+  photo is the <b>number of pairs</b>, and under the colour is which sizes those pairs are
+  (<span style="font-family:var(--mono)">9 \u00d72</span> means two pairs of a 9).</p>
+  <div class="grid" id="g-rest">${rest.map(card).join('') || '<div class="empty">Every shoe on the website is down to its last pair.</div>'}</div>
 </div>
 
 <div id="v-pic" hidden>
@@ -193,23 +261,28 @@ function page() {
 <nav class="back"><a href="/inbox">‹ Chats</a><a href="https://242plug.com" target="_blank" rel="noopener">Website</a></nav>
 <script>
 (function(){
-  var tl=document.getElementById('t-live'), tp=document.getElementById('t-pic');
-  var vl=document.getElementById('v-live'), vp=document.getElementById('v-pic');
-  function show(livePane){
-    vl.hidden=!livePane; vp.hidden=livePane;
-    tl.setAttribute('aria-selected',livePane?'true':'false');
-    tp.setAttribute('aria-selected',livePane?'false':'true');
+  // Three panes now, so drive them off a list instead of a boolean. Adding a
+  // fourth tab later is one more entry here and nothing else.
+  var KEYS=['live','rest','pic'], cur='live';
+  function tab(k){return document.getElementById('t-'+k)}
+  function pane(k){return document.getElementById('v-'+k)}
+  function show(k){
+    cur=k;
+    KEYS.forEach(function(x){
+      pane(x).hidden = x!==k;
+      tab(x).setAttribute('aria-selected', x===k?'true':'false');
+    });
     filter();
+    window.scrollTo(0,0);
   }
-  tl.onclick=function(){show(true)}; tp.onclick=function(){show(false)};
+  KEYS.forEach(function(k){ tab(k).onclick=function(){show(k)} });
   var q=document.getElementById('q');
   function filter(){
     var t=q.value.trim().toLowerCase();
-    var pane=vl.hidden?vp:vl;
-    var cards=pane.querySelectorAll('.c'), shown=0;
+    var cards=pane(cur).querySelectorAll('.c');
     for(var i=0;i<cards.length;i++){
       var hit=!t||cards[i].textContent.toLowerCase().indexOf(t)>=0;
-      cards[i].style.display=hit?'':'none'; if(hit)shown++;
+      cards[i].style.display=hit?'':'none';
     }
   }
   q.addEventListener('input',filter);
@@ -218,4 +291,4 @@ function page() {
 </body></html>`;
 }
 
-module.exports = { mount, liveSingles };
+module.exports = { mount, liveSingles, liveRest };
