@@ -26,6 +26,8 @@
 // tab an early warning rather than just a leftovers bin. The 6 shoes showing ZERO
 // pairs lead it, in red: they are still on the website with nothing behind them.
 const fs = require('fs');
+// The one address every shoe photo lives at. 358 of the 359 catalogue rows use it verbatim.
+const CDN = 'https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/';
 const path = require('path');
 
 let _cat = null, _catAt = 0;
@@ -76,7 +78,14 @@ function dress(s) {
     // instead of "8, 9, 9, 11" — a staff member counting stock needs the count.
     sizeList: foldSizes(s.sizes),
     price: s.price || c.price || null,
-    img: c.image || '',
+    // 🖼️ THE PHOTOS WERE THERE ALL ALONG (Rodney, 10 Sep: "these pics not showing").
+    // 11 shoes on the shelf have no row in catalog.json, so `c.image` was empty and they
+    // drew as grey "no photo" tiles — but every one of their frames IS on the CDN. I
+    // checked all 11 by hand: 200 on every single one. 358 of the 359 catalogue rows use
+    // exactly this URL, so building it from the id is the same address the catalogue would
+    // have given us, not a guess. Only for rows with stock behind them: the empty leftover
+    // records have no frame and would 404 into a broken-image icon.
+    img: c.image || (s.sizes.length ? CDN + String(s.id) + '-thumb.jpg' : ''),
     // 9 of the 140 have no catalogue row at all, so the card has to survive
     // with nothing but an id. Saying so is more use than hiding it.
     known: !!catalogue()[String(s.id)],
@@ -153,7 +162,19 @@ function page() {
   const live = liveSingles();
   const rest = liveRest();
   const pics = photos();
-  const gone = rest.filter((o) => o.pairs === 0).length;
+  // ⚠️ Rodney, 10 Sep, pointing at six grey "no photo" tiles: "these pics not showing".
+  // There is no photo because there is no shoe. Those six rows are `{id, _catalog:true,
+  // sizes:[], sold:false}` and nothing else — no name, no price, no colour, no sizes, and
+  // no row in catalog.json. They are empty leftovers, not stock. Rendering them as six
+  // photo-less cards made them look like shoes that had merely lost their picture, which
+  // is worse than useless. They collapse into ONE line instead: still visible, still
+  // countable, no longer pretending to be a shoe waiting for a photograph.
+  // A zero-pair shoe that DOES have a catalogue row is a different animal — a real shoe
+  // that has sold out — so that one keeps its card and its red badge.
+  const ghosts = rest.filter((o) => o.pairs === 0 && !o.known);
+  const ghostIds = ghosts.map((o) => o.id);
+  const shown = rest.filter((o) => !(o.pairs === 0 && !o.known));
+  const gone = shown.filter((o) => o.pairs === 0).length;
   // On the singles tab the badge is the one size left, because that IS the shoe.
   // On the everything-else tab it is the pair count, because that is the question
   // being asked there — a size on its own would read as "one pair, size 8".
@@ -161,7 +182,7 @@ function page() {
     ? { txt: o.size, cls: 'sz' }
     : (o.pairs === 0 ? { txt: 'none left', cls: 'sz gone' } : { txt: o.pairs + ' pairs', cls: 'sz' });
   const card = (o) => `<a class="c${o.img ? '' : ' nopic'}" ${o.full ? `href="${esc(o.full)}" target="_blank" rel="noopener"` : ''}>
-    <div class="ph">${o.img ? `<img loading="lazy" src="${esc(o.img)}" alt="">` : `<span class="noimg">no photo</span>`}<span class="${badge(o).cls}">${esc(badge(o).txt)}</span></div>
+    <div class="ph">${o.img ? `<img loading="lazy" src="${esc(o.img)}" alt="" onerror="this.remove()">` : `<span class="noimg">no photo</span>`}<span class="${badge(o).cls}">${esc(badge(o).txt)}</span></div>
     <div class="meta">
       <div class="nm">${esc(title(o)) || esc(o.id)}</div>
       <div class="cl">${esc(o.color || (o.known === false ? 'not in the catalogue yet' : ''))}</div>
@@ -226,7 +247,7 @@ function page() {
   <div class="ttl"><h1>👟 SINGLES</h1><span class="sub">last pair left</span></div>
   <div class="tabs" role="tablist">
     <button class="tb" id="t-live" role="tab" aria-selected="true">In stock now <span class="n">${live.length}</span></button>
-    <button class="tb" id="t-rest" role="tab" aria-selected="false">Everything else <span class="n">${rest.length}</span></button>
+    <button class="tb" id="t-rest" role="tab" aria-selected="false">Everything else <span class="n">${shown.length}</span></button>
     <button class="tb" id="t-pic" role="tab" aria-selected="false">Photographed <span class="n">${pics.length}</span></button>
   </div>
 </header>
@@ -239,14 +260,18 @@ function page() {
 </div>
 
 <div id="v-rest" hidden>
-  ${gone ? `<p class="note warn">\u26a0\ufe0f <b>${gone} of these have nothing left at all</b> \u2014 zero pairs, but still
-  sitting on the website where a customer can see them and ask. They are first in the list, marked
-  <b>none left</b> in red. Either restock them or take them down.</p>` : ''}
-  <p class="note">Everything on the website that is <b>not</b> a single \u2014 the other <b>${rest.length}</b> shoes.
+  ${gone ? `<p class="note warn">\u26a0\ufe0f <b>${gone} of these have sold out</b> \u2014 zero pairs left. They are first
+  in the list, marked <b>none left</b> in red. Restock or take them off the site.</p>` : ''}
+  ${ghosts.length ? `<p class="note" style="margin-top:4px">\ud83d\uddd1\ufe0f <b>${ghosts.length} empty leftover records</b>
+  \u2014 ids <span style="font-family:var(--mono)">${esc(ghostIds.join(', '))}</span>. These are <b>not shoes</b>: no name,
+  no price, no colour, no sizes and no photo, because there is nothing in them. That is why they have no picture.
+  A customer can't find them \u2014 the website's search skips anything with no sizes \u2014 so they are harmless,
+  just clutter. Say the word and they get deleted.</p>` : ''}
+  <p class="note">Everything on the website that is <b>not</b> a single \u2014 the other <b>${shown.length}</b> shoes.
   Sorted <b>fewest pairs first</b>, so the top of this list is what is about to become a single. The badge on each
   photo is the <b>number of pairs</b>, and under the colour is which sizes those pairs are
   (<span style="font-family:var(--mono)">9 \u00d72</span> means two pairs of a 9).</p>
-  <div class="grid" id="g-rest">${rest.map(card).join('') || '<div class="empty">Every shoe on the website is down to its last pair.</div>'}</div>
+  <div class="grid" id="g-rest">${shown.map(card).join('') || '<div class="empty">Every shoe on the website is down to its last pair.</div>'}</div>
 </div>
 
 <div id="v-pic" hidden>
