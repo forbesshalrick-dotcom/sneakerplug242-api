@@ -127,6 +127,25 @@ function liveRest() {
       : (a.brand + ' ' + a.name).localeCompare(b.brand + ' ' + b.name));
 }
 
+// 🔴 SHOES KIKI CANNOT SEE. Rodney, 10 Sep: "how will I find with the file name?" — and he
+// is right, `c0391` tells him nothing. So these get their own page with the photo BIG, and he
+// names them off the picture instead of hunting a code.
+//
+// Why it matters more than it looks: liveShoeMap() in server.js walks `catalog`, so a shoe the
+// SHOP has and catalog.json does not is not "out of stock" to Kiki — it does not exist. She
+// tells a customer to their face that we don't carry it while the pairs sit on the shelf. That
+// has cost real money twice already (airmax97black001 on 5 Sep, 8 black AF1s on 6 Sep), which
+// is why runStockCensus() exists. This page is the same census with the photos attached.
+//
+// Rows with NO pairs are left out — those are the empty leftover records, not shoes.
+function orphans() {
+  const cat = catalogue();
+  return shelf()
+    .filter((s) => s.sizes.length && !cat[String(s.id)])
+    .map(dress)
+    .sort((a, b) => b.pairs - a.pairs);
+}
+
 // Catalogue names already carry the brand on most rows ("Jordan" + "Air Jordan 1"
 // reads as "Jordan Air Jordan 1", and "Asics" + "Asics" as "Asics Asics"). Only
 // prefix the brand when the name does not already start with it.
@@ -148,7 +167,13 @@ function mount(app) {
   // else (a future stock screen) can reuse the same definition of "single".
   app.get('/singles.json', (req, res) => {
     res.set('Cache-Control', 'no-store');
-    res.json({ live: liveSingles(), rest: liveRest(), photographed: photos(), photographedAt: '2026-09-04' });
+    res.json({ live: liveSingles(), rest: liveRest(), orphans: orphans(), photographed: photos(), photographedAt: '2026-09-04' });
+  });
+
+  app.get('/nameless', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+    res.type('html').send(namelessPage());
   });
 
   app.get('/singles', (req, res) => {
@@ -171,6 +196,7 @@ function page() {
   // countable, no longer pretending to be a shoe waiting for a photograph.
   // A zero-pair shoe that DOES have a catalogue row is a different animal — a real shoe
   // that has sold out — so that one keeps its card and its red badge.
+  const orph = orphans().length;   // drives the red button in the bottom bar
   const ghosts = rest.filter((o) => o.pairs === 0 && !o.known);
   const ghostIds = ghosts.map((o) => o.id);
   const shown = rest.filter((o) => !(o.pairs === 0 && !o.known));
@@ -283,7 +309,7 @@ function page() {
   <div class="grid" id="g-pic">${pics.map(card).join('')}</div>
 </div>
 
-<nav class="back"><a href="/inbox">‹ Chats</a><a href="https://242plug.com" target="_blank" rel="noopener">Website</a></nav>
+<nav class="back">${orph ? `<a href="/nameless" style="background:#2a1517;border-color:#5a2830;color:#ffc9c9">\u26a0\ufe0f ${orph} need a name</a>` : ''}<a href="/inbox">‹ Chats</a><a href="https://242plug.com" target="_blank" rel="noopener">Website</a></nav>
 <script>
 (function(){
   // Three panes now, so drive them off a list instead of a boolean. Adding a
@@ -316,4 +342,69 @@ function page() {
 </body></html>`;
 }
 
-module.exports = { mount, liveSingles, liveRest };
+// The naming page. Deliberately NOT a form: it has no key on it, it sits on a public
+// server whose repo anyone can read, and a save box would be an unauthenticated write into
+// the shoe catalogue. He reads the picture, says the name out loud, and it gets added to
+// catalog.json properly — which is a commit and a deploy either way, so a form would have
+// saved nobody a step.
+function namelessPage() {
+  const list = orphans();
+  const card = (o) => `<div class="n">
+    <div class="np">${o.img ? `<img loading="lazy" src="${esc(o.img)}" alt="" onerror="this.remove()">` : `<span class="noimg">no photo</span>`}</div>
+    <div class="nm2">
+      <div class="code">${esc(o.id)}</div>
+      <div class="row"><span>${o.pairs} ${o.pairs === 1 ? 'pair' : 'pairs'}</span><span class="pr">${o.price ? '$' + esc(o.price) : '—'}</span></div>
+      <div class="szl">size ${esc(o.sizeList)}</div>
+    </div></div>`;
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Needs a name — THE PLUG 242</title>
+<style>
+  :root{--bg:#0f1115;--card:#171a21;--line:#252a34;--ink:#e7e9ee;--dim:#8b93a7;
+        --hot:#ff8a3d;--ok:#2fe08a;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+  header{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#12151c,#0f1115);
+         border-bottom:1px solid var(--line);padding:12px 14px}
+  h1{margin:0;font-size:19px;letter-spacing:.4px}
+  .sub{color:var(--dim);font-size:12px;margin-top:3px}
+  .note{margin:12px 14px;padding:11px 13px;background:#1c1213;border:1px solid #4a2226;
+        border-radius:10px;color:#f0c2c2;font-size:13px;line-height:1.55}
+  .note b{color:#fff}
+  /* Photo BIG. The whole point of this page is that he recognises the shoe by looking at it,
+     so the picture gets the room and the code shrinks to a footnote. */
+  .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding:0 14px 90px}
+  .n{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .np{aspect-ratio:4/3;background:#0b0d12;display:flex;align-items:center;justify-content:center}
+  .np img{width:100%;height:100%;object-fit:cover;display:block}
+  .noimg{color:#4c5468;font-size:12px}
+  .nm2{padding:11px 12px 13px}
+  .code{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--hot);letter-spacing:.5px}
+  .row{display:flex;justify-content:space-between;align-items:baseline;margin-top:7px;font-size:13.5px}
+  .pr{color:var(--ok);font-family:var(--mono);font-weight:700}
+  .szl{color:var(--dim);font-family:var(--mono);font-size:12px;margin-top:5px}
+  .empty{color:var(--ok);padding:34px 14px;text-align:center;font-size:15px;line-height:1.6}
+  .back{position:fixed;left:0;right:0;bottom:0;background:#12151c;border-top:1px solid var(--line);
+        padding:10px 14px;display:flex;gap:10px}
+  .back a{flex:1;text-align:center;text-decoration:none;color:var(--ink);background:var(--card);
+          border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13.5px;font-weight:600}
+</style></head><body>
+<header>
+  <h1>&#127381; NEEDS A NAME</h1>
+  <div class="sub">${list.length} shoe${list.length === 1 ? '' : 's'} Kiki cannot see</div>
+</header>
+${list.length ? `<p class="note">These are real pairs on your shelf with <b>no name anywhere</b>. Kiki looks shoes up by
+name, so when a customer asks for one of these she says <b>we don't carry it</b> &mdash; while the pairs sit in the
+room. That has already cost money twice.<br><br><b>You don't need the code.</b> Look at the picture, tell me what
+each one is (brand, model, colour) and I'll put it in properly. The orange code is only there so we both know
+which card we're talking about.</p>
+<div class="list">${list.map(card).join('')}</div>`
+: `<div class="empty">&#9989; Nothing here.<br>Every shoe on your shelf has a name Kiki can find.</div>`}
+<nav class="back"><a href="/singles">&lsaquo; Singles</a><a href="/inbox">Chats</a></nav>
+</body></html>`;
+}
+
+module.exports = { mount, liveSingles, liveRest, orphans };
