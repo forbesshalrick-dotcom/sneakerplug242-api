@@ -4307,22 +4307,53 @@ let _pingState = 'ok';        // 'ok' | 'push-only' | 'down'
 // Capped and in-memory: this is a delivery queue for the next few minutes, not a record. The
 // board is where alerts live permanently.
 const ownerQueue = [];
-function queueForOwner(text) {
+// The group message needs a short heading so a driver scanning ten alerts on a phone
+// can tell them apart. The alert's own first line is already that heading.
+function firstLine(t) {
+  return String(t || '').split('\n')[0].replace(/[*_]/g, '').trim().slice(0, 80) || 'Delivery';
+}
+function queueForOwner(text, title, noLink) {
   try {
-    const t = String(text || '').trim();
+    let t = String(text || '').trim();
     if (!t) return;
+
+    // 🔗 THE CONFIRM LINK (Rodney 2026-09-09, his words: "each order notification should
+    // come with a link that leads to a page that confirms the shoe sold or failed because
+    // all drivers are in this group"). The alert goes to the whole delivery group, so the
+    // job needs a single place where the first person to act closes it for the rest. If
+    // making the job fails for any reason we still send the alert — a plain alert beats
+    // no alert, which is the exact hole we are digging ourselves out of.
+    // ⚠️ Dedupe on the text BEFORE the link is added. Every link is unique by design,
+    // so comparing the finished message would never match and the five-copies bug would
+    // walk straight back in — this time into his WhatsApp instead of his board.
+    const raw = t;
+    const now = Date.now();
     // Same alert twice in a minute is the browser bot re-filing one order, not two orders.
     // Rodney has had one job land on his board five times; do not do that to his WhatsApp.
-    const now = Date.now();
-    if (ownerQueue.some(q => q.text === t && now - q.at < 60000)) return;
+    if (ownerQueue.some(q => q.raw === raw && now - q.at < 60000)) return;
+
+    if (!noLink) try {
+      const job = require('./shop').addJob(title || firstLine(t), t);
+      if (job && job.id) t += '\n\n👉 Tap when it\'s done: https://' + WEBSITE + '/j/' + job.id;
+    } catch (_) {}
+
     ownerQueue.unshift({ id: now.toString(36) + Math.random().toString(36).slice(2, 8),
-                         at: now, atISO: new Date(now).toISOString(), text: t, tries: 0 });
+                         at: now, atISO: new Date(now).toISOString(), text: t, raw, tries: 0 });
     if (ownerQueue.length > 50) ownerQueue.length = 50;
   } catch (_) {}
 }
 
 // The bot asks "anything for Rodney?". Oldest first — an order from ten minutes ago matters
 // more than one from ten seconds ago, and arriving out of order reads as chaos.
+// 🔁 THE CLOSING HALF. When a driver taps SOLD or DIDN'T SELL, the result goes back
+// out through the SAME queue the alert came in on, so it lands in the same group the
+// other drivers are reading. Without this the page would only tell the one person who
+// already knows. It deliberately does NOT touch stock — deducting a pair off a tap
+// nobody can undo is a money write, and that stays a decision Rodney makes on purpose.
+try {
+  require('./shop').setJobClosedHook((line) => { try { queueForOwner(line, 'Job closed', true); } catch (_) {} });
+} catch (_) {}
+
 app.get('/alerts/for-owner', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   const now = Date.now();

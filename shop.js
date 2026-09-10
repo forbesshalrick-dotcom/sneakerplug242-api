@@ -72,6 +72,14 @@ const state = {
   proofs: loadFile('proofs.json', {}),      // saleId -> {media_type, data(base64), by, at} — payment screenshots pinned to a sale (kept OUT of /shop/state so the poll payload stays small)
   subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
   pushSeen: loadFile('pushSeen.json', []),  // proof a notification was DRAWN on a screen — sw.js posts here after showNotification. Persisted so "has one EVER landed?" survives a deploy.
+  // 🚚 DELIVERY JOBS — the thing behind the link in every order alert (Rodney 2026-09-09).
+  // The alert now goes to the "Shoe Delivery Orders!" group, which every driver is in. That
+  // fixes "nobody told me" but creates a new problem: five people see the same job and none
+  // of them knows if another already took it. So every alert carries a link to a page with
+  // two buttons — SOLD or DIDN'T SELL — and whoever taps first closes it for everyone. The
+  // record is kept here, NOT in the alert queue, because that queue empties after 30 minutes
+  // and a driver may not open the link until he is standing at the door.
+  jobs: loadFile('jobs.json', []),          // [{id, text, at, state:'open'|'sold'|'failed', by, atDone, note}]
   logins: loadFile('logins.json', {}),      // SERVER-side login patterns: { name: {hash, salt} } — hashed, never plaintext
   rev: loadFile('rev.json', { n: 1 }),
   dateTasks: loadFile('dateTasks.json', {}), // { "YYYY-MM-DD": [{id,text,by,at}] } — queued into THAT evening's WhatsApp reminder (not an instant alert like notes/tasks above)
@@ -1145,6 +1153,24 @@ async function sendPush(title, body, url, tag) {
 }
 
 // ── routes ───────────────────────────────────────────────────────────────────
+// 🚚 One delivery job = one link. Called from the alert path in server.js, which owns
+// the wording of the alert; this side only owns the record and the page.
+let onJobClosed = null;
+function setJobClosedHook(fn) { onJobClosed = fn; }
+function addJob(title, text) {
+  try {
+    // The id rides inside a WhatsApp group message, so it has to be long enough that
+    // nobody can walk the list by guessing — it is the only thing guarding the page.
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    const job = { id, title: String(title || 'Delivery').slice(0, 90),
+                  text: String(text || '').slice(0, 1200),
+                  at: new Date().toISOString(), state: 'open' };
+    state.jobs = [job].concat(Array.isArray(state.jobs) ? state.jobs : []).slice(0, 400);
+    persist('jobs.json');
+    return job;
+  } catch (e) { return null; }
+}
+
 function mount(app) {
   // ── 🤖 A LINK PREVIEWER MUST NEVER TOUCH STOCK (Rodney 2026-08-19) ───────────
   // The "stock keeps reverting" saga, finally pinned down. On 16 Aug at 04:13:27–30Z,
@@ -1711,6 +1737,92 @@ function mount(app) {
   // "accepted" forever and nothing ever appears. Only the phone itself knows its own address,
   // so it has to be the one to ask. Takes the last chunk of that address, which is already a
   // long random token, and answers yes/no. No key: it reveals nothing you did not already have.
+  // ═══ 🚚 THE CONFIRM LINK ════════════════════════════════════════════════════
+  // Every order alert now lands in the drivers' group, so five people read the same
+  // job. Without this, two drivers run the same delivery and a third assumes someone
+  // else has it. The link at the bottom of each alert opens this page: two buttons,
+  // first tap wins, and the outcome goes straight back to the group so the rest of
+  // them stop. It is deliberately keyless — the id is a long random string that only
+  // arrives inside the alert, and the page can do nothing except close its own job.
+  app.get('/j/:id', (req, res) => {
+    const j = (Array.isArray(state.jobs) ? state.jobs : []).find(x => x.id === String(req.params.id));
+    if (!j) return res.status(404).type('text/html').send(jobPage(null));
+    res.set('Cache-Control', 'no-store').type('text/html').send(jobPage(j));
+  });
+
+  app.post('/j/:id/close', (req, res) => {
+    const jobs = Array.isArray(state.jobs) ? state.jobs : [];
+    const j = jobs.find(x => x.id === String(req.params.id));
+    if (!j) return res.json({ ok: false, why: 'that job is gone' });
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const want = String(b.outcome || '').toLowerCase() === 'sold' ? 'sold' : 'failed';
+    const who = String(b.by || '').trim().slice(0, 40) || 'someone';
+    const note = String(b.note || '').trim().slice(0, 200);
+
+    // FIRST TAP WINS. If it is already closed, say who closed it rather than
+    // overwriting — two drivers tapping opposite buttons must not silently fight.
+    if (j.state && j.state !== 'open') {
+      return res.json({ ok: false, already: true, state: j.state, by: j.by || 'someone',
+                        why: 'Already marked ' + j.state.toUpperCase() + ' by ' + (j.by || 'someone') });
+    }
+    j.state = want; j.by = who; j.atDone = new Date().toISOString(); if (note) j.note = note;
+    persist('jobs.json');
+
+    // Tell the group. This is the half that stops the other four drivers.
+    try {
+      const head = want === 'sold' ? '✅ SOLD' : '❌ DIDN’T SELL';
+      const line = head + ' — ' + (j.title || 'job') + '\nBy ' + who + (note ? '\n"' + note + '"' : '')
+                 + '\nNobody else needs to run this one.';
+      if (typeof onJobClosed === 'function') onJobClosed(line, j, want);
+    } catch (_) {}
+    res.json({ ok: true, state: want, by: who });
+  });
+
+  function jobPage(j) {
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    if (!j) return '<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">'
+      + '<body style="background:#111;color:#eee;font:17px/1.5 system-ui;padding:28px">'
+      + '<h2>That job is gone</h2><p>The link is old, or the job was cleared. '
+      + 'Open the shop and check the board.</p>';
+    const closed = j.state && j.state !== 'open';
+    return '<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">'
+      + '<title>' + esc(j.title || 'Delivery') + '</title>'
+      + '<body style="background:#111;color:#eee;font:17px/1.55 system-ui;margin:0;padding:22px 18px 60px">'
+      + '<div style="max-width:520px;margin:0 auto">'
+      + '<div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8b8b8b">Delivery job</div>'
+      + '<h1 style="font-size:24px;margin:6px 0 14px">' + esc(j.title || 'Delivery') + '</h1>'
+      + '<pre style="white-space:pre-wrap;word-wrap:break-word;background:#1c1c1c;border-radius:12px;'
+      + 'padding:14px;font:15px/1.5 system-ui;margin:0 0 20px">' + esc(j.text || '') + '</pre>'
+      + '<div id=box>' + (closed
+          ? '<div style="background:#1f3a1f;border-radius:12px;padding:16px;font-size:18px">'
+            + (j.state === 'sold' ? '✅ Marked SOLD' : '❌ Marked DIDN’T SELL')
+            + ' by ' + esc(j.by || 'someone') + '</div>'
+          : '<input id=who placeholder="Your name" autocomplete=name '
+            + 'style="width:100%;box-sizing:border-box;padding:14px;border-radius:12px;border:1px solid #3a3a3a;'
+            + 'background:#1c1c1c;color:#eee;font-size:17px;margin-bottom:10px">'
+            + '<input id=note placeholder="Anything to add? (optional)" '
+            + 'style="width:100%;box-sizing:border-box;padding:14px;border-radius:12px;border:1px solid #3a3a3a;'
+            + 'background:#1c1c1c;color:#eee;font-size:17px;margin-bottom:16px">'
+            + '<button onclick="go(\'sold\')" style="width:100%;padding:20px;font-size:20px;font-weight:600;'
+            + 'border:0;border-radius:14px;background:#1d7f3a;color:#fff;margin-bottom:12px">✅ SOLD IT</button>'
+            + '<button onclick="go(\'failed\')" style="width:100%;padding:20px;font-size:20px;font-weight:600;'
+            + 'border:0;border-radius:14px;background:#8a2222;color:#fff">❌ DIDN’T SELL</button>') + '</div>'
+      + '<p style="color:#8b8b8b;font-size:14px;margin-top:22px">Whoever taps first closes this for everyone. '
+      + 'The group gets told straight away so nobody doubles up.</p></div>'
+      + '<script>function go(o){var b=document.getElementById("box");'
+      + 'var who=(document.getElementById("who")||{}).value||"";'
+      + 'var note=(document.getElementById("note")||{}).value||"";'
+      + 'if(!who.trim()){alert("Put your name in first so the group knows who has it.");return;}'
+      + 'b.innerHTML=\'<div style="padding:16px;font-size:18px">Sending\\u2026</div>\';'
+      + 'fetch(location.pathname+"/close",{method:"POST",headers:{"Content-Type":"application/json"},'
+      + 'body:JSON.stringify({outcome:o,by:who,note:note})}).then(function(r){return r.json();})'
+      + '.then(function(j){b.innerHTML=\'<div style="background:\'+(j.ok?"#1f3a1f":"#3a2a1f")+\';border-radius:12px;padding:16px;font-size:18px">\'+'
+      + '(j.ok?(o==="sold"?"\\u2705 Marked SOLD. The group has been told.":"\\u274c Marked did not sell. The group has been told."):'
+      + '(j.why||"Could not save that \\u2014 tap again."))+\'</div>\';})'
+      + '.catch(function(){b.innerHTML=\'<div style="background:#3a2a1f;border-radius:12px;padding:16px">No signal. Tap again when you have bars.</div>\';});}<\/script>';
+  }
+
   app.get('/shop/push/known', (req, res) => {
     const tail = String(req.query.tail || '');
     const subs = Array.isArray(state.subs) ? state.subs : [];
@@ -2388,4 +2500,4 @@ function deleteDateTask(dateKey, id) {
 // how a warning stops being believed.
 function pushCount() { return (webpush && Array.isArray(state.subs)) ? state.subs.length : 0; }
 
-module.exports = { pushCount, mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
+module.exports = { pushCount, mount, addJob, setJobClosedHook, getJobs: () => (Array.isArray(state.jobs) ? state.jobs : []), setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
