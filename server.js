@@ -7362,6 +7362,14 @@ shareFallbackToken(lastToken);
 // + WhatsApp alerts to employees on new notes.
 require('./shop').mount(app);
 
+// ── 👟 SINGLES (Rodney 2026-09-10) ───────────────────────────────────────────
+// "add a tab called singles in the website and chat app" / "this isnt for
+// customers only backend". Staff page at /singles — see singles.js for why the
+// live list and the 4 Sep photo set are deliberately NOT merged.
+// Mounted after shop.js because it reads live stock through shop.getShoes().
+try { require('./singles').mount(app); }
+catch (e) { console.error('[singles] not mounted:', e && e.message); }
+
 // ── Manual control panel (/console) ───────────────────────────────────────────
 // A private, key-gated page where Rodney picks a customer (or types their number)
 // and tells the bot what to send — for when a customer asks and the bot didn't
@@ -8071,7 +8079,10 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .sbtn.dens.on{color:#7dffb0;border-color:rgba(46,224,138,.6);box-shadow:0 0 12px rgba(46,224,138,.35)}
   /* bottom nav */
   .bottomnav{display:flex;justify-content:space-around;align-items:center;padding:5px 6px calc(4px + env(safe-area-inset-bottom));background:transparent;border-top:0;flex-shrink:0}
-  .navbtn{background:none;border:0;color:#c3c8d6;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+  .navbtn{background:none;border:0;color:#c3c8d6;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;font-family:'Space Grotesk';font-weight:700;cursor:pointer;position:relative;padding:2px 8px;text-shadow:0 1px 4px rgba(0,0,0,.9);
+    /* 6 items since Singles was added 2026-09-10 — let them squeeze instead of
+       pushing 'My #' off the edge of a narrow phone. */
+    flex:0 1 auto;min-width:0;white-space:nowrap}
   .navbtn svg{width:19px;height:19px}
   .navbtn.active{color:var(--si);filter:drop-shadow(0 0 8px transparent)}
   /* multi-select: highlighted rows + the send bar */
@@ -8435,6 +8446,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     <button class="navbtn" id="nav-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg><span>Search</span></button>
     <button class="navbtn" id="nav-new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><span>New</span></button>
     <button class="navbtn" id="nav-chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/></svg><span id="navChatBadge" class="navbadge" style="display:none">0</span><span>Chats</span></button>
+    <a class="navbtn" id="nav-singles" href="/singles" style="text-decoration:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c0-1 .6-1.6 1.6-2.2l3-1.8c.8-.5 1.2-1 1.3-1.9l.2-2.1 4.6 1.1-.3 2.4c-.1.9.2 1.6.9 2.2l3.3 2.7c.9.7 1.4 1.4 1.4 2.4v.2H3Z"/><path d="M9.1 7.5 8.9 5.4l-4.6.6.3 3"/></svg><span>Singles</span></a>
     <button class="navbtn" id="nav-my"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="2.2"/><path d="M12 6.7V21"/><path d="M7 11h10"/><path d="M4.5 13.5a7.5 7.5 0 0 0 15 0"/></svg><span>My #</span></button>
   </nav>
 </div>
