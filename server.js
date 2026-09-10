@@ -748,6 +748,7 @@ app.get('/debug-deliveries', (req, res) => {
 // this server cannot send on at all. Nobody designed that asymmetry and it reads as broken.
 // Do NOT paste a ManyChat token in to "fix" it: FF has no ManyChat account, and borrowing another
 // shop's token is the bug we removed — it delivered a Foot Fetish reply under Trendy Kicks' name.
+let lastSendFail = null;   // ManyChat's most recent refusal — see the note at the send-fail logger
 app.get('/debug-tokens', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   const browser = [...new Set([...inboxThreads.values()].map(t => t.account).filter(a => a && !storeTokens.has(a)))];
@@ -755,6 +756,17 @@ app.get('/debug-tokens', (req, res) => {
     storesWithToken: [...storeTokens.keys()],
     hasLastToken: !!lastToken,
     managerStores: Object.keys(MANAGER_SUB_BY_STORE).map(store => ({ store, hasToken: storeTokens.has(store) })),
+    // ⚠️ THE HONEST FIELD. "hasToken" only means a string exists. This says whether the
+    // account behind it is still answering, which is the thing anyone reading this page
+    // actually wants to know.
+    lastManyChatRefusal: lastSendFail,
+    canActuallySend: !(lastSendFail && (lastSendFail.status === 401 || /integrations ability/i.test(lastSendFail.body || ''))),
+    tokenWarning: (lastSendFail && (lastSendFail.status === 401 || /integrations ability/i.test(lastSendFail.body || '')))
+      ? '⛔ TOKENS ARE PRESENT BUT USELESS. ManyChat last answered ' + lastSendFail.status
+        + ' — API access is switched off for this account, so EVERY WhatsApp send from this '
+        + 'server fails: owner alerts, staff task alerts, the lot. Do not read "hasToken: true" '
+        + 'as "can send". The working road is the browser bot on the other Mac.'
+      : null,
     browserLines: browser,
     browserLinesNote: browser.length
       ? 'These lines have NO send token ON PURPOSE — a browser bot on another machine answers them in WhatsApp Web directly. They receive fine. /inbox/send refuses them rather than borrowing another shop\'s account. Not something to fix by adding a token.'
@@ -1471,6 +1483,12 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // ManyChat can fail with an error HTTP status OR a 200 carrying {"status":"error"}.
   // Either way, LOG it — silent send failures made Kiki look like she ignored a
   // customer (2026-07-14: two voice questions got no reply and nothing was recorded).
+  // 📉 REMEMBER WHAT MANYCHAT ACTUALLY SAID. /debug-tokens reported "hasToken: true" for all
+  // three stores all night while every single send was being refused — a token behind an
+  // account that no longer answers. That misled two separate sessions into looking at the
+  // wrong half of the problem. A token is not permission; only ManyChat's last real answer
+  // is evidence, so keep it and make /debug-tokens say it out loud.
+  try { lastSendFail = { at: new Date().toISOString(), status: r.status, body: String(body || '').slice(0, 200) }; } catch (_) {}
   saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
   noteSendFailure(subscriberId, body, token);   // 🚨 watchdog — pings Rodney when the pipe starts failing
   if (recent.length > 120) recent.length = 120;
