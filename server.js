@@ -4332,7 +4332,19 @@ function queueForOwner(text, title, noLink) {
     // Rodney has had one job land on his board five times; do not do that to his WhatsApp.
     if (ownerQueue.some(q => q.raw === raw && now - q.at < 60000)) return;
 
-    if (!noLink) try {
+    // 🚦 ONLY REAL JOBS GET A LINK. Caught the moment the first test ran: system warnings
+    // ("MANYCHAT IS DROPPING MESSAGES", "THIS CUSTOMER IS CUT OFF") were coming out with
+    // "👉 Tap when it's done" stuck on the bottom. A driver reading that in the group has
+    // nothing to tap it about — there is no shoe and no address. Worse, it teaches everyone
+    // that the link sometimes means nothing, and then they stop tapping the ones that matter.
+    // ALLOWLIST, not a blocklist: an alert we do not recognise gets NO link, because a
+    // missing link on a real job is a small loss and a meaningless link on every warning
+    // kills the whole habit.
+    // A closure already passes noLink, but it also quotes the job's own heading, so it
+    // would match the allowlist if anyone ever forgot. Belt and braces — cheap.
+    const isJob = !/^(✅|❌)/.test(raw)
+      && (/^(📞|🛵|🛒|👟)/.test(raw) || /PHONE CALL|DELIVERY READY|NEW ORDER|ORDER —/i.test(raw.split('\n')[0]));
+    if (!noLink && isJob) try {
       const job = require('./shop').addJob(title || firstLine(t), t);
       if (job && job.id) t += '\n\n👉 Tap when it\'s done: https://' + WEBSITE + '/j/' + job.id;
     } catch (_) {}
