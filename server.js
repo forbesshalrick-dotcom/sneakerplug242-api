@@ -8903,7 +8903,22 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
               +'<span class="lt cust"><b class="ctag">Call:</b> '+esc(what)+'</span>'
               +'<span class="lt rep">'+sub2+'</span>'
               +(t.recording
-                  ? '<audio controls preload="none" src="'+esc(t.recording)+'"></audio>'
+                  /* THE CALL RECORDINGS WOULD NOT PLAY - they stopped a few seconds in
+                   * and the player read 0:00 / 0:00. Rodney, 2026-09-11: "I cant play
+                   * the calls back the recordings cut out after 6 seconds."
+                   *
+                   * The files themselves are fine: the last one is a valid 51.4s WAV,
+                   * 2.4 MB, and CloudFront serves byte ranges. Two things in this one
+                   * line broke it. The URL comes back as content-type
+                   * application/octet-stream, not audio/wav, so the browser will not
+                   * commit to it as audio; and preload="none" means it never loads the
+                   * metadata, so there is no duration to seek against and playback
+                   * stops at whatever it happened to buffer.
+                   *
+                   * A <source> with an explicit type tells the browser what it is
+                   * regardless of the server's header, and preload="metadata" fetches
+                   * the header so the length is known before anyone presses play. */
+                  ? '<audio controls preload="metadata"><source src="/voice/recording?u='+encodeURIComponent(t.recording)+'" type="audio/wav"></audio>'
                   : '<span class="norec">No recording saved for this one</span>')
             +'</div></div>';
         }
@@ -10841,6 +10856,44 @@ app.get('/pay', (req, res) => {
   if (!PAY_HTML) return res.status(404).type('text/plain').send('not set up yet');
   // A payment page is never something a stale cache should serve — always fresh.
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate').type('html').send(PAY_HTML);
+});
+
+/* /voice/recording - serve a call recording as AUDIO.
+ *
+ * Retell's CloudFront URLs come back as content-type application/octet-stream.
+ * A browser will not treat that as playable audio with any confidence: the
+ * Inbox player showed 0:00 / 0:00 and stopped a few seconds in. Rodney,
+ * 2026-09-11: "I cant play the calls back the recordings cut out after 6
+ * seconds." The files are fine - the one I checked was a valid 51.4s WAV.
+ *
+ * So this passes the bytes through with the right Content-Type and with Range
+ * support intact, which is what lets the player scrub and play to the end.
+ *
+ * LOCKED TO RETELL'S HOST. An open URL proxy would let anyone use this server
+ * to fetch anything; only the recordings CDN is allowed through.
+ */
+const RECORDING_HOSTS = new Set(['dxc03zgurdly9.cloudfront.net']);
+app.get('/voice/recording', async (req, res) => {
+  let u;
+  try { u = new URL(String(req.query.u || '')); } catch (e) { return res.status(400).send('bad url'); }
+  if (u.protocol !== 'https:' || !RECORDING_HOSTS.has(u.hostname)) return res.status(403).send('not a recording host');
+  try {
+    const headers = {};
+    if (req.headers.range) headers.range = req.headers.range;      // let the player seek
+    const r = await fetch(u.toString(), { headers });
+    res.status(r.status);
+    res.set('Content-Type', 'audio/wav');
+    res.set('Accept-Ranges', 'bytes');
+    res.set('Cache-Control', 'private, max-age=3600');
+    for (const h of ['content-length', 'content-range']) {
+      const v = r.headers.get(h);
+      if (v) res.set(h, v);
+    }
+    const buf = Buffer.from(await r.arrayBuffer());
+    return res.end(buf);
+  } catch (e) {
+    return res.status(502).send('recording fetch failed');
+  }
 });
 
 app.get('/inbox', (req, res) => {
