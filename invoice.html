@@ -1,0 +1,1094 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoices — Sneaker Inventory</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap">
+<!-- Add to Home screen: gives it an icon and its own window, so it opens like an app. -->
+<meta name="theme-color" content="#111827">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Invoices">
+<link rel="apple-touch-icon" href="/invoice-icon-192.png">
+<link rel="icon" href="/invoice-icon-192.png">
+<link rel="manifest" href="/invoice-manifest.json">
+<style>
+:root{--ink:#12151a;--soft:#6b7280;--line:#e3e7ee;--paper:#fff;--wash:#f4f6fa;
+  --brand:#111827;--gold:#c8912f;--blue:#1f6feb;--good:#137a4a;--bad:#b42318;--r:14px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--wash);color:var(--ink);
+  font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+input,select,textarea,button{font:inherit;color:inherit}
+
+#gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.gatebox{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);
+  padding:28px 24px;max-width:340px;width:100%;text-align:center}
+.gatebox h1{margin:0 0 4px;font-size:20px}
+.gatebox p{margin:0 0 18px;color:var(--soft);font-size:13.5px}
+#pin{width:100%;text-align:center;letter-spacing:.4em;font-size:22px;padding:12px;
+  border:1px solid var(--line);border-radius:10px;background:var(--wash)}
+#gate-msg{color:var(--bad);font-size:13px;min-height:18px;margin-top:10px}
+.showpin{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:9px;
+  font-size:12.5px;color:var(--soft)}
+.showpin input{width:auto}
+.stamp{margin-top:10px;font-size:11px;color:#9aa2af}
+.btn{padding:10px 15px;border-radius:10px;border:1px solid var(--brand);background:var(--brand);
+  color:#fff;cursor:pointer;font-size:14px}
+.btn.ghost{background:var(--paper);color:var(--ink);border-color:var(--line)}
+.btn.slim{padding:7px 12px;font-size:13px}
+
+/* toolbar */
+header.top{background:var(--paper);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30}
+.topin{max-width:860px;margin:0 auto;padding:9px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tabs{display:flex;gap:6px;margin-left:auto}
+.tab{padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--paper);
+  cursor:pointer;font-size:13px}
+.tab[aria-selected="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+.wrap{max-width:860px;margin:0 auto;padding:14px 12px 60px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.bar input{flex:1;min-width:170px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--paper)}
+.hint{font-size:12.5px;color:var(--soft);margin:-6px 0 10px}
+.hint.err{color:var(--bad)}
+
+/* the receipt — everything on it is editable in place */
+.pv{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+[contenteditable]{outline:none;border-radius:5px;padding:1px 3px;margin:0 -3px;
+  transition:background .12s}
+[contenteditable]:hover{background:#f1f5fb}
+[contenteditable]:focus{background:#e8f0fe;box-shadow:0 0 0 2px #bcd4fb}
+[contenteditable]:empty:before{content:attr(data-ph);color:#aab1bd}
+
+.pvtop{display:flex;flex-direction:column;gap:14px}   /* stacked at every width - side by side
+   let the cursive thank-you run into DELIVERY INFO on a wide screen */
+.pvtop .contact{align-self:flex-end}
+.thanks{font-family:"Dancing Script",cursive;font-weight:700;font-size:40px;line-height:1.1}
+.pvstore{font-size:12.5px;color:var(--soft);white-space:pre-line;text-align:right}
+.pvtitle{margin:16px 0 3px;font-size:26px;letter-spacing:.12em;font-weight:700}
+.pvmeta{color:var(--soft);font-size:13px;margin-bottom:15px;font-variant-numeric:tabular-nums;
+  display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;cursor:pointer}
+.pill.Paid{color:var(--good);border-color:#bfe3d0;background:#eaf7f0}
+.pill.Sent{color:#1d4ed8;border-color:#c9d8fb;background:#eef3fe}
+.pill.Draft{color:#9a6200;border-color:#f0dcae;background:#fdf6e6}
+h4.lbl{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--soft)}
+.pvto{display:grid;gap:14px;grid-template-columns:1fr 1fr;margin-bottom:14px}
+@media(max-width:560px){.pvto{grid-template-columns:1fr}.pvstore{text-align:left}}
+.ml{white-space:pre-line}
+
+.oc{border:1px solid var(--line);border-radius:12px;padding:11px;margin-bottom:9px;position:relative}
+.octop{display:flex;gap:11px}
+.ocimg{width:78px;height:78px;flex:0 0 78px;border-radius:9px;background:var(--wash);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;color:#b6bcc7;font-size:10.5px;
+  cursor:pointer;border:1px dashed var(--line);text-align:center}
+.ocimg img{width:100%;height:100%;object-fit:cover}
+.ocmid{flex:1;min-width:0}
+.ocmid .nm{font-weight:600;font-size:14px}
+.ocopt{color:var(--soft);font-size:12.5px;margin-top:2px}
+.ocqty{margin-top:6px;font-size:13px}
+.ocright{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ocright .amt{font-size:15px;font-weight:700;display:block}
+.ocright small{color:var(--soft)}
+.del{position:absolute;top:6px;right:7px;border:0;background:none;color:#c8ccd4;cursor:pointer;font-size:15px}
+.oc:hover .del{color:var(--bad)}
+
+.tot{border-top:1px solid var(--line);margin-top:12px;padding-top:11px}
+.tl{display:flex;justify-content:space-between;padding:4px 0;font-variant-numeric:tabular-nums;gap:12px}
+.tl.big{font-size:19px;font-weight:700;border-top:1px solid var(--line);margin-top:6px;padding-top:10px}
+
+.dl{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.dbar{display:flex;min-width:230px}
+.dstep{flex:1;text-align:center;position:relative;min-width:0;cursor:pointer}
+.dstep .nm{display:block;font-size:12px;margin-top:5px}
+.dstep small{color:var(--soft);font-size:11px}
+.ddot{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;
+  border-radius:50%;border:2px solid #ccd2dc;background:var(--paper);color:#fff;font-size:11px;
+  position:relative;z-index:1}
+.dstep.on .ddot{background:var(--blue);border-color:var(--blue)}
+.dline{position:absolute;top:10px;right:50%;width:100%;height:3px;background:#ccd2dc}
+.dstep.on .dline{background:var(--blue)}
+.trk{display:flex;justify-content:space-between;gap:10px;font-size:13.5px}
+.trk .num{font-variant-numeric:tabular-nums;word-break:break-all;text-align:right;font-weight:600}
+.trkbtn{display:block;text-align:center;margin-top:9px;padding:10px;border:1px solid var(--blue);
+  color:var(--blue);border-radius:999px;text-decoration:none;font-size:14px}
+.payrow{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.payrow small{display:block;color:var(--soft);font-size:12px}
+.foot{margin-top:15px;text-align:center;color:var(--soft);font-size:13px}
+
+.inv{display:flex;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);
+  border-radius:11px;margin-bottom:9px;background:var(--paper);cursor:pointer}
+.inv .n{margin-right:auto;min-width:0}
+.inv .n b{display:block}
+.inv .n small{color:var(--soft)}
+.amt2{font-weight:700;font-variant-numeric:tabular-nums}
+.badge{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+.del2{border:1px solid var(--line);background:var(--paper);border-radius:8px;
+  padding:6px 10px;color:#c8ccd4;cursor:pointer;font-size:13px}
+.del2:hover,.del2.arm{color:#fff;background:var(--bad);border-color:var(--bad)}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.f{display:flex;flex-direction:column;gap:5px;margin-bottom:11px}
+.f label{font-size:12.5px;color:var(--soft)}
+.f input,.f textarea{padding:10px 11px;border:1px solid var(--line);border-radius:9px;width:100%}
+.f textarea{min-height:64px}
+.muted{color:var(--soft);font-size:13.5px}
+.saveline{font-size:13px;color:var(--soft);min-height:18px;margin-top:8px}
+.err{color:var(--bad)} .ok{color:var(--good)}
+.sres{border:1px solid var(--line);border-radius:11px;max-height:280px;overflow:auto;margin-bottom:12px}
+.sres:empty{display:none}
+.sitem{padding:10px 11px;border-bottom:1px solid var(--line)}
+.sitem:last-child{border-bottom:0}
+.sitem b{display:block;font-size:14px}
+.sitem small{color:var(--soft)}
+.sizes{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.sz{border:1px solid var(--line);background:var(--wash);border-radius:7px;padding:5px 10px;
+  cursor:pointer;font-size:13px}
+@media print{
+  header.top,.bar,.sres,.hint,.saveline{display:none!important}
+  body{background:#fff}.wrap{padding:0;max-width:none}
+  .pv{border:0;padding:0}
+  [contenteditable]:hover{background:none}
+}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <form class="gatebox" id="gate-form" novalidate>
+    <h1>Sneaker <span style="color:#c8912f">Inventory</span></h1>
+    <p>Manager PIN</p>
+    <input id="pin" type="text" inputmode="numeric" name="sp-pin" autocomplete="one-time-code"
+           autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="10" autofocus
+           style="-webkit-text-security:disc">
+    <label class="showpin"><input type="checkbox" id="showpin"> Show</label>
+    <div id="gate-msg"></div>
+    <div class="stamp" id="stamp"></div>
+    <button class="btn" id="gate-open" style="width:100%;margin-top:12px" type="button">Open</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header class="top">
+    <div class="topin">
+      <button class="btn slim" id="b-save">Save</button>
+      <button class="btn ghost slim" id="b-new">New</button>
+      <select id="fmt" class="btn ghost slim" title="Paper size for PDF and Send"
+              style="padding-right:6px">
+        <option value="mobile">Mobile</option>
+        <option value="desktop">Desktop</option>
+      </select>
+      <button class="btn ghost slim" id="b-view">View</button>
+      <button class="btn ghost slim" id="b-pdf">PDF</button>
+      <button class="btn ghost slim" id="b-share">Send</button>
+      <button class="btn ghost slim" id="b-print">Print</button>
+      <div class="tabs" id="tabs">
+        <button class="tab" data-view="edit" aria-selected="true">Receipt</button>
+        <button class="tab" data-view="list" aria-selected="false">Saved</button>
+        <button class="tab" data-view="settings" aria-selected="false">Settings</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <section id="view-edit">
+      <div class="bar">
+        <input id="q" placeholder="Search your stock to add a shoe…">
+        <button class="btn ghost slim" id="b-custom">+ Blank line</button>
+      </div>
+      <div class="sres" id="sres"></div>
+      <p class="hint" id="stockhint"></p>
+      <div id="preview" class="pv"></div>
+      <div class="saveline" id="saveline"></div>
+    </section>
+
+    <section id="view-list" hidden>
+      <div class="card">
+        <div class="f"><input id="lq" placeholder="Search customer or invoice number"></div>
+        <div id="list"><p class="muted">Loading…</p></div>
+      </div>
+    </section>
+
+    <section id="view-settings" hidden>
+      <div class="card">
+        <div class="f"><label for="s-name">Store name</label><input id="s-name"></div>
+        <div class="f"><label for="s-addr">Address / contact block (top right)</label><textarea id="s-addr"></textarea></div>
+        <div class="f"><label for="s-logo">Logo URL (leave blank for none)</label><input id="s-logo"></div>
+        <div class="f"><label for="s-pay">Payment instructions</label><textarea id="s-pay"></textarea></div>
+        <div class="f"><label for="s-trackurl">Tracking link — put {tracking} where the number goes</label>
+          <input id="s-trackurl"></div>
+        <div class="row-btns"><button class="btn" id="b-ssave">Save settings</button></div>
+        <div class="saveline" id="sline"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+window.onerror = function (msg, src, line) {
+  var el = document.getElementById('gate-msg') || document.getElementById('saveline');
+  if (el) el.textContent = 'JS error: ' + msg + ' (line ' + line + ')';
+  return false;
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script>
+/* ─────────────────────────────────────────────────────────────
+   Invoices — Sneaker Inventory
+
+   THE RECEIPT IS THE FORM. Everything you can see on the invoice
+   is editable where it sits - tap the customer's name, the price,
+   the tracking number, the thank-you line. There is no separate
+   form feeding a preview, because that was the wrong shape: he
+   wanted to look at the receipt and change it.
+
+   Two rules that fall out of that, and both matter:
+   - While you are typing in a field, the receipt is NOT redrawn.
+     Redrawing would move the caret to the start of the line on
+     every keystroke. Only the numbers that depend on what you
+     typed are updated in place; the full redraw waits for blur.
+   - Nothing here ever writes to sp242/inventory. Stock counts are
+     read only - there is a known reversion bug in that document
+     and an invoice is a piece of paper, not an order.
+   ───────────────────────────────────────────────────────────── */
+
+var FIREBASE_CONFIG = {
+  apiKey: "AIzaSyA0Akim2J-q7y_E3xowbWR4xwk5YY-mlpM",
+  authDomain: "sneakerplug242-1a20e.firebaseapp.com",
+  projectId: "sneakerplug242-1a20e",
+  storageBucket: "sneakerplug242-1a20e.firebasestorage.app",
+  messagingSenderId: "673728230894",
+  appId: "1:673728230894:web:1cb702c18783ba528f8aff",
+  measurementId: "G-SJL8CG3CY9"
+};
+var CLOUDINARY_CLOUD = 'dhtoimjnv';
+var CLOUDINARY_PRESET = 'sp242xx';
+var BUILD = '13 Sep 14:14';
+
+var CATALOG = [{"id":"jordan4purple001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Purple/Black/Yellow","price":190.0,"sizes":["7","8.5","9","9.5","9.5","10","10.5"]},{"id":"c0644","brand":"Jordan","name":"Air Jordan 4 Retro","color":"All Grey","price":180.0,"sizes":["5.5","6.5","7","7","8","8","8.5","8.5","8.5","8.5","9","9","9.5","9.5","9.5","9.5","10","10","10","10","10","10","10.5","10.5","10.5","10.5","10.5","10.5","11","11","12","12","13","13","13"]},{"id":"c0646","brand":"Jordan","name":"Air Jordan 4 Retro","color":"White/Grey","price":180.0,"sizes":["12"]},{"id":"c0647","brand":"Jordan","name":"Air Jordan 5 Retro","color":"Black/Blue","price":180.0,"sizes":["5.5","6.5","7","7","8","9.5","13"]},{"id":"co601","brand":"Crocs","name":"Crocs","color":"White/Cream","price":65.0,"sizes":["6","8","7","11","11"]},{"id":"co612","brand":"New Balance","name":"New Balance","color":"Black/Grey/Red","price":130.0,"sizes":["9","9","9","9.5","9.5","9.5","9.5","11","11","11","8.5","8.5","8.5","8","8","8","9","9","9","9.5","9.5","9.5","7","7","6.5","6.5","10","10","7.5","7.5","5.5","5.5"]},{"id":"co617","brand":"New Balance","name":"New Balance","color":"Black/Green","price":130.0,"sizes":["11","11","11","8","8","8","6.5","6.5","8.5","8.5","8.5","9","9","9","7.5","7.5","7","7","10","10","10","5.5","5.5","9.5","9.5","9.5","9.5"]},{"id":"co618","brand":"New Balance","name":"New Balance","color":"White/Pink/Silver","price":130.0,"sizes":["7","7","5.5","5.5","6.5","6.5"]},{"id":"co619","brand":"Crocs","name":"Crocs","color":"Blue","price":65.0,"sizes":["9","9","10"]},{"id":"co621","brand":"Crocs","name":"Crocs","color":"Brown","price":65.0,"sizes":["8"]},{"id":"co622","brand":"Crocs","name":"Crocs","color":"Cream/Brown","price":65.0,"sizes":["5"]},{"id":"co623","brand":"Crocs","name":"Crocs","color":"Black/Brown","price":65.0,"sizes":["5"]},{"id":"co624","brand":"Crocs","name":"Crocs","color":"Green","price":65.0,"sizes":["9","10","10"]},{"id":"co630","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Red/Black/Grey","price":180.0,"sizes":["7","7","7","9","9","9.5","9.5","10.5","10.5","11","11","12","12","13","13"]},{"id":"co632","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Brown/White","price":180.0,"sizes":["5.5","5.5","6.5","6.5","7","7","8","8","8.5","8.5","9","9","9","9.5","9.5","9.5","10","10","10.5","10.5","10.5","11","11","12","12","13","13"]},{"id":"co633","brand":"ASICS","name":"ASICS Gel","color":"Pink/Black/Silver","price":120.0,"sizes":["7.5","7.5","9","9","9.5","9.5","7","11","11","8"]},{"id":"co634","brand":"New Balance","name":"New Balance","color":"Grey/Silver","price":130.0,"sizes":["7.5","7.5","8","8","8","7","7","6.5","6.5","11","11","11","9.5","9.5","9.5","9.5","9","9","9","5.5","5.5","10","10","8.5","8.5","8.5"]},{"id":"co548","brand":"Jordan","name":"Air Jordan 1 Low","color":"All Black","price":120.0,"sizes":["7","9"]},{"id":"co574","brand":"Nike","name":"Nike Air Force 1","color":"All Black","price":120.0,"sizes":["6.5","6.5","7","7","7","7","7","7","7.5","7.5","7.5","8","8","8","8","8","8","8","8.5","8.5","9","9","9.5","10","10.5","11"]},{"id":"co520","brand":"Nike","name":"Nike Air Max 97","color":"White/Pink/Purple/Blue","price":120.0,"sizes":["5.5"]},{"id":"co536","brand":"Nike","name":"Nike Air Force 1","color":"Green Glow","price":120.0,"sizes":["8"]},{"id":"co539","brand":"Nike","name":"Nike Air Max Plus","color":"White/Blue","price":120.0,"sizes":["8"]},{"id":"co541","brand":"Nike","name":"Nike Air Max 90","color":"Green/Cream","price":120.0,"sizes":["6.5"]},{"id":"co544","brand":"Nike","name":"Nike Roshe","color":"Blue","price":50.0,"sizes":["7"]},{"id":"co545","brand":"Nike","name":"Nike Air Max 95","color":"Grey/Blue","price":130.0,"sizes":["6.5"]},{"id":"co549","brand":"Nike","name":"Nike Air VaporMax","color":"Grey/Black/Orange","price":120.0,"sizes":["8","8"]},{"id":"co554","brand":"Nike","name":"Nike Air Max Drift","color":"Cream/Brown/Blue","price":120.0,"sizes":["8.5","8.5"]},{"id":"co555","brand":"Nike","name":"Nike Air Max 97","color":"White/Multicolor","price":120.0,"sizes":["5.5","5.5"]},{"id":"co556","brand":"New Balance","name":"New Balance","color":"Blue/Pink/Yellow/Black","price":130.0,"sizes":["12","12","12","12.5","12.5","12.5"]},{"id":"co558","brand":"New Balance","name":"New Balance","color":"Brown/Cream/Grey","price":130.0,"sizes":["12","12","12.5","12.5"]},{"id":"co559","brand":"New Balance","name":"New Balance","color":"Green/Grey/Cream","price":130.0,"sizes":["9.5","12","12","12.5","12.5","12.5"]},{"id":"co563","brand":"New Balance","name":"New Balance","color":"Grey/Brown/Cream","price":130.0,"sizes":["12","12","12.5","12.5","12.5"]},{"id":"co576","brand":"Nike","name":"Nike Air Force 1","color":"White","price":120.0,"sizes":["5.5","5.5","5.5","5.5","5.5","5.5","5.5","5.5","5.5","5.5","5.5","5.5","5.5","6.5","13","13","13","13","13","10","10","10","10","9.5","12"]},{"id":"co577","brand":"Jordan","name":"Air Jordan 1 Retro","color":"Grey/White/Black","price":120.0,"sizes":["4","5"]},{"id":"co579","brand":"Nike","name":"Nike Dunk High","color":"Blue/White","price":60.0,"sizes":["7","7"]},{"id":"co584","brand":"Nike","name":"Nike Air Max Drift","color":"Black/Green","price":120.0,"sizes":["8","8"]},{"id":"co481","brand":"Nike","name":"Nike Air Max 97","color":"Blue/White","price":120.0,"sizes":["5.5"]},{"id":"co485","brand":"Nike","name":"Nike Air Max Plus","color":"Olive/Green","price":120.0,"sizes":["8","8"]},{"id":"co486","brand":"Nike","name":"Nike Air Max Plus","color":"Blue/Green","price":120.0,"sizes":["7"]},{"id":"co487","brand":"Nike","name":"Nike Air VaporMax 360","color":"White","price":120.0,"sizes":["6.5"]},{"id":"co489","brand":"New Balance","name":"New Balance 1906","color":"Grey/Brown","price":130.0,"sizes":["4"]},{"id":"co490","brand":"Nike","name":"Nike Air Max Plus","color":"Grey Pink","price":120.0,"sizes":["7"]},{"id":"co491","brand":"Jordan","name":"Air Jordan 13 Retro","color":"Black Aqua","price":180.0,"sizes":["7"]},{"id":"co492","brand":"Jordan","name":"Air Jordan 1 Retro","color":"Black/Red","price":120.0,"sizes":["13"]},{"id":"co493","brand":"Nike","name":"Nike Air Max Plus","color":"Lime Green","price":120.0,"sizes":["7"]},{"id":"co494","brand":"Nike","name":"Nike Dunk","color":"Blue Pink","price":120.0,"sizes":["10"]},{"id":"co495","brand":"Nike","name":"Nike Air VaporMax Evo","color":"","price":120.0,"sizes":["7"]},{"id":"co496","brand":"Nike","name":"Nike Air Max Plus","color":"Grey/Green","price":120.0,"sizes":["8.5"]},{"id":"co497","brand":"Nike","name":"Nike Duck Boot","color":"","price":120.0,"sizes":["11"]},{"id":"co498","brand":"Nike","name":"Nike Air Foamposite","color":"Grey","price":120.0,"sizes":["12"]},{"id":"co499","brand":"Nike","name":"Nike Air Max 97","color":"Blue Green","price":120.0,"sizes":["7"]},{"id":"co500","brand":"Nike","name":"Nike Air VaporMax","color":"Purple","price":120.0,"sizes":["7"]},{"id":"co501","brand":"Jordan","name":"Air Jordan 1 Retro","color":"Black/Red","price":120.0,"sizes":["8"]},{"id":"co502","brand":"Nike","name":"Nike Air Max Drift","color":"Blue White","price":120.0,"sizes":["8"]},{"id":"co503","brand":"Nike","name":"Nike Air VaporMax","color":"Grey","price":120.0,"sizes":["7"]},{"id":"co488","brand":"Nike","name":"Nike Air Max 200","color":"Aqua Pink","price":120.0,"sizes":["5.5"]},{"id":"co504","brand":"Nike","name":"Nike Air Force 1","color":"Yellow","price":120.0,"sizes":["8"]},{"id":"co505","brand":"Nike","name":"Nike Air Max 90","color":"All Black","price":120.0,"sizes":["7"]},{"id":"co506","brand":"Nike","name":"Nike Air Max 97","color":"Pink","price":120.0,"sizes":["5.5"]},{"id":"co507","brand":"Nike","name":"Nike Dunk","color":"Grey/White","price":120.0,"sizes":["10"]},{"id":"co509","brand":"Nike","name":"Nike Air Max Plus","color":"Black/Blue","price":120.0,"sizes":["8"]},{"id":"co510","brand":"Nike","name":"Nike Air Max Plus","color":"Grey","price":120.0,"sizes":["7"]},{"id":"co511","brand":"Nike","name":"Nike Roshe","color":"Mint","price":50.0,"sizes":["5.5","6.5"]},{"id":"co512","brand":"Nike","name":"Nike Air Max Plus","color":"Black/Silver","price":120.0,"sizes":["7"]},{"id":"co513","brand":"Nike","name":"Nike Air Max 97","color":"Golf Green","price":120.0,"sizes":["9.5"]},{"id":"co514","brand":"Nike","name":"Nike Air Max Terrascape","color":"Black Green","price":120.0,"sizes":["7"]},{"id":"co515","brand":"Nike","name":"Nike Air Max Plus","color":"White","price":120.0,"sizes":["5.5"]},{"id":"co516","brand":"Nike","name":"Nike Air Max 97","color":"White/Rainbow","price":120.0,"sizes":["6.5"]},{"id":"co518","brand":"Nike","name":"Nike Air Max Plus","color":"White/Pink/Black/Blue","price":120.0,"sizes":["8.5"]},{"id":"co522","brand":"Nike","name":"Nike Roshe","color":"All Black","price":50.0,"sizes":["5.5"]},{"id":"co523","brand":"Nike","name":"Nike Roshe","color":"Black/White","price":50.0,"sizes":["7"]},{"id":"co524","brand":"Nike","name":"Nike Air Max Plus","color":"Blue/Purple","price":120.0,"sizes":["8"]},{"id":"co525","brand":"Nike","name":"Nike Air Max 90","color":"Green/Black/White","price":120.0,"sizes":["8"]},{"id":"co528","brand":"Nike","name":"Nike Roshe","color":"Red/White","price":50.0,"sizes":["6.5","5.5"]},{"id":"co529","brand":"Nike","name":"Nike Air Max Plus","color":"Blue","price":120.0,"sizes":["8"]},{"id":"co531","brand":"Nike","name":"Nike Dunk","color":"Green/White","price":120.0,"sizes":["7"]},{"id":"co532","brand":"Nike","name":"Nike Air Max 97","color":"Blue/Brown/White","price":120.0,"sizes":["6.5"]},{"id":"co533","brand":"Nike","name":"Nike Air VaporMax","color":"Pink/Grey","price":120.0,"sizes":["6.5"]},{"id":"co534","brand":"Nike","name":"Nike Air Max 97","color":"","price":120.0,"sizes":["6.5","5.5"]},{"id":"co550","brand":"Nike","name":"Nike Air VaporMax","color":"Blue/Black","price":120.0,"sizes":["8","8"]},{"id":"co552","brand":"Nike","name":"Nike Air Max DN","color":"White","price":120.0,"sizes":["7","10"]},{"id":"co557","brand":"New Balance","name":"New Balance","color":"Navy Blue/Grey","price":130.0,"sizes":["12","12.5","12.5","12.5"]},{"id":"co560","brand":"New Balance","name":"New Balance","color":"Maroon/Peach/Cream","price":130.0,"sizes":["12","12","12","12.5","12.5"]},{"id":"co562","brand":"New Balance","name":"New Balance","color":"Beige/Brown/Cream","price":130.0,"sizes":["12","12","12","12.5","12.5"]},{"id":"co565","brand":"New Balance","name":"New Balance","color":"Beige/Cream/Grey","price":130.0,"sizes":["12","12","12","12.5","12.5","12.5"]},{"id":"co567","brand":"New Balance","name":"New Balance","color":"Tan/Cream","price":130.0,"sizes":["12","12","12","12.5","12.5"]},{"id":"co571","brand":"New Balance","name":"New Balance","color":"Beige/Grey/Green","price":130.0,"sizes":["12","12","12","12","12.5","12.5"]},{"id":"co569","brand":"New Balance","name":"New Balance","color":"Cream/Tan/Grey","price":130.0,"sizes":["12","12","12","12.5","12.5","12.5"]},{"id":"co578","brand":"New Balance","name":"New Balance","color":"Pink/Peach/Tan","price":130.0,"sizes":["12","12.5","12.5"]},{"id":"co580","brand":"Nike","name":"Nike Air Max Plus","color":"All Black","price":120.0,"sizes":["8.5","7"]},{"id":"co581","brand":"Nike","name":"Nike Air Max Plus","color":"Pink/Purple","price":120.0,"sizes":["8","8.5"]},{"id":"co582","brand":"Nike","name":"Nike Air Max 95","color":"Black/Brown/Red","price":130.0,"sizes":["7","8"]},{"id":"co583","brand":"Nike","name":"Nike Air Force 1","color":"Aqua/White","price":120.0,"sizes":["10","11"]},{"id":"co585","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Mint Green/White","price":180.0,"sizes":["5.5","5.5"]},{"id":"co586","brand":"Nike","name":"Nike Air Max Plus","color":"Yellow/Black","price":120.0,"sizes":["9.5","10"]},{"id":"co588","brand":"Nike","name":"Nike Air Max 90","color":"Multicolor","price":120.0,"sizes":["5.5","7"]},{"id":"co590","brand":"Jordan","name":"Jordan Tatum","color":"White/Black/Orange","price":180.0,"sizes":["8","8.5"]},{"id":"co592","brand":"Nike","name":"Nike Air Max DN","color":"All Black","price":120.0,"sizes":["5.5","8"]},{"id":"co593","brand":"Nike","name":"Nike Air Max Plus","color":"All Black","price":120.0,"sizes":["5.5","5.5"]},{"id":"co594","brand":"Nike","name":"Nike Air VaporMax","color":"Blue/Orange","price":120.0,"sizes":["7","7"]},{"id":"co595","brand":"Nike","name":"Nike Air VaporMax","color":"Black/Blue/Red","price":120.0,"sizes":["7","7"]},{"id":"co596","brand":"Yeezy","name":"Yeezy Foam RNR","color":"All Black","price":70.0,"sizes":["12","12","8","8","5","5","11","7","7","13","9"]},{"id":"co598","brand":"Yeezy","name":"Yeezy Foam RNR","color":"Brown/Tan","price":70.0,"sizes":["10","7","8","8","12","9.5","6"]},{"id":"co599","brand":"Crocs","name":"Crocs","color":"Green","price":65.0,"sizes":["10","10","8","5","5","7","7","7","11","11","11"]},{"id":"co600","brand":"Yeezy","name":"Yeezy Foam RNR","color":"Cream","price":70.0,"sizes":["8","9","11","11","5","7","10"]},{"id":"co602","brand":"Crocs","name":"Crocs","color":"Brown","price":65.0,"sizes":["6"]},{"id":"co603","brand":"Nike","name":"Nike Air VaporMax","color":"Orange/Cream","price":120.0,"sizes":["5.5","5.5","6.5","7"]},{"id":"co604","brand":"New Balance","name":"New Balance 530","color":"Black/White","price":130.0,"sizes":["9.5","11"]},{"id":"co605","brand":"Nike","name":"Nike Air VaporMax","color":"Black/Orange","price":120.0,"sizes":["7","7","8"]},{"id":"co606","brand":"Nike","name":"Nike Air VaporMax","color":"Green/White","price":120.0,"sizes":["8","7","5.5","5.5"]},{"id":"co479","brand":"Nike","name":"Air Max 97","color":"Yellow/Black","price":120.0,"sizes":["5.5"]},{"id":"co483","brand":"Jordan","name":"Air Jordan 11 Retro","color":"Black/Red","price":180.0,"sizes":["7"]},{"id":"co484","brand":"New Balance","name":"New Balance 1906","color":"Navy","price":130.0,"sizes":["10"]},{"id":"jordan4pizza001","brand":"Jordan","name":"Air Jordan 4 Pizza","color":"Tan/Black/Red","price":180.0,"sizes":["7","7","7.5"]},{"id":"jordan4red001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"White/Red","price":180.0,"sizes":["6.5","7.5","8.5","8.5","9","9","9.5","9.5","10","10","10.5","10.5","11","11","12","12"]},{"id":"jordan4green001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"White/Green","price":180.0,"sizes":["9.5","10"]},{"id":"jordan4yellow001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Yellow/Grey","price":180.0,"sizes":["5.5","5.5","6.5","6.5","7","8","8","9","9","9.5","9.5","9.5","10","10.5","11","11","12","12","13","13"]},{"id":"jordan11red001","brand":"Jordan","name":"Air Jordan 11 Retro","color":"White/Red","price":180.0,"sizes":["5.5","6.5","9","9.5","9.5","10.5","12","13"]},{"id":"jordan4redcement001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"White/Red Cement","price":180.0,"sizes":["7","8"]},{"id":"jordan4blackwhite001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Black/White","price":180.0,"sizes":["5.5","8.5","10.5"]},{"id":"jordan14black001","brand":"Jordan","name":"Air Jordan 14 Retro","color":"Black/White","price":180.0,"sizes":[]},{"id":"jordan13red001","brand":"Jordan","name":"Air Jordan 13 Retro","color":"White/Red","price":180.0,"sizes":["7","7","8","8","8.5","9.5","13"]},{"id":"jordan4blackred001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Black/Red","price":180.0,"sizes":["5.5","5.5","6.5","6.5","7","8","8.5","8.5","9","9","9.5","9.5","9.5","10","10","10.5","13","13"]},{"id":"jordan4military001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"White/Black/Gold","price":180.0,"sizes":["7","8","8.5","9.5","12","12","13"]},{"id":"jordan11grey001","brand":"Jordan","name":"Air Jordan 11 Retro","color":"Cool Grey/White","price":180.0,"sizes":["7","8","10.5","12","13"]},{"id":"jordan4taupe001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Taupe/Grey","price":180.0,"sizes":["5.5","5.5","6.5","6.5","7","7","8","8","9","9","9.5","9.5","9.5","10","10","10.5","10.5","10.5","12","12","13","13"]},{"id":"jordan11tan001","brand":"Jordan","name":"Air Jordan 11 Retro","color":"Tan/Wheat","price":180.0,"sizes":["7","8","10.5","12","13"]},{"id":"jordan4purple002","brand":"Jordan","name":"Air Jordan 4 Retro","color":"White/Purple","price":180.0,"sizes":["7","7","7","8","8","9","9.5"]},{"id":"jordan4blackcat001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"All Black","price":180.0,"sizes":["7","7","8","8","8.5","9","12"]},{"id":"jordan5blue001","brand":"Jordan","name":"Air Jordan 5 Retro","color":"Black/Blue","price":180.0,"sizes":["10.5","10.5"]},{"id":"jordan5white001","brand":"Jordan","name":"Air Jordan 5 Retro","color":"All White","price":180.0,"sizes":["7","8","11","13"]},{"id":"jordan4thunder001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Black/Yellow Thunder","price":180.0,"sizes":["5.5","5.5","6.5","7","7","9","9","9","9.5","9.5","10.5","10.5","10.5","12","13","13"]},{"id":"jordan4pink001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Pink/White","price":180.0,"sizes":["5.5","5.5"]},{"id":"jordan4blackred002","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Black/Red","price":180.0,"sizes":["5.5","6.5","7","8","8.5","8.5","9","9","9.5","9.5","9.5","10.5","10.5","10.5","10.5","11","11","12","12","12","13"]},{"id":"jordan4allred001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"All Red","price":180.0,"sizes":["5.5","6.5","7.5","8","13"]},{"id":"jordan11white001","brand":"Jordan","name":"Air Jordan 11 Retro","color":"All White/Legend Blue","price":180.0,"sizes":["7","10.5","10.5","12"]},{"id":"jordan5grey001","brand":"Jordan","name":"Air Jordan 5 Retro","color":"All Grey","price":180.0,"sizes":["10.5","13"]},{"id":"jordan11volt001","brand":"Jordan","name":"Air Jordan 11 Retro","color":"Black/Volt","price":180.0,"sizes":["7","8","8.5","9","9.5","10.5","13"]},{"id":"jordan4milblue001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"White/Military Blue","price":180.0,"sizes":["5.5","5.5","6.5","6.5","7","7","8","8","8.5","8.5","9","9","9","9.5","9.5","9.5","10.5","10.5","10.5","11","12","12","13"]},{"id":"jordan4gum001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"White/Blue/Gum","price":180.0,"sizes":["4","4","5","5","5.5","5.5","6.5","6.5","7","7","8","8","8.5","8.5","9","9","9","9.5","9.5","9.5","10","10","10.5","10.5","11","12","12","13","13","13"]},{"id":"jordan11black001","brand":"Jordan","name":"Air Jordan 11 Retro","color":"All Black","price":180.0,"sizes":["5.5","6.5","6.5","7","7","7","8"]},{"id":"jordan3peach001","brand":"Jordan","name":"Air Jordan 3 Retro","color":"Peach/Rose Gold","price":180.0,"sizes":["5.5","6.5","6.5"]},{"id":"jordan5wblack001","brand":"Jordan","name":"Air Jordan 5 Retro","color":"White/Black","price":180.0,"sizes":["7","8.5"]},{"id":"jordan14blue001","brand":"Jordan","name":"Air Jordan 14 Retro","color":"Black/Blue","price":180.0,"sizes":["8","9.5","12","13"]},{"id":"jordan3green001","brand":"Jordan","name":"Air Jordan 3 Retro","color":"Black/Green","price":180.0,"sizes":["7","8.5","9","9.5","11","12","13"]},{"id":"jordan11royalblue001","brand":"Jordan","name":"Air Jordan 11 Retro","color":"White/Royal Blue","price":180.0,"sizes":["7","11","12","13"]},{"id":"jordan12black001","brand":"Jordan","name":"Air Jordan 12 Retro","color":"All Black","price":180.0,"sizes":["7","7","7"]},{"id":"jordan13blackred001","brand":"Jordan","name":"Air Jordan 13 Retro","color":"Black/Red","price":180.0,"sizes":["7","8","8.5","9","9.5"]},{"id":"jordan4bblured001","brand":"Jordan","name":"Air Jordan 4 Retro","color":"Black/Blue/Red","price":180.0,"sizes":["5.5","5.5","5.5","7.5","7.5","8","8","9.5"]},{"id":"jordan6blackred001","brand":"Jordan","name":"Air Jordan 6 Retro","color":"Black/Infrared","price":180.0,"sizes":["7","8"]},{"id":"nikemuleblack001","brand":"Nike","name":"Nike mind 001","color":"Black/Orange","price":120.0,"sizes":["5","5","6","6","7","7","7","8","8","9","9","9","10","11","11","12","12"]},{"id":"vapormax2020grey001","brand":"Nike","name":"Air VaporMax 2020","color":"Grey","price":120.0,"sizes":["6.5"]},{"id":"airmaxplus3001","brand":"Nike","name":"Air Max Plus 3","color":"White","price":130.0,"sizes":["5.5"]},{"id":"airmax97bkrbow001","brand":"Nike","name":"Air Max 97","color":"Black/Rainbow","price":130.0,"sizes":["7"]},{"id":"airmax97white001","brand":"Nike","name":"Air Max 97","color":"White","price":130.0,"sizes":["5.5","7"]},{"id":"airmaxpluspurp001","brand":"Nike","name":"Air Max Plus","color":"Purple","price":120.0,"sizes":["7"]},{"id":"airmaxpluswstr001","brand":"Nike","name":"Air Max Plus","color":"White Stripe","price":120.0,"sizes":["8"]},{"id":"airmaxterr001","brand":"Nike","name":"Air Max Terrascape","color":"Black/Green","price":120.0,"sizes":["8"]},{"id":"vapormaxevo001","brand":"Nike","name":"Air VaporMax Evo","color":"All Black","price":120.0,"sizes":["8"]},{"id":"airtrainer001","brand":"Nike","name":"Air Trainer 1","color":"All Black","price":120.0,"sizes":["7"]},{"id":"nikedunkhigh001","brand":"Nike","name":"Dunk High","color":"Blue/White","price":60.0,"sizes":["11"]},{"id":"airmaxpluswpur001","brand":"Nike","name":"Air Max Plus","color":"White/Purple","price":120.0,"sizes":["7","7","8","8"]},{"id":"airmax95bkyel001","brand":"Nike","name":"Air Max 95","color":"Black/Yellow","price":130.0,"sizes":["7","7","7"]},{"id":"airmax97cheet001","brand":"Nike","name":"Air Max 97","color":"Red/Cheetah Print","price":130.0,"sizes":["5.5","5.5"]},{"id":"airmaxplusgrb001","brand":"Nike","name":"Air Max Plus","color":"Grey/Blue/Black","price":120.0,"sizes":["7","7","8"]},{"id":"airmaxplusptn001","brand":"Nike","name":"Air Max Plus","color":"Pink","price":120.0,"sizes":["7","8","10"]},{"id":"nikescorpion001","brand":"Nike","name":"Scorpion","color":"Khaki","price":70.0,"sizes":["7","8","8.5"]},{"id":"airmaxplusblue001","brand":"Nike","name":"Air Max Plus","color":"Blue","price":120.0,"sizes":["8"]},{"id":"newbalance001","brand":"New Balance","name":"New Balance","color":"Blue/Brown","price":130.0,"sizes":["6.5"]},{"id":"asics001","brand":"Asics","name":"Asics","color":"Green/White","price":130.0,"sizes":["7"]},{"id":"airmax90grn001","brand":"Nike","name":"Air Max 90","color":"Green/Beige","price":120.0,"sizes":["7"]},{"id":"vapormaxtealbk001","brand":"Nike","name":"Air VaporMax","color":"Teal/Black","price":120.0,"sizes":["7"]},{"id":"vapormaxbkgrn001","brand":"Nike","name":"Air VaporMax","color":"Black/Green","price":120.0,"sizes":["7"]},{"id":"jordan1grn001","brand":"Jordan","name":"Air Jordan 1","color":"Green/Orange/Blue","price":120.0,"sizes":["7"]},{"id":"airmax90brn001","brand":"Nike","name":"Air Max 90","color":"Brown/Black","price":120.0,"sizes":["13","13"]},{"id":"airmaxplusbkbr001","brand":"Nike","name":"Air Max Plus","color":"Black/Blue/Red","price":120.0,"sizes":["8","8"]},{"id":"vapormaxbkred001","brand":"Nike","name":"Air VaporMax","color":"Black/Red","price":120.0,"sizes":["7","8"]},{"id":"airmax95yel001","brand":"Nike","name":"Air Max 95","color":"Yellow","price":130.0,"sizes":["5.5","6.5","7"]},{"id":"jordanorwht001","brand":"Jordan","name":"Air Jordan 5","color":"Orange/White","price":180.0,"sizes":["13"]},{"id":"airmax97crm001","brand":"Nike","name":"Air Max 97","color":"Cream/Peach/Gold","price":130.0,"sizes":["7"]},{"id":"airmax97burg001","brand":"Nike","name":"Air Max 97","color":"Burgundy/Black","price":130.0,"sizes":["7"]},{"id":"airmax90whtpnk001","brand":"Nike","name":"Air Max 90","color":"White/Pink","price":120.0,"sizes":["6.5"]},{"id":"airmax90bkyel001","brand":"Nike","name":"Air Max 90","color":"Black/Yellow","price":120.0,"sizes":["7","8","8.5","8.5","9.5"]},{"id":"vapormaxutil001","brand":"Nike","name":"Air VaporMax Utility","color":"Khaki","price":120.0,"sizes":["7","8","8","8.5","8.5"]},{"id":"huarache001","brand":"Nike","name":"Huarache","color":"White","price":120.0,"sizes":["5.5","5.5","6.5","6.5"]},{"id":"vapormaxpurp001","brand":"Nike","name":"Air VaporMax","color":"Purple","price":120.0,"sizes":["5.5","5.5","6.5","7","7"]},{"id":"airmax95bkwht001","brand":"Nike","name":"Air Max 95","color":"Black/White","price":130.0,"sizes":["7","7","7","11"]},{"id":"airmax95gryorg001","brand":"Nike","name":"Air Max 95","color":"Grey/Black/Orange","price":130.0,"sizes":["7","10","12"]},{"id":"airmaxpluspkwht001","brand":"Nike","name":"Air Max Plus","color":"Pink/White","price":120.0,"sizes":["5.5","6.5","7","8"]},{"id":"airmaxpluswpkbk001","brand":"Nike","name":"Air Max Plus","color":"Pink/Black","price":120.0,"sizes":["5.5","6.5","8","8.5"]},{"id":"airmax270001","brand":"Nike","name":"Air Max 270","color":"Black/White","price":120.0,"sizes":["8","8","8.5"]},{"id":"airmax95bkbl001","brand":"Nike","name":"Air Max 95","color":"Black/Blue","price":130.0,"sizes":["8","8","9.5","10","12"]},{"id":"nikemulewhite001","brand":"Nike","name":"Nike mind 001","color":"White/Orange","price":120.0,"sizes":["5","5","6","6","7","7","7","8","8","9","9","10","10","10","11","11","11","12","12","13","13"]},{"id":"p48","brand":"Jordan","name":"Air Jordan 1","color":"Orange/White/Forest Green","price":120.0,"sizes":["9"]},{"id":"p61","brand":"Jordan","name":"Air Jordan 1","color":"Red/White","price":120.0,"sizes":["10"]},{"id":"p63","brand":"Jordan","name":"Air Jordan 1","color":"Red/Black/White","price":120.0,"sizes":["13"]},{"id":"p70","brand":"Jordan","name":"Air Jordan 1","color":"Yellow/White/Black","price":120.0,"sizes":["4Y"]},{"id":"p71","brand":"Jordan","name":"Air Jordan 1","color":"Green/White","price":120.0,"sizes":["12"]},{"id":"asicsgrywht001","brand":"Asics","name":"Asics","color":"Grey/White","price":130.0,"sizes":["7","8","8","9","9.5","10.5"]},{"id":"asicsgrnsil001","brand":"Asics","name":"Asics","color":"Green/White/Silver","price":130.0,"sizes":["5.5","6.5","7","7.5","8"]},{"id":"asicsbrnwht001","brand":"Asics","name":"Asics","color":"Brown/White","price":130.0,"sizes":["5.5","5.5","6.5"]},{"id":"asicsgnsuede001","brand":"Asics","name":"Asics","color":"Green Suede","price":130.0,"sizes":["7","8","10"]},{"id":"asicsbkwht001","brand":"Asics","name":"Asics","color":"Black/White","price":130.0,"sizes":["6","6","6","6","6","6.5"]},{"id":"asicsgrncream001","brand":"Asics","name":"Asics","color":"Green/Cream","price":130.0,"sizes":["5.5","5.5","7.5","7.5","9.5","9.5"]},{"id":"asicsdkblue001","brand":"Asics","name":"Asics","color":"Dark Blue","price":130.0,"sizes":["11.5"]},{"id":"asicswhtblk001","brand":"Asics","name":"Asics","color":"White/Black","price":130.0,"sizes":["8","8","8","8","8.5","9","9","9","9.5","10","10","10"]},{"id":"asicspink001","brand":"Asics","name":"Asics","color":"Pink","price":130.0,"sizes":["11.5"]},{"id":"asicspnksuede001","brand":"Asics","name":"Asics","color":"Pink Suede","price":130.0,"sizes":["7","11"]},{"id":"asicsred001","brand":"Asics","name":"Asics","color":"Red","price":130.0,"sizes":["6.5","7"]},{"id":"asicsblk001","brand":"Asics","name":"Asics","color":"All Black","price":130.0,"sizes":["5.5","6.5","7","7","7.5","7.5","7.5","7.5","8","8","8","8","8","8","8","9","9.5","11.5","11.5","11.5","11.5"]},{"id":"nb1906black001","brand":"New Balance","name":"New Balance 1906","color":"All Black","price":130.0,"sizes":["5.5","5.5"]},{"id":"nb1000fgreen001","brand":"New Balance","name":"New Balance 1000","color":"Forest Green","price":130.0,"sizes":["5.5","6.5","7","7.5"]},{"id":"nb9060white001","brand":"New Balance","name":"New Balance 9060","color":"White","price":130.0,"sizes":["9.5","10.5","11","11","11"]},{"id":"nb1906navy001","brand":"New Balance","name":"New Balance 1906","color":"Navy Blue","price":130.0,"sizes":["5","5","5.5","9","11"]},{"id":"nb740pinksilv001","brand":"New Balance","name":"New Balance 740","color":"Pink/Silver","price":130.0,"sizes":["5.5","5.5","7","7","7.5","7.5","9","9.5"]},{"id":"nb550white001","brand":"New Balance","name":"New Balance 550","color":"White","price":130.0,"sizes":["5","5","5.5"]},{"id":"c0448","brand":"Nike","name":"Air Max Plus","color":"Red/Blue","price":120.0,"sizes":["7","8","8.5"]},{"id":"c0461","brand":"Nike","name":"Air Force 1 High","color":"All Black","price":120.0,"sizes":["8"]},{"id":"c0463","brand":"Nike","name":"Nike Scorpion","color":"Grey","price":70.0,"sizes":["5.5","7","8","8.5"]},{"id":"c0465","brand":"Nike","name":"Air VaporMax Utility","color":"Grey","price":120.0,"sizes":["7","8"]},{"id":"c0467","brand":"Nike","name":"Dunk High","color":"Red","price":60.0,"sizes":["5.5","6.5","10"]},{"id":"c0459","brand":"Nike","name":"Air Max 95","color":"White","price":130.0,"sizes":["5.5"]},{"id":"c0435","brand":"Nike","name":"Air VaporMax","color":"Black/White","price":120.0,"sizes":["7"]},{"id":"c0406","brand":"New Balance","name":"New Balance 9060","color":"All Black/Leather","price":130.0,"sizes":["5.5","6.5","9.5","12.5"]},{"id":"c0412","brand":"New Balance","name":"New Balance 9060","color":"All Black/Suede","price":130.0,"sizes":["5.5","6.5","8","12.5"]},{"id":"c0411","brand":"New Balance","name":"New Balance 9060","color":"Brown/Blue","price":130.0,"sizes":["5.5","6.5","11","12.5"]},{"id":"c0424","brand":"Nike","name":"Air Max Plus","color":"All Black","price":120.0,"sizes":["5.5","6.5","7"]},{"id":"c0429","brand":"Nike","name":"Air Max Plus 3","color":"Purple","price":130.0,"sizes":["7","8","10"]},{"id":"c0438","brand":"Nike","name":"Air Max 1","color":"Blue/White","price":120.0,"sizes":["13"]},{"id":"c0423","brand":"Nike","name":"Air Max 95","color":"Red","price":130.0,"sizes":["5.5","7"]},{"id":"c0417","brand":"Nike","name":"Nike Scorpion","color":"All Black","price":70.0,"sizes":["5.5","6.5","7","8","8.5"]},{"id":"c0418","brand":"Nike","name":"Dunk Low","color":"Yellow/Green","price":120.0,"sizes":["5.5","6.5","8.5","13"]},{"id":"c0432","brand":"Nike","name":"Air VaporMax","color":"Blue","price":120.0,"sizes":["7"]},{"id":"c0426","brand":"Nike","name":"Dunk High","color":"Yellow/White","price":60.0,"sizes":["9.5","10"]},{"id":"c0425","brand":"Nike","name":"Air Max Terrascape","color":"White/Black/Green","price":120.0,"sizes":["7","8"]},{"id":"c0430","brand":"Nike","name":"Dunk Low","color":"Purple/White","price":120.0,"sizes":["5.5","6.5","8"]},{"id":"c0431","brand":"Nike","name":"Air Max Plus","color":"Red/Blue","price":120.0,"sizes":["7","8.5","10"]},{"id":"c0427","brand":"Nike","name":"Air Max Plus 3","color":"All Black","price":130.0,"sizes":["5.5","8","12"]},{"id":"c0440","brand":"Nike","name":"Air Max 95","color":"Forest Green","price":130.0,"sizes":["8","10"]},{"id":"c0442","brand":"Nike","name":"Air Max 90","color":"Grey","price":120.0,"sizes":["12","13"]},{"id":"c0439","brand":"Nike","name":"Nike Scorpion","color":"White","price":70.0,"sizes":["5.5","8.5"]},{"id":"c0434","brand":"Nike","name":"Dunk","color":"Pink/White","price":120.0,"sizes":["11","12","13"]},{"id":"c0436","brand":"Nike","name":"Dunk High","color":"Orange","price":60.0,"sizes":["5.5","6.5","8","8.5","9","10","13"]},{"id":"c0441","brand":"Nike","name":"Nike Scorpion","color":"Black/Gold","price":70.0,"sizes":["8.5","11"]},{"id":"c0437","brand":"Nike","name":"Air VaporMax","color":"Red","price":120.0,"sizes":["5.5","13"]},{"id":"c0445","brand":"Nike","name":"Air Max Plus","color":"Pink/Black","price":120.0,"sizes":["8.5","11","12"]},{"id":"c0444","brand":"Nike","name":"Air Max 95","color":"Black/Red","price":130.0,"sizes":["8","8.5"]},{"id":"c0446","brand":"Nike","name":"Air Max 95","color":"Black/Blue","price":130.0,"sizes":["7","8"]},{"id":"c0443","brand":"Nike","name":"Nike Drift","color":"Black/White","price":120.0,"sizes":["5.5","6.5","8"]},{"id":"c0447","brand":"Nike","name":"Air Max 90","color":"Pink/White","price":120.0,"sizes":["5.5","6.5","7","8","8.5"]},{"id":"c0449","brand":"Nike","name":"Air Force 1","color":"Green/White","price":120.0,"sizes":["8"]},{"id":"c0451","brand":"Nike","name":"Air VaporMax","color":"All Black","price":120.0,"sizes":["5.5","11","13"]},{"id":"c0458","brand":"Nike","name":"Air Max 90","color":"All Black","price":120.0,"sizes":["5.5","12"]},{"id":"c0453","brand":"Nike","name":"Air Max Plus","color":"Black/Blue","price":120.0,"sizes":["7","8.5","9.5"]},{"id":"c0455","brand":"Nike","name":"Air Max 2021","color":"Purple","price":120.0,"sizes":["5.5","9.5"]},{"id":"c0454","brand":"Nike","name":"Air Max 90","color":"Green/White/Black","price":120.0,"sizes":["7","8.5"]},{"id":"c0457","brand":"Nike","name":"Dunk","color":"Orange","price":120.0,"sizes":["10","13"]},{"id":"c0456","brand":"Nike","name":"Air Max Plus","color":"Black/Blue/White","price":120.0,"sizes":["7","8","8.5","10","12"]},{"id":"c0452","brand":"Nike","name":"Air Max 95","color":"Yellow/Black","price":130.0,"sizes":["7","8","8.5","9.5","10","12"]},{"id":"c0464","brand":"Nike","name":"Air Max Plus","color":"Green","price":120.0,"sizes":["7","8","8.5","9.5","10"]},{"id":"c0466","brand":"Nike","name":"Air Max 90","color":"Black/Red","price":120.0,"sizes":["7","8","8.5","9.5","10","11","12"]},{"id":"c0460","brand":"Nike","name":"Air Max 270","color":"All Black","price":120.0,"sizes":["5.5","6.5","9.5"]},{"id":"c0384","brand":"New Balance","name":"New Balance 9060","color":"White/Pink","price":130.0,"sizes":["4","5.5"]},{"id":"c0468","brand":"Nike","name":"Nike Shox","color":"All Black","price":120.0,"sizes":["5.5","6.5","7","8","8.5","10","11","12"]},{"id":"c0407","brand":"New Balance","name":"New Balance 1000","color":"Midnight Blue","price":130.0,"sizes":["5.5","6.5","7","7.5","9","10.5"]},{"id":"c0401","brand":"New Balance","name":"New Balance 1906","color":"Black/Pink/Purple","price":130.0,"sizes":["5.5","6.5","8"]},{"id":"c0403","brand":"New Balance","name":"New Balance 9060","color":"Black/White","price":130.0,"sizes":["5.5","6.5","7","7.5","8","8.5","9","9.5","10","10.5","11","12"]},{"id":"c0388","brand":"New Balance","name":"New Balance 9060","color":"Grey/Black","price":130.0,"sizes":["5.5","7","7.5","8","8.5","9.5","11","12","12","12.5","12.5","12.5"]},{"id":"c0390","brand":"New Balance","name":"New Balance 1906","color":"Aqua/Grey","price":130.0,"sizes":["8","8.5","9.5"]},{"id":"c0385","brand":"New Balance","name":"New Balance 740","color":"White/Blue/Yellow","price":130.0,"sizes":["5.5"]},{"id":"c0391","brand":"New Balance","name":"New Balance 9060","color":"White","price":130.0,"sizes":["5.5","8.5"]},{"id":"c0402","brand":"New Balance","name":"New Balance 9060","color":"Cream/Grey","price":130.0,"sizes":["5.5","7","7","7","12","12","12.5","12.5","12.5","12.5"]},{"id":"c0395","brand":"New Balance","name":"New Balance 9060","color":"Purple/Yellow","price":130.0,"sizes":["5.5","6.5","9.5"]},{"id":"c0400","brand":"New Balance","name":"New Balance 9060","color":"White/Black","price":130.0,"sizes":["5.5","10","10.5","11","12","12.5"]},{"id":"c0399","brand":"New Balance","name":"New Balance 9060","color":"Black Gloss","price":130.0,"sizes":["7","8","8.5","9","10"]},{"id":"c0394","brand":"New Balance","name":"New Balance 1000","color":"Light Blue","price":130.0,"sizes":["5.5","6.5","7.5","8"]},{"id":"c0397","brand":"New Balance","name":"New Balance 9060","color":"Black Threaded","price":130.0,"sizes":["12"]},{"id":"c0396","brand":"New Balance","name":"New Balance 9060","color":"Pink/White","price":130.0,"sizes":["5.5","6.5","7.5","9.5","11","12"]},{"id":"c0405","brand":"New Balance","name":"New Balance 9060","color":"Pink/Purple","price":130.0,"sizes":["5.5","5.5","6.5","6.5","7.5","8"]},{"id":"c0408","brand":"New Balance","name":"New Balance 9060","color":"Grey","price":130.0,"sizes":["5.5","5.5","6.5","7"]},{"id":"c0404","brand":"New Balance","name":"New Balance 9060","color":"Green/Black/White","price":130.0,"sizes":["7","8","8.5","9","10","10.5"]},{"id":"c0409","brand":"New Balance","name":"New Balance 1000","color":"Grey/Black","price":130.0,"sizes":["8.5","9","9.5","11"]},{"id":"c0421","brand":"New Balance","name":"New Balance 1000","color":"Black/Silver","price":130.0,"sizes":["5.5","6.5","7","7.5","8.5","9","10.5"]},{"id":"c0414","brand":"Nike","name":"Dunk","color":"Silver/White","price":120.0,"sizes":["9","10"]},{"id":"c0433","brand":"Nike","name":"Air VaporMax Utility","color":"All Black","price":120.0,"sizes":["7","8.5"]},{"id":"c0413","brand":"Nike","name":"Nike Drift","color":"Orange","price":120.0,"sizes":["5.5","6.5"]},{"id":"c0420","brand":"Nike","name":"Air Max 90","color":"Grey/Black","price":120.0,"sizes":["10","11"]},{"id":"c0422","brand":"Nike","name":"Air Max Plus","color":"Grey/Black","price":120.0,"sizes":["7","8"]},{"id":"c0415","brand":"Nike","name":"Dunk","color":"Black/White","price":120.0,"sizes":["6.5","7","7.5","8","8.5","9","9.5","10","10.5","11","12","13"]},{"id":"c0361","brand":"Nike","name":"Air Max Plus TN","color":"Black/Blue","price":120.0,"sizes":["7"]},{"id":"c0358","brand":"Nike","name":"Air Max Zero","color":"White","price":120.0,"sizes":["6.5"]},{"id":"c0364","brand":"Nike","name":"Air Max 90","color":"Beige/Cream","price":120.0,"sizes":["12.5"]},{"id":"c0369","brand":"Nike","name":"Air Max 97","color":"Pink/Cream","price":130.0,"sizes":["6.5"]},{"id":"c0366","brand":"Nike","name":"Air VaporMax","color":"Blue/Green/Black","price":120.0,"sizes":["7"]},{"id":"c0365","brand":"Jordan","name":"Air Jordan 11 Retro","color":"Black/White","price":180.0,"sizes":["12"]},{"id":"c0368","brand":"Nike","name":"Air Force 1","color":"GTA","price":120.0,"sizes":["11"]},{"id":"c0379","brand":"Jordan","name":"Air Jordan 1","color":"Grey/White","price":120.0,"sizes":["5.5"]},{"id":"c0377","brand":"Jordan","name":"Jordan Tatum","color":"White/Black/Orange","price":180.0,"sizes":["8"]},{"id":"c0371","brand":"Nike","name":"Air Max 97","color":"White/Rainbow","price":130.0,"sizes":["6.5"]},{"id":"c0372","brand":"Nike","name":"Nike Foamposite","color":"White/Peach","price":120.0,"sizes":["13"]},{"id":"c0381","brand":"Asics","name":"Asics","color":"Blue/White","price":130.0,"sizes":["5.5","6.5","7","7","7.5","7.5","7.5","8","8.5"]},{"id":"c0380","brand":"Asics","name":"Asics","color":"Green/White","price":130.0,"sizes":["5.5","6.5","7","7.5","8","8.5"]},{"id":"c0382","brand":"New Balance","name":"New Balance 530","color":"White/Blue","price":130.0,"sizes":["5.5","5.5","5.5","6.5","10"]},{"id":"c0410","brand":"New Balance","name":"New Balance 9060","color":"Pink/Purple","price":130.0,"sizes":["5.5","11"]},{"id":"c0383","brand":"New Balance","name":"New Balance 9060","color":"Grey/Black Gloss","price":130.0,"sizes":["7","8","9","9.5","10","10.5","11"]},{"id":"c0386","brand":"New Balance","name":"New Balance 1000","color":"Pink/Cream","price":130.0,"sizes":["5.5","6.5"]},{"id":"c0389","brand":"New Balance","name":"New Balance 9060","color":"Light Grey/Dark Grey","price":130.0,"sizes":["5.5","6.5","8","10","11"]},{"id":"c0392","brand":"New Balance","name":"New Balance 9060","color":"Wavy Blue","price":130.0,"sizes":["5.5","5.5","6.5","8","9.5","11","11","12","12"]},{"id":"c0393","brand":"New Balance","name":"New Balance 2002","color":"Pink","price":130.0,"sizes":["5.5","5.5","5.5","6.5","7","7","7","7.5","9","9"]},{"id":"c0327","brand":"New Balance","name":"New Balance","color":"Silver","price":130.0,"sizes":["5.5"]},{"id":"c0332","brand":"Nike","name":"Dunk Low","color":"Olive Green","price":120.0,"sizes":["13"]},{"id":"c0331","brand":"Nike","name":"Dunk Low","color":"Blue/White","price":120.0,"sizes":["12"]},{"id":"c0334","brand":"Nike","name":"Air Max Plus 3","color":"Grey/Green","price":130.0,"sizes":["8"]},{"id":"c0335","brand":"Nike","name":"Air Max Plus","color":"Purple/Yellow","price":120.0,"sizes":["8"]},{"id":"c0337","brand":"Asics","name":"Asics","color":"Cream/Grey","price":130.0,"sizes":["5.5"]},{"id":"c0336","brand":"New Balance","name":"New Balance 1000","color":"All Black","price":130.0,"sizes":["5.5"]},{"id":"c0338","brand":"New Balance","name":"New Balance","color":"Pink/Green/Blue","price":130.0,"sizes":["5.5"]},{"id":"c0340","brand":"Nike","name":"Air Max Plus","color":"Black/White","price":120.0,"sizes":["7"]},{"id":"c0339","brand":"Nike","name":"Dunk Low","color":"Red/White","price":120.0,"sizes":["13"]},{"id":"c0342","brand":"Nike","name":"Air Force 1","color":"Teal/Green","price":120.0,"sizes":["6.5"]},{"id":"c0347","brand":"Nike","name":"Air Max Plus","color":"Black/Grey","price":120.0,"sizes":["7"]},{"id":"c0344","brand":"New Balance","name":"New Balance","color":"Blue/White","price":130.0,"sizes":["9.5"]},{"id":"c0343","brand":"Nike","name":"Air Max DN","color":"Black/Orange","price":120.0,"sizes":["10"]},{"id":"c0348","brand":"Jordan","name":"Air Jordan 1","color":"Grey/Red","price":120.0,"sizes":["5.5"]},{"id":"c0357","brand":"Nike","name":"Air VaporMax","color":"Pink/Black","price":120.0,"sizes":["5.5"]},{"id":"c0356","brand":"Nike","name":"Air VaporMax Evo","color":"White/Metallic","price":120.0,"sizes":["8"]},{"id":"c0354","brand":"Nike","name":"Air Max 270","color":"Pink/Black","price":120.0,"sizes":["7"]},{"id":"c0355","brand":"Jordan","name":"Air Jordan 1","color":"Blue/Red","price":120.0,"sizes":["8.5"]},{"id":"c0363","brand":"Nike","name":"Air Max 270","color":"Blue/Purple/Yellow","price":120.0,"sizes":["7"]},{"id":"c0359","brand":"Nike","name":"Air Max 97","color":"Grey/Green","price":130.0,"sizes":["5.5"]},{"id":"c0360","brand":"Nike","name":"Duckboot","color":"Cream","price":120.0,"sizes":["6.5"]},{"id":"c0462","brand":"Nike","name":"Air Max 95","color":"Black/Green","price":130.0,"sizes":["7","8","8.5","9.5","10","11","12"]},{"id":"c0367","brand":"Nike","name":"Air Force 1","color":"White/Multicolor","price":120.0,"sizes":["11"]},{"id":"c0341","brand":"Nike","name":"Air Max DN","color":"Black/Orange","price":120.0,"sizes":["10"]},{"id":"c0349","brand":"Jordan","name":"Air Jordan 1 Low","color":"White/Grey/Red","price":120.0,"sizes":["5.5"]},{"id":"c0378","brand":"Jordan","name":"Jordan Tatum","color":"White/Black","price":180.0,"sizes":["8"]},{"id":"c0416","brand":"New Balance","name":"New Balance 9060","color":"Multicolor","price":130.0,"sizes":["5.5","6.5","9.5"]},{"id":"c0419","brand":"Nike","name":"Air Max Plus 3","color":"Lavender/Purple","price":130.0,"sizes":["7","8","10"]},{"id":"c0362","brand":"Nike","name":"Air Max 97","color":"White/Black/Green","price":130.0,"sizes":["7"]}];
+
+var db = null, stock = [], inv = null, settings = null, dirty = false, typing = false;
+
+var DEFAULT_SETTINGS = {
+  storeName: 'Sneaker Inventory', address: '', logoUrl: '', payment: '',
+  trackUrl: 'https://t.17track.net/en#nums={tracking}'
+};
+
+/* ── gate ─────────────────────────────────────────────────── */
+function managerPins() {
+  var out = ['6405'];
+  try {
+    var st = JSON.parse(localStorage.getItem('sp_accounts') || 'null');
+    if (st) ['Manager', 'manager', 'MANAGER'].forEach(function (k) {
+      if (st[k]) out.push(String(st[k]));
+    });
+  } catch (e) {}
+  return out;
+}
+
+function tryOpen(e) {
+  if (e) e.preventDefault();
+  var field = document.getElementById('pin');
+  var msg = document.getElementById('gate-msg');
+  var pin = (field.value || '').replace(/\D/g, '');
+  if (!pin) { msg.textContent = 'Enter your PIN'; field.focus(); return; }
+  if (managerPins().indexOf(pin) < 0) {
+    msg.textContent = 'Did not match — the box had ' + pin.length + ' digit(s)';
+    field.value = ''; field.focus(); return;
+  }
+  document.getElementById('gate').style.display = 'none';
+  document.getElementById('app').hidden = false;
+  try { start(); } catch (err) { note('saveline', 'start() failed: ' + err.message, true); }
+}
+
+/* ── helpers ──────────────────────────────────────────────── */
+function $(id) { return document.getElementById(id); }
+function money(n) { var v = Number(n); return '$' + (isFinite(v) ? v : 0).toFixed(2); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function today() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getDate()).padStart(2, '0');
+}
+function prettyDate(iso) {
+  if (!iso) return '';
+  var p = String(iso).split('-');
+  if (p.length !== 3) return iso;
+  var M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return Number(p[2]) + ' ' + M[Number(p[1]) - 1] + ' ' + p[0];
+}
+function note(id, msg, bad) {
+  var el = $(id); if (!el) return;
+  el.textContent = msg; el.className = 'saveline ' + (bad ? 'err' : 'ok');
+}
+
+function blankInvoice() {
+  return {
+    number: '', date: today(), status: 'Paid',
+    thanks: 'Thank you',
+    customer: { name: '', phone: '', email: '' },
+    shipAddress: '', carrier: '', tracking: '',
+    items: [], shipping: 0, discount: 0, notes: '',
+    footer: '',   // blank means "follow the store name" - see footerText()
+    payment: { brand: 'Visa', last4: '' },
+    steps: [
+      { label: 'Paid', date: today(), done: true },
+      { label: 'Tracking available', date: today(), done: true },
+      { label: 'Delivered', date: today(), done: true }
+    ]
+  };
+}
+
+/* ── model paths, so the receipt can bind straight to them ── */
+function getPath(o, path) {
+  var p = path.split('.'), cur = o;
+  for (var i = 0; i < p.length; i++) {
+    if (cur == null) return '';
+    cur = cur[/^\d+$/.test(p[i]) ? Number(p[i]) : p[i]];
+  }
+  return cur == null ? '' : cur;
+}
+function setPath(o, path, val) {
+  var p = path.split('.'), cur = o;
+  for (var i = 0; i < p.length - 1; i++) {
+    var k = /^\d+$/.test(p[i]) ? Number(p[i]) : p[i];
+    if (cur[k] == null) cur[k] = {};
+    cur = cur[k];
+  }
+  cur[p[p.length - 1]] = val;
+}
+
+/* ── boot ─────────────────────────────────────────────────── */
+function start() {
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+  } catch (e) { note('saveline', 'No database: ' + e.message, true); }
+
+  inv = blankInvoice();
+  render();
+  wire();
+  loadSettings()
+    .then(loadStock)
+    .then(function () { stockHint(); return nextNumber(); })
+    .then(function (n) { inv.number = n; render(); })
+    .catch(function (e) { note('saveline', String(e.message || e), true); });
+  setInterval(autosave, 30000);
+}
+
+function stockHint() {
+  var el = $('stockhint'); if (!el) return;
+  if (stock.length) { el.textContent = stock.length + ' shoes loaded'; el.className = 'hint'; }
+  else { el.textContent = 'No stock loaded — the database did not answer. Blank lines still work.'; el.className = 'hint err'; }
+}
+
+/* ── settings ─────────────────────────────────────────────── */
+function loadSettings() {
+  settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  if (!db) return Promise.resolve();
+  return db.collection('settings').doc('invoice').get().then(function (d) {
+    if (d.exists) {
+      var v = d.data();
+      Object.keys(DEFAULT_SETTINGS).forEach(function (k) {
+        if (v[k] !== undefined && v[k] !== null) settings[k] = v[k];
+      });
+    }
+    fillSettings(); render();
+  }).catch(function () { fillSettings(); });
+}
+function fillSettings() {
+  $('s-name').value = settings.storeName; $('s-addr').value = settings.address;
+  $('s-logo').value = settings.logoUrl; $('s-pay').value = settings.payment;
+  $('s-trackurl').value = settings.trackUrl;
+}
+function saveSettings() {
+  settings = {
+    storeName: $('s-name').value, address: $('s-addr').value, logoUrl: $('s-logo').value,
+    payment: $('s-pay').value, trackUrl: $('s-trackurl').value
+  };
+  render();
+  if (!db) { note('sline', 'No database connection', true); return; }
+  db.collection('settings').doc('invoice').set(settings, { merge: true })
+    .then(function () { note('sline', 'Settings saved'); })
+    .catch(function (e) { note('sline', 'Not saved: ' + e.message, true); });
+}
+
+/* ── stock, read only ─────────────────────────────────────── */
+function loadStock() {
+  var cloud = db
+    ? db.collection('sp242').doc('inventory').get().then(function (d) {
+        var v = d.exists ? d.data() : {};
+        return Array.isArray(v.shoes) ? v.shoes : [];
+      }).catch(function () { return []; })
+    : Promise.resolve([]);
+  return cloud.then(function (live) {
+    var base = {}, out = [], seen = {};
+    CATALOG.forEach(function (x) { base[x.id] = x; });
+    live.forEach(function (s) {
+      if (!s || !s.id || s.sold) return;
+      var b = base[s.id] || {};
+      var name = s.name || b.name || '';
+      if (!name) return;
+      out.push({ id: s.id, brand: s.brand || b.brand || '', name: name,
+                 color: s.color || b.color || '',
+                 price: (s.price != null ? s.price : b.price) || 0,
+                 sizes: (s.sizes && s.sizes.length ? s.sizes : b.sizes) || [],
+                 image: s.image || '' });
+      seen[s.id] = 1;
+    });
+    CATALOG.forEach(function (x) { if (!seen[x.id]) out.push(x); });
+    stock = out;
+  });
+}
+
+function nextNumber() {
+  if (!db) return Promise.resolve('INV-0001');
+  var ref = db.collection('settings').doc('invoiceCounter');
+  return db.runTransaction(function (t) {
+    return t.get(ref).then(function (d) {
+      var n = (d.exists && Number(d.data().next)) ? Number(d.data().next) : 1;
+      t.set(ref, { next: n + 1 }, { merge: true });
+      return n;
+    });
+  }).then(function (n) { return 'INV-' + String(n).padStart(4, '0'); })
+    .catch(function () { return 'INV-0001'; });
+}
+
+/* ── totals ───────────────────────────────────────────────── */
+function subtotal() {
+  return inv.items.reduce(function (s, it) {
+    return s + (Number(it.qty) || 0) * (Number(it.price) || 0);
+  }, 0);
+}
+function total() { return subtotal() + (Number(inv.shipping) || 0) - (Number(inv.discount) || 0); }
+function trackLink() {
+  var t = String(inv.tracking || '').trim();
+  if (!t) return '';
+  return (settings.trackUrl || '').replace('{tracking}', encodeURIComponent(t));
+}
+
+/* THE THANK-YOU LINE FOLLOWS THE STORE NAME.
+   Blank store name  -> "Thank you for shopping with us"
+   "Sneaker Inventory" -> "Thank you for shopping with Sneaker Inventory"
+   "242 Plug"          -> "Thank you for shopping with 242 Plug"
+   Typing over it on the receipt pins it for THAT invoice; clearing it again
+   hands it back to the store name. */
+function footerText() {
+  if (inv.footer && inv.footer.trim()) return inv.footer;
+  var who = (settings && settings.storeName && settings.storeName.trim()) || 'us';
+  return 'Thank you for shopping with ' + who;
+}
+
+/* ── the receipt ──────────────────────────────────────────── */
+function ed(path, val, cls, ph) {
+  return '<span class="' + (cls || '') + '" contenteditable="true" data-bind="' + path + '"' +
+    (ph ? ' data-ph="' + esc(ph) + '"' : '') + '>' + esc(val) + '</span>';
+}
+
+function render() {
+  if (typing) return;          // never redraw under a live caret
+  var s = settings || DEFAULT_SETTINGS;
+
+  var steps = inv.steps.map(function (st, i) {
+    return '<div class="dstep' + (st.done ? ' on' : '') + '" data-step="' + i + '">' +
+      (i ? '<span class="dline"></span>' : '') +
+      '<span class="ddot">' + (st.done ? '✓' : '') + '</span>' +
+      '<span class="nm">' + ed('steps.' + i + '.label', st.label, '', 'step') + '</span>' +
+      '<small>' + ed('steps.' + i + '.date', prettyDate(st.date), '', 'date') + '</small></div>';
+  }).join('');
+
+  var cards = inv.items.map(function (it, i) {
+    var qty = Number(it.qty) || 0, unit = Number(it.price) || 0;
+    return '<div class="oc" data-i="' + i + '">' +
+      '<button class="del" data-del="' + i + '" title="Remove">✕</button>' +
+      '<div class="octop">' +
+        '<div class="ocimg" data-photo="' + i + '">' +
+          (it.image ? '<img src="' + esc(it.image) + '" alt="">' : 'tap to<br>add photo') + '</div>' +
+        '<div class="ocmid">' +
+          '<div class="nm">' + ed('items.' + i + '.name', it.name, '', 'Item name') + '</div>' +
+          '<div class="ocopt">' + ed('items.' + i + '.color', it.color, '', 'colour') +
+            ' · Size ' + ed('items.' + i + '.size', it.size, '', '—') + '</div>' +
+          '<div class="ocqty">Qty ' + ed('items.' + i + '.qty', qty, 'num') + '</div>' +
+        '</div>' +
+        '<div class="ocright"><span class="amt" data-line="' + i + '">' + money(unit * qty) + '</span>' +
+          '<small>' + ed('items.' + i + '.price', unit.toFixed(2), 'num') + ' / pair</small></div>' +
+      '</div></div>';
+  }).join('');
+
+  var head = s.logoUrl
+    ? '<img src="' + esc(s.logoUrl) + '" alt="" style="max-height:56px">'
+    : '<div class="thanks">' + ed('thanks', inv.thanks, '', 'Thank you') + '</div>';
+
+  $('preview').innerHTML =
+    '<div class="pvtop"><div>' + head + '</div>' +
+      '<div style="width:100%"><h4 class="lbl">Delivery info</h4>' +
+        '<div class="dbar">' + steps + '</div></div></div>' +
+
+    '<div class="pvtitle">INVOICE</div>' +
+    '<div class="pvmeta">' + ed('number', inv.number, '', 'INV-0001') + ' · ' +
+      ed('date', prettyDate(inv.date), '', 'date') +
+      ' · <span class="pill ' + esc(inv.status) + '" id="statuspill">' + esc(inv.status) + '</span></div>' +
+
+    '<div class="pvto">' +
+      '<div><h4 class="lbl">Bill to</h4>' +
+        '<div>' + ed('customer.name', inv.customer.name, '', 'Customer name') + '</div>' +
+        '<div>' + ed('customer.phone', inv.customer.phone, '', '+1 242') + '</div>' +
+        '<div>' + ed('customer.email', inv.customer.email, '', 'email') + '</div></div>' +
+      '<div><h4 class="lbl">Ship to</h4>' +
+        '<div class="ml">' + ed('shipAddress', inv.shipAddress, '', 'Delivery address') + '</div></div>' +
+    '</div>' +
+
+    cards +
+
+    '<div class="tot">' +
+      '<div class="tl"><span>' + inv.items.length + ' item(s) total</span>' +
+        '<span id="t-sub">' + money(subtotal()) + '</span></div>' +
+      '<div class="tl"><span>Shipping</span><span>$' +
+        ed('shipping', Number(inv.shipping).toFixed(2), 'num') + '</span></div>' +
+      '<div class="tl"><span>Discount</span><span>−$' +
+        ed('discount', Number(inv.discount).toFixed(2), 'num') + '</span></div>' +
+      '<div class="tl big"><span>Total</span><span id="t-total">' + money(total()) + '</span></div>' +
+    '</div>' +
+
+    '<div class="dl"><h4 class="lbl">Tracking details</h4>' +
+      '<div class="trk"><span>Number</span><span class="num">' +
+        ed('tracking', inv.tracking, '', 'tracking number') + '</span></div>' +
+      (trackLink() ? '<a class="trkbtn" href="' + esc(trackLink()) + '" target="_blank" rel="noopener">Track package</a>' : '') +
+      '<div class="muted" style="margin-top:6px">' + ed('carrier', inv.carrier, '', 'carrier') + '</div></div>' +
+
+    '<div class="dl"><h4 class="lbl">Payment info</h4><div class="payrow">' +
+      '<div><b>' + ed('payment.brand', inv.payment.brand, '', 'Visa') + ' ending in ' +
+        ed('payment.last4', inv.payment.last4, 'num', '0000') + '</b>' +
+        '<small>' + esc(inv.customer.name) + '</small></div>' +
+      '<div class="ocright"><span class="amt" id="t-paid">' + money(total()) + '</span>' +
+        '<small>' + esc(prettyDate(inv.date)) + '</small></div></div></div>' +
+
+    (s.payment ? '<div class="dl"><h4 class="lbl">Payment instructions</h4><div class="ml">' +
+      esc(s.payment) + '</div></div>' : '') +
+
+    '<div class="foot">' + ed('footer', footerText(), '', 'Thank you for shopping with us') + '</div>' +
+    (s.address ? '<div class="foot pvstore" style="text-align:center">' + esc(s.address) + '</div>' : '');
+}
+
+function refreshTotals() {
+  $('t-sub').textContent = money(subtotal());
+  $('t-total').textContent = money(total());
+  var paid = $('t-paid'); if (paid) paid.textContent = money(total());
+  inv.items.forEach(function (it, i) {
+    var el = document.querySelector('[data-line="' + i + '"]');
+    if (el) el.textContent = money((Number(it.qty) || 0) * (Number(it.price) || 0));
+  });
+}
+
+/* ── items ────────────────────────────────────────────────── */
+function addItem(it) {
+  inv.items.push({ name: it.name || '', color: it.color || '', size: it.size || '',
+                   qty: it.qty || 1, price: it.price != null ? it.price : 0,
+                   image: it.image || '' });
+  dirty = true; render();
+}
+
+function searchStock(q) {
+  q = q.trim().toLowerCase();
+  var box = $('sres');
+  if (q.length < 2) { box.innerHTML = ''; return; }
+  var words = q.split(/\s+/);
+  var hits = stock.filter(function (s) {
+    var hay = (s.brand + ' ' + s.name + ' ' + s.color).toLowerCase();
+    return words.every(function (w) { return hay.indexOf(w) >= 0; });
+  }).slice(0, 25);
+  if (!hits.length) { box.innerHTML = '<div class="sitem"><small>Nothing matching — use “+ Blank line”.</small></div>'; return; }
+  box.innerHTML = hits.map(function (s, i) {
+    var counts = {};
+    (s.sizes || []).forEach(function (z) { counts[z] = (counts[z] || 0) + 1; });
+    var chips = Object.keys(counts).sort(function (a, b) { return Number(a) - Number(b); })
+      .map(function (z) {
+        return '<button class="sz" data-pick="' + i + '" data-size="' + esc(z) + '">' + esc(z) +
+          (counts[z] > 1 ? ' ×' + counts[z] : '') + '</button>';
+      }).join('');
+    return '<div class="sitem"><b>' + esc(s.name) + '</b><small>' + esc(s.color) +
+      (s.price ? ' · ' + money(s.price) : '') + '</small><div class="sizes">' +
+      (chips || '<small>no sizes</small>') + '</div></div>';
+  }).join('');
+  box._hits = hits;
+}
+
+function uploadPhoto(file, i) {
+  note('saveline', 'Uploading photo…');
+  var fd = new FormData();
+  fd.append('file', file); fd.append('upload_preset', CLOUDINARY_PRESET);
+  fetch('https://api.cloudinary.com/v1_1/' + CLOUDINARY_CLOUD + '/image/upload',
+        { method: 'POST', body: fd })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (!j || !j.secure_url) throw new Error((j && j.error && j.error.message) || 'Cloudinary refused it');
+      inv.items[i].image = j.secure_url; dirty = true; render();
+      note('saveline', 'Photo added');
+    })
+    .catch(function (e) { note('saveline', 'Photo not uploaded: ' + e.message, true); });
+}
+
+
+/* ── PDF ──────────────────────────────────────────────────────
+   Drawn from the DATA, not screenshotted from the page. A canvas
+   grab of the receipt is blurry, enormous, and carries the edit
+   highlights with it. This lays the same blocks out on Letter so
+   the paper matches what he was just looking at.
+   ─────────────────────────────────────────────────────────── */
+/* EVERY PHOTO IS RE-ENCODED TO JPEG BEFORE IT GOES IN THE PDF.
+   Two bugs came out of not doing this. jsPDF only understands JPEG and PNG, and
+   a WebP - which is what phones and Cloudinary hand back by default - produced a
+   file that downloaded at 830 KB and then would not open at all. Drawing each
+   photo onto a canvas and exporting JPEG guarantees a format the PDF can hold,
+   and drops the size to a fraction of that.
+   A photo that will not load is skipped. A missing picture is a cosmetic problem;
+   a corrupt invoice is not. */
+function imgToData(url) {
+  return new Promise(function (res) {
+    if (!url) return res(null);
+    var done = false;
+    var finish = function (v) { if (!done) { done = true; res(v); } };
+    setTimeout(function () { finish(null); }, 8000);   // never hang the PDF on one image
+
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function () {
+      try {
+        var max = 500;
+        var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        if (!w || !h) return finish(null);
+        var k = Math.min(1, max / Math.max(w, h));
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * k); c.height = Math.round(h * k);
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff';                      // JPEG has no transparency
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        finish(c.toDataURL('image/jpeg', 0.82));
+      } catch (e) { finish(null); }
+    };
+    img.onerror = function () { finish(null); };
+    img.src = url;
+  });
+}
+
+/* TWO SHAPES OF THE SAME RECEIPT.
+   Mobile is a narrow tall page - the one he actually sends, and the default,
+   because it matches what he is looking at on the phone and reads properly in
+   WhatsApp. Desktop is Letter, kept for when a customer or a shipper wants
+   something that prints on ordinary paper. The only differences are the page
+   width and whether Bill To / Ship To sit side by side. */
+function pdfMode() {
+  var el = document.getElementById('fmt');
+  return (el && el.value === 'desktop') ? 'desktop' : 'mobile';
+}
+
+function buildInvoicePdfBlob(mode) {
+  var jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+  if (!jsPDFCtor) return Promise.reject(new Error('PDF library did not load'));
+  var mobile = (mode || pdfMode()) !== 'desktop';
+
+  return Promise.all(inv.items.map(function (it) { return imgToData(it.image); }))
+    .then(function (pics) {
+      var doc = mobile
+        ? new jsPDFCtor({ unit: 'pt', format: [380, 900] })
+        : new jsPDFCtor({ unit: 'pt', format: 'letter' });
+      var W = doc.internal.pageSize.getWidth(), M = mobile ? 24 : 46, y = mobile ? 44 : 56;
+      var line = function (yy) { doc.setDrawColor(226, 231, 238); doc.line(M, yy, W - M, yy); };
+      var grey = function () { doc.setTextColor(107, 114, 128); };
+      var ink = function () { doc.setTextColor(18, 21, 26); };
+
+      // thank you
+      doc.setFont('times', 'bolditalic'); doc.setFontSize(mobile ? 26 : 30); ink();
+      doc.text(inv.thanks || 'Thank you', M, y);
+
+      // store contact, top right - desktop only; on mobile it would crowd the line
+      if (!mobile) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); grey();
+        String((settings && settings.address) || '').split('\n').filter(Boolean)
+          .forEach(function (l, i) { doc.text(l, W - M, 40 + i * 12, { align: 'right' }); });
+      }
+
+      // delivery trail
+      y += 26;
+      if (inv.steps && inv.steps.length) {
+        doc.setFontSize(8); grey(); doc.text('DELIVERY INFO', M, y);
+        y += 16;
+        var n = inv.steps.length, span = (W - M * 2) / n;
+        inv.steps.forEach(function (st, i) {
+          var cx = M + span * i + span / 2;
+          if (i) {
+            doc.setDrawColor(st.done ? 31 : 204, st.done ? 111 : 210, st.done ? 235 : 220);
+            doc.setLineWidth(2); doc.line(cx - span, y, cx, y);
+          }
+          if (st.done) { doc.setFillColor(31, 111, 235); doc.circle(cx, y, 5, 'F'); }
+          else { doc.setDrawColor(204, 210, 220); doc.setLineWidth(1.5); doc.circle(cx, y, 5, 'S'); }
+          doc.setFontSize(8.5); ink();
+          doc.text(String(st.label || ''), cx, y + 16, { align: 'center' });
+          grey(); doc.setFontSize(7.5);
+          doc.text(prettyDate(st.date) || '', cx, y + 26, { align: 'center' });
+        });
+        doc.setLineWidth(1);
+        y += 44;
+      }
+
+      // title
+      ink(); doc.setFont('helvetica', 'bold'); doc.setFontSize(22);
+      doc.text('INVOICE', M, y); y += 16;
+      grey(); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+      doc.text(inv.number + '  \u00b7  ' + prettyDate(inv.date) + '  \u00b7  ' + inv.status, M, y);
+      y += 22;
+
+      // bill to / ship to
+      var bill = [inv.customer.name, inv.customer.phone, inv.customer.email].filter(Boolean);
+      if (mobile) {
+        doc.setFontSize(8); grey(); doc.text('BILL TO', M, y); y += 13;
+        ink(); doc.setFontSize(10);
+        bill.forEach(function (l) { doc.text(String(l), M, y); y += 13; });
+        y += 6;
+        doc.setFontSize(8); grey(); doc.text('SHIP TO', M, y); y += 13;
+        ink(); doc.setFontSize(10);
+        doc.splitTextToSize(String(inv.shipAddress || ''), W - M * 2).forEach(function (l) {
+          doc.text(String(l), M, y); y += 13;
+        });
+        y += 12;
+      } else {
+        doc.setFontSize(8); grey(); doc.text('BILL TO', M, y); doc.text('SHIP TO', W / 2, y);
+        y += 13; ink(); doc.setFontSize(10);
+        var ship = doc.splitTextToSize(String(inv.shipAddress || ''), W / 2 - M - 10);
+        bill.forEach(function (l, i) { doc.text(String(l), M, y + i * 13); });
+        ship.forEach(function (l, i) { doc.text(String(l), W / 2, y + i * 13); });
+        y += Math.max(bill.length, ship.length) * 13 + 16;
+      }
+
+      // items
+      inv.items.forEach(function (it, i) {
+        var nameW = W - M * 2 - (mobile ? 150 : 190);
+        var nameLines = doc.splitTextToSize(String(it.name || 'Item'), nameW).slice(0, 2);
+        var h = 62 + (nameLines.length > 1 ? 12 : 0);
+        if (y + h > doc.internal.pageSize.getHeight() - 90) { doc.addPage(); y = 56; }
+        doc.setDrawColor(226, 231, 238);
+        doc.roundedRect(M, y, W - M * 2, h, 6, 6, 'S');
+        if (pics[i]) {
+          try { doc.addImage(pics[i], 'JPEG', M + 8, y + 8, 46, 46); }
+          catch (e) { note('saveline', 'One photo could not be placed - invoice still fine'); }
+        }
+        var tx = M + 64;
+        ink(); doc.setFont('helvetica', 'bold'); doc.setFontSize(mobile ? 9.5 : 10.5);
+        nameLines.forEach(function (l, k) { doc.text(l, tx, y + 20 + k * 12); });
+        var below = y + 20 + nameLines.length * 12;
+        grey(); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+        doc.text([it.color, it.size ? 'Size ' + it.size : ''].filter(Boolean).join('  \u00b7  '),
+                 tx, below + 2);
+        ink(); doc.setFontSize(9.5);
+        doc.text('Qty ' + (it.qty || 0), tx, below + 17);
+        var amt = (Number(it.qty) || 0) * (Number(it.price) || 0);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+        doc.text(money(amt), W - M - 8, y + 24, { align: 'right' });
+        grey(); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
+        doc.text(money(it.price) + ' / pair', W - M - 8, y + 38, { align: 'right' });
+        y += h + 8;
+      });
+
+      // totals
+      if (y > doc.internal.pageSize.getHeight() - 190) { doc.addPage(); y = 56; }
+      y += 6; line(y); y += 16;
+      var row = function (label, val, bold) {
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.setFontSize(bold ? 13 : 10); bold ? ink() : grey();
+        doc.text(label, M, y); ink();
+        doc.text(val, W - M, y, { align: 'right' });
+        y += bold ? 20 : 16;
+      };
+      row(inv.items.length + ' item(s) total', money(subtotal()));
+      row('Shipping', money(inv.shipping));
+      row('Discount', '\u2212' + money(inv.discount));
+      line(y); y += 18; row('Total', money(total()), true);
+
+      // tracking + payment
+      if (inv.tracking) {
+        y += 8; line(y); y += 16;
+        doc.setFontSize(8); grey(); doc.text('TRACKING DETAILS', M, y); y += 14;
+        ink(); doc.setFontSize(10);
+        doc.text(String(inv.tracking), M, y);
+        if (inv.carrier) { grey(); doc.text(String(inv.carrier), W - M, y, { align: 'right' }); }
+        y += 18;
+      }
+      if (inv.payment && inv.payment.last4) {
+        line(y); y += 16;
+        doc.setFontSize(8); grey(); doc.text('PAYMENT INFO', M, y); y += 14;
+        ink(); doc.setFontSize(10);
+        doc.text((inv.payment.brand || 'Card') + ' ending in ' + inv.payment.last4, M, y);
+        doc.text(money(total()), W - M, y, { align: 'right' });
+        y += 18;
+      }
+
+      // footer
+      y += 14; grey(); doc.setFontSize(10);
+      doc.text(footerText(), W / 2, y, { align: 'center' });
+
+      return doc.output('blob');
+    });
+}
+
+function pdfName() {
+  var who = (inv.customer.name || 'Customer').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return 'Invoice-' + (inv.number || 'INV') + '-' + who + '.pdf';
+}
+
+function downloadPdf() {
+  note('saveline', 'Building ' + pdfMode() + ' PDF…');
+  buildInvoicePdfBlob(pdfMode()).then(function (blob) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = pdfName();
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    note('saveline', 'PDF downloaded');
+  }).catch(function (e) { note('saveline', 'PDF failed: ' + e.message, true); });
+}
+
+/* SEND. The phone's own share sheet, which puts WhatsApp, Gmail and everything
+   else one tap away and needs no server behind it. Where the browser cannot
+   share a file, it falls back to downloading so he still has something to attach. */
+function sharePdf() {
+  note('saveline', 'Building ' + pdfMode() + ' PDF…');
+  buildInvoicePdfBlob(pdfMode()).then(function (blob) {
+    var file = new File([blob], pdfName(), { type: 'application/pdf' });
+    var msg = 'Hi ' + (inv.customer.name || '') + ', here is your invoice ' + inv.number +
+              ' — total ' + money(total()) + '.';
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file], title: inv.number, text: msg })
+        .then(function () { note('saveline', 'Shared'); })
+        .catch(function (e) {
+          if (e && e.name === 'AbortError') { note('saveline', ''); return; }
+          note('saveline', 'Share failed: ' + e.message, true);
+        });
+    } else {
+      /* Web Share needs a SECURE page. Over plain http - which is what the test
+         link off the Mac is - Android disables it, so Send can only download.
+         Say that, rather than looking broken. */
+      downloadPdf();
+      note('saveline', location.protocol === 'https:'
+        ? 'This browser cannot share files — downloaded it instead.'
+        : 'Sharing needs https (this test link is http) — downloaded it instead.', true);
+    }
+  }).catch(function (e) { note('saveline', 'PDF failed: ' + e.message, true); });
+}
+
+/* ── save / load ──────────────────────────────────────────── */
+function saveInvoice(quiet) {
+  if (!inv.number) { note('saveline', 'Give it an invoice number first', true); return Promise.resolve(); }
+  if (!db) { note('saveline', 'No database connection', true); return Promise.resolve(); }
+  var doc = JSON.parse(JSON.stringify(inv));
+  doc.subtotal = subtotal(); doc.total = total();
+  doc.updatedAt = new Date().toISOString();
+  if (!inv.createdAt) { inv.createdAt = doc.updatedAt; }
+  doc.createdAt = inv.createdAt;
+  return db.collection('invoices').doc(inv.number).set(doc, { merge: true })
+    .then(function () {
+      dirty = false; inv.savedOnce = true;
+      note('saveline', quiet ? 'Autosaved' : 'Saved');
+    })
+    .catch(function (e) { note('saveline', 'Not saved: ' + e.message, true); });
+}
+/* AUTOSAVE KEEPS AN INVOICE UP TO DATE - IT DOES NOT CREATE ONE.
+   Every page load takes the next number from the counter, so autosaving an
+   untouched invoice wrote a fresh ghost document each time the page was opened.
+   He found four of them and no way to delete them. Now nothing is written until
+   he presses Save once; after that, autosave maintains that same document. */
+function autosave() {
+  if (dirty && inv && inv.savedOnce && inv.number) saveInvoice(true);
+}
+
+function loadList() {
+  var box = $('list');
+  if (!db) { box.innerHTML = '<p class="muted err">No database connection</p>'; return; }
+  box.innerHTML = '<p class="muted">Loading…</p>';
+  db.collection('invoices').orderBy('updatedAt', 'desc').limit(200).get().then(function (snap) {
+    var all = []; snap.forEach(function (d) { all.push(d.data()); });
+    box._all = all; paintList();
+  }).catch(function (e) { box.innerHTML = '<p class="muted err">Could not load: ' + esc(e.message) + '</p>'; });
+}
+function paintList() {
+  var box = $('list'), all = box._all || [], q = $('lq').value.trim().toLowerCase();
+  var rows = all.filter(function (d) {
+    if (!q) return true;
+    return (((d.customer && d.customer.name) || '') + ' ' + d.number).toLowerCase().indexOf(q) >= 0;
+  });
+  if (!rows.length) { box.innerHTML = '<p class="muted">Nothing here yet.</p>'; return; }
+  box.innerHTML = rows.map(function (d) {
+    return '<div class="inv" data-open="' + esc(d.number) + '"><div class="n"><b>' +
+      esc((d.customer && d.customer.name) || 'No name') + '</b><small>' + esc(d.number) + ' · ' +
+      esc(prettyDate(d.date)) + '</small></div><span class="badge">' + esc(d.status || 'Draft') +
+      '</span><span class="amt2">' + money(d.total) + '</span>' +
+      '<button class="del2" data-kill="' + esc(d.number) + '" title="Delete">✕</button></div>';
+  }).join('');
+}
+function openInvoice(number) {
+  db.collection('invoices').doc(number).get().then(function (d) {
+    if (!d.exists) return;
+    var v = d.data(), b = blankInvoice();
+    Object.keys(b).forEach(function (k) { if (v[k] === undefined) v[k] = b[k]; });
+    inv = v; inv.savedOnce = true; dirty = false; render(); show('edit');
+  });
+}
+
+function show(v) {
+  ['edit', 'list', 'settings'].forEach(function (k) { $('view-' + k).hidden = (k !== v); });
+  Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'), function (b) {
+    b.setAttribute('aria-selected', b.dataset.view === v ? 'true' : 'false');
+  });
+  if (v === 'list') loadList();
+}
+
+/* ── wiring ───────────────────────────────────────────────── */
+var NUMERIC = { shipping: 1, discount: 1 };
+
+function commit(el) {
+  var path = el.dataset.bind, txt = el.textContent.trim();
+  var last = path.split('.').pop();
+  if (last === 'qty' || last === 'price' || NUMERIC[path]) {
+    setPath(inv, path, Number(txt.replace(/[^0-9.]/g, '')) || 0);
+  } else if (last === 'last4') {
+    setPath(inv, path, txt.replace(/\D/g, '').slice(-4));
+  } else if (last === 'date') {
+    setPath(inv, path, txt);      // free text; prettyDate passes it through
+  } else if (path === 'footer') {
+    var who = (settings && settings.storeName && settings.storeName.trim()) || 'us';
+    inv.footer = (txt === 'Thank you for shopping with ' + who) ? '' : txt;
+  } else {
+    setPath(inv, path, txt);
+  }
+  dirty = true;
+}
+
+function wire() {
+  $('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('.tab'); if (b) show(b.dataset.view);
+  });
+
+  var pv = $('preview');
+
+  pv.addEventListener('focusin', function (e) {
+    if (e.target.hasAttribute && e.target.hasAttribute('contenteditable')) typing = true;
+  });
+  pv.addEventListener('input', function (e) {
+    var el = e.target.closest('[data-bind]');
+    if (!el) return;
+    commit(el);
+    refreshTotals();             // numbers only - no redraw under the caret
+  });
+  pv.addEventListener('focusout', function (e) {
+    var el = e.target.closest('[data-bind]');
+    if (!el) return;
+    commit(el);
+    typing = false;
+    render();                    // now it is safe to redraw
+  });
+
+  pv.addEventListener('click', function (e) {
+    var st = e.target.closest('[data-step]');
+    if (st && !e.target.hasAttribute('contenteditable')) {
+      var i = Number(st.dataset.step);
+      inv.steps[i].done = !inv.steps[i].done; dirty = true; render(); return;
+    }
+    var del = e.target.closest('[data-del]');
+    if (del) { inv.items.splice(Number(del.dataset.del), 1); dirty = true; render(); return; }
+    var ph = e.target.closest('[data-photo]');
+    if (ph) {
+      var idx = Number(ph.dataset.photo);
+      var f = document.createElement('input');
+      f.type = 'file'; f.accept = 'image/*';
+      f.addEventListener('change', function () {
+        if (f.files && f.files[0]) uploadPhoto(f.files[0], idx);
+      });
+      f.click(); return;
+    }
+    var pill = e.target.closest('#statuspill');
+    if (pill) {
+      var order = ['Draft', 'Sent', 'Paid'];
+      inv.status = order[(order.indexOf(inv.status) + 1) % order.length];
+      dirty = true; render();
+    }
+  });
+
+  $('q').addEventListener('input', function () { searchStock(this.value); });
+  $('sres').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-pick]'); if (!b) return;
+    var s = ($('sres')._hits || [])[Number(b.dataset.pick)]; if (!s) return;
+    addItem({ name: s.name, color: s.color, size: b.dataset.size, qty: 1, price: s.price, image: s.image });
+    $('q').value = ''; $('sres').innerHTML = '';
+  });
+
+  $('b-custom').addEventListener('click', function () { addItem({}); });
+  $('b-save').addEventListener('click', function () { saveInvoice(false); });
+  $('b-print').addEventListener('click', function () { window.print(); });
+  var fmt = $('fmt');
+  try { fmt.value = localStorage.getItem('sp_inv_fmt') || 'mobile'; } catch (e) {}
+  fmt.addEventListener('change', function () {
+    try { localStorage.setItem('sp_inv_fmt', fmt.value); } catch (e) {}
+  });
+  $('b-view').addEventListener('click', function () {
+    note('saveline', 'Building ' + pdfMode() + ' PDF…');
+    buildInvoicePdfBlob(pdfMode()).then(function (blob) {
+      window.open(URL.createObjectURL(blob), '_blank');
+      note('saveline', 'Opened in a new tab');
+    }).catch(function (e) { note('saveline', 'PDF failed: ' + e.message, true); });
+  });
+  $('b-pdf').addEventListener('click', downloadPdf);
+  $('b-share').addEventListener('click', sharePdf);
+  $('b-new').addEventListener('click', function () {
+    inv = blankInvoice();
+    nextNumber().then(function (n) { inv.number = n; dirty = false; render(); note('saveline', ''); });
+  });
+  $('b-ssave').addEventListener('click', saveSettings);
+  $('lq').addEventListener('input', paintList);
+  /* DELETE, BUT NOT BY ACCIDENT. One tap arms the button and says Delete?,
+     a second tap does it. No modal - a dialog on a phone in a delivery van is
+     worse than a button that asks once. */
+  $('list').addEventListener('click', function (e) {
+    var kill = e.target.closest('[data-kill]');
+    if (kill) {
+      e.stopPropagation();
+      if (!kill.classList.contains('arm')) {
+        Array.prototype.forEach.call(document.querySelectorAll('.del2.arm'), function (b) {
+          b.classList.remove('arm'); b.textContent = '✕';
+        });
+        kill.classList.add('arm'); kill.textContent = 'Delete?';
+        return;
+      }
+      var num = kill.dataset.kill;
+      db.collection('invoices').doc(num).delete()
+        .then(function () {
+          var box = $('list');
+          box._all = (box._all || []).filter(function (d) { return d.number !== num; });
+          paintList();
+          if (inv && inv.number === num) { inv.savedOnce = false; }
+        })
+        .catch(function (err) { alert('Could not delete: ' + err.message); });
+      return;
+    }
+    var r = e.target.closest('[data-open]'); if (r) openInvoice(r.dataset.open);
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+}
+
+document.getElementById('gate-form').addEventListener('submit', tryOpen);
+document.getElementById('gate-open').addEventListener('click', tryOpen);
+document.getElementById('showpin').addEventListener('change', function () {
+  document.getElementById('pin').style.webkitTextSecurity = this.checked ? 'none' : 'disc';
+});
+document.getElementById('stamp').textContent = 'build ' + BUILD;
+window.addEventListener('load', function () {
+  var f = document.getElementById('pin'); if (f) f.focus();
+});
+
+</script>
+</body>
+</html>

@@ -10768,6 +10768,44 @@ app.get(['/push-check', '/push-check.html'], (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-cache').send(PUSHCHK);
 });
 
+/* THE INVOICE MAKER — /invoice
+ *
+ * A standalone page the manager opens on his phone: it builds a receipt he can
+ * edit in place, makes a PDF of it, and hands it to WhatsApp or email through the
+ * phone's own share sheet. It lives here rather than on the Netlify site for one
+ * practical reason - the share sheet and Add to Home screen both need https, and
+ * this domain already has it.
+ *
+ * Served the same way as /push-check above: read once at boot, no static mount, so
+ * it cannot expose anything else in this directory. Read-only as far as the shop is
+ * concerned - the page talks to Firestore directly for invoices and never touches
+ * stock counts.
+ */
+const INVOICE_ASSETS = {
+  '/invoice':                 ['invoice.html',          'text/html; charset=utf-8'],
+  '/invoice.html':            ['invoice.html',          'text/html; charset=utf-8'],
+  '/invoice-manifest.json':   ['invoice-manifest.json', 'application/manifest+json'],
+  '/invoice-icon-192.png':    ['invoice-icon-192.png',  'image/png'],
+  '/invoice-icon-512.png':    ['invoice-icon-512.png',  'image/png']
+};
+const INVOICE_CACHE = {};
+Object.keys(INVOICE_ASSETS).forEach((route) => {
+  const file = INVOICE_ASSETS[route][0];
+  if (INVOICE_CACHE[file] !== undefined) return;
+  try {
+    INVOICE_CACHE[file] = require('fs').readFileSync(require('path').join(__dirname, file));
+  } catch (e) {
+    INVOICE_CACHE[file] = null;
+    console.log('[invoice] missing file:', file, e.message);
+  }
+});
+app.get(Object.keys(INVOICE_ASSETS), (req, res) => {
+  const entry = INVOICE_ASSETS[req.path];
+  const body = entry && INVOICE_CACHE[entry[0]];
+  if (!body) return res.status(404).type('text/plain').send('no page');
+  res.set('Content-Type', entry[1]).set('Cache-Control', 'no-cache').send(body);
+});
+
 let STORE_HTML = null, STORE_HTML_GZ = null;
 (function buildStoreHtml(){
   try {
