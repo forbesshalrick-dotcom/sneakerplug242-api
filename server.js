@@ -7314,6 +7314,52 @@ async function waMediaBase64(mediaId) {
   } catch (_) { return null; }
 }
 
+/* WHAT DOES META ACTUALLY THINK IS SET UP? — GET /wa/numbers?key=<DEBUG_KEY>
+ *
+ * Rodney has asked twice whether a number is already attached and whether his
+ * business verification came back, and nobody could answer without clicking
+ * through the Meta console. The token already in Railway can answer it directly,
+ * so this asks Graph instead of guessing: which numbers are on the account, their
+ * phone number IDs, their display names, and their verification state.
+ *
+ * Read only. It never prints the token — only what the token can see. Gated on the
+ * same DEBUG_KEY as the other diagnostics.
+ */
+app.get('/wa/numbers', async (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const tok = waToken();
+  if (!tok) return res.json({ ok: false, why: 'WA_TOKEN is not set in Railway' });
+  const out = { ok: true, waba: null, numbers: [], token: 'present (not shown)' };
+  try {
+    // The WABA id may be configured; if not, ask the token what it is attached to.
+    let waba = (process.env.WA_WABA_ID || process.env.WHATSAPP_WABA_ID || '').trim();
+    if (!waba) {
+      const d = await fetch(`${WA_GRAPH}/debug_token?input_token=${encodeURIComponent(tok)}&access_token=${encodeURIComponent(tok)}`)
+        .then(r => r.json()).catch(() => null);
+      const gran = d && d.data && d.data.granular_scopes;
+      if (Array.isArray(gran)) {
+        for (const g of gran) {
+          if (/whatsapp_business/.test(g.scope || '') && Array.isArray(g.target_ids) && g.target_ids.length) {
+            waba = String(g.target_ids[0]); break;
+          }
+        }
+      }
+      out.wabaFoundFromToken = !!waba;
+    }
+    out.waba = waba || null;
+    if (!waba) { out.ok = false; out.why = 'no WABA id configured and the token did not name one'; return res.json(out); }
+
+    const r = await fetch(`${WA_GRAPH}/${waba}/phone_numbers?fields=id,display_phone_number,verified_name,code_verification_status,quality_rating,platform_type`,
+                          { headers: { Authorization: `Bearer ${tok}` } });
+    const j = await r.json();
+    if (j && j.error) { out.ok = false; out.metaError = { code: j.error.code, message: j.error.message }; return res.json(out); }
+    out.numbers = (j && j.data) || [];
+  } catch (e) {
+    out.ok = false; out.why = String(e).slice(0, 160);
+  }
+  res.json(out);
+});
+
 /* WHICH STORE IS THIS NUMBER? One webhook serves every number on the WhatsApp
    Business account, and value.metadata.phone_number_id is the only thing that says
    which one a message arrived on. The number that has been live since July keeps
