@@ -7443,7 +7443,7 @@ async function handleWaMessage(req, value, phoneNumberId, msg) {
     const profileName = (((value.contacts || [])[0] || {}).profile || {}).name || '';
     waChannel.set(from, phoneNumberId); // so Kiki's replies route back here
 
-    let text = '', imageObj = null, audioUrl = null, locNote = '';
+    let text = '', imageObj = null, audioUrl = null, locNote = '', adNote = '';
     if (msg.type === 'text') text = (msg.text && msg.text.body) || '';
     else if (msg.type === 'image') { text = (msg.image && msg.image.caption) || ''; if (msg.image && msg.image.id) imageObj = await waMediaBase64(msg.image.id); }
     else if (msg.type === 'audio' || msg.type === 'voice') { if (msg.audio && msg.audio.id) audioUrl = await waMediaUrl(msg.audio.id); }
@@ -7462,7 +7462,25 @@ async function handleWaMessage(req, value, phoneNumberId, msg) {
       record(req, { endpoint: 'wa-voice-transcribe', sub: from, transcript: t });
       if (t && t.trim()) text = t.trim();
     }
-    record(req, { endpoint: 'wa-in', sub: from, name: profileName, msgType: msg.type, q: String(text).slice(0, 60), hasImage: !!imageObj, hasAudio: !!audioUrl });
+    /* CLICK-TO-WHATSAPP ADS. Meta attaches a referral block to the FIRST message
+     * from anyone who arrived by tapping an ad - which ad, its headline, and the
+     * click id. We were throwing all of it away, so a customer who came off a paid
+     * ad looked identical to a stranger, and Kiki opened with "you looking for
+     * something specific" instead of talking about the shoe they just tapped.
+     * That is the difference between an ad that converts and one that does not.
+     * It rides in as a SYSTEM note so the brain can use it without repeating it. */
+    const ref = msg.referral || (msg.context && msg.context.referral);
+    if (ref) {
+      const bits = [ref.headline, ref.body].filter(Boolean).join(' — ').slice(0, 160);
+      adNote = '(SYSTEM: this customer arrived by tapping our WhatsApp ad'
+        + (bits ? ' — the ad said: ' + bits : '')
+        + (ref.source_id ? ' — ad id ' + ref.source_id : '')
+        + '. Greet them about THAT shoe, do not ask what they are looking for.)';
+      text = adNote + (String(text).trim() ? '\n\n' + text : '');
+      record(req, { endpoint: 'wa-ad-referral', sub: from, adId: ref.source_id || null,
+                    headline: String(ref.headline || '').slice(0, 60) });
+    }
+    record(req, { endpoint: 'wa-in', sub: from, name: profileName, msgType: msg.type, q: String(text).slice(0, 60), hasImage: !!imageObj, hasAudio: !!audioUrl, fromAd: !!ref });
     if (!String(text).trim() && !imageObj) return; // nothing usable
 
     const shimReq = { method: 'POST', path: '/wa-webhook', headers: {}, query: {}, rawBody: null, body: {} };
