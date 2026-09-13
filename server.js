@@ -668,7 +668,19 @@ const BOOT_ID = Math.random().toString(36).slice(2, 8);
 app.get('/health', (req, res) => {
   let phones = 0; try { phones = require('./shop').pushCount(); } catch (_) {}
   res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null,
-    alertPing: _pingState, alertPingSince: _pingBrokenAt ? new Date(_pingBrokenAt).toISOString() : null, pushPhones: phones });
+    alertPing: _pingState, alertPingSince: _pingBrokenAt ? new Date(_pingBrokenAt).toISOString() : null, pushPhones: phones,
+    /* Cloud API liveness. lastInbound going quiet on a busy day is the signal that
+       the webhook has stopped arriving - which otherwise looks identical to nobody
+       messaging, and that is how a dead line stays dead for hours. */
+    wa: {
+      configured: !!(process.env.WA_TOKEN || '').trim(),
+      lastInboundAt: (typeof waLastInboundAt !== 'undefined') ? waLastInboundAt : null,
+      lastOutboundAt: (typeof waLastOutboundAt !== 'undefined') ? waLastOutboundAt : null,
+      numbers: {
+        osc: !!(process.env.WA_PHONE_ID_OSC || process.env.WHATSAPP_PHONE_ID_OSC || '').trim(),
+        tk:  !!(process.env.WA_PHONE_ID_TK  || process.env.WHATSAPP_PHONE_ID_TK  || '').trim()
+      }
+    } });
 });
 
 // Meta / WhatsApp Business catalogue product feed (CSV). Connect this URL as a
@@ -7302,6 +7314,54 @@ async function waMediaBase64(mediaId) {
   } catch (_) { return null; }
 }
 
+/* WHICH STORE IS THIS NUMBER? One webhook serves every number on the WhatsApp
+   Business account, and value.metadata.phone_number_id is the only thing that says
+   which one a message arrived on. The number that has been live since July keeps
+   its existing behaviour when nothing is configured, so adding the new SIMs cannot
+   change how the old one answers. */
+function waStoreFor(phoneNumberId) {
+  const id = String(phoneNumberId || '');
+  const osc = (process.env.WA_PHONE_ID_OSC || process.env.WHATSAPP_PHONE_ID_OSC || '').trim();
+  const tk  = (process.env.WA_PHONE_ID_TK  || process.env.WHATSAPP_PHONE_ID_TK  || '').trim();
+  if (osc && id === osc) return 'Official Sneaker Crew';
+  if (tk  && id === tk)  return 'Trendy Kicks';
+  return 'Shoe Box';
+}
+
+/* META RETRIES. IT WILL SEND THE SAME MESSAGE AGAIN.
+   If our reply is slow, or Railway restarts mid-turn, Meta redelivers the identical
+   webhook - and without this the customer is answered twice. Every duplicate this
+   shop has had, on every channel, came from something being handled more than once,
+   so the id is claimed BEFORE any work starts rather than after it succeeds: two
+   copies arriving together must not both get through.
+   Ids are kept for 24h, which is longer than Meta retries for. */
+const waSeen = new Map();
+function waClaim(id) {
+  if (!id) return true;                       // no id to dedupe on - let it through
+  const now = Date.now();
+  if (waSeen.size > 4000) {
+    for (const [k, t] of waSeen) if (now - t > 86400000) waSeen.delete(k);
+  }
+  if (waSeen.has(id)) return false;
+  waSeen.set(id, now);
+  return true;
+}
+
+/* Blue ticks. The customer can see the shop has read it while Kiki is thinking. */
+async function waMarkRead(phoneNumberId, messageId) {
+  const tok = waToken();
+  if (!tok || !phoneNumberId || !messageId) return;
+  try {
+    await fetch(`${WA_GRAPH}/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', status: 'read', message_id: messageId }),
+    });
+  } catch (_) {}                              // cosmetic - never worth failing a reply over
+}
+
+let waLastInboundAt = null, waLastOutboundAt = null;
+
 app.post('/wa-webhook', async (req, res) => {
   res.sendStatus(200); // ACK Meta immediately; process after
   try {
@@ -7310,8 +7370,29 @@ app.post('/wa-webhook', async (req, res) => {
     const change = (entry.changes || [])[0] || {};
     const value = change.value || {};
     const phoneNumberId = value.metadata && value.metadata.phone_number_id;
-    const msg = (value.messages || [])[0];
-    if (!msg || !phoneNumberId) return; // status callbacks etc. — ignore
+    /* EVERY message in the batch, not just the first. Meta can put several in one
+       delivery (a customer firing off three lines, or a backlog after an outage);
+       taking [0] silently dropped the rest, and a dropped question looks to the
+       customer exactly like being ignored. */
+    const msgs = Array.isArray(value.messages) ? value.messages : [];
+    if (!msgs.length || !phoneNumberId) return; // status callbacks etc. — ignore
+    for (const msg of msgs) {
+      if (!waClaim(msg && msg.id)) {
+        record(req, { endpoint: 'wa-duplicate-ignored', id: String((msg && msg.id) || '').slice(-12) });
+        continue;
+      }
+      await handleWaMessage(req, value, phoneNumberId, msg);
+    }
+  } catch (e) {
+    try { record({ method: 'POST', path: '/wa-webhook', headers: {}, query: {}, body: {} }, { endpoint: 'wa-webhook-error', error: String(e).slice(0, 200) }); } catch (_) {}
+  }
+});
+
+async function handleWaMessage(req, value, phoneNumberId, msg) {
+  try {
+    const store = waStoreFor(phoneNumberId);
+    waLastInboundAt = new Date().toISOString();
+    waMarkRead(phoneNumberId, msg && msg.id);
     const from = String(msg.from); // customer's wa-id (their number)
     const profileName = (((value.contacts || [])[0] || {}).profile || {}).name || '';
     waChannel.set(from, phoneNumberId); // so Kiki's replies route back here
@@ -7346,11 +7427,15 @@ app.post('/wa-webhook', async (req, res) => {
     let inPhotoUrl = '';
     if (imageObj && imageObj.data) { try { const id = stashInboxMedia(Buffer.from(imageObj.data, 'base64'), imageObj.media_type); if (id) inPhotoUrl = 'https://' + (req.get('host') || '') + '/inbox/media/' + id; } catch (_) {} }
     // Kiki thinks + replies; waChannel routing sends everything to the Graph API.
-    await runChat(shimReq, from, text, waToken(), { store: 'Shoe Box', name: profileName, turnAt, chatUrl: null, wa: true, phoneNumberId, inPhotoUrl }, imageObj || null);
+    await runChat(shimReq, from, text, waToken(), { store, name: profileName, turnAt, chatUrl: null, wa: true, phoneNumberId, inPhotoUrl }, imageObj || null);
+    waLastOutboundAt = new Date().toISOString();
   } catch (e) {
-    try { record({ method: 'POST', path: '/wa-webhook', headers: {}, query: {}, body: {} }, { endpoint: 'wa-webhook-error', error: String(e).slice(0, 200) }); } catch (_) {}
+    /* ONE BAD MESSAGE MUST NOT TAKE THE LINE DOWN. It is caught here, per message,
+       so the next customer in the same batch is still answered - and Railway never
+       gets a crash loop out of a single poison payload. */
+    try { record(req, { endpoint: 'wa-message-error', error: String(e).slice(0, 200) }); } catch (_) {}
   }
-});
+}
 
 // Live delivery tracking (driver GPS → customer + manager watch a map).
 require('./delivery').mount(app);
