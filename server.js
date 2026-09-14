@@ -7360,6 +7360,90 @@ app.get('/wa/numbers', async (req, res) => {
   res.json(out);
 });
 
+/* YCLOUD WEBHOOK — /ycloud/webhook
+ *
+ * The number is on the Cloud API through YCloud (Coexistence), not through an app
+ * we own, so inbound messages arrive in YCLOUD'S envelope, not Meta's. Pointing
+ * YCloud at /wa-webhook would have produced a silent nothing: the parser would
+ * look for entry[].changes[].value.messages[], find none, and return.
+ *
+ * So this translates. It also LOGS THE RAW SHAPE of anything it cannot map, because
+ * the one thing worse than an unsupported payload is an unsupported payload that
+ * looks like a quiet day. The log line is what tells us what to add next.
+ *
+ * Same protections as the Meta path: 200 immediately, dedupe by message id before
+ * any work, per-message try/catch.
+ */
+function ycloudPickMessage(body) {
+  // YCloud nests the message under a type-specific key; accept the shapes we know
+  // and fall back to anything that looks like an inbound message object.
+  const cand = body.whatsappInboundMessage || body.inboundMessage || body.message ||
+               (body.data && (body.data.whatsappInboundMessage || body.data.message)) || null;
+  if (cand && (cand.from || cand.wa_id)) return cand;
+  return null;
+}
+
+app.post('/ycloud/webhook', async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const kind = String(body.type || body.event || '');
+
+    // Delivery receipts and status pings are not customer messages.
+    if (/status|sent|delivered|read|failed/i.test(kind) && !/inbound|received/i.test(kind)) return;
+
+    const m = ycloudPickMessage(body);
+    if (!m) {
+      record(req, { endpoint: 'ycloud-unmapped', kind: kind,
+                    keys: Object.keys(body).slice(0, 12).join(','),
+                    sample: JSON.stringify(body).slice(0, 400) });
+      return;
+    }
+
+    const id = m.id || m.messageId || body.id;
+    if (!waClaim(id)) { record(req, { endpoint: 'ycloud-duplicate-ignored' }); return; }
+
+    const from = String(m.from || m.wa_id || '').replace(/[^0-9]/g, '');
+    const toNum = String(m.to || '').replace(/[^0-9]/g, '');
+    const profileName = (m.customerProfile && m.customerProfile.name) || m.profileName || '';
+
+    let text = '';
+    const t = String(m.type || '').toLowerCase();
+    if (t === 'text') text = (m.text && (m.text.body || m.text)) || '';
+    else if (t === 'image') text = (m.image && m.image.caption) || '';
+    else if (t === 'button') text = (m.button && (m.button.text || m.button.payload)) || '';
+    else if (t === 'interactive' && m.interactive) {
+      const it = m.interactive;
+      text = (it.buttonReply && it.buttonReply.title) || (it.listReply && it.listReply.title) || '';
+    } else if (t === 'location' && m.location) {
+      const L = m.location;
+      text = `(SYSTEM: customer dropped a LOCATION PIN — ${L.latitude},${L.longitude} — maps: https://maps.google.com/?q=${L.latitude},${L.longitude})`;
+    } else {
+      text = String((m.text && m.text.body) || '');
+    }
+
+    record(req, { endpoint: 'ycloud-in', sub: from, to: toNum, kind: kind,
+                  msgType: t, q: String(text).slice(0, 60) });
+
+    if (!String(text).trim()) return;   // nothing usable yet - media handled once mapped
+
+    /* WHICH STORE. YCloud carries the receiving number in `to`; map it the same way
+       the Meta path maps phone_number_id, so one shop's voice never answers on
+       another shop's line. */
+    const store = (toNum && toNum.endsWith('4324406')) ? 'Foot Fetish' : waStoreFor(null);
+
+    waLastInboundAt = new Date().toISOString();
+    const shimReq = { method: 'POST', path: '/ycloud/webhook', headers: {}, query: {}, rawBody: null, body: {} };
+    lastIncoming.set(from, Date.now());
+    lastIncomingText.set(from, text || '');
+    await runChat(shimReq, from, text, '', { store, name: profileName, turnAt: Date.now(),
+                                             chatUrl: null, ycloud: true, toNumber: toNum }, null);
+    waLastOutboundAt = new Date().toISOString();
+  } catch (e) {
+    try { record(req, { endpoint: 'ycloud-error', error: String(e).slice(0, 200) }); } catch (_) {}
+  }
+});
+
 /* WHICH STORE IS THIS NUMBER? One webhook serves every number on the WhatsApp
    Business account, and value.metadata.phone_number_id is the only thing that says
    which one a message arrived on. The number that has been live since July keeps
