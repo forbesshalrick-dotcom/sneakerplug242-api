@@ -90,8 +90,10 @@ h4.lbl{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.08
 .ocright{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ocright .amt{font-size:15px;font-weight:700;display:block}
 .ocright small{color:var(--soft)}
-.del{position:absolute;top:6px;right:7px;border:0;background:none;color:#c8ccd4;cursor:pointer;font-size:15px}
-.oc:hover .del{color:var(--bad)}
+.del{position:absolute;top:6px;right:7px;border:0;background:none;color:#c8ccd4;cursor:pointer;font-size:15px;
+ opacity:0;pointer-events:none;transition:opacity .15s}
+.oc:hover .del,.oc:focus-within .del,.oc.touched .del{opacity:1;pointer-events:auto}
+.oc:hover .del,.oc.touched .del{color:var(--bad)}
 
 .tot{border-top:1px solid var(--line);margin-top:12px;padding-top:11px}
 .tl{display:flex;justify-content:space-between;padding:4px 0;font-variant-numeric:tabular-nums;gap:12px}
@@ -148,6 +150,7 @@ h4.lbl{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.08
   body{background:#fff}.wrap{padding:0;max-width:none}
   .pv{border:0;padding:0}
   [contenteditable]:hover{background:none}
+  .del{display:none!important}
 }
 </style>
 </head>
@@ -996,6 +999,16 @@ function wire() {
       var i = Number(st.dataset.step);
       inv.steps[i].done = !inv.steps[i].done; dirty = true; render(); return;
     }
+    /* REVEAL THE REMOVE BUTTON ONLY ON THE CARD BEING TOUCHED.
+     * It used to sit on every line permanently, which reads as part of the
+     * receipt to a customer. Hidden it is opacity:0 AND pointer-events:none,
+     * so an invisible button can never be tapped by accident. */
+    var card = e.target.closest('.oc');
+    [].forEach.call(document.querySelectorAll('.oc.touched'), function (o) {
+      if (o !== card) o.classList.remove('touched');
+    });
+    if (card) card.classList.add('touched');
+
     var del = e.target.closest('[data-del]');
     if (del) { inv.items.splice(Number(del.dataset.del), 1); dirty = true; render(); return; }
     var ph = e.target.closest('[data-photo]');
