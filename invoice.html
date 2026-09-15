@@ -97,7 +97,13 @@ h4.lbl{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.08
  * add another product". So the control goes where the items are. */
 .addrow{display:block;width:100%;margin-top:10px;padding:11px;border:1px dashed var(--line);
  border-radius:10px;background:none;color:var(--soft);font:inherit;font-size:13.5px;
- cursor:pointer}
+ cursor:pointer;opacity:0;pointer-events:none;transition:opacity .15s}
+/* STAYS OUT OF THE WAY. Rodney screenshots the receipt and sends that instead of
+ * printing, so nothing that is only a control may sit on it at rest. Touch an
+ * item and the controls for the items appear together - the X on that card and
+ * this row - then both fade out again. (2026-09-15) */
+.oc:hover ~ .addrow,.oc:focus-within ~ .addrow,.oc.touched ~ .addrow,
+.addrow.show{opacity:1;pointer-events:auto}
 .addrow:hover{border-color:var(--ink);color:var(--ink)}
 .del{position:absolute;top:6px;right:7px;border:0;background:none;color:#c8ccd4;cursor:pointer;font-size:15px;
  opacity:0;pointer-events:none;transition:opacity .15s}
@@ -458,7 +464,7 @@ function loadStock() {
 }
 
 function nextNumber() {
-  if (!db) return Promise.resolve('INV-0001');
+  if (!db) return Promise.resolve('ORDER-0001');
   var ref = db.collection('settings').doc('invoiceCounter');
   return db.runTransaction(function (t) {
     return t.get(ref).then(function (d) {
@@ -466,8 +472,8 @@ function nextNumber() {
       t.set(ref, { next: n + 1 }, { merge: true });
       return n;
     });
-  }).then(function (n) { return 'INV-' + String(n).padStart(4, '0'); })
-    .catch(function () { return 'INV-0001'; });
+  }).then(function (n) { return 'ORDER-' + String(n).padStart(4, '0'); })
+    .catch(function () { return 'ORDER-0001'; });
 }
 
 /* ── totals ───────────────────────────────────────────────── */
@@ -541,7 +547,7 @@ function render() {
         '<div class="dbar">' + steps + '</div></div></div>' +
 
     '<div class="pvtitle">INVOICE</div>' +
-    '<div class="pvmeta">' + ed('number', inv.number, '', 'INV-0001') + ' · ' +
+    '<div class="pvmeta">' + ed('number', inv.number, '', 'ORDER-0001') + ' · ' +
       ed('date', prettyDate(inv.date), '', 'date') +
       ' · <span class="pill ' + esc(inv.status) + '" id="statuspill">' + esc(inv.status) + '</span></div>' +
 
@@ -555,7 +561,7 @@ function render() {
     '</div>' +
 
     cards +
-    '<button class="addrow" data-additem="1">+ Add another item</button>' +
+    '<button class="addrow' + (inv.items.length ? '' : ' show') + '" data-additem="1">+ Add another item</button>' +
 
     '<div class="tot">' +
       '<div class="tl"><span>' + inv.items.length + ' item(s) total</span>' +
@@ -850,7 +856,7 @@ function buildInvoicePdfBlob(mode) {
 
 function pdfName() {
   var who = (inv.customer.name || 'Customer').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return 'Invoice-' + (inv.number || 'INV') + '-' + who + '.pdf';
+  return 'Order-' + (inv.number || 'ORDER') + '-' + who + '.pdf';
 }
 
 function downloadPdf() {
