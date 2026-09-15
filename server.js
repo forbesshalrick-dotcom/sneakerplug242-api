@@ -1009,6 +1009,11 @@ function getStore(req) {
   // number was re-subscribed on a new Pro plan. Added BEFORE it sends its first
   // message: an unmapped account silently falls through to the retail brain below.
   if (acct === '5595630') return 'Trendy Kicks';
+  // 5476640 is the account the WhatsApp connection actually COMPLETED on
+  // (registration/success/whatsapp/5476640/new, 2026-09-15). 5595630 was an
+  // earlier attempt on the same number - both are mapped so neither can fall
+  // through to the retail brain, whichever ends up sending.
+  if (acct === '5476640') return 'Trendy Kicks';
   if (acct === '3732170') return 'Official Sneaker Crew';
   if (SI.isOurAccount(acct)) return SI.STORE;   // accepts the new account AND the old one — see MANYCHAT_ACCOUNTS
   if (NS.isOurAccount(acct)) return NS.STORE;  // Nightshift, the web/bot agency
