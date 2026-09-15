@@ -1009,11 +1009,12 @@ function getStore(req) {
   // number was re-subscribed on a new Pro plan. Added BEFORE it sends its first
   // message: an unmapped account silently falls through to the retail brain below.
   if (acct === '5595630') return 'Trendy Kicks';
-  // 5476640 is the account the WhatsApp connection actually COMPLETED on
-  // (registration/success/whatsapp/5476640/new, 2026-09-15). 5595630 was an
-  // earlier attempt on the same number - both are mapped so neither can fall
-  // through to the retail brain, whichever ends up sending.
-  if (acct === '5476640') return 'Trendy Kicks';
+  // 5476640 is the SECOND Official Sneaker Crew account (the Pro one), opened
+  // 2026-09-15. It now holds the +1 242-803-3126 WhatsApp number, which is OSC's.
+  // I first mapped it to Trendy Kicks off the 6405 connection screen and that was
+  // wrong - corrected once 803-3126 turned up in its inbox. 3732170 is the older
+  // OSC account and still serves the FB/IG side.
+  if (acct === '5476640') return 'Official Sneaker Crew';
   if (acct === '3732170') return 'Official Sneaker Crew';
   if (SI.isOurAccount(acct)) return SI.STORE;   // accepts the new account AND the old one — see MANYCHAT_ACCOUNTS
   if (NS.isOurAccount(acct)) return NS.STORE;  // Nightshift, the web/bot agency
