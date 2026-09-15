@@ -653,6 +653,26 @@ select option{background:var(--surface2);}
 <div class="page" id="page-payment">
   <div class="payment-page">
     <div class="payment-hero"><h1>PAYMENT</h1><p>Choose a method, send the exact amount, then upload your receipt.</p></div>
+    <!-- FAST CHECKOUT LINK - staff only. The new /pay page (2 Sep) was only
+         reachable from inside a POS sale, so from the Pay screen you still got
+         the old bank-transfer-and-upload-a-screenshot flow. Rodney, 2026-09-15:
+         "I recently built a pay page where I can handle a fast checkout... I can
+         also send customer the link to pay fast". Type an item and a price, get
+         a link to send. Hidden from customers by the isEmployee gate. -->
+    <div id="staff-paylink" style="display:none;background:var(--card,#16181d);border:1px solid var(--line,#2a2e37);border-radius:12px;padding:14px;margin-bottom:18px">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">⚡ Fast checkout link</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">They type their own card on their own phone.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div><label>What for</label><input type="text" id="paylink-ref" placeholder="e.g. Air Max 97 size 9"/></div>
+        <div><label>Amount ($)</label><input type="number" inputmode="decimal" step="0.01" min="0" id="paylink-amt" placeholder="130.00"/></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn" onclick="paylinkSend()" style="flex:1;min-width:120px">Send on WhatsApp</button>
+        <button class="btn" onclick="paylinkCopy()" style="flex:1;min-width:110px">Copy link</button>
+        <button class="btn" onclick="paylinkOpen()" style="flex:1;min-width:90px">Open</button>
+      </div>
+      <div id="paylink-out" style="font-size:11px;color:var(--text-muted);margin-top:8px;word-break:break-all"></div>
+    </div>
     <div class="payment-methods" id="payment-methods-list"></div>
     <div class="receipt-section">
       <h3 style="font-size:15px;font-weight:700;margin-bottom:5px">📎 Upload Payment Receipt</h3>
@@ -2068,6 +2088,33 @@ function posAddCustom(){
 // over. There is no live connection back to this POS from that separate page,
 // so completion is a plain staff confirmation once the customer shows their
 // on-screen receipt — the same trust point as watching a Cash payment happen. ─
+/* The same /pay link the POS builds, but typed by hand for a customer who is
+ * not standing in front of you. Returns '' and complains if the amount is junk,
+ * so we can never send someone a checkout for $0 or NaN. */
+function paylinkUrl(){
+  var amtEl=document.getElementById('paylink-amt'), refEl=document.getElementById('paylink-ref');
+  var amt=parseFloat((amtEl&&amtEl.value||'').replace(/[^0-9.]/g,''));
+  if(!(amt>0)){ showToast('Put an amount in first',true); return ''; }
+  var ref=((refEl&&refEl.value)||'').trim().slice(0,140);
+  var u='https://242plug.com/pay?amount='+encodeURIComponent(amt.toFixed(2));
+  if(ref) u+='&ref='+encodeURIComponent(ref);
+  var out=document.getElementById('paylink-out'); if(out) out.textContent=u;
+  return u;
+}
+function paylinkOpen(){ var u=paylinkUrl(); if(u) window.open(u,'_blank','noopener'); }
+function paylinkCopy(){
+  var u=paylinkUrl(); if(!u) return;
+  try{ navigator.clipboard.writeText(u).then(function(){ showToast('Link copied'); },
+       function(){ showToast('Copy failed - long-press the link below',true); }); }
+  catch(e){ showToast('Copy failed - long-press the link below',true); }
+}
+function paylinkSend(){
+  var u=paylinkUrl(); if(!u) return;
+  var refEl=document.getElementById('paylink-ref');
+  var ref=((refEl&&refEl.value)||'').trim();
+  var msg=(ref?('Here you go - '+ref+'. '):'')+'Pay here: '+u;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank','noopener');
+}
 function posCustomerPay(){
   if(!posSale.length){ showToast('Add a shoe first',true); return; }
   var grid=document.getElementById('pos-pay-grid'); if(grid) grid.style.display='none';
@@ -5601,6 +5648,8 @@ function applyRoleUI() {
     }
   });
   // Hide + Add from customers — employees only
+  var payLink = document.getElementById('staff-paylink');
+  if (payLink) payLink.style.display = isEmployee ? '' : 'none';
   var addBtn = document.getElementById('nav-add');
   if (addBtn) addBtn.style.display = isEmployee ? '' : 'none';
 
