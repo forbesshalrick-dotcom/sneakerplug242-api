@@ -90,6 +90,15 @@ h4.lbl{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.08
 .ocright{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ocright .amt{font-size:15px;font-weight:700;display:block}
 .ocright small{color:var(--soft)}
+/* ADD ANOTHER ITEM, FROM THE RECEIPT ITSELF.
+ * The search box and "+ Blank line" live at the top of the page, above the
+ * preview - which means on a phone you have to scroll back up past the whole
+ * receipt to add a second pair. Rodney, 2026-09-15: "I don't see anything to
+ * add another product". So the control goes where the items are. */
+.addrow{display:block;width:100%;margin-top:10px;padding:11px;border:1px dashed var(--line);
+ border-radius:10px;background:none;color:var(--soft);font:inherit;font-size:13.5px;
+ cursor:pointer}
+.addrow:hover{border-color:var(--ink);color:var(--ink)}
 .del{position:absolute;top:6px;right:7px;border:0;background:none;color:#c8ccd4;cursor:pointer;font-size:15px;
  opacity:0;pointer-events:none;transition:opacity .15s}
 .oc:hover .del,.oc:focus-within .del,.oc.touched .del{opacity:1;pointer-events:auto}
@@ -151,6 +160,7 @@ h4.lbl{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.08
   .pv{border:0;padding:0}
   [contenteditable]:hover{background:none}
   .del{display:none!important}
+  .addrow{display:none!important}
 }
 </style>
 </head>
@@ -545,6 +555,7 @@ function render() {
     '</div>' +
 
     cards +
+    '<button class="addrow" data-additem="1">+ Add another item</button>' +
 
     '<div class="tot">' +
       '<div class="tl"><span>' + inv.items.length + ' item(s) total</span>' +
@@ -1008,6 +1019,9 @@ function wire() {
       if (o !== card) o.classList.remove('touched');
     });
     if (card) card.classList.add('touched');
+
+    var addBtn = e.target.closest('[data-additem]');
+    if (addBtn) { addItem({}); return; }
 
     var del = e.target.closest('[data-del]');
     if (del) { inv.items.splice(Number(del.dataset.del), 1); dirty = true; render(); return; }
