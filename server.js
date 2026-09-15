@@ -667,7 +667,17 @@ const BOOT_ID = Math.random().toString(36).slice(2, 8);
 // why a fresh boot reports ok rather than inheriting an outage it did not witness.
 app.get('/health', (req, res) => {
   let phones = 0; try { phones = require('./shop').pushCount(); } catch (_) {}
-  res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null,
+  /* WHICH SENSES ARE ACTUALLY SWITCHED ON. Booleans only - never the key itself.
+   * "photos don't work" and "voice notes don't work" are indistinguishable from
+   * outside without this, and both are env switches rather than bugs, so we kept
+   * guessing at them (2026-09-15). */
+  const senses = {
+    photoVision: process.env.PHOTO_VISION !== '0',
+    voiceNotes: process.env.VOICE_RECOGNITION !== '0',
+    hasTranscriber: !!(process.env.OPENAI_API_KEY || '').trim(),
+    hasAI: !!(process.env.ANTHROPIC_API_KEY || '').trim()
+  };
+  res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null, senses,
     alertPing: _pingState, alertPingSince: _pingBrokenAt ? new Date(_pingBrokenAt).toISOString() : null, pushPhones: phones,
     /* Cloud API liveness. lastInbound going quiet on a busy day is the signal that
        the webhook has stopped arriving - which otherwise looks identical to nobody
