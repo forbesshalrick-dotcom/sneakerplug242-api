@@ -1005,6 +1005,10 @@ function getStore(req) {
   const tok = req.headers && req.headers['x-mc-token'] ? String(req.headers['x-mc-token']) : '';
   const acct = tok.split(':')[0];
   if (acct === '3732738') return 'Trendy Kicks';
+  // The SECOND Trendy Kicks ManyChat account, opened 2026-09-15 when the WhatsApp
+  // number was re-subscribed on a new Pro plan. Added BEFORE it sends its first
+  // message: an unmapped account silently falls through to the retail brain below.
+  if (acct === '5595630') return 'Trendy Kicks';
   if (acct === '3732170') return 'Official Sneaker Crew';
   if (SI.isOurAccount(acct)) return SI.STORE;   // accepts the new account AND the old one — see MANYCHAT_ACCOUNTS
   if (NS.isOurAccount(acct)) return NS.STORE;  // Nightshift, the web/bot agency
