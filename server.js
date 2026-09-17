@@ -910,18 +910,36 @@ function handleLookup(req, res) {
   const { shoes } = raw.trim() ? findMatches(raw) : { shoes: [] };
   record(req, { endpoint: 'lookup', extractedQuery: raw, matchCount: shoes.length });
 
+  // ALSO ANSWER IN THE NAMES MANYCHAT ASKS FOR.
+  // The Manychat flow maps shoes_found / reply_message / shoe_image_1..3. This endpoint
+  // only ever returned found / message / image_1..3, so every call failed its response
+  // mapping: 8,106 Criticals and 0 Success on Trendy Kicks, 144 Errors on the new
+  // account, all "Json mapping errors" - measured 2026-09-16. The lookup has therefore
+  // NEVER worked through Manychat; every answer customers got was the AI guessing with
+  // no stock behind it, which is why it invented opening hours.
+  // Aliases are additive - nothing that reads the old names notices.
+  const mcAlias = (o) => ({
+    ...o,
+    shoes_found: !!o.found,
+    reply_message: o.message,
+    shoe_image_1: o.image_1 || null,
+    shoe_image_2: o.image_2 || null,
+    shoe_image_3: o.image_3 || null,
+  });
+
   if (!raw.trim()) {
-    return res.json({
+    return res.json(mcAlias({
       found: false, count: 0, shoes: [],
       message: "Hi! Ask me what you're looking for. Example: *Do you have Jordan 4 in size 9?*",
-    });
+      image_1: null, image_2: null, image_3: null,
+    }));
   }
   if (!shoes.length) {
-    return res.json({
+    return res.json(mcAlias({
       found: false, count: 0, shoes: [],
       message: "Hmm, I don't have that in stock right now. DM me and I'll help you find something 📲",
       image_1: null, image_2: null, image_3: null,
-    });
+    }));
   }
 
   // Numbered summary so the list lines up with the photos sent after it.
@@ -942,7 +960,7 @@ function handleLookup(req, res) {
     flat[`image_${n}`] = s.image || null;
   });
 
-  res.json({
+  res.json(mcAlias({
     found: true,
     count: shoes.length,
     message,
@@ -952,7 +970,7 @@ function handleLookup(req, res) {
     })),
     images: shoes.map(s => s.image).filter(Boolean),
     ...flat,
-  });
+  }));
 }
 app.post('/lookup', handleLookup);
 app.get('/lookup', handleLookup);
