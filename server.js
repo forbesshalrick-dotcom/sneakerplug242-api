@@ -7098,6 +7098,25 @@ function handleChat(req, res) {
   }
   const sub = getContactId(req);
   const token = getToken(req);
+
+  // 🛑 OUR OWN SHOPS MUST NEVER TALK TO EACH OTHER (Rodney 2026-09-17, watching it
+  // happen: "tk and osc are talking to each other no stop"). TK and OSC each have the other
+  // saved as a contact, so every reply from one landed at the other as a fresh customer
+  // message and the two bots ran a loop at roughly two messages a second - "Yo, that's MY
+  // line!" / "You got me! My bad" - dozens of turns, burning tokens and the send quota, with
+  // no customer anywhere in it. Being recognised as staff was not enough: that only hides the
+  // thread from the Inbox (inbox-skip-staff), it never stopped the reply. So the moment the
+  // number writing in IS one of our own lines, Kiki says nothing at all.
+  // ⚠️ 4324406 is deliberately NOT in this list - that is Rodney's test phone and it is
+  // MEANT to reach Kiki as a customer (TEST_CUSTOMER_RAW). Only add a number here if a REAL
+  // shop line owns it.
+  const OWN_LINES = String(process.env.OWN_LINE_NUMBERS || '12428256405,12428033126')
+    .split(',').map(x => x.replace(/[^0-9]/g, '')).filter(x => x.length >= 7);
+  const _fromNum = String(getPhone(req) || '').replace(/[^0-9]/g, '');
+  if (_fromNum && OWN_LINES.some(n => _fromNum.endsWith(n.slice(-10)))) {
+    try { record(req, { endpoint: 'own-line-blocked', sub, dbgPhone: _fromNum, account: (getStore(req) || '') }); } catch (_) {}
+    return res.json({ ok: true, blocked: 'our own shop line - not a customer' });
+  }
   const store = getStore(req);
   const name = getName(req);
   record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, imageUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY, dbgPhone: getPhone(req), dbgStaff: staffNameFor(req) });
