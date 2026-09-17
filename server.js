@@ -1588,7 +1588,7 @@ async function handleSendPhotos(req, res) {
     const numbered = shoes.map((s, i) => `${i + 1}. *${displayName(s)}* — ${priceLabel(s)}\n   📏 *Men's Sizes:* ${sizesOf(s)}`).join('\n');
     const header = shoes.length === 1 ? "Yes! Here's what I've got 👇" : `Found ${shoes.length} 👇`;
     messages = [{ type: 'text', text: `${header}\n\n${numbered}` }];
-    for (const s of pics) messages.push({ type: 'image', url: s.image });
+    for (const s of pics) messages.push({ type: 'image', url: cardForShop(s.image, token) });
   }
 
   // Reply to ManyChat IMMEDIATELY so its External Request doesn't time out (and
@@ -2880,6 +2880,35 @@ function clusterShoesByModel(arr) {
 // Subs whose in-progress photo album the OWNER hit STOP on (manual halt from the chat) —
 // so a malfunctioning "sends all stock" dump can be cut off mid-album by hand.
 const sendAbort = new Set();
+
+// ── PER-SHOP CARDS ──────────────────────────────────────────────────────────────
+// Each business has its own look (Rodney 2026-09-17): Trendy Kicks and Foot Fetish
+// send the in-hand photos, Official Sneaker Crew sends the marble-table renders,
+// and each has its own sticker colours. The files live beside the shared card in
+// the frames repo as <id>-card-<shop>.jpg.
+//
+// The shop is derived from the ManyChat token that every send already carries
+// (the account id is the bit before the colon), so no call site had to change.
+//
+// FAILS SAFE: if the shop can't be identified the URL is returned untouched, so a
+// send can never end up with a broken image - it just gets the shared card, which
+// is what every line used before this existed.
+function shopCodeFromToken(token) {
+  const acct = String(token || '').split(':')[0];
+  if (acct === '3732738' || acct === '5595630') return 'tk';   // Trendy Kicks
+  if (acct === '5476640' || acct === '3732170') return 'osc';  // Official Sneaker Crew
+  // Foot Fetish has NO ManyChat account - it is a browser-bot line (see the note
+  // above getStore). So it never reaches this function, and it takes the shared
+  // <id>-card.jpg instead, which is why the FF-styled cards are pushed as that
+  // default rather than under a shop suffix.
+  return null;
+}
+function cardForShop(url, token) {
+  const shop = shopCodeFromToken(token);
+  if (!shop || !url) return url;
+  return String(url).replace(/-card\.jpg(\?|$)/i, `-card-${shop}.jpg$1`);
+}
+
 async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false, requestAt = 0, wantSize = null) {
   sendAbort.delete(sub); // fresh send — clear any stale stop flag so it isn't halted before it starts
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
@@ -3171,13 +3200,13 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   const useList = showLabels && LIST_OVER > 0 && totalPhotos > LIST_OVER;
   const listRows = [];
   const photoWithLabel = (s) => {
-    if (!showLabels) return [{ type: 'image', url: s.image }];
+    if (!showLabels) return [{ type: 'image', url: cardForShop(s.image, token) }];
     const code = nextPhotoCode(sub, s);
     if (useList) {
       if (!listRows.some(r => r.id === s.id)) listRows.push({ id: s.id, line: `🟢 *${code}*  ·  ${labelText(s)}` });
-      return [{ type: 'image', url: s.image }];
+      return [{ type: 'image', url: cardForShop(s.image, token) }];
     }
-    return [{ type: 'image', url: s.image }, { type: 'text', text: `🟢 *${code}*  ·  ${labelText(s)}` }];
+    return [{ type: 'image', url: cardForShop(s.image, token) }, { type: 'text', text: `🟢 *${code}*  ·  ${labelText(s)}` }];
   };
 
   if (Array.isArray(groups) && groups.length) {
