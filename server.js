@@ -1651,9 +1651,21 @@ const WEBSITE = (process.env.WEBSITE || '242plug.com').replace(/^https?:\/\//, '
 const SITE_LIVE = !/^(0|false|no|off)$/i.test(String(process.env.SITE_LIVE || '').trim());
 const SITE_TAIL = SITE_LIVE ? ` Want more options? Search our site 👉 ${WEBSITE}` : '';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
-const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just reply with the *code* under it (like *A1*) and I'll get you sorted fast 👟${SITE_TAIL}`;
+// NAME THE BATCH, SAY NOTHING ELSE (Rodney, 2026-09-17).
+// "At the end of the picture sending, can we have Kiki say those are the... name of
+// the category? If they ask for size seven, she can say those are the size sevens."
+// The old line asked them to reply with a code and then advertised the site - two
+// instructions and a link on top of forty photos. The size is filled in at the call
+// site where wantSize is known; this is the fallback when it is not.
+const END_OF_PHOTOS_MSG = `Those are the ones we got 👟`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
-const FOLLOWUP_MSG = "Hey! Just following up 😊 See one you like? Just send me the *code* under it (like *C1* or *D2*) and I'll get you sorted fast 👟 (And if you replied already and I went quiet — my bad, send it one more time 🙏)";
+// ONE NUDGE, AND THIS IS THE WORDING (Rodney, 2026-09-17).
+// The old text chased with codes and an apology, and a THIRD message followed it ten
+// minutes later. One customer got photos at 1:58am and was chased again at 2:08 and
+// 2:18 - three messages in the middle of the night for one question. His instruction:
+// "we're gonna delete those and add a new one... just gonna say, let me know if you
+// need anything, we provide free delivery. And that's it."
+const FOLLOWUP_MSG = "Let me know if you need anything, we provide free delivery 👟";
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
 const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min after the nudge
@@ -1662,7 +1674,11 @@ const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min aft
 // had already replied three times with the code for the pair he wanted; his messages never
 // reached us. Kiki cannot see whether a reply was swallowed, so she must not narrate the
 // customer's mind. This version reads fine whether they went quiet or we simply never got it.
-const CLOSER_MSG = "Still here whenever you're ready 🙂 We're open every day, 7 AM to 11 PM. Send me the code under any pair — or your size — and I'll sort you out 👟 (If you already replied and I missed it, send it once more 🙏)";
+// RETIRED 2026-09-17. This was the THIRD message in a row to someone who had not
+// answered the first two, and it quoted hours that were wrong by an hour at each end.
+// Kept as a constant only because the translation table below references it; nothing
+// schedules it any more - see scheduleFollowUp.
+const CLOSER_MSG = "Let me know if you need anything, we provide free delivery 👟";
 // One last gentle, no-pressure follow-up ~10 min after the closer, then STOP.
 const THIRD_MS = Number(process.env.THIRD_MS) || 10 * 60 * 1000; // 10 min after the closer
 const THIRD_MSG = "Let me know if you'd like to see the catalog or what we have in stock 👟";
@@ -2041,7 +2057,7 @@ ${welcomeRule}
 - Ask only ONE short question at a time. Never stack two questions in one message — pick the single most useful one and send just that.
 - SHOWING BEATS ASKING: if you'd otherwise be guessing WHICH shoes the customer means (e.g. which colourway, which exact model, or you're just not sure), don't keep asking — once you know their size, just send the photos of the likely matches and let them verify and pick from the pictures. A photo they can say "yes that one" to is better than another question.
 - ALWAYS REPLY — NEVER GO SILENT (IMPORTANT): Every customer message must get a reply. Never end your turn having sent them nothing. If a customer asks to SEE shoes — "show me some Jordan 1s", "what Jordans you got?", "show me the New Balance", "lemme see what you have" — immediately call search_inventory for that brand/model and then send_photos of what we have. You do NOT need their size first to show them. After you call search_inventory you MUST follow through the same conversation: either send_photos of the results, or (only if the search truly came back empty) tell them kindly we don't have that one right now and offer to show what we DO have in their size or that brand instead. Never stop after searching without showing or saying anything.
-- OUR HOURS (know this cold): we're OPEN EVERY DAY from 7 AM to 11 PM. We're mobile & delivery-only — no storefront — but the HOURS question still gets a straight answer. If anyone asks when we open/close ("what time y'all close?", "you still open?", "till when?"), answer PLAINLY first: "We're open every day 7 AM – 11 PM 👟" — never dodge it with "we come to you, what time works?" (Rodney 2026-07-13). After answering, you can add that we deliver to them.
+- OUR HOURS (know this cold): we're OPEN EVERY DAY from 8 AM to 10 PM. We're mobile & delivery-only — no storefront — but the HOURS question still gets a straight answer. If anyone asks when we open/close ("what time y'all close?", "you still open?", "till when?"), answer PLAINLY first: "We're open every day 7 AM – 11 PM 👟" — never dodge it with "we come to you, what time works?" (Rodney 2026-07-13). After answering, you can add that we deliver to them.
 - 🕚 "I'LL GET BACK TO YOU" → WARM + THE 11 PM WINDOW, THEN LEAVE IT (Rodney 2026-07-19): when a customer says they'll get back to you, let you know, think about it, or come back later, do NOT keep selling and do NOT pressure them. Reply warm and short, and give them the window so they know their deadline: we're open till 11 PM, so anytime before then works — e.g. "No rush at all! 👟 We close at 11 tonight, so just hit me anytime before then and I've got you 🙏". Then stop — the system won't chase them with follow-ups, so this ONE gracious line is the whole reply.
 - ⚠️ HOURS vs "WHEN WILL YOU GET HERE" — READ WHICH ONE THEY MEAN (Rodney 2026-07-13, a real customer got open-hours quoted at her mid-delivery): if the customer has an ORDER in motion (they've picked a shoe and you're arranging/have arranged the drop-off) and they ask "what time may u get here?", "when you coming?", "how long?", "you reaching?" — they are asking about THEIR DELIVERY, not our opening times. NEVER answer that with "we're open 7 AM – 11 PM." Say the driver's on the way and you'll check how far he is — e.g. "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". Only quote the 7 AM – 11 PM hours when someone genuinely asks when we open or close.
 - NO SPECIAL ORDERS (IMPORTANT): We do NOT take special orders. NEVER offer one — never say "special order", "we can order it in", "DM for special orders", or "we'll send the exact pair once it arrives". When we genuinely don't have what they asked for, kindly say we don't have that one right now, then IMMEDIATELY pivot to showing what we DO have that's close — their size, that brand, or a similar colour — and keep steering toward a shoe we actually have in stock.
@@ -3291,12 +3307,8 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
        * ⚠️ THIS IS A PLASTER, NOT THE CURE. The cure is sending images through Meta's Graph
        * API instead of ManyChat — both retail numbers are already on the Cloud API and
        * approved. See the photo-pipe section in HANDOVER.md. */
-      let closing = L(END_OF_PHOTOS_T, sub);
-      if (SITE_LIVE) {
-        const sz = wantSize != null ? String(wantSize).trim() : '';
-        const link = sz ? `${WEBSITE}/#size=${encodeURIComponent(sz)}` : WEBSITE;
-        closing += `\n\nCan't see the pictures? 👉 ${link}${sz ? ` — every size ${sz} we have, with photos` : ''}`;
-      }
+      const _sz = wantSize != null ? String(wantSize).trim() : '';
+      let closing = _sz ? `Those are the size ${_sz} options 👟` : L(END_OF_PHOTOS_T, sub);
       // Translated whole, AFTER the link is appended, so the sentence around the URL
       // reads properly in their language. say() leaves web addresses alone.
       try { await sendChunk(sub, [{ type: 'text', text: await say(closing, sub) }], token); } catch (e) { /* non-fatal */ }
@@ -4227,7 +4239,10 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
 // Chain ends at the CLOSER ("Okay, I guess you didn't find anything") — that is the
 // LAST follow-up. Rodney 2026-07-17: the old 4th "Let me know if you'd like the catalog"
 // nudge read like the chat was STARTING OVER; Kiki should never sound like a restart.
-function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS, isCloser: true }); }
+// ONE nudge. The closer that used to follow it is retired (Rodney, 2026-09-17):
+// "only 1 follow up needed". If they do not answer it, the conversation is over
+// until THEY speak.
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token, wholesale) {
   // 📏 Don't open with "What size you looking for?" to somebody who already told us (Rodney
