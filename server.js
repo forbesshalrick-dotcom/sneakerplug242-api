@@ -3911,6 +3911,7 @@ function inboxRecord(account, sub, m) {
       if (oldest) { inboxThreads.delete(oldest[0]); if (inboxSubIndex.get(oldest[1].sub) === oldest[0]) inboxSubIndex.delete(oldest[1].sub); }
     }
     inboxRev++; saveInbox();
+    try { scheduleTranslate(key); } catch (_) {}   // English line ready before he looks
     // 💬 TELL HIM WHEN A CHAT HE IS PERSONALLY HANDLING COMES BACK (Rodney 2026-08-21:
     // "also the chat sends notification?" — it did not. inboxRecord stored the message,
     // bumped an unread badge and told nobody.)
@@ -10478,6 +10479,28 @@ function queueTranslations(t) {
     }
     if (changed) { inboxRev++; saveInbox(); }
   })().catch(() => { todo.forEach(m => translating.delete(m.id)); });
+}
+
+// 🌐 TRANSLATE AS THE MESSAGE ARRIVES, NOT WHEN HE OPENS THE THREAD.
+// Rodney 2026-09-18, holding a 45-message Spanish chat he could not read: "there was
+// supposed to be an English translation ... explaining what the customer said and what
+// Kiki's reply was, all under the same message, so I can be on point with Kiki".
+// It was built, and it only ever ran from /inbox/thread - so a chat he had not opened in
+// the app had NOT ONE translated line. That thread measured trDone 0 of 45. He reads most
+// chats on his phone in WhatsApp, where the line is deliberately stripped (it leaked to a
+// real customer twice), so in practice the translations were never there when he looked.
+// Now every message schedules a pass, debounced 2s per thread so a burst costs one sweep.
+// Both directions are translated - his side and the customer's - which is what he asked for.
+const trTimers = new Map();
+function scheduleTranslate(key) {
+  if (!key || !process.env.ANTHROPIC_API_KEY || trTimers.has(key)) return;
+  const h = setTimeout(() => {
+    trTimers.delete(key);
+    const t = inboxThreads.get(key);
+    if (t) { try { queueTranslations(t); } catch (_) {} }
+  }, 2000);
+  if (h.unref) h.unref();
+  trTimers.set(key, h);
 }
 
 // Full thread history + reply state. Opening a thread marks it read.
