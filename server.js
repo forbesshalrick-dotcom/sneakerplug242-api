@@ -5774,6 +5774,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     return;
   }
   const history = sanitizeHistory(convos.get(sub) || []);
+  // 👇 "THIS" / "THIS ONE" — GIVE THE BROWSER A MOMENT TO SAY WHAT THEY TAGGED.
+  // (Rodney 2026-09-17: "so when someone says this/this 1 and she doesnt understand can kiki
+  // on browser check".) A WhatsApp quote-reply reaches ManyChat as the bare word - the photo
+  // they tapped is never sent - so on its own this turn is unanswerable. But the browser bot
+  // is still signed in on these lines and CAN see the quoted photo, so it reads the name off
+  // our own tag and posts it to /inbox/note. That lands a second or two behind the webhook,
+  // which is a race this turn would otherwise lose, so when the whole message is a pointer
+  // word and no note has arrived yet, wait briefly for one. Capped hard: only for pointer
+  // words, only when nothing is already waiting, and at most ~2.4s so a customer never feels
+  // it. If nothing comes, she falls through to narrowing by name exactly as before.
+  const _pointerOnly = /^\s*(this|this one|that one|the one|these|those|i want this|i want this one|want this)\s*[.!?]*\s*$/i.test(String(userText || ''));
+  if (_pointerOnly && !(ownerNotes.get(sub) || []).length) {
+    for (let i = 0; i < 8; i++) {
+      await new Promise(r => setTimeout(r, 300));
+      if ((ownerNotes.get(sub) || []).length) { record(req, { endpoint: 'quote-hint-arrived', sub }); break; }
+    }
+  }
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   // Greet ONLY on the very first message of the chat — decided here in code, not by Kiki —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
@@ -10746,12 +10763,32 @@ app.post('/inbox/delete', (req, res) => {
 // the SAME private owner-context channel her "." notes use: she treats it as the TRUTH and
 // lets it guide her next reply, NEVER repeats it to the customer, and never re-asks what she
 // was told. The customer sees nothing. Kiki uses it the next time she answers this chat.
+// 🔎 PHONE -> ManyChat sub. The browser bot knows a customer by their NUMBER; every
+// other part of this server knows them by their ManyChat contact id. inboxThreads already
+// carries both on every thread it has seen, so match on the last 10 digits (+1242 / 1242 /
+// 242 all resolve) and prefer the thread that spoke most recently, since one number can
+// appear under more than one shop.
+function subForPhone(phone, account) {
+  const want = String(phone || '').replace(/[^0-9]/g, '').slice(-10);
+  if (want.length < 7) return null;
+  let best = null;
+  for (const t of inboxThreads.values()) {
+    const got = String(t.phone || '').replace(/[^0-9]/g, '').slice(-10);
+    if (got !== want) continue;
+    if (account && String(t.account || '').toLowerCase() !== String(account).toLowerCase()) continue;
+    if (!best || (t.lastTs || 0) > (best.lastTs || 0)) best = t;
+  }
+  return best ? String(best.sub) : null;
+}
+
 app.post('/inbox/note', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
-  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  // `phone` is accepted as well as `sub` (Rodney 2026-09-17) so the browser bot can hand
+  // Kiki what a customer TAGGED on a ManyChat line. It only ever knows the number.
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '') || (b.phone ? subForPhone(b.phone, b.account) : '') || '';
   const note = String(b.text || '').trim().slice(0, 600);
-  if (!sub || !note) return res.status(400).json({ ok: false, error: 'need sub + note' });
+  if (!sub || !note) return res.status(400).json({ ok: false, error: b.phone && !sub ? 'no thread for that phone yet' : 'need sub + note' });
   const arr = ownerNotes.get(sub) || [];
   arr.push({ text: note, ts: Date.now() });
   ownerNotes.set(sub, arr.slice(-8));
