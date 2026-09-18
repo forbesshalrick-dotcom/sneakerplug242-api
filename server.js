@@ -4632,8 +4632,26 @@ async function _waSendManagerInner(text, token, image) {
   // "succeeding" against ids that are not him, so it never fell through to the phone lookup
   // and the failure was invisible.
   let ownerOk = false;
+  // 🚦 DELIVERIES AND SYSTEM NOTICES GO TO DIFFERENT CHATS (Rodney 2026-09-18:
+  // "The only message I need in the group is delivery messages. The other messages you
+  // can send to either Trendy Kicks account, Foot Fetish account, or OSC.")
+  //
+  // Every alert used to fire from BOTH retail accounts to his phone, so a delivery card and
+  // a "MANYCHAT IS DROPPING MESSAGES" warning landed in the same conversation, twice each.
+  // A chat that fills with warnings stops being read, and the one it costs is the delivery.
+  //
+  // So the two kinds now arrive on different lines: a delivery still tries OSC and then TK,
+  // because a missed order is the expensive failure and it keeps its fallback. A system
+  // notice goes to TRENDY KICKS ONLY and never falls back - if that one line is quiet the
+  // notice waits, which is the right trade for something that is not a job. The board copy
+  // (addAlert) is unchanged either way, so nothing is lost.
+  // ✅/❌ are NOT system notices: a job closure belongs with the job, so the next driver
+  // knows it is taken. owner-alerts already treats closures that way for the drivers' group.
+  const _sysAlert = /^\s*(?:\u{1F6A8}|\u26a0|\u{1F4F5}|\u{1F4F6}|\u{1F4CE})/u.test(String(text || ''))
+    || /MANYCHAT IS DROPPING|IS CUT OFF|DIDN'T COME THROUGH|ALERTS ARE REACHING YOUR PHONE|WAITING on /i.test(String(text || ''));
+  const _route = _sysAlert ? ['Trendy Kicks'] : ['Official Sneaker Crew', 'Trendy Kicks'];
   if (MANAGER_WA) {
-    for (const st of ['Official Sneaker Crew', 'Trendy Kicks']) {
+    for (const st of _route) {
       const stk = storeTokens.get(st);
       if (!stk) continue;
       try {
