@@ -11360,6 +11360,36 @@ app.get('/', (req, res, next) => {
 
 // The Inbox page itself — a slim, mobile-first staff page served straight from the
 // server (so the 242plug PWA stays slim and just links here with ?key=).
+// 🧾 STAFF TASK LIST — OUR OWN LINK, OUR OWN NAME ON IT.
+// Rodney 2026-09-18, seeing the WhatsApp preview on the task list he sent Deashinique:
+// "next time dont put Claude, put Sneaker plug." The page itself lives on claude.ai, and
+// WhatsApp builds its preview card from THAT page's tags - so the card read "Claude Artifact
+// - Try out Artifacts created by Claude users". His staff and his customers should never see
+// anything but his own business.
+//
+// So the link we send is ours. WhatsApp's crawler does not run JavaScript: it reads the tags
+// below and shows SneakerPlug242 with our domain underneath. A real phone runs the redirect a
+// moment later and lands on the task list. Change TASKS_TARGET when the list moves; the link
+// people have saved to their home screen never changes.
+const TASKS_TARGET = process.env.TASKS_URL || 'https://claude.ai/artifact/U1SZ4xKyRzwEL1vyf8baWb';
+app.get('/tasks', (req, res) => {
+  const t = TASKS_TARGET.replace(/"/g, '&quot;');
+  res.set('Cache-Control', 'no-store').type('html').send(
+    '<!doctype html><html><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>SneakerPlug242 — Daily Tasks</title>'
+    + '<meta property="og:site_name" content="SneakerPlug242">'
+    + '<meta property="og:title" content="SneakerPlug242 — Daily Tasks">'
+    + '<meta property="og:description" content="Today\'s photos, videos and stock checks. Tick them off as you go.">'
+    + '<meta property="og:url" content="https://242plug.com/tasks">'
+    + '<meta property="og:image" content="https://242plug.com/inbox/icon-192.png">'
+    + '<meta name="twitter:card" content="summary">'
+    + `<meta http-equiv="refresh" content="0;url=${t}">`
+    + `</head><body style="font-family:system-ui;background:#0f1117;color:#eee;padding:40px;text-align:center">`
+    + `<p>Opening your task list…</p><p><a style="color:#a3e635" href="${t}">Tap here if it does not open</a></p>`
+    + `<script>location.replace(${JSON.stringify(TASKS_TARGET)})</script></body></html>`);
+});
+
 // The customer's own self-checkout page — a link/QR the POS hands to a customer's
 // OWN phone, so they type their card details on their own device and staff never
 // touches a card or borrows the customer's phone. Rodney, 2 Sep: "allow customers
