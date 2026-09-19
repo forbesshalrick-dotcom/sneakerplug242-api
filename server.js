@@ -2950,8 +2950,37 @@ function cardForShop(url, token) {
   return String(url).replace(/-card\.jpg(\?|$)/i, `-card-${shop}.jpg$1`);
 }
 
+// ✋ THEY SAID STOP. NO MORE PICTURES — IN CODE, NOT IN THE PROMPT.
+// Rodney 2026-09-19, sending me a chat and writing only "dont understand": a customer asked
+// four times "y'all still have the 2 for 160", typed "Stop plz" at 11:04, and got three more
+// albums after it. He asked a question; she answered with photographs, again and again.
+//
+// The abort already halts an album MID-FLIGHT, and it worked. What it cannot do is stop the
+// NEXT one: the turn after the stop word starts a brand-new send, so a customer who says stop
+// gets interrupted and then buried anyway. The prompt has said "wrap-up words end the
+// pictures, full stop" since July and it did not hold, so this is a wall in code instead.
+//
+// Five minutes, then normal service. If they ask to SEE something again in that window they
+// will say so, and the words "send"/"show"/"pics" lift it immediately - a customer who
+// changes their mind must never be stonewalled by our own guard.
+const stoppedAt = new Map();   // sub -> when they last told us to stop
+function noteStopWord(sub, text) {
+  const t = String(text || '');
+  if (/\b(stop|enough|no more|don'?t send|dont send)\b/i.test(t)) stoppedAt.set(String(sub), Date.now());
+  else if (/\b(send|show|see|pics?|pictures?|photos?|more)\b/i.test(t)) stoppedAt.delete(String(sub));
+}
+function recentlyToldUsToStop(sub) {
+  const at = stoppedAt.get(String(sub));
+  return !!(at && Date.now() - at < 5 * 60 * 1000);
+}
+
 async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false, requestAt = 0, wantSize = null) {
-  sendAbort.delete(sub); // fresh send — clear any stale stop flag so it isn't halted before it starts
+  sendAbort.delete(sub);
+  // The customer asked us to stop inside the last five minutes. Answer them in words.
+  if (recentlyToldUsToStop(sub) && !isStaff) {
+    try { console.error('[photos] blocked - customer said stop', sub); } catch (_) {}
+    return { sent: 0, blocked: 'the customer asked us to stop sending pictures' };
+  } // fresh send — clear any stale stop flag so it isn't halted before it starts
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
   // clumping the photos into one album, so each pic shows with its label beneath.
@@ -5848,6 +5877,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // one of our photos and replied to it. Rodney has lost three sales to it in two days.
   const _pointerOnly = /^\s*(this|this one|that one|the one|these|those|i want this|i want this one|want this|this would do|that would do|this will do)\s*[.!?]*\s*$/i.test(String(userText || ''));
   if (_pointerOnly) { try { noteQuoteWanted(sub, getPhone(req), ctx && ctx.store); } catch (_) {} }
+  try { noteStopWord(sub, userText); } catch (_) {}   // "Stop plz" holds the pictures back, see recentlyToldUsToStop
   if (_pointerOnly && !(ownerNotes.get(sub) || []).length) {
     for (let i = 0; i < 8; i++) {
       await new Promise(r => setTimeout(r, 300));
