@@ -4586,7 +4586,15 @@ app.get('/alerts/for-owner', (req, res) => {
   const now = Date.now();
   // Anything older than 30 minutes is not news any more, it is history, and history belongs on
   // the board. Sending it would tell him a driver is needed for a job already done.
-  const live = ownerQueue.filter(q => now - q.at < 30 * 60000);
+  //
+  // ⚠️ EXCEPT AN ORDER (Rodney 2026-09-19: "No notification sent for this delivery. Customer
+  // was waiting. Good thing I checked."). owner-alerts had been hung since 14:30 - process
+  // alive, no passes - so a real order at 15:42 sat here unread and QUIETLY EXPIRED at 16:12.
+  // A stale warning is noise and deserves to die; a stale order is a customer sitting on a
+  // kerb. Orders now hold for six hours, which outlasts any restart, and the only thing that
+  // removes one is an ack - proof it actually reached a phone.
+  const isOrder = (t) => /NEW ORDER|DELIVERY READY|ORDER —|🆕|📍/i.test(String(t || ''));
+  const live = ownerQueue.filter(q => now - q.at < (isOrder(q.text) ? 6 * 3600000 : 30 * 60000));
   ownerQueue.length = 0; ownerQueue.push(...live);
   const out = live.slice().reverse().slice(0, 10);
   for (const q of out) q.tries++;
