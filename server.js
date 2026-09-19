@@ -2515,6 +2515,14 @@ function aliasTokens(s) {
   if (/yeezy|adidas|samba|gazelle|campus|forum|superstar|stan smith|ultra ?boost|\bnmd\b|\bnizza\b/.test(`${brand} ${name}`)) {
     out.push('adidas', 'addidas', 'adiddas', 'addidas', 'adias');
   }
+  // 👟 ASICS, HOWEVER IT COMES OUT OF A PHONE (Rodney 2026-09-19: "he meant to say
+  // asics"). A customer typed "Acres" — autocorrect's best guess at Asics — and got an album
+  // of Jordan 4s, then said stop. The word is genuinely hard to type and harder to dictate,
+  // so every shape it arrives in answers to the shoe: Acres is the one that cost a sale,
+  // Aces / Asic / Ascis / Acics / Azics / Asicks / Asix / Asices are the rest of the family.
+  if (brand.includes('asics') || name.includes('asics') || name.includes('gel')) {
+    out.push('acres', 'aces', 'acre', 'asic', 'ascis', 'acics', 'azics', 'asicks', 'asix', 'asices', 'aisics', 'assics');
+  }
   // 👟 JORDAN IS NIKE. Jordans sit under their own brand, so "you got any Nikes" used to skip
   // all 71 of them. Only widens a search — a customer asking for "Jordan" still gets Jordans.
   if (brand.includes('jordan') || name.includes('jordan')) out.push('nike');
