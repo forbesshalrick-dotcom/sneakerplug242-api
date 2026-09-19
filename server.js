@@ -5901,9 +5901,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   if (_pointerOnly) { try { noteQuoteWanted(sub, getPhone(req), ctx && ctx.store); } catch (_) {} }
   try { noteStopWord(sub, userText); } catch (_) {}   // "Stop plz" holds the pictures back, see recentlyToldUsToStop
   if (_pointerOnly && !(ownerNotes.get(sub) || []).length) {
-    for (let i = 0; i < 8; i++) {
+    // ⏱️ LONG ENOUGH FOR THE BROWSER TO ACTUALLY GO AND LOOK (Rodney 2026-09-19). The first
+    // version waited 2.4s and that was never going to be enough: kiki-tagwatch has to open the
+    // chat, pull the quoted picture out of the page and read the label off it, which measured
+    // 8-15 seconds end to end. So the note always landed AFTER she had already answered, and a
+    // customer who tapped a photo twice got asked for the name twice and wrote back "Are you
+    // stupid? You can't see?".
+    // Fifteen seconds of quiet beats asking a question they have already answered. It only ever
+    // applies to a message that is NOTHING but a pointer word, and it stops the moment the note
+    // lands - a normal turn is untouched.
+    for (let i = 0; i < 50; i++) {
       await new Promise(r => setTimeout(r, 300));
-      if ((ownerNotes.get(sub) || []).length) { record(req, { endpoint: 'quote-hint-arrived', sub }); break; }
+      if ((ownerNotes.get(sub) || []).length) { record(req, { endpoint: 'quote-hint-arrived', sub, waited: i * 300 }); break; }
     }
   }
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
