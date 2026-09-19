@@ -5844,7 +5844,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // word and no note has arrived yet, wait briefly for one. Capped hard: only for pointer
   // words, only when nothing is already waiting, and at most ~2.4s so a customer never feels
   // it. If nothing comes, she falls through to narrowing by name exactly as before.
-  const _pointerOnly = /^\s*(this|this one|that one|the one|these|those|i want this|i want this one|want this)\s*[.!?]*\s*$/i.test(String(userText || ''));
+  // "this", "this one", "this would do", "i want this" - all the same move: they tapped
+  // one of our photos and replied to it. Rodney has lost three sales to it in two days.
+  const _pointerOnly = /^\s*(this|this one|that one|the one|these|those|i want this|i want this one|want this|this would do|that would do|this will do)\s*[.!?]*\s*$/i.test(String(userText || ''));
+  if (_pointerOnly) { try { noteQuoteWanted(sub, getPhone(req), ctx && ctx.store); } catch (_) {} }
   if (_pointerOnly && !(ownerNotes.get(sub) || []).length) {
     for (let i = 0; i < 8; i++) {
       await new Promise(r => setTimeout(r, 300));
@@ -10862,6 +10865,35 @@ function subForPhone(phone, account) {
   }
   return best ? String(best.sub) : null;
 }
+
+// 👇 WHO JUST TAPPED ONE OF OUR PHOTOS (Rodney 2026-09-19: "i had to name murphy's shoe
+// because kiki not understanding the tags"). A WhatsApp quote-reply reaches ManyChat as the
+// bare words - the photo they tapped is never sent - so this turn is unanswerable from here.
+// The browser bot IS signed in on these lines and the quoted photo is right there in the
+// page, as a background-image data URI inside [data-testid="quoted-message"].
+//
+// This is the handshake: the moment a pointer message lands we write down who sent it, and
+// kiki-tagwatch on the Mac polls this, opens that one chat, reads the name off our own card
+// and posts it back to /inbox/note. Only ONE chat is ever opened, and only when a customer
+// has actually tapped a photo - no sweeping, nothing marked read that wasn't already being
+// answered.
+const quoteWanted = [];
+function noteQuoteWanted(sub, phone, store) {
+  const now = Date.now();
+  const p = String(phone || '').replace(/[^0-9]/g, '');
+  if (!sub && !p) return;
+  // one entry per customer per minute - a customer tapping three photos is one job
+  if (quoteWanted.some(q => q.sub === String(sub) && now - q.at < 60000)) return;
+  quoteWanted.unshift({ sub: String(sub || ''), phone: p, store: store || '', at: now });
+  if (quoteWanted.length > 40) quoteWanted.length = 40;
+}
+app.get('/quote-wanted', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const now = Date.now();
+  // Only the last two minutes: older than that and the customer has moved on, and opening
+  // their chat would be a pointless interruption.
+  res.json({ ok: true, wanted: quoteWanted.filter(q => now - q.at < 120000) });
+});
 
 app.post('/inbox/note', (req, res) => {
   if (!consoleAuth(req, res)) return;
