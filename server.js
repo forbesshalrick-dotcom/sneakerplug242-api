@@ -2521,6 +2521,15 @@ function aliasTokens(s) {
   if (/yeezy|adidas|samba|gazelle|campus|forum|superstar|stan smith|ultra ?boost|\bnmd\b|\bnizza\b/.test(`${brand} ${name}`)) {
     out.push('adidas', 'addidas', 'adiddas', 'addidas', 'adias');
   }
+  // 👟 "V5 RUNNER" IS THE ZOOM VOMERO 5 — AND IT IS THE NAME IN OUR OWN AD (Rodney
+  // 2026-09-21: "v5 listed to website but not sent"). A customer tapped the Official Sneaker
+  // Crew ad, which says NIKE V5 RUNNER across the picture, asked for "Nike v5 runners size
+  // 10'5", and was told "I can't find that exact one in our system". The catalogue calls it
+  // Nike Zoom Vomero 5, so nothing he could reasonably type would ever have matched. When an
+  // ad uses a name, that name has to find the shoe.
+  if (/vomero/.test(`${brand} ${name}`)) {
+    out.push('v5', 'v5s', 'v 5', 'v5 runner', 'v5 runners', 'vomero', 'vomero5', 'zoom vomero', 'nike v5');
+  }
   // 👟 ASICS, HOWEVER IT COMES OUT OF A PHONE (Rodney 2026-09-19: "he meant to say
   // asics"). A customer typed "Acres" — autocorrect's best guess at Asics — and got an album
   // of Jordan 4s, then said stop. The word is genuinely hard to type and harder to dictate,
