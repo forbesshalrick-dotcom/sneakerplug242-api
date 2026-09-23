@@ -6,9 +6,6 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-// Needed for express.raw on the clip route — shop.js gets `app` handed to it and
-// never required express itself until clips arrived.
-const express = require('express');
 // Base catalog (immutable) — used only as a resurrection guard: a device's FIRST-EVER
 // push for a catalog shoe id must never claim more stock than the catalog's own baseline
 // (see the /shop/shoe guard below, 2026-07-24: sold-out catalog items reappearing in stock).
@@ -1588,8 +1585,8 @@ function mount(app) {
    * So clips are stored on our own disk under DATA_DIR/clips/<date>/, which has
    * no such ceiling, and served back with Range support so they scrub properly
    * in a browser. Kept 21 days — long enough to post them, short enough that the
-   * volume never fills. express.raw is mounted on THIS ROUTE ONLY; the global
-   * json body limit stays at 12 mb where everything else expects it.
+   * volume never fills. The global body parsers step aside for this path (see
+   * server.js) so the upload reaches the route as a plain stream.
    */
   const CLIP_DIR = path.join(DATA_DIR, 'clips');
   const CLIP_KEEP_DAYS = 21;
@@ -1611,26 +1608,54 @@ function mount(app) {
   sweepClips();
   setInterval(sweepClips, 12 * 3600 * 1000).unref();
 
-  app.post('/shop/clip', express.raw({ type: '*/*', limit: '150mb' }), (req, res) => {
+  /* STREAM IT TO DISK. Do NOT buffer.
+   * express.raw holds the whole body in memory first, and a 60 mb clip took the
+   * whole app down with it — Railway answered 502 "Application failed to respond"
+   * and the process restarted, which on this server also means Kiki's bus loses
+   * its API for a few seconds. Measured 2026-09-23: 25 mb fine, 60 mb fatal.
+   * Piping the request straight into the file keeps memory flat whatever the size.
+   */
+  const CLIP_MAX_BYTES = 120 * 1024 * 1024;
+  app.post('/shop/clip', (req, res) => {
     if (!auth(req, res)) return;
-    const buf = req.body;
-    if (!buf || !buf.length) return res.status(400).json({ error: 'no file' });
     const date = String(req.query.date || '').slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad date' });
     const ext = String(req.query.ext || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4);
     if (!CLIP_TYPES[ext]) return res.status(400).json({ error: 'not a video we serve' });
+    const declared = parseInt(req.headers['content-length'] || '0', 10);
+    if (declared && declared > CLIP_MAX_BYTES) {
+      return res.status(413).json({ error: 'that clip is too big — keep it under a minute' });
+    }
     const shoe = String(req.query.shoe || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || 'shoe';
     const name = shoe + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
     const dir = path.join(CLIP_DIR, date);
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, name), buf);
-    } catch (e) {
-      console.error('[clips] write failed', e.message);
-      return res.status(500).json({ error: 'could not save' });
-    }
-    console.log('[clips] saved', date + '/' + name, (buf.length / 1048576).toFixed(1) + 'mb');
-    res.json({ ok: true, url: '/shop/clip/' + date + '/' + name, bytes: buf.length });
+    const file = path.join(dir, name);
+    try { fs.mkdirSync(dir, { recursive: true }); }
+    catch (e) { return res.status(500).json({ error: 'could not save' }); }
+
+    let written = 0, failed = false;
+    const out = fs.createWriteStream(file);
+    const abort = (code, msg) => {
+      if (failed) return;
+      failed = true;
+      try { req.unpipe(out); } catch (_) {}
+      out.destroy();
+      fs.unlink(file, () => {});
+      if (!res.headersSent) res.status(code).json({ error: msg });
+    };
+    req.on('data', (c) => {
+      written += c.length;
+      if (written > CLIP_MAX_BYTES) abort(413, 'that clip is too big — keep it under a minute');
+    });
+    req.on('aborted', () => abort(400, 'upload stopped'));
+    out.on('error', (e) => { console.error('[clips] write failed', e.message); abort(500, 'could not save'); });
+    out.on('finish', () => {
+      if (failed) return;
+      if (!written) return abort(400, 'no file');
+      console.log('[clips] saved', date + '/' + name, (written / 1048576).toFixed(1) + 'mb');
+      res.json({ ok: true, url: '/shop/clip/' + date + '/' + name, bytes: written });
+    });
+    req.pipe(out);
   });
 
   app.get('/shop/clip/:date/:name', (req, res) => {
