@@ -6900,7 +6900,32 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
             const near = flat.filter(id => !isExact(id));
             if (near.length > NEAR_SIZE_MAX) {
-              const keepNear = new Set(near.slice(0, NEAR_SIZE_MAX));
+              // ⚖️ SHARE THE SLOTS BETWEEN THE BRANDS SHE ASKED FOR.
+              // Rodney 2026-09-23: "no asics sent". A customer asked "Any new balance or
+              // asics?" and got six New Balance and not one Asic. Nothing rejected the Asics -
+              // they were all near-size (she is a women's 6.5, a men's 5, and we are thin down
+              // there), and this cap simply took the first six off a list that happened to
+              // start with New Balance. Taking a flat slice is fine for one brand and quietly
+              // wrong for two: it answers half the question and looks like we ignored the rest.
+              // So deal the slots round-robin by brand - every brand she named gets a turn
+              // before any brand gets a second.
+              const brandOf = (id) => String((liveM[id] && (liveM[id].brand || liveM[id].name)) || '')
+                                        .toLowerCase().split(/[^a-z]+/).filter(Boolean).slice(0, 2).join(' ');
+              const byBrand = new Map();
+              for (const id of near) {
+                const b = brandOf(id);
+                if (!byBrand.has(b)) byBrand.set(b, []);
+                byBrand.get(b).push(id);
+              }
+              const dealt = [];
+              const queues = [...byBrand.values()];
+              while (dealt.length < NEAR_SIZE_MAX && queues.some(q => q.length)) {
+                for (const q of queues) {
+                  if (dealt.length >= NEAR_SIZE_MAX) break;
+                  if (q.length) dealt.push(q.shift());
+                }
+              }
+              const keepNear = new Set(dealt);
               nearSizeTrimmed = near.length - NEAR_SIZE_MAX;
               const keep = (id) => isExact(id) || keepNear.has(id);
               if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keep);
