@@ -6805,6 +6805,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // foam clog goes out. Reads the RECENT chat, not just this turn's message — she said
         // "tennis" one turn and plain "Yes" on the turn the album actually sent.
         const droppedSlipOn = [];
+        let _photosOnTheirWay = false;   // queued for the browser - see album-sent-nothing below
         let womensExactCount = null, womensHalfUpCount = 0, womensTotalCount = 0;
         try {
           const recentSaid = [String(userText || '')].concat(
@@ -7090,12 +7091,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // The browser CAN send them: the same forward that put 40 pairs in this customer's
           // chat by hand. So queue the size and let kiki-waoutbox forward the album.
           try {
-            if (/^\d{10,15}$/.test(String(sub)) && inp && inp.size != null && String(inp.size).trim()) {
-              queueWaPhotos(String(sub), String(inp.size).trim(), outIdCount);
+            // The size on the call if there is one, otherwise the size this customer already
+            // gave us. Without this a browse with no size in the parameters - which is most of
+            // them - queues nothing and the customer gets the apology again.
+            const fallbackSize = (inp && inp.size != null && String(inp.size).trim())
+              ? String(inp.size).trim()
+              : String(knownSize || '').split('/')[0].trim();
+            if (/^\d{10,15}$/.test(String(sub)) && fallbackSize) {
+              queueWaPhotos(String(sub), fallbackSize, outIdCount);
+              _photosOnTheirWay = true;
             }
           } catch (_) {}
+          // Two very different situations, and telling them apart is the difference between a
+          // customer who waits ninety seconds and one who walks. Rodney 2026-09-23: a customer
+          // who never received a single photo replied "You don't have it" and left.
           result.note = (result.note ? result.note + ' ' : '')
-            + 'CRITICAL — ZERO photos actually reached this customer, but your lead-in already promised them pictures. DO NOT go silent and DO NOT just retry the same album. Reply NOW in words on this turn: name the pairs we have in their size with price and order code for each, and tell them they can see the pictures at 242plug.com. They are waiting on a promise you already made.';
+            + (_photosOnTheirWay
+              ? 'The photos did not go through the usual pipe, but they ARE being sent to this customer another way right now and will land in a minute or two. Tell them the pictures are coming - "sending them now, give me a minute \u{1F4F8}" - and then STOP. Do NOT apologise for a failure, do NOT send them to the website instead, and do NOT list the shoes in words: the pictures are on their way and the words would only talk over them.'
+              : 'CRITICAL \u2014 ZERO photos actually reached this customer, but your lead-in already promised them pictures. DO NOT go silent and DO NOT just retry the same album. Reply NOW in words on this turn: name the pairs we have in their size with price and order code for each, and tell them they can see the pictures at 242plug.com. They are waiting on a promise you already made.');
         }
         // Customer asked to STOP mid-album — end this turn, but CLOSE the tool call
         // properly first: leaving a dangling tool_use poisons the whole conversation
