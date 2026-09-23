@@ -479,6 +479,23 @@ const BRAND_KEYWORDS = {
   'new balance': ['newbalance', 'nb', 'balance', '1906', '9060', '1000', '550', '740'],
 };
 
+// 🗣️ ONE SHOE OR TWO - SAME SHOE. (Rodney 2026-09-23: a customer was asking about
+// SCORPIONS. We hold seven, including a White and a Khaki. He was told we did not have that
+// cream one and shown Air Max 270s instead.) Every comparison below was exact equality
+// against the catalogue's words, which are singular - so "scorpions" scored zero while
+// "scorpion" scored fine. Nobody types the singular when they mean the shoe they saw:
+// dunks, huaraches, vapormaxes, scorpions. searchInventory already allows this (wordMatches);
+// this path never did, and this path is the one ManyChat calls.
+function tokenHas(tokens, word) {
+  if (tokens.includes(word)) return true;
+  if (word.length >= 4) {
+    if (tokens.includes(word + 's')) return true;                              // catalogue singular, customer plural
+    if (word.endsWith('s') && tokens.includes(word.slice(0, -1))) return true; // and the other way round
+    if (tokens.includes(word + 'es')) return true;                             // "boxes", "vapormaxes"
+  }
+  return false;
+}
+
 function scoreShoe(shoe, tokens, sizeFilter) {
   let score = 0;
 
@@ -488,7 +505,7 @@ function scoreShoe(shoe, tokens, sizeFilter) {
   }
 
   for (const mt of tokenize(shoe.name)) {
-    if (mt.length >= 3 && tokens.includes(mt)) score += 2;
+    if (mt.length >= 3 && tokenHas(tokens, mt)) score += 2;
   }
 
   if (shoe.nickname) {
@@ -502,7 +519,7 @@ function scoreShoe(shoe, tokens, sizeFilter) {
     const colourWords = new Set(tokenize(shoe.color));
     const STOP = new Set(['and', 'the', 'in', 'of', 'with']);
     for (const nt of tokenize(shoe.nickname)) {
-      if (nt.length >= 3 && tokens.includes(nt) && !colourWords.has(nt) && !STOP.has(nt)) score += 4;
+      if (nt.length >= 3 && tokenHas(tokens, nt) && !colourWords.has(nt) && !STOP.has(nt)) score += 4;
     }
   }
 
@@ -516,7 +533,7 @@ function scoreShoe(shoe, tokens, sizeFilter) {
   // "All" is not a colour, and neither is a material or a finish — "All Black/Suede" and
   // "Black Gloss" are black shoes, so those words must not count against the shoe.
   const shoeColours = tokenize(shoe.color).filter(ct => ct !== 'all' && !MATERIAL_WORDS.has(ct));
-  const askedFor = shoeColours.filter(ct => ct.length >= 3 && tokens.includes(ct));
+  const askedFor = shoeColours.filter(ct => ct.length >= 3 && tokenHas(tokens, ct));
   score += askedFor.length * 2;
   if (askedFor.length && askedFor.length === shoeColours.length) score += 4;
 
