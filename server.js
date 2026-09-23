@@ -1559,6 +1559,26 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   try { lastSendFail = { at: new Date().toISOString(), status: r.status, body: String(body || '').slice(0, 200) }; } catch (_) {}
   saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
   noteSendFailure(subscriberId, body, token);   // 🚨 watchdog — pings Rodney when the pipe starts failing
+  // 🚨 THE CUSTOMER CAME IN ON YCLOUD AND MANYCHAT CANNOT ANSWER THEM.
+  // Rodney 2026-09-23: the Foot Fetish line went silent for hours and nobody could see why.
+  // Messages arrive through YCloud, where the subscriber id IS the phone number, but the
+  // reply is handed to ManyChat, which rejects it - "Subscriber does not exist" - twelve
+  // times this morning alone. There is no YCloud send in this codebase at all: inbound was
+  // wired up, outbound never was. So Kiki writes a perfectly good answer into a dead pipe
+  // and the customer sits there.
+  //
+  // The Mac IS signed into that number on WhatsApp Web, and that road has never failed. So
+  // park the words here and let kiki-waoutbox carry them. It is the same shape as the order
+  // alerts, which have been reaching his phone this way since 9 September.
+  try {
+    const isPhoneSub = /^\d{10,15}$/.test(String(subscriberId || ''));
+    const noSuchSub = /subscriber does not exist/i.test(String(body || ''));
+    if (isPhoneSub && noSuchSub) {
+      const text = (messages || []).filter(m => m && m.type === 'text' && m.text)
+                                   .map(m => String(m.text)).join('\n\n').trim();
+      if (text) queueWaOutbox(String(subscriberId), text);
+    }
+  } catch (_) {}
   if (recent.length > 120) recent.length = 120;
   // 📸➡️📝 IMAGE-SEND FALLBACK (Rodney 2026-07-19: a whole size-9 album got NO reply — every
   // IMAGE send to ManyChat timed out at 20s while TEXT sends were fine). If a failed bundle
@@ -4573,6 +4593,43 @@ const ownerQueue = [];
 function firstLine(t) {
   return String(t || '').split('\n')[0].replace(/[*_]/g, '').trim().slice(0, 80) || 'Delivery';
 }
+// 📮 WORDS THAT MANYCHAT COULD NOT DELIVER, WAITING FOR THE BROWSER TO CARRY THEM.
+// See the note at the send-fail hook. Kept small and in memory on purpose: a reply that is
+// an hour old is not worth sending to someone who has moved on, so anything older than ten
+// minutes is dropped rather than delivered late.
+const waOutbox = [];
+// Which shop a YCloud customer wrote to - set by /ycloud/webhook, read when a reply
+// to them has to go out through the browser instead.
+const ycloudStore = new Map();
+function queueWaOutbox(phone, text) {
+  const now = Date.now();
+  // Never the same words twice to the same person inside a minute - a retry upstream must
+  // not become two messages downstream.
+  if (waOutbox.some(q => q.phone === phone && q.text === text && now - q.at < 60000)) return;
+  waOutbox.unshift({ id: now.toString(36) + Math.random().toString(36).slice(2, 6),
+                     phone: String(phone), store: ycloudStore.get(String(phone)) || 'Foot Fetish',
+                     text: String(text).slice(0, 3000), at: now });
+  if (waOutbox.length > 60) waOutbox.length = 60;
+  try { recent.unshift({ at: new Date().toISOString(), endpoint: 'wa-outbox-queued', sub: phone }); } catch (_) {}
+}
+app.get('/wa-outbox', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const now = Date.now();
+  const live = waOutbox.filter(q => now - q.at < 10 * 60000);
+  waOutbox.length = 0; waOutbox.push(...live);
+  res.json({ ok: true, items: live.slice().reverse().slice(0, 10) });
+});
+app.post('/wa-outbox/ack', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const ids = [].concat((req.body || {}).ids || (req.body || {}).id || []);
+  let gone = 0;
+  for (const id of ids) {
+    const i = waOutbox.findIndex(q => q.id === String(id));
+    if (i >= 0) { waOutbox.splice(i, 1); gone++; }
+  }
+  res.json({ ok: true, acked: gone, left: waOutbox.length });
+});
+
 function queueForOwner(text, title, noLink) {
   try {
     let t = String(text || '').trim();
@@ -7760,6 +7817,7 @@ app.post('/ycloud/webhook', async (req, res) => {
        the Meta path maps phone_number_id, so one shop's voice never answers on
        another shop's line. */
     const store = (toNum && toNum.endsWith('4324406')) ? 'Foot Fetish' : waStoreFor(null);
+    try { ycloudStore.set(from, store); } catch (_) {}   // so a failed reply knows whose WhatsApp Web to use
 
     waLastInboundAt = new Date().toISOString();
     const shimReq = { method: 'POST', path: '/ycloud/webhook', headers: {}, query: {}, rawBody: null, body: {} };
