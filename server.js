@@ -2397,6 +2397,13 @@ Only ever mention shoes, prices and sizes that search_inventory returns — neve
 - If two shoes they might mean have DIFFERENT prices, give both and let them pick: "The Air Force 1 is $120, the High is $120 too 👟 which one you after?". Never withhold the number while you work out which shoe it is.
 - You KNOW the standard prices even before a search: Jordan 1 / Air Force 1 / Dunk / Air Max / VaporMax $120, other Jordans $180, Air Max 95 / New Balance / Asics $130, Crocs & Yeezy Foam $65, Roshe $50, Dunk High $60, Scorpion $70. A price question is answerable instantly.
 
+👆 THEY POINTED AT A PICTURE - THAT IS AN ANSWER, NOT A QUESTION. (Rodney 2026-09-23: a customer tapped our All Black Air Max 270 and wrote "Dis". You replied "Which one - the Black/White, the All Black, or the Blue/Purple/Yellow?". All three were $120. "fix this shit NOW.")
+- "dis", "dis one", "dat", "this", "this one", "how much for dis one" - they REPLIED TO one of our photos. Their phone shows you exactly which one. Ours does not: WhatsApp's quote never reaches us. That is OUR blind spot, and the customer must never pay for it.
+- ⛔ NEVER answer a pointer with "which one?" - not as the whole reply, not after a greeting. They already told you. Asking again reads as not listening, and it is the single fastest way to lose the sale.
+- ✅ ANSWER WHAT DOES NOT DEPEND ON WHICH. Nearly always the price: if everything you just sent is the same price, say it - "That one's $120 👟 what size you wear?" - and move to the size. Same for delivery, payment, condition.
+- If they truly differ, give the range and still move forward: "Them run $120-$180 👟 what size you wear?". Name the colours back only as a SHORT tail on a reply that already answered something, never instead of one.
+- A ⚠️ note listing exactly what we just sent them, with prices, is handed to you on these turns. Use it. It is the receipt of what is on their screen.
+
 🏷️ QUOTE EACH SHOE'S OWN PRICE — DON'T LUMP THEM (Rodney 2026-07-20): NOT every Jordan is $180 — Air Jordan 1s (and Dunks) are $120, Air Max 95 is $130, etc. So NEVER say "all Jordans are $180" or blanket-price a mixed order. Price each pair by its ACTUAL price (from search_inventory, or the Jordan rule above: Jordan 1 = $120, any other Jordan = $180), and when they're buying two different shoes, add their two real prices for the total — don't assume they're the same.
 🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, refer them to a good supplier we know. Send exactly: "Here's a good supplier you can check out 👟 *sneakerinventory.com* — message them for the trade password to get in, or email *trade@sneakerinventory.com* 🙌" NEVER give out an access code or password for that site — you do not have one, and W242 is NOT it. Then stop — don't push them to buy retail or ask their size next.`;
 }
@@ -2552,6 +2559,13 @@ function aliasTokens(s) {
   if (brand.includes('jordan') || name.includes('jordan')) out.push('aj', 'jordans', 'js', 'jays', 'retro', 'retros');
   if (name.includes('air max plus')) out.push('tn');
   if (name.includes('air force')) out.push('forces', 'force', 'af1', 'af');
+  // SCORPIONS. Rodney 2026-09-23: a customer sent a photo of a cream Air Max Scorpion, was
+  // told "don't think we have that exact cream one" and shown Air Max 270s instead - while we
+  // held seven Scorpions, including a White and a Khaki. The plural alone missed: "scorpion"
+  // found 7, "scorpions" found 0. Same word gap as air focus and acres. They are Air Max
+  // Scorpions, so an "air max" ask should reach them too.
+  if (name.includes('scorpion')) out.push('scorpions', 'scorpio', 'scorpian', 'scorpians',
+                                          'air max scorpion', 'airmax scorpion', 'air scorpion');
   // FOAM / SLIPPER FAMILY (Rodney 2026-07-14): customers say slipper, slides, sandals,
   // mules, crocs or yeezys interchangeably — they're all the same foam comfort shoe to
   // them. Any family word must pull the whole family: Nike Mule + Crocs + Yeezy Foam RNR.
@@ -3077,6 +3091,53 @@ function recentlyToldUsToStop(sub) {
   return !!(at && Date.now() - at < 5 * 60 * 1000);
 }
 
+// 🖼️ WHAT WE JUST PUT IN FRONT OF THIS CUSTOMER.
+// Rodney 2026-09-23, on a customer who tapped our All Black Air Max 270 and typed "Dis",
+// and was asked back "Which one - the Black/White, the All Black, or the Blue/Purple/Yellow?":
+// "fix this shit NOW".
+//
+// The quote-reply never reaches us. Measured on this exact chat: ManyChat's payload carries
+// last_input_text and NOTHING else - no quoted message, no image, no id. kiki-tagwatch reads
+// the tag out of the browser, but Trendy Kicks left WhatsApp Web when it moved to ManyChat,
+// so on this line there is no page to look at. That road is closed here.
+//
+// It does not matter. We know exactly which shoes we just showed him, and all three were
+// $120 - the answer to "how much for dis one" was the same whichever one he meant. Asking
+// which one was never necessary; it just cost the sale. So keep the album and hand it to
+// her on the next turn.
+const albumShown = new Map();   // sub -> { at, shoes:[{name, price}] }
+function rememberAlbumShown(sub, shoes) {
+  const seen = new Set(), list = [];
+  for (const s of shoes || []) {
+    const n = displayName(s);
+    if (!n || seen.has(n)) continue;
+    seen.add(n);
+    list.push({ name: n, price: parseFloat(s.price) || 0 });
+  }
+  if (list.length) albumShown.set(String(sub), { at: Date.now(), shoes: list.slice(0, 40) });
+  if (albumShown.size > 300) { const k = albumShown.keys().next().value; albumShown.delete(k); }
+}
+// The note Kiki gets when they point at one of those pictures.
+function pointedAtAlbumNote(sub) {
+  const a = albumShown.get(String(sub));
+  if (!a || Date.now() - a.at > 30 * 60 * 1000) return '';   // too old to be what they mean
+  const prices = [...new Set(a.shoes.map(s => s.price).filter(Boolean))];
+  const lines = a.shoes.map(s => '\u2022 ' + s.name + ' - $' + s.price).join('\n');
+  const head = 'The customer just POINTED AT one of the pictures we sent them (they replied to '
+             + 'it). The quote does not reach us, so you cannot tell which - but here is '
+             + 'EXACTLY what we sent them:\n' + lines + '\n\n';
+  if (prices.length === 1) {
+    // One price across the album: the question they asked has one answer either way.
+    return head + 'Every one of them is $' + prices[0] + ', so it does not matter which they '
+         + 'meant - GIVE THEM THE PRICE ($' + prices[0] + ') and ask what size they wear. Do '
+         + 'NOT ask them which one. They already told you by pointing.';
+  }
+  return head + 'Answer what you can for all of them (they run $' + Math.min(...prices) + '-$'
+       + Math.max(...prices) + ') and ask what SIZE they wear so you can move it forward. Only '
+       + 'if you truly cannot answer without knowing, name the colours back to them in one '
+       + 'short line - never as your whole reply.';
+}
+
 async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = null, leadIn = '', womens = false, photosOnly = false, isStaff = false, requestAt = 0, wantSize = null) {
   sendAbort.delete(sub);
   // The customer asked us to stop inside the last five minutes. Answer them in words.
@@ -3198,6 +3259,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // the customer is never left talking to a wall. The full answer still comes after
   // the album via the queued chat turn.
   let lastShoeSent = null;
+  const shownShoes = [];   // what actually reached them - see rememberAlbumShown
   let midAlbumHandledAt = 0;
   const PRICE_Q = /\b(how much|price|cost|what.*(cost|price)|much for)\b/i;
   const answerMidAlbum = async () => {
@@ -3333,6 +3395,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       }
       if (delivered) {
         sent += 1; lastShoeSent = s; consecFail = 0;
+        try { shownShoes.push(s); } catch (_) {}
         // 🔬 PROOF OF WHAT ManyChat ACTUALLY SAID (Rodney 2026-08-05). An album reported 34
         // pairs delivered and the customer received ZERO — with not one line in the log,
         // because only FAILURES were ever recorded and every one of these came back
@@ -3547,6 +3610,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       manychatSaid: answers, firstIds: albumTrace.slice(0, 3).map(t => t.id) });
     if (recent.length > 120) recent.length = 120;
   } catch (_) {}
+  try { if (shownShoes.length) rememberAlbumShown(sub, shownShoes); } catch (_) {}
   return { sent, requested, interrupted, manualStopped, held_back: heldBack || undefined, last_shoe: lastShoeSent ? displayName(lastShoeSent) : null };
 }
 
@@ -3844,6 +3908,14 @@ function saveRecentlySent() {
   if (recentSaveT.unref) recentSaveT.unref();
 }
 const ownerNotes = new Map();      // sub -> [{text, ts}] — private ". "/"- " messages the OWNER typed to Kiki. She FOLLOWS ALONG (uses them as context) but sends NOTHING back to the customer.
+function addOwnerNote(sub, text) {
+  const t = String(text || '').trim().slice(0, 900);
+  if (!sub || !t) return;
+  const arr = ownerNotes.get(String(sub)) || [];
+  if (arr.some(n => n.text === t && Date.now() - n.ts < 60000)) return;   // not the same note twice
+  arr.push({ text: t, ts: Date.now() });
+  ownerNotes.set(String(sub), arr.slice(-8));
+}
 // PHOTO ORDER CODES (A1, A2, … B1 …): every pic Kiki sends gets a short code in its
 // label so the customer can just reply with the code to pick it — no re-describing, no
 // re-sending the photo. Per sub we keep a running counter + a code→shoe map so a reply
@@ -6023,8 +6095,33 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // it. If nothing comes, she falls through to narrowing by name exactly as before.
   // "this", "this one", "this would do", "i want this" - all the same move: they tapped
   // one of our photos and replied to it. Rodney has lost three sales to it in two days.
-  const _pointerOnly = /^\s*(this|this one|that one|the one|these|those|i want this|i want this one|want this|this would do|that would do|this will do)\s*[.!?]*\s*$/i.test(String(userText || ''));
+  // "DIS" IS "THIS". Rodney 2026-09-23: a customer tapped our All Black 270 and wrote "Dis",
+  // then "Dis one", then "How much for dis one" - not one of them matched, so none of this
+  // ran and she asked him which one three times. Bahamian spelling is not a special case, it
+  // is how the customers here actually type; same word gap that made "air focus" and "acres"
+  // invisible. A pointer can also carry the question with it ("how much for dis one"), which
+  // is still a pointer - the words around it do not tell us which picture either.
+  const _P = '(?:this|that|dis|dat|dese|dose|these|those)';
+  const _pointerOnly = new RegExp(
+    '^\\s*(?:' + _P + '|' + _P + ' one|the one|i want ' + _P + '(?: one)?|want ' + _P + '|'
+    + _P + ' (?:would|will) do)\\s*[.!?]*\\s*$', 'i').test(String(userText || ''));
+  // A pointer with a question wrapped round it - "how much for dis one", "what size dis come
+  // in" - is the same problem and the album note answers it just as well.
+  const _pointerAsk = !_pointerOnly && new RegExp(
+    '\\b' + _P + '(?: one)?\\b', 'i').test(String(userText || '')) &&
+    String(userText || '').trim().split(/\s+/).length <= 8;
   if (_pointerOnly) { try { noteQuoteWanted(sub, getPhone(req), ctx && ctx.store); } catch (_) {} }
+  // WHAT WE JUST SHOWED THEM, handed over before she answers. This is the half that works on
+  // a ManyChat line, where there is no browser page to read the tag out of.
+  if (_pointerOnly || _pointerAsk) {
+    try {
+      const albumNote = pointedAtAlbumNote(sub);
+      if (albumNote) {
+        addOwnerNote(sub, albumNote);
+        record(req, { endpoint: 'pointed-at-album', sub, q: String(userText).slice(0, 30) });
+      }
+    } catch (_) {}
+  }
   try { noteStopWord(sub, userText); } catch (_) {}   // "Stop plz" holds the pictures back, see recentlyToldUsToStop
   if (_pointerOnly && !(ownerNotes.get(sub) || []).length) {
     // ⏱️ LONG ENOUGH FOR THE BROWSER TO ACTUALLY GO AND LOOK (Rodney 2026-09-19). The first
