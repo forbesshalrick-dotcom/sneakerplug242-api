@@ -471,6 +471,12 @@ function extractSize(tokens) {
 // "All Black/Suede", "Black Gloss" and "Black Threaded" are all simply black shoes.
 const MATERIAL_WORDS = new Set(['suede', 'leather', 'gloss', 'glossy', 'threaded', 'mesh',
   'patent', 'canvas', 'nubuck', 'knit', 'denim', 'reflective', 'metallic', 'matte', 'satin']);
+// ✨ WHAT A CUSTOMER CALLS THE SHINY FINISH. (Rodney 2026-09-23: "flo shine is the
+// material that shines".) A customer asked "Do u have floshine" and was told "I'm not
+// finding a shoe called 'Floshine'" and then asked to name the brand - because it went in
+// as a shoe NAME. It is a finish, and the catalogue writes it "Gloss". Nobody buying a shoe
+// should have to know our word for it.
+const FINISH_WORDS = /\b(flo\s?shine|floshine|flow\s?shine|shiny|shine|shinny|glossy?|patent|pattent|wet\s?look|shiney)\b/i;
 
 const BRAND_KEYWORDS = {
   'jordan':      ['jordan', 'aj', 'jumpman'],
@@ -535,6 +541,15 @@ function scoreShoe(shoe, tokens, sizeFilter) {
   const shoeColours = tokenize(shoe.color).filter(ct => ct !== 'all' && !MATERIAL_WORDS.has(ct));
   const askedFor = shoeColours.filter(ct => ct.length >= 3 && tokenHas(tokens, ct));
   score += askedFor.length * 2;
+  // ✨ THE FINISH IS STILL SOMETHING THEY CAN ASK FOR. Material words are pulled OUT of
+  // the colour list above so "Black Gloss" counts as a plain black shoe for the purity bonus -
+  // right. But that also made them unsearchable: we hold gloss 9060s, and "you got the gloss
+  // ones?" scored zero on every one of them. Excluding a word from the purity maths is not the
+  // same as pretending the customer never said it, so it scores here instead.
+  for (const mt of tokenize(shoe.color).filter(ct => MATERIAL_WORDS.has(ct))) {
+    if (tokenHas(tokens, mt)) score += 2;
+    else if (mt === 'gloss' && FINISH_WORDS.test(tokens.join(' '))) score += 2;   // their word for it
+  }
   if (askedFor.length && askedFor.length === shoeColours.length) score += 4;
 
   for (const nm of tokenize(shoe.name).filter(t => /^\d+$/.test(t))) {
@@ -2413,6 +2428,12 @@ Only ever mention shoes, prices and sizes that search_inventory returns — neve
 - ✅ Say the price FIRST, in that same reply, then carry on: "Air Force 1s are $120 👟 what size you wear?". Price first, question second, one message.
 - If two shoes they might mean have DIFFERENT prices, give both and let them pick: "The Air Force 1 is $120, the High is $120 too 👟 which one you after?". Never withhold the number while you work out which shoe it is.
 - You KNOW the standard prices even before a search: Jordan 1 / Air Force 1 / Dunk / Air Max / VaporMax $120, other Jordans $180, Air Max 95 / New Balance / Asics $130, Crocs & Yeezy Foam $65, Roshe $50, Dunk High $60, Scorpion $70. A price question is answerable instantly.
+
+✨ "FLO SHINE" IS A MATERIAL, NOT A SHOE. (Rodney 2026-09-23: "flo shine is the material that shines. no we dont have the air force in flo shine." A customer asked "Do u have floshine", was told "I'm not finding a shoe called 'Floshine'", and was then asked to name the brand - twice.)
+- flo shine / floshine / shiny / shinny / patent / wet look all mean ONE thing: the SHINY finish. Our catalogue writes it "Gloss". A customer should never have to know our word for it.
+- ⛔ NEVER say "I can't find a shoe called ___" about a finish, a material or a colour, and never interrogate them for a brand after it. They described the shoe perfectly; it is our wording that is different.
+- Right now we do NOT have the Air Force 1 in flo shine. Say so plainly - "Nah, we don't have the Air Force in flo shine right now 🙏" - and then offer the regular ones. Don't hedge, don't ask what brand.
+- Other words that describe the shoe, not name it: suede, leather, mesh, knit, denim, reflective, metallic, matte, canvas. Treat them the same way - search them, and if we don't have it in that material, say so straight.
 
 👆 THEY POINTED AT A PICTURE - THAT IS AN ANSWER, NOT A QUESTION. (Rodney 2026-09-23: a customer tapped our All Black Air Max 270 and wrote "Dis". You replied "Which one - the Black/White, the All Black, or the Blue/Purple/Yellow?". All three were $120. "fix this shit NOW.")
 - "dis", "dis one", "dat", "this", "this one", "how much for dis one" - they REPLIED TO one of our photos. Their phone shows you exactly which one. Ours does not: WhatsApp's quote never reaches us. That is OUR blind spot, and the customer must never pay for it.
