@@ -3790,7 +3790,21 @@ function sizeFromCustomerWords(text) {
     .replace(/\$\s*\d+(?:\.\d+)?/g, ' ')
     .replace(/\b\d+\s*(?:dollars?|bucks|pairs?|pair|pcs?|%)\b/g, ' ')
     .replace(/\b\d[\d\s().-]{6,}\b/g, ' ')
-    .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ');
+    .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ')
+  // 🗣️ A SPOKEN SIZE IS STILL A SIZE. (Rodney 2026-09-23: a customer sent a voice note -
+  // "That's the same one, if you get size nine or ten" - and was asked his size twice more
+  // afterwards.) Every pattern below reads DIGITS, and Whisper writes spoken numbers out as
+  // words, so a size given by voice has never once registered: not the size memory, not the
+  // "never ask again" blocker, nothing. People say numbers out loud far more than they type
+  // them, which makes this the quietest hole in the whole size machinery.
+  // The article is LEFT ALONE on purpose: the cues below read "in a 11" / "wears an 11", so
+  // swallowing the "a"/"an" here would break the very pattern that has to match next.
+  .replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen)\b/g,
+           (m, w) => ' ' + ({ one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9,
+                              ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15 })[w] + ' ')
+  // "ten and a half", "nine n a half" - said aloud far more often than "10.5".
+  .replace(/\b(\d{1,2})\s*(?:and|n|\u0027n)?\s*a\s*half\b/g, '$1.5')
+  .replace(/\b(\d{1,2})\s*point\s*(?:five|5)\b/g, '$1.5');
   const HALF = '(?:\\.5|\\s*1/2|\\s+and\\s+a\\s+half)?';
   const NUM = '(\\d{1,2}' + HALF + ')';
   const ok = (x) => { const n = parseFloat(normSize(x)); return n >= SIZE_MIN && n <= SIZE_MAX; };
@@ -11463,6 +11477,25 @@ app.post('/inbox/send-shoe', async (req, res) => {
   // Quick message typed by the owner overrides the auto lead-in and rides in with the photos.
   const note = String(b.note || '').trim().slice(0, 300);
   const leadIn = note || (what ? ('This is what we have in ' + what + ' rite now 👇 Ready to Order!') : 'This is what we have rite now 👇 Ready to Order!');
+  // ☝️ AND SAY WHEN A HALF SIZE UP IS IN THERE.
+  // Rodney 2026-09-23: a customer wearing a 10 was sent an album for a 10, picked the Jordan 12
+  // Blueberry out of it and asked the price - and we only have that pair in a 10.5. The search
+  // pulls half-a-size-up on purpose ("don't lose a sale over a half size") and that is a good
+  // rule, but the album says nothing about it, so the customer reads every picture as his size
+  // and we end up telling him no on the one he actually wanted. Saying it up front costs one
+  // line and keeps the upside.
+  let sizeNote = '';
+  try {
+    const askedExact = (sizes && sizes.length ? sizes : (b.size != null ? [b.size] : []))
+      .map(x => parseFloat(x)).filter(n => !isNaN(n));
+    if (askedExact.length && !b.exact_sizes) {
+      const halfUp = results.some(r => {
+        const have = String(r.sizes || '').split(/[^0-9.]+/).map(parseFloat).filter(n => !isNaN(n));
+        return have.length && !have.some(n => askedExact.includes(n));
+      });
+      if (halfUp) sizeNote = '\n\n(A few in here are half a size up \u2014 check the sizes under each one \U0001f440)';
+    }
+  } catch (_) {}
   // 🔁 ONE ALBUM PER CUSTOMER AT A TIME (Rodney 2026-08-15). He sent an 86-shoe album from
   // the inbox to +1 242 468-0734 and the SAME 86 went out twice, 42 seconds apart — 172
   // images queued at ManyChat for one person, every one answered 200 success, and the chat
@@ -11508,7 +11541,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
     }
     // Send lead-in once, outside the photos — skipped entirely for a pics-only send.
     if (!picsOnly) {
-      const leadMsg = [{ type: 'text', text: leadIn }];
+      const leadMsg = [{ type: 'text', text: leadIn + sizeNote }];
       await sendChunk(sub, leadMsg, token).catch(() => {});
     }
     // Auto-batch: send photos in chunks with delays between
@@ -11517,7 +11550,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
       const isLast = (i === batches.length - 1);
       // Last batch gets the lead-in built into sendShoePhotos; earlier ones are photos-only —
       // a pics-only send stays bare on every batch, including the first.
-      const batchLeadIn = (isLast && !picsOnly) ? leadIn : '';
+      const batchLeadIn = (isLast && !picsOnly) ? (leadIn + sizeNote) : '';
       const r = await sendShoePhotos(sub, batchIds, token, true, null, batchLeadIn, false, i > 0 || picsOnly);
       totalSent += r.sent;
       // ✋ STOP MEANS STOP - ALL OF IT, NOT THIS BATCH.
