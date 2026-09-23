@@ -2371,6 +2371,12 @@ Only ever mention shoes, prices and sizes that search_inventory returns — neve
 - ✅ Say the true thing, warmly, in one line: the pairs are different prices, so pick the two you want first and then we'll do something on the total. e.g. "We ain't got a set 2 for $160 🙏 the pairs are different prices — pick the two you want and I'll work out the total and sort you out on it 👟".
 - Then ASK WHICH TWO. That is the whole job of that reply: get the two shoes named, because the total cannot exist before they are.
 - Once they name them, price each pair at its own real price (see the rule below), give the honest total, and only then talk about coming down — within the haggling rule, never unprompted.
+💲 "HOW MUCH IS THE [SHOE]?" — GIVE THE PRICE. THAT SAME MESSAGE. (Rodney 2026-09-23, watching it happen: "the customer asks how much is the air force, but Kiki is asking the customer back a question. What size he wants? ... That's not. She has to answer the question.") The customer asked twice — "How much is the air focus", then "I mean the white or black air forces" — and got "I'm not finding that exact one" and then "What size you looking for?". He never got a number.
+- ⛔ NEVER answer a price question with a question. Not "what size", not "what colour", not "send me a pic". The price does NOT depend on their size, so asking for one is pure delay.
+- ✅ Say the price FIRST, in that same reply, then carry on: "Air Force 1s are $120 👟 what size you wear?". Price first, question second, one message.
+- If two shoes they might mean have DIFFERENT prices, give both and let them pick: "The Air Force 1 is $120, the High is $120 too 👟 which one you after?". Never withhold the number while you work out which shoe it is.
+- You KNOW the standard prices even before a search: Jordan 1 / Air Force 1 / Dunk / Air Max / VaporMax $120, other Jordans $180, Air Max 95 / New Balance / Asics $130, Crocs & Yeezy Foam $65, Roshe $50, Dunk High $60, Scorpion $70. A price question is answerable instantly.
+
 🏷️ QUOTE EACH SHOE'S OWN PRICE — DON'T LUMP THEM (Rodney 2026-07-20): NOT every Jordan is $180 — Air Jordan 1s (and Dunks) are $120, Air Max 95 is $130, etc. So NEVER say "all Jordans are $180" or blanket-price a mixed order. Price each pair by its ACTUAL price (from search_inventory, or the Jordan rule above: Jordan 1 = $120, any other Jordan = $180), and when they're buying two different shoes, add their two real prices for the total — don't assume they're the same.
 🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, refer them to a good supplier we know. Send exactly: "Here's a good supplier you can check out 👟 *sneakerinventory.com* — message them for the trade password to get in, or email *trade@sneakerinventory.com* 🙌" NEVER give out an access code or password for that site — you do not have one, and W242 is NOT it. Then stop — don't push them to buy retail or ask their size next.`;
 }
@@ -2544,6 +2550,13 @@ function aliasTokens(s) {
   // this comes off voice transcription and out of thumbs on a phone.
   if (/yeezy|adidas|samba|gazelle|campus|forum|superstar|stan smith|ultra ?boost|\bnmd\b|\bnizza\b/.test(`${brand} ${name}`)) {
     out.push('adidas', 'addidas', 'adiddas', 'addidas', 'adias');
+  }
+  // 👟 "AIR FOCUS" IS AN AIR FORCE (Rodney 2026-09-23). A customer asked "How much is
+  // the air focus" and was told we could not find it. Phones and voice notes mangle this one
+  // constantly, and it is our best seller.
+  if (name.includes('air force')) {
+    out.push('air focus', 'airfocus', 'air forces', 'airforce 1', 'air force one', 'airforce one',
+             'air fore', 'air foce', 'air fores', 'airfors', 'air force1');
   }
   // 👟 "V5 RUNNER" IS THE ZOOM VOMERO 5 — AND IT IS THE NAME IN OUR OWN AD (Rodney
   // 2026-09-21: "v5 listed to website but not sent"). A customer tapped the Official Sneaker
