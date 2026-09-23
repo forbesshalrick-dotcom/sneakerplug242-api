@@ -279,6 +279,12 @@ section{margin-top:22px}
 var API='https://sneakerplug242-api-production.up.railway.app';
 var KEY='sp242-shop-c988c5711bf067dccccc85b55fc14fde';
 var CLOUD='dhtoimjnv', PRESET='sp242xx';
+/* Photos and clips need SEPARATE presets. sp242xx converts everything to webp,
+   which Cloudinary rejects outright for video ("Invalid value webp for parameter
+   video_file_type"), so a clip uploaded through it fails every time. sp242vid is
+   the same unsigned preset with no format conversion. If it does not exist yet the
+   slot says so plainly instead of failing silently. */
+var VPRESET='sp242vid';
 
 var TODAY=new Date().toISOString().slice(0,10);
 var STORE='sp_day_'+TODAY;
@@ -418,7 +424,7 @@ function renderToday(){
     var note=day.fixNotes[s.id]||'';
     return '<article class="card'+(on?' done':'')+'" id="f-'+esc(s.id)+'">'+
       '<div class="head">'+picOf(s)+metaOf(s,
-        '<div class="tally"><b>'+(s.s||[]).length+'</b> pairs on record</div>')+'</div>'+
+        '<div class="tally"><b>'+(s.s||[]).length+'</b> pair'+((s.s||[]).length===1?'':'s')+' on record</div>')+'</div>'+
       '<div class="sub" style="padding:0 12px 10px">'+esc(sizes)+'</div>'+
       '<div class="noterow"><textarea class="note'+(note?' has':'')+'" data-fixnote="'+esc(s.id)+'"'+
         ' placeholder="Anything wrong with this one? Price, name, colour, box…">'+esc(note)+'</textarea></div>'+
@@ -639,7 +645,7 @@ function uploadOne(file,kind,onProg){
   return new Promise(function(res,rej){
     var fd=new FormData();
     fd.append('file',file);
-    fd.append('upload_preset',PRESET);
+    fd.append('upload_preset',kind==='video'?VPRESET:PRESET);
     fd.append('folder','sp242/daily/'+TODAY);
     var xhr=new XMLHttpRequest();
     xhr.open('POST','https://api.cloudinary.com/v1_1/'+CLOUD+'/'+(kind==='video'?'video':'image')+'/upload');
@@ -681,7 +687,10 @@ document.addEventListener('change',function(e){
       })
       .catch(function(err){
         box.hidden=true; bar.style.width='0';
-        toast('Upload failed — '+(err.message||'try again'),true);
+        var m=String(err.message||'');
+        toast(/preset/i.test(m) && kind==='video'
+          ? 'Clip uploads are not switched on yet — send this one to the shop WhatsApp'
+          : 'Upload failed — '+(m||'try again'), true);
         renderToday();
       });
   }
