@@ -11565,8 +11565,20 @@ app.post('/inbox/send-shoe', async (req, res) => {
   const sizes = Array.isArray(b.sizes) ? b.sizes.map(String).filter(Boolean) : null;
   // Multi-brand: send across several brands at once (empty = all brands).
   const brands = Array.isArray(b.brands) ? b.brands.map(String).filter(Boolean) : null;
-  const results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query });
+  let results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query });
   if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing sent.', found: 0 });
+  // 🛑 FORTY. NOT A GUIDELINE - A CEILING.
+  // Rodney 2026-09-23: "customer blocked me, you sent everything in the whole fucking album."
+  // 136 photos went to one woman who had asked for New Balance or Asics. She blocked the
+  // line. His rule has been forty for weeks, and it kept being treated as advice that a good
+  // enough reason could outweigh - 67 earlier the same day, then 136. A limit that lives in
+  // someone's judgement is not a limit. Nothing above this can be sent from here, whatever
+  // the search found and whoever asked for it; the extras are reported so the reply can
+  // honestly offer the rest.
+  const HAND_SEND_MAX = 40;
+  const foundTotal = results.length;
+  const overflow = Math.max(0, foundTotal - HAND_SEND_MAX);
+  if (overflow) results = results.slice(0, HAND_SEND_MAX);
   // 🚦 AUTO-BATCH LARGE ALBUMS (2026-09-01, Rodney's call). A broad "sizes 12 & 11"
   // search matched 76 shoes and ManyChat returned 200 for all 76 while delivering ZERO.
   // Instead of refusing, auto-batch into 20-photo chunks with gaps between them, so a
@@ -11694,7 +11706,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
         }
       }
     }
-    record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: results.length, sent: totalSent, batches: batches.length });
+    record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: foundTotal, capped: overflow || undefined, sent: totalSent, batches: batches.length });
     // 🔓 A SEND THAT DELIVERED NOTHING MUST NOT LOCK THE RETRY OUT.
     // Rodney 2026-09-23: "I tried again, it said 60 pictures already sent, but it hasn't
     // sent. Customer is still waiting." The guard above is claimed BEFORE the send, which
@@ -11708,7 +11720,8 @@ app.post('/inbox/send-shoe', async (req, res) => {
     // for half an hour that he already sent this.
     if (stoppedByOwner) inboxAlbumSentAt.delete(albumKey);
     const batchNote = batches.length > 1 ? ` (${batches.length} batches)` : '';
-    res.json({ ok: totalSent > 0, found: results.length, sent: totalSent, batches: batches.length,
+    res.json({ ok: totalSent > 0, found: foundTotal, sent: totalSent, batches: batches.length,
+               capped: overflow ? ('sent the first ' + HAND_SEND_MAX + ' of ' + foundTotal + ' — ' + overflow + ' more not sent') : undefined,
                stopped: stoppedByOwner || undefined,
                error: stoppedByOwner ? ('Stopped \u2014 ' + totalSent + ' of ' + results.length + ' had already gone out.')
                     : (totalSent > 0 ? undefined : ('Found ' + results.length + ' but none went out')) });
