@@ -570,23 +570,44 @@ function send(file,endpoint,preset,onProg){
   });
 }
 
-/* CLIPS, THE LONG WAY ROUND.
-   sp242xx converts every upload to webp, and Cloudinary refuses that for video
-   ("Invalid value webp for parameter video_file_type"), so /video/upload with it
-   can never work. sp242vid is the proper answer and this tries it first.
-   Until that preset exists, the clip goes to /raw/upload instead: raw does no
-   processing at all, so the mp4 arrives byte for byte — verified 2026-09-23,
-   the file downloads back identical. It is SERVED as image/webp with nosniff, so
-   it will not play in a browser tab, but it downloads and posts fine, and the
-   point is that her recording is never lost because of a setting. The moment
-   sp242vid exists every new clip is a real video URL again. */
-function uploadOne(file,kind,onProg){
-  if(kind!=='video') return send(file,'image',PRESET,onProg);
-  return send(file,'video',VPRESET,onProg).catch(function(err){
-    if(!/preset/i.test(String(err.message||''))) throw err;
-    return send(file,'raw',PRESET,onProg);
+/* CLIPS DO NOT GO TO CLOUDINARY.
+   Two separate walls, both hit on the shop floor 2026-09-23. First, sp242xx
+   forces webp and video uploads reject it outright. Second — and the one that
+   actually decides this — the Cloudinary free plan caps a single asset at 10 MB,
+   and a phone clip is 20-60 MB. Chunking does not get round it; the limit is on
+   the finished asset and the API says so ("Your file exceeds the Free plan
+   upload limit"). Photos are nowhere near 10 MB, so they stay on Cloudinary.
+   Clips go to our own server instead, which has no such ceiling and serves them
+   back with Range support so they actually play. */
+var CLIP_MAX=140*1024*1024;
+function sendClip(file,shoeId,onProg){
+  return new Promise(function(res,rej){
+    if(file.size>CLIP_MAX) return rej(new Error('that clip is too big — keep it under a minute'));
+    var ext=(String(file.name||'').split('.').pop()||'').toLowerCase();
+    if(!/^(mp4|mov|m4v|webm|3gp)$/.test(ext)){
+      ext = String(file.type||'').indexOf('quicktime')>-1 ? 'mov'
+          : String(file.type||'').indexOf('webm')>-1 ? 'webm' : 'mp4';
+    }
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST',API+'/shop/clip?key='+KEY+'&date='+TODAY+'&ext='+ext+
+      '&shoe='+encodeURIComponent(shoeId));
+    xhr.setRequestHeader('Content-Type','application/octet-stream');
+    xhr.upload.onprogress=function(e){ if(e.lengthComputable&&onProg) onProg(e.loaded/e.total); };
+    xhr.onload=function(){
+      try{
+        var j=JSON.parse(xhr.responseText||'{}');
+        if(j.url) res(API+j.url);
+        else rej(new Error(j.error||('http '+xhr.status)));
+      }catch(e){ rej(new Error('http '+xhr.status)); }
+    };
+    xhr.onerror=function(){ rej(new Error('network')); };
+    xhr.send(file);
   });
 }
+function uploadOne(file,kind,onProg,shoeId){
+  return kind==='video' ? sendClip(file,shoeId,onProg) : send(file,'image',PRESET,onProg);
+}
+/* Only a clip that went to Cloudinary raw (there should be none now) cannot be played. */
 function isRaw(u){ return String(u).indexOf('/raw/upload/')>-1; }
 document.addEventListener('change',function(e){
   var inp=e.target;
@@ -601,7 +622,7 @@ document.addEventListener('change',function(e){
     if(!files.length){ box.hidden=true; bar.style.width='0'; renderToday(); return; }
     var f=files.shift(); n++;
     box.firstChild.nodeValue='Uploading '+n+'…';
-    uploadOne(f,kind,function(p){ bar.style.width=Math.round(p*100)+'%'; })
+    uploadOne(f,kind,function(p){ bar.style.width=Math.round(p*100)+'%'; },id)
       .then(function(url){
         var b=(kind==='video'?day.videos:day.photos);
         b[id]=(b[id]||[]).concat(url); save(); step();

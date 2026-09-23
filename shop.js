@@ -6,6 +6,9 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+// Needed for express.raw on the clip route — shop.js gets `app` handed to it and
+// never required express itself until clips arrived.
+const express = require('express');
 // Base catalog (immutable) — used only as a resurrection guard: a device's FIRST-EVER
 // push for a catalog shoe id must never claim more stock than the catalog's own baseline
 // (see the /shop/shoe guard below, 2026-07-24: sold-out catalog items reappearing in stock).
@@ -1575,6 +1578,89 @@ function mount(app) {
   });
 
   let noteTimes = [];
+  /* ── TIKTOK CLIPS LIVE HERE, NOT ON CLOUDINARY ──────────────────────────
+   * Her photos go to Cloudinary and always have. Video cannot: the free plan
+   * caps ONE ASSET at 10 MB and a phone clip is 20-60 MB. Chunking does not help
+   * — the limit is on the finished asset, and the API says so outright ("Your
+   * file exceeds the Free plan upload limit"). The preset was a second, separate
+   * problem (sp242xx forces webp, which video uploads reject).
+   *
+   * So clips are stored on our own disk under DATA_DIR/clips/<date>/, which has
+   * no such ceiling, and served back with Range support so they scrub properly
+   * in a browser. Kept 21 days — long enough to post them, short enough that the
+   * volume never fills. express.raw is mounted on THIS ROUTE ONLY; the global
+   * json body limit stays at 12 mb where everything else expects it.
+   */
+  const CLIP_DIR = path.join(DATA_DIR, 'clips');
+  const CLIP_KEEP_DAYS = 21;
+  const CLIP_TYPES = { mp4:'video/mp4', mov:'video/quicktime', m4v:'video/x-m4v',
+                       webm:'video/webm', '3gp':'video/3gpp' };
+
+  function sweepClips() {
+    try {
+      const cutoff = Date.now() - CLIP_KEEP_DAYS * 86400000;
+      for (const day of fs.readdirSync(CLIP_DIR)) {
+        const t = Date.parse(day + 'T00:00:00Z');
+        if (!isFinite(t) || t >= cutoff) continue;
+        fs.rmSync(path.join(CLIP_DIR, day), { recursive: true, force: true });
+        console.log('[clips] swept', day);
+      }
+    } catch (_) { /* nothing stored yet */ }
+  }
+  try { fs.mkdirSync(CLIP_DIR, { recursive: true }); } catch (_) {}
+  sweepClips();
+  setInterval(sweepClips, 12 * 3600 * 1000).unref();
+
+  app.post('/shop/clip', express.raw({ type: '*/*', limit: '150mb' }), (req, res) => {
+    if (!auth(req, res)) return;
+    const buf = req.body;
+    if (!buf || !buf.length) return res.status(400).json({ error: 'no file' });
+    const date = String(req.query.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad date' });
+    const ext = String(req.query.ext || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4);
+    if (!CLIP_TYPES[ext]) return res.status(400).json({ error: 'not a video we serve' });
+    const shoe = String(req.query.shoe || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || 'shoe';
+    const name = shoe + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
+    const dir = path.join(CLIP_DIR, date);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, name), buf);
+    } catch (e) {
+      console.error('[clips] write failed', e.message);
+      return res.status(500).json({ error: 'could not save' });
+    }
+    console.log('[clips] saved', date + '/' + name, (buf.length / 1048576).toFixed(1) + 'mb');
+    res.json({ ok: true, url: '/shop/clip/' + date + '/' + name, bytes: buf.length });
+  });
+
+  app.get('/shop/clip/:date/:name', (req, res) => {
+    const date = String(req.params.date), name = String(req.params.name);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[A-Za-z0-9_.-]+$/.test(name) || name.indexOf('..') > -1) {
+      return res.status(400).type('text/plain').send('no');
+    }
+    const file = path.join(CLIP_DIR, date, name);
+    let st; try { st = fs.statSync(file); } catch (_) { return res.status(404).type('text/plain').send('gone'); }
+    const type = CLIP_TYPES[(name.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
+    res.set('Content-Type', type).set('Accept-Ranges', 'bytes').set('Cache-Control', 'private, max-age=3600');
+    // Range matters: without it a phone browser will not scrub, and some will not
+    // play at all — they ask for the first bytes before committing to the file.
+    const range = req.headers.range;
+    if (range) {
+      const m = /bytes=(\d*)-(\d*)/.exec(range) || [];
+      let start = m[1] ? parseInt(m[1], 10) : 0;
+      let end = m[2] ? parseInt(m[2], 10) : st.size - 1;
+      if (isNaN(start) || start < 0) start = 0;
+      if (isNaN(end) || end >= st.size) end = st.size - 1;
+      if (start > end) return res.status(416).set('Content-Range', 'bytes */' + st.size).end();
+      res.status(206)
+        .set('Content-Range', 'bytes ' + start + '-' + end + '/' + st.size)
+        .set('Content-Length', String(end - start + 1));
+      return fs.createReadStream(file, { start, end }).pipe(res);
+    }
+    res.set('Content-Length', String(st.size));
+    fs.createReadStream(file).pipe(res);
+  });
+
   /* ── THE DAILY SHEET ────────────────────────────────────────────────────
    * Read and write one day's floor work. Deliberately NOT routed through
    * /shop/note: a note fires a WhatsApp blast and a push to every on-duty
