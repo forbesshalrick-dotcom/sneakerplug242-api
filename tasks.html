@@ -116,6 +116,9 @@ h1 span{color:var(--accent)}
 }
 .sz.extra{background:var(--accent);border-color:var(--accent);color:#11140A}
 .addrow{display:flex;gap:6px;padding:0 12px 10px}
+/* display:flex beats the browser's own [hidden]{display:none} — without this the
+   extra-size box sits open on all 353 cards. */
+.addrow[hidden]{display:none}
 .addrow input{
   flex:1;min-width:0;background:var(--surface2);border:1px solid var(--line);
   color:var(--text);border-radius:9px;padding:9px 12px;font:600 15px Archivo,sans-serif;
