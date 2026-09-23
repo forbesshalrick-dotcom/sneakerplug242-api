@@ -4107,6 +4107,19 @@ const SHOW_SHOE_BOX = /^(1|true|yes|on)$/i.test(process.env.SHOW_SHOE_BOX || '')
 const humanPaused = new Map();    // sub -> pauseUntil ts: a human is handling this chat; Kiki stays SILENT
 let inboxRev = 1;                 // bumped on every change — cheap /inbox/rev polling (mirrors /shop/rev)
 const HUMAN_PAUSE_MS = 45 * 60 * 1000; // default hand-off window; refreshed on each human reply
+// ⏳ HOW LONG A CUSTOMER IS LEFT STANDING THERE WHILE THE CHAT IS "BEING HANDLED".
+// Rodney 2026-09-23, on a customer who sent a voice note and got nothing: "no answer".
+// The note arrived fine and was transcribed correctly ("That's the same one, if you get
+// size nine or ten") - then the reply was dropped, because someone had typed in that chat
+// and Kiki was paused for 45 minutes. Pausing her is right; she must never talk over a
+// human. But if the human does not come back, the pause is just silence with no one
+// watching: no alert, no timer, nothing in the app that says this person is waiting.
+// So the pause holds for FOUR MINUTES of a waiting customer and then hands back. Four
+// minutes is long enough for someone mid-sentence and short enough that a customer does
+// not give up. Any human action refreshes it (setHumanPause), so a real conversation is
+// never interrupted.
+const PAUSE_ABANDONED_MS = 4 * 60 * 1000;
+const pausedWaitingSince = new Map();   // sub -> when they first wrote in with nobody answering
 const INBOX_MAX_MSGS = 400;       // per thread
 const INBOX_MAX_THREADS = 400;
 function threadKey(account, sub) { return (account || '?') + '|' + String(sub); }
@@ -4119,6 +4132,7 @@ function isHumanPaused(sub) {
 }
 function pausedUntilOf(sub) { const u = humanPaused.get(String(sub)); return (u && Date.now() < u) ? u : 0; }
 function setHumanPause(sub, ms) {
+  pausedWaitingSince.delete(String(sub));   // a human just acted - nobody is being ignored
   humanPaused.set(String(sub), Date.now() + (ms || HUMAN_PAUSE_MS));
   if (humanPaused.size > 1000) { const f = humanPaused.keys().next().value; humanPaused.delete(f); }
   inboxRev++; saveInbox();
@@ -6090,6 +6104,38 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // over them. The inbound above is still logged so Rodney sees new messages. Resumes
   // automatically when the window ends, or instantly on "hand back to Kiki".
   if (!_isStaffChat && isHumanPaused(sub)) {
+    // Has anyone actually picked this up since they started waiting? See PAUSE_ABANDONED_MS.
+    let _handBack = false;
+    try {
+      const waiting = pausedWaitingSince.get(String(sub));
+      if (!waiting) {
+        pausedWaitingSince.set(String(sub), Date.now());
+        // ⏰ AND COME BACK FOR IT. Waiting for their NEXT message would be no use - the
+        // customer who sent that voice note sent one message and then nothing, which is
+        // exactly what a person does when they think they have been ignored. So the turn is
+        // held and re-run in four minutes if no human has touched the chat by then.
+        const _mark = pausedWaitingSince.get(String(sub));
+        const _txt = String(userText || ''), _ctx = ctx, _tok = token;
+        setTimeout(() => {
+          try {
+            if (pausedWaitingSince.get(String(sub)) !== _mark) return;   // a human picked it up
+            pausedWaitingSince.delete(String(sub));
+            clearHumanPause(sub);
+            const shim = { method: 'POST', path: '/pause-handback', headers: {}, query: {}, rawBody: null, body: {} };
+            record(shim, { endpoint: 'kiki-pause-handed-back', sub, waitedSec: Math.round(PAUSE_ABANDONED_MS / 1000) });
+            runChat(shim, sub, _txt, '', _ctx, _tok).catch(() => {});
+          } catch (_) {}
+        }, PAUSE_ABANDONED_MS);
+      }
+      else if (Date.now() - waiting > PAUSE_ABANDONED_MS) {
+        clearHumanPause(sub);
+        pausedWaitingSince.delete(String(sub));
+        _handBack = true;
+        record(req, { endpoint: 'kiki-pause-handed-back', sub,
+                      waitedSec: Math.round((Date.now() - waiting) / 1000) });
+      }
+    } catch (_) {}
+    if (!_handBack) {
     try { record(req, { endpoint: 'kiki-human-paused', sub, until: new Date(pausedUntilOf(sub)).toISOString() }); } catch (_) {}
     // Keep Kiki's memory in sync while a human handles it: fold the customer's words
     // into the convo so that when she resumes she has the FULL thread, not a gap.
@@ -6098,6 +6144,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (inTxt2 && !/^\(/.test(inTxt2)) { const h = convos.get(sub) || []; h.push({ role: 'user', content: inTxt2 }); rememberConvo(sub, trimHistory(h)); }
     } catch (_) {}
     return;
+    }
   }
   const history = sanitizeHistory(convos.get(sub) || []);
   // 👇 "THIS" / "THIS ONE" — GIVE THE BROWSER A MOMENT TO SAY WHAT THEY TAGGED.
