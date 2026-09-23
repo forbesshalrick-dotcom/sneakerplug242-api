@@ -110,6 +110,30 @@ h1 span{color:var(--accent)}
 .sz:active{transform:scale(.94)}
 .sz[data-st="here"]{background:var(--good);border-color:var(--good);color:#06240F}
 .sz[data-st="gone"]{background:transparent;border-color:var(--bad);color:var(--bad);text-decoration:line-through}
+.sz.add{
+  min-width:auto;padding:6px 12px;border-style:dashed;color:var(--accent);
+  border-color:#4A5520;font-size:12.5px;letter-spacing:.4px;
+}
+.sz.extra{background:var(--accent);border-color:var(--accent);color:#11140A}
+.addrow{display:flex;gap:6px;padding:0 12px 10px}
+.addrow input{
+  flex:1;min-width:0;background:var(--surface2);border:1px solid var(--line);
+  color:var(--text);border-radius:9px;padding:9px 12px;font:600 15px Archivo,sans-serif;
+}
+.addrow input::placeholder{color:var(--muted);font-weight:400}
+.addrow button{
+  background:var(--accent);border:none;color:#11140A;border-radius:9px;padding:9px 15px;
+  font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;
+}
+.noterow{padding:0 12px 12px}
+.note{
+  width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);
+  border-radius:9px;padding:9px 12px;font:400 13.5px Archivo,sans-serif;resize:vertical;
+  min-height:38px;
+}
+.note::placeholder{color:var(--muted)}
+.note:focus{border-color:var(--accent);outline:none;min-height:70px}
+.note.has{border-color:var(--warn)}
 .acts{display:flex;gap:8px;padding:0 12px 12px;margin-top:auto}
 .acts button{
   flex:1;border-radius:10px;padding:10px;cursor:pointer;
@@ -165,6 +189,7 @@ h1 span{color:var(--accent)}
       <span>Shoes <b id="s-shoes">0/0</b></span>
       <span>Pairs found <b id="s-pairs">0/0</b></span>
       <span class="miss">Missing <b id="s-miss">0</b></span>
+      <span>Extra found <b id="s-extra">0</b></span>
     </div>
     <div class="tools">
       <input id="q" type="search" placeholder="Search shoe, colour or code…" autocomplete="off"/>
@@ -201,11 +226,19 @@ var KEY='sp242-shop-c988c5711bf067dccccc85b55fc14fde';
 var TODAY=new Date().toISOString().slice(0,10);
 var STORE='sp_count_'+TODAY;
 var shoes=(window.SP_SHOES||[]).slice();
-var marks=load();
+var marks=load(STORE);      /* size index -> 'here' | 'gone'  */
+var extras=load(STORE+'_x'); /* shoe id -> [sizes she found that are NOT on the list] */
+var notes=load(STORE+'_n');  /* shoe id -> what she wants to tell Rodney about it     */
 var filter='todo', query='';
 
-function load(){ try{ return JSON.parse(localStorage.getItem(STORE)||'{}'); }catch(e){ return {}; } }
-function save(){ try{ localStorage.setItem(STORE,JSON.stringify(marks)); }catch(e){} }
+function load(k){ try{ return JSON.parse(localStorage.getItem(k)||'{}'); }catch(e){ return {}; } }
+function save(){
+  try{
+    localStorage.setItem(STORE,JSON.stringify(marks));
+    localStorage.setItem(STORE+'_x',JSON.stringify(extras));
+    localStorage.setItem(STORE+'_n',JSON.stringify(notes));
+  }catch(e){}
+}
 
 document.getElementById('today').textContent=
   new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
@@ -248,10 +281,11 @@ function tallyOf(s){
 }
 
 function totals(){
-  var t={shoes:0,shoesDone:0,pairs:0,here:0,miss:0};
+  var t={shoes:0,shoesDone:0,pairs:0,here:0,miss:0,extra:0};
   shoes.forEach(function(s){
     var q=tallyOf(s);
     t.shoes++; t.pairs+=q.total; t.here+=q.here; t.miss+=q.gone;
+    t.extra+=(extras[s.id]||[]).length;
     if(q.done)t.shoesDone++;
   });
   return t;
@@ -268,7 +302,7 @@ function matches(s){
   var q=tallyOf(s);
   if(filter==='todo') return !q.done;
   if(filter==='done') return q.done;
-  if(filter==='short') return q.gone>0;
+  if(filter==='short') return q.gone>0 || (extras[s.id]||[]).length>0 || !!notes[s.id];
   return true;
 }
 
@@ -283,16 +317,34 @@ function render(){
       ? (query?'Nothing left to count matching that.':'Every shoe is counted. Send it in 👇')
       : 'Nothing here yet.';
   }
+  stats();
+}
+
+function stats(){
   var t=totals();
   document.getElementById('s-shoes').textContent=t.shoesDone+'/'+t.shoes;
   document.getElementById('s-pairs').textContent=t.here+'/'+t.pairs;
   document.getElementById('s-miss').textContent=t.miss;
+  document.getElementById('s-extra').textContent=t.extra;
   document.getElementById('barfill').style.width=(t.shoes?(t.shoesDone/t.shoes*100):0)+'%';
+  var noted=0; for(var k in notes) noted++;
+  var anything = t.shoesDone || t.extra || noted;
   var btn=document.getElementById('sendbtn');
-  btn.disabled = t.shoesDone===0;
-  document.getElementById('sendtxt').innerHTML = t.shoesDone===0
+  btn.disabled = !anything;
+  document.getElementById('sendtxt').innerHTML = !anything
     ? 'Tap every size you can find. It saves as you go.'
-    : '<b>'+t.shoesDone+'</b> shoes counted · <b>'+t.here+'</b> pairs found'+(t.miss?' · <b>'+t.miss+'</b> missing':'');
+    : '<b>'+t.shoesDone+'</b> shoes counted · <b>'+t.here+'</b> pairs found'+
+      (t.miss?' · <b>'+t.miss+'</b> missing':'')+
+      (t.extra?' · <b>+'+t.extra+'</b> extra':'')+
+      (noted?' · <b>'+noted+'</b> noted':'');
+}
+
+function tallyHTML(s){
+  var q=tallyOf(s), xs=(extras[s.id]||[]).length;
+  return '<b>'+q.here+'</b> of <b>'+q.total+'</b> pairs found'+
+    (q.gone?' · <b>'+q.gone+' missing</b>':'')+
+    (xs?' · <b>+'+xs+' extra</b>':'')+
+    (notes[s.id]?' · <b>note</b>':'');
 }
 
 function cardHTML(s){
@@ -307,17 +359,33 @@ function cardHTML(s){
     return '<button class="sz" data-id="'+esc(s.id)+'" data-i="'+i+'"'+(v?' data-st="'+v+'"':'')+
            ' aria-label="Size '+esc(sz)+'">'+esc(sz)+'</button>';
   }).join('');
+  var xs=extras[s.id]||[];
+  var xchips=xs.map(function(sz){
+    return '<button class="sz extra" data-xrm="'+esc(s.id)+'" data-sz="'+esc(sz)+'"'+
+           ' title="Tap to remove">'+esc(sz)+' &times;</button>';
+  }).join('');
+  var note=notes[s.id]||'';
   return '<article class="'+cls+'" id="c-'+esc(s.id)+'">'+
     '<div class="head">'+shot+
       '<div class="meta">'+
         '<div class="nick">'+title+'</div>'+
         (s.k?'<div class="nm">'+esc(s.n)+'</div>':'')+
         '<div class="sub">'+esc(s.c||'')+' · <em>$'+esc(s.p||'')+'</em> · '+esc(s.id)+'</div>'+
-        '<div class="tally"><b>'+q.here+'</b> of <b>'+q.total+'</b> pairs found'+
-          (q.gone?' · <b>'+q.gone+' missing</b>':'')+'</div>'+
+        '<div class="tally">'+tallyHTML(s)+'</div>'+
       '</div>'+
     '</div>'+
-    '<div class="sizes">'+chips+'</div>'+
+    '<div class="sizes">'+chips+xchips+
+      '<button class="sz add" data-xopen="'+esc(s.id)+'">+ Extra</button>'+
+    '</div>'+
+    '<div class="addrow" id="x-'+esc(s.id)+'" hidden>'+
+      '<input id="xi-'+esc(s.id)+'" inputmode="decimal" autocomplete="off"'+
+        ' placeholder="Size you found that is not listed"/>'+
+      '<button data-xadd="'+esc(s.id)+'">Add</button>'+
+    '</div>'+
+    '<div class="noterow">'+
+      '<textarea class="note'+(note?' has':'')+'" data-note="'+esc(s.id)+'"'+
+        ' placeholder="Count wrong? Something else off? Write it here">'+esc(note)+'</textarea>'+
+    '</div>'+
     '<div class="acts">'+
       '<button class="all" data-all="'+esc(s.id)+'">All here</button>'+
       '<button class="clr" data-clr="'+esc(s.id)+'">Clear</button>'+
@@ -331,6 +399,19 @@ var NEXT={'':'here','here':'gone','gone':''};
 document.addEventListener('click',function(e){
   var b=e.target.closest('button'); if(!b) return;
 
+  if(b.dataset.xopen){
+    var row=document.getElementById('x-'+b.dataset.xopen);
+    row.hidden=!row.hidden;
+    if(!row.hidden) document.getElementById('xi-'+b.dataset.xopen).focus();
+    return;
+  }
+  if(b.dataset.xadd){ addExtra(b.dataset.xadd); return; }
+  if(b.dataset.xrm){
+    var xid=b.dataset.xrm, sz=b.dataset.sz;
+    extras[xid]=(extras[xid]||[]).filter(function(v){ return v!==sz; });
+    if(!extras[xid].length) delete extras[xid];
+    save(); render(); return;
+  }
   if(b.classList.contains('sz')){
     var id=b.dataset.id, i=+b.dataset.i;
     var v=NEXT[st(id,i)]; set(id,i,v);
@@ -342,13 +423,50 @@ document.addEventListener('click',function(e){
     marks[s.id]={}; s.s.forEach(function(_,i){ marks[s.id][i]='here'; }); save();
     render(); return;
   }
-  if(b.dataset.clr){ delete marks[b.dataset.clr]; save(); render(); return; }
+  if(b.dataset.clr){
+    var cid=b.dataset.clr;
+    delete marks[cid]; delete extras[cid]; delete notes[cid];
+    save(); render(); return;
+  }
   if(b.classList.contains('filt')){
     filter=b.dataset.f;
     [].forEach.call(document.querySelectorAll('.filt'),function(x){
       x.setAttribute('aria-pressed', x===b?'true':'false'); });
     render(); window.scrollTo({top:0,behavior:'smooth'}); return;
   }
+});
+
+/* A pair on the shelf that the shop's list does not know about. Tapping a size
+   that is not there is the other half of "the count is wrong" — without this she
+   could only ever report a shortage. */
+function addExtra(id){
+  var el=document.getElementById('xi-'+id);
+  var v=(el.value||'').trim().replace(/[^0-9.]/g,'');
+  if(!v){ el.focus(); return; }
+  extras[id]=(extras[id]||[]).concat(v);
+  save(); el.value=''; render();
+  var row=document.getElementById('x-'+id);
+  if(row){ row.hidden=false; document.getElementById('xi-'+id).focus(); }
+}
+
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Enter') return;
+  var t=e.target;
+  if(t && t.id && t.id.indexOf('xi-')===0){ e.preventDefault(); addExtra(t.id.slice(3)); }
+});
+
+/* Her own words, saved as she types. No re-render here: that would pull the
+   keyboard down and lose her place mid-sentence. */
+document.addEventListener('input',function(e){
+  var t=e.target;
+  if(!t || !t.dataset || !t.dataset.note) return;
+  var id=t.dataset.note, v=t.value.trim();
+  if(v) notes[id]=v; else delete notes[id];
+  t.classList.toggle('has',!!v);
+  save();
+  var el=document.getElementById('c-'+id);
+  if(el) el.querySelector('.tally').innerHTML=tallyHTML(byId(id));
+  stats();
 });
 
 function byId(id){ for(var i=0;i<shoes.length;i++) if(shoes[i].id===id) return shoes[i]; }
@@ -358,16 +476,8 @@ function repaint(id){
   var s=byId(id), q=tallyOf(s), el=document.getElementById('c-'+id);
   if(!el) return;
   el.className='card'+(q.done?(q.gone?' short':' done'):(q.gone?' short':''));
-  el.querySelector('.tally').innerHTML='<b>'+q.here+'</b> of <b>'+q.total+'</b> pairs found'+
-    (q.gone?' · <b>'+q.gone+' missing</b>':'');
-  var t=totals();
-  document.getElementById('s-shoes').textContent=t.shoesDone+'/'+t.shoes;
-  document.getElementById('s-pairs').textContent=t.here+'/'+t.pairs;
-  document.getElementById('s-miss').textContent=t.miss;
-  document.getElementById('barfill').style.width=(t.shoes?(t.shoesDone/t.shoes*100):0)+'%';
-  var btn=document.getElementById('sendbtn'); btn.disabled=t.shoesDone===0;
-  document.getElementById('sendtxt').innerHTML='<b>'+t.shoesDone+'</b> shoes counted · <b>'+
-    t.here+'</b> pairs found'+(t.miss?' · <b>'+t.miss+'</b> missing':'');
+  el.querySelector('.tally').innerHTML=tallyHTML(s);
+  stats();
 }
 
 var qEl=document.getElementById('q'), qT;
@@ -383,18 +493,32 @@ function toast(msg,bad){
 
 document.getElementById('sendbtn').onclick=function(){
   var btn=this; var who=whoSel.value;
-  var t=totals(), lines=[];
+  var t=totals(), lines=[], xlines=[], nlines=[];
   shoes.forEach(function(s){
-    var q=tallyOf(s); if(!q.gone) return;
-    var missing=s.s.filter(function(_,i){ return st(s.id,i)==='gone'; });
-    lines.push('• '+(s.k||s.n)+' ('+s.id+') — '+q.gone+' missing: '+missing.join(', '));
+    var q=tallyOf(s), label=(s.k||s.n)+' ('+s.id+')';
+    if(q.gone){
+      var missing=s.s.filter(function(_,i){ return st(s.id,i)==='gone'; });
+      lines.push('• '+label+' — '+q.gone+' missing: '+missing.join(', '));
+    }
+    var xs=extras[s.id]||[];
+    if(xs.length) xlines.push('• '+label+' — '+xs.length+' not on the list: '+xs.join(', '));
+    if(notes[s.id]) nlines.push('• '+label+' — '+notes[s.id]);
   });
   var text='📋 COUNT '+TODAY+' — '+who+'\n'+
     t.shoesDone+' of '+t.shoes+' shoes counted · '+t.here+' of '+t.pairs+' pairs found';
   if(lines.length){
     text+='\n\nNOT FOUND ('+t.miss+' pairs):\n'+lines.slice(0,40).join('\n');
     if(lines.length>40) text+='\n…and '+(lines.length-40)+' more shoes short.';
-  } else if(t.shoesDone){
+  }
+  if(xlines.length){
+    text+='\n\nEXTRA PAIRS ON THE SHELF ('+t.extra+'):\n'+xlines.slice(0,40).join('\n');
+    if(xlines.length>40) text+='\n…and '+(xlines.length-40)+' more.';
+  }
+  if(nlines.length){
+    text+='\n\nHER NOTES:\n'+nlines.slice(0,40).join('\n');
+    if(nlines.length>40) text+='\n…and '+(nlines.length-40)+' more.';
+  }
+  if(!lines.length && !xlines.length && !nlines.length && t.shoesDone){
     text+='\n\nEverything counted was on the shelf. ✅';
   }
   btn.disabled=true; btn.textContent='Sending…';
