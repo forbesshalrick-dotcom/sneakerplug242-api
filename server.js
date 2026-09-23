@@ -6168,6 +6168,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
+  // 👟 A BARE SIZE IS A REQUEST FOR PICTURES. SEARCH, THEN SHOW — NEVER ASK AGAIN.
+  // Rodney 2026-09-23, on a chat where a customer answered "10 1/2" and was asked "What kind
+  // of kicks you after?": "losing sales". He is right, and the prompt has said "ask for their
+  // SIZE, then show the whole size" since July - it just does not always hold, and every time
+  // it slips it costs a customer who had already told us everything we needed.
+  //
+  // So when their whole message is a SIZE and nothing else, the first move is forced: look,
+  // then show. She cannot answer a size with another question.
+  try {
+    const bareSize = /^\s*(?:a\s+|size\s+|sz\s+)?\d{1,2}(?:\s*1\/2|\.5|\s+and\s+a\s+half)?\s*(?:mens?|womens?|w|m)?\s*[.!?]*\s*$/i
+      .test(String(userText || ''));
+    if (bareSize && sizeFromCustomerWords(userText)) {
+      forceSearchNext = true;
+      record(req, { endpoint: 'bare-size-forced-search', sub, q: String(userText).slice(0, 20) });
+    }
+  } catch (_) {}
   let forcedPhotosOnce = false; // guard so the force above can only fire once per turn (never loops)
   // 🎯 SIZE-ALBUM COMPLETENESS tracking (Rodney 2026-07-19: "what you got in 10.5 11" showed
   // only Jordan 4s + New Balance — all 19 Nikes in an 11 were missing). If she sends a GENERIC
