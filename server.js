@@ -2883,7 +2883,14 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     // in 11/11.5" became color "black white", the strict phrase match returned 0 of the
     // 49 size-11 shoes, and Kiki told the customer we had nothing): a shoe matches if
     // ANY colour word appears, with true "black white" colourways sorted to the front.
-    const cWords = [...new Set(c.split(/[^a-z]+/).filter(w => w.length >= 3))];
+    // "ALL" IS NOT A COLOUR. It survived the 3-letter cut and went into the word match, so
+    // an ask for "all white" matched every shoe whose colour READS "All Black" - the word
+    // "all", nothing to do with the colour. Same for full/only/pure/solid/triple. They say
+    // how much of the shoe is that colour, which the pure filter below acts on; they must
+    // not be searched for. The whole phrase is still matched first, so a real "All Black"
+    // colourway still ranks ahead of "Black/Red".
+    const COLOUR_INTENT = /^(all|full|only|pure|solid|straight|triple)$/i;
+    const cWords = [...new Set(c.split(/[^a-z]+/).filter(w => w.length >= 3 && !COLOUR_INTENT.test(w)))];
     const phraseHits = rows.filter(({ s }) => hayOf(s).includes(c));
     const wordHits = cWords.length ? rows.filter(({ s }) => { const h = hayOf(s); return !h.includes(c) && cWords.some(w => h.includes(w)); }) : [];
     rows = phraseHits.concat(wordHits);
@@ -2899,6 +2906,20 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
       return toks.length > 0 && toks.every(w => cWords.includes(w));
     };
     rows = [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r))];
+    // ⬛ "ALL BLACK" MEANS ALL BLACK, NOT "HAS SOME BLACK IN IT".
+    // Rodney 2026-09-23, on a customer who wrote "do yiu have these in full black" and got
+    // an album with white Jordan 5s, blue Air Max Plus and green Air Max Plus in it: "this
+    // guy only asked for all black". Ranking pure colourways first was not enough - it
+    // ordered 140 shoes instead of cutting them to the 32 that are actually all black, and
+    // everything past the first screen read as us not listening.
+    // The word IS the instruction. "all black", "full black", "triple black", "solid black"
+    // name a colourway; a bare "black Jordan" is a hue and keeps the old ranked behaviour.
+    // If nothing is purely that colour we keep the ranked list rather than tell someone we
+    // have nothing - saying no to a customer we can serve is the worse mistake.
+    if (/\b(all|full|only|pure|solid|straight|triple)\b/i.test(String(color))) {
+      const pure = rows.filter(isPureColour);
+      if (pure.length) rows = pure;
+    }
   }
   // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
   // foam clogs (Rodney 2026-08-04). See SLIP_ON_RE.
@@ -3001,6 +3022,8 @@ function clusterShoesByModel(arr) {
 // Subs whose in-progress photo album the OWNER hit STOP on (manual halt from the chat) —
 // so a malfunctioning "sends all stock" dump can be cut off mid-album by hand.
 const sendAbort = new Set();
+// Customers with an album going out right now - see the note at /inbox/send-shoe.
+const albumInFlight = new Set();
 
 // ── PER-SHOP CARDS ──────────────────────────────────────────────────────────────
 // Each business has its own look (Rodney 2026-09-17): Trendy Kicks and Foot Fetish
@@ -3524,7 +3547,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       manychatSaid: answers, firstIds: albumTrace.slice(0, 3).map(t => t.id) });
     if (recent.length > 120) recent.length = 120;
   } catch (_) {}
-  return { sent, requested, interrupted, held_back: heldBack || undefined, last_shoe: lastShoeSent ? displayName(lastShoeSent) : null };
+  return { sent, requested, interrupted, manualStopped, held_back: heldBack || undefined, last_shoe: lastShoeSent ? displayName(lastShoeSent) : null };
 }
 
 // When each customer's LATEST real message arrived — sendShoePhotos checks this
@@ -11295,6 +11318,20 @@ app.post('/inbox/send-shoe', async (req, res) => {
     return res.json({ ok: false, duplicate: true, found: results.length, sent: 0,
       error: 'You already sent these ' + results.length + ' photos to this customer moments ago — still going out. Give it ' + waited + 's before sending again.' });
   }
+  // 🚦 ONE ALBUM AT A TIME PER CUSTOMER, WHATEVER IS IN IT.
+  // The key above is sub + the exact shoe ids, so two sends that differ by one shoe are two
+  // different keys and both run. Rodney's screenshot 2026-09-23 shows what that looks like
+  // from the customer's phone: the same "Here's everything we got in all black" lead-in
+  // twice in the same minute at 11:05/11:07 and again at 11:20, with two albums interleaved
+  // under them. The last pair of calls came 156ms apart - a double-click on the button.
+  // An album is slow and blocks everyone queued behind it, so a second one for the same
+  // person is never what was meant.
+  if (albumInFlight.has(sub)) {
+    record(req, { endpoint: 'inbox-send-shoe-already-running', sub, account, what, found: results.length });
+    return res.json({ ok: false, busy: true, found: results.length, sent: 0,
+      error: 'An album is still going out to this customer. Hit \u270b STOP first if you want to send something else.' });
+  }
+  albumInFlight.add(sub);
   inboxAlbumSentAt.set(albumKey, Date.now());
   setHumanPause(sub); clearFollowUp(sub);
   // 📷 PICS ONLY (staff toggle on the Send pictures panel): bare photos, no label bubbles,
@@ -11303,7 +11340,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
   const picsOnly = b.photos_only === true;
   try {
     const allIds = results.map(x => x.id);
-    let totalSent = 0;
+    let totalSent = 0, stoppedByOwner = false;
     const batches = [];
     for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
       batches.push(allIds.slice(i, i + BATCH_SIZE));
@@ -11322,8 +11359,38 @@ app.post('/inbox/send-shoe', async (req, res) => {
       const batchLeadIn = (isLast && !picsOnly) ? leadIn : '';
       const r = await sendShoePhotos(sub, batchIds, token, true, null, batchLeadIn, false, i > 0 || picsOnly);
       totalSent += r.sent;
-      // Wait before the next batch (but not after the last one)
-      if (i < batches.length - 1) await new Promise(rs => setTimeout(rs, BATCH_DELAY_MS));
+      // ✋ STOP MEANS STOP - ALL OF IT, NOT THIS BATCH.
+      // Rodney 2026-09-23, showing me a customer who asked for all black and got ~200
+      // pictures including white, blue and green ones: "this guy only asked for all black".
+      // He hit STOP at 11:06 and again three times at 11:11. Albums kept landing at 11:14,
+      // 11:17, 11:20 and 11:23. The stop was working perfectly and doing nothing, because
+      // sendShoePhotos CLEARS sendAbort on entry (right, so yesterday's stop cannot kill
+      // today's album) and this loop calls it once per 20-photo batch. So every stop killed
+      // exactly one batch and handed the next one a clean slate. Seventeen minutes of
+      // photos after he told us to stop, with the button reporting success each time.
+      // A stop anywhere now ends the whole album.
+      if (r.manualStopped || sendAbort.has(sub)) {
+        sendAbort.delete(sub);
+        stoppedByOwner = true;
+        record(req, { endpoint: 'inbox-send-shoe-stopped', sub, account, what,
+                      sentBeforeStop: totalSent, batchesLeft: batches.length - 1 - i });
+        break;
+      }
+      // Wait before the next batch - watching for the stop the whole time, not only at the
+      // ends. Eight seconds is long enough to press the button and be ignored.
+      if (i < batches.length - 1) {
+        for (let w = 0; w < BATCH_DELAY_MS; w += 400) {
+          await new Promise(rs => setTimeout(rs, 400));
+          if (sendAbort.has(sub)) break;
+        }
+        if (sendAbort.has(sub)) {
+          sendAbort.delete(sub);
+          stoppedByOwner = true;
+          record(req, { endpoint: 'inbox-send-shoe-stopped', sub, account, what,
+                        sentBeforeStop: totalSent, batchesLeft: batches.length - 1 - i });
+          break;
+        }
+      }
     }
     record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: results.length, sent: totalSent, batches: batches.length });
     // 🔓 A SEND THAT DELIVERED NOTHING MUST NOT LOCK THE RETRY OUT.
@@ -11333,10 +11400,18 @@ app.post('/inbox/send-shoe', async (req, res) => {
     // back, so when the send itself failed the guard went on refusing the ONE thing that
     // would have fixed it, for half an hour, while he watched an empty chat. A duplicate
     // costs noise; a guard held over a failure costs the sale.
+    albumInFlight.delete(sub);
     if (!totalSent) inboxAlbumSentAt.delete(albumKey);
+    // Stopped on purpose: let him send something else straight away instead of being told
+    // for half an hour that he already sent this.
+    if (stoppedByOwner) inboxAlbumSentAt.delete(albumKey);
     const batchNote = batches.length > 1 ? ` (${batches.length} batches)` : '';
-    res.json({ ok: totalSent > 0, found: results.length, sent: totalSent, batches: batches.length, error: totalSent > 0 ? undefined : ('Found ' + results.length + ' but none went out') });
+    res.json({ ok: totalSent > 0, found: results.length, sent: totalSent, batches: batches.length,
+               stopped: stoppedByOwner || undefined,
+               error: stoppedByOwner ? ('Stopped \u2014 ' + totalSent + ' of ' + results.length + ' had already gone out.')
+                    : (totalSent > 0 ? undefined : ('Found ' + results.length + ' but none went out')) });
   } catch (e) {
+    albumInFlight.delete(sub);             // a throw must never leave this customer locked out
     inboxAlbumSentAt.delete(albumKey);     // same reason: nothing reached them, so let him try again
     res.json({ ok: false, error: String(e).slice(0, 160) });
   }
