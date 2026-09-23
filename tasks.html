@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>Daily Count — 242 Plug</title>
+<title>Daily Sheet — 242 Plug</title>
 <meta name="theme-color" content="#0E1014"/>
 <meta property="og:site_name" content="SneakerPlug242"/>
-<meta property="og:title" content="SneakerPlug242 — Daily Count"/>
-<meta property="og:description" content="Today's stock count. Tap every size you find as you go."/>
+<meta property="og:title" content="SneakerPlug242 — Daily Sheet"/>
+<meta property="og:description" content="Today's jobs, photos, clips and the stock count. Tick them off as you go."/>
 <meta property="og:url" content="https://242plug.com/tasks"/>
 <meta property="og:image" content="https://242plug.com/inbox/icon-192.png"/>
 <meta name="twitter:card" content="summary"/>
-<link rel="apple-touch-icon" href="apple-touch-icon.png"/>
+<link rel="apple-touch-icon" href="https://242plug.com/apple-touch-icon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700&display=swap">
@@ -19,7 +19,7 @@
 :root{
   --ink:#0E1014; --surface:#171A21; --surface2:#1E222B; --line:#2A2F3A;
   --text:#F3F4F8; --muted:#98A0B2;
-  --accent:#C8FF2E; --good:#3ADE7E; --warn:#FFA41B; --bad:#FF5470;
+  --accent:#C8FF2E; --good:#3ADE7E; --warn:#FFA41B; --bad:#FF5470; --cam:#5AC8FF;
   --r:14px;
 }
 *{box-sizing:border-box}
@@ -27,36 +27,40 @@ html,body{margin:0;padding:0}
 body{
   background:var(--ink); color:var(--text);
   font-family:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
-  font-size:15px; line-height:1.4;
-  -webkit-text-size-adjust:100%;
-  padding-bottom:110px;
+  font-size:15px; line-height:1.4; -webkit-text-size-adjust:100%;
+  padding-bottom:112px;
 }
 h1,h2,.display{font-family:"Anton",Impact,"Arial Black",sans-serif;font-weight:400;letter-spacing:.5px;text-transform:uppercase;margin:0}
 .wrap{max-width:1100px;margin:0 auto;padding-inline:16px}
 
-/* ── header ─────────────────────────────── */
 header{
-  position:sticky; top:0; z-index:50;
-  background:rgba(14,16,20,.96); backdrop-filter:blur(8px);
-  border-bottom:1px solid var(--line);
-  padding-block:12px 10px;
+  position:sticky;top:0;z-index:50;background:rgba(14,16,20,.96);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding-block:12px 0;
 }
 .topline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 h1{font-size:23px;line-height:1}
 h1 span{color:var(--accent)}
 .date{font-size:12px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
 .who{
-  margin-left:auto;background:var(--surface2);border:1px solid var(--line);
-  color:var(--text);border-radius:999px;padding:7px 12px;font:600 13px Archivo,sans-serif;
-  min-width:120px;
+  margin-left:auto;background:var(--surface2);border:1px solid var(--line);color:var(--text);
+  border-radius:999px;padding:7px 12px;font:600 13px Archivo,sans-serif;min-width:118px;
 }
-.bar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden;margin-top:11px;border:1px solid var(--line)}
-.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s ease}
-.stats{display:flex;gap:14px;margin-top:8px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.tabs{display:flex;gap:6px;margin-top:11px}
+.tab{
+  flex:1;background:transparent;border:1px solid var(--line);border-bottom:none;
+  color:var(--muted);border-radius:11px 11px 0 0;padding:11px 8px;cursor:pointer;
+  font:700 13px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.6px;
+}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--text);border-color:var(--line)}
+.tab b{color:var(--accent);font-variant-numeric:tabular-nums}
+
+.stats{display:flex;gap:14px;margin-top:10px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
 .stats b{color:var(--text);font-variant-numeric:tabular-nums}
 .stats .miss b{color:var(--warn)}
-
+.bar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden;margin-top:10px;border:1px solid var(--line)}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s ease}
 .tools{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
+.tools:last-child{padding-bottom:11px}
 #q{
   flex:1 1 180px;min-width:0;background:var(--surface2);border:1px solid var(--line);
   color:var(--text);border-radius:999px;padding:10px 15px;font:400 15px Archivo,sans-serif;
@@ -70,105 +74,117 @@ h1 span{color:var(--accent)}
 }
 .filt[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#11140A}
 
-/* ── list ───────────────────────────────── */
-.list{display:grid;gap:12px;margin-top:16px;grid-template-columns:1fr}
-@media(min-width:760px){.list{grid-template-columns:1fr 1fr}}
-@media(min-width:1040px){.list{grid-template-columns:1fr 1fr 1fr}}
+section{margin-top:22px}
+.shead{display:flex;align-items:baseline;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+.shead h2{font-size:18px}
+.shead .n{font:700 12px Archivo,sans-serif;color:var(--accent);font-variant-numeric:tabular-nums}
+.shead .why{flex:0 0 100%;font-size:12.5px;color:var(--muted);margin-top:2px}
 
-.card{
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
-  overflow:hidden;display:flex;flex-direction:column;
-}
+.list{display:grid;gap:12px;margin-top:12px;grid-template-columns:1fr}
+@media(min-width:760px){.list{grid-template-columns:1fr 1fr}}
+@media(min-width:1040px){.list.count{grid-template-columns:1fr 1fr 1fr}}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
 .card.done{border-color:var(--good)}
 .card.short{border-color:var(--warn)}
+.card.shot{border-color:var(--cam)}
 .head{display:flex;gap:12px;padding:12px}
-.shot{
-  flex:0 0 86px;width:86px;height:86px;border-radius:10px;background:var(--surface2);
-  object-fit:cover;border:1px solid var(--line);
-}
-.shot.blank{display:flex;align-items:center;justify-content:center;font-size:30px;color:#3A4150}
+.pic{flex:0 0 86px;width:86px;height:86px;border-radius:10px;background:var(--surface2);object-fit:cover;border:1px solid var(--line)}
+.pic.blank{display:flex;align-items:center;justify-content:center;font-size:30px;color:#3A4150}
 .meta{min-width:0;flex:1}
 .nick{font-family:"Anton",Impact,sans-serif;font-size:17px;line-height:1.1;text-transform:uppercase}
-.nm{font-size:13.5px;color:var(--text);margin-top:2px}
+.nm{font-size:13.5px;margin-top:2px}
 .sub{font-size:12px;color:var(--muted);margin-top:3px}
 .sub em{font-style:normal;color:var(--accent)}
-.tally{
-  margin-top:6px;font:700 13px Archivo,sans-serif;font-variant-numeric:tabular-nums;
-  color:var(--muted);
-}
+.tally{margin-top:6px;font:700 13px Archivo,sans-serif;color:var(--muted)}
 .tally b{color:var(--text)}
 .card.done .tally b{color:var(--good)}
 .card.short .tally b{color:var(--warn)}
 
 .sizes{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 12px}
 .sz{
-  min-width:46px;min-height:40px;padding:6px 8px;border-radius:9px;
+  min-width:50px;min-height:44px;padding:5px 8px;border-radius:9px;
   background:var(--surface2);border:1px solid var(--line);color:var(--muted);
-  font:700 14px Archivo,sans-serif;font-variant-numeric:tabular-nums;cursor:pointer;
+  font:700 15px Archivo,sans-serif;font-variant-numeric:tabular-nums;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;
   transition:transform .08s ease;
 }
+.sz small{font-size:10px;font-weight:700;opacity:.9;letter-spacing:.3px}
 .sz:active{transform:scale(.94)}
-.sz[data-st="here"]{background:var(--good);border-color:var(--good);color:#06240F}
-.sz[data-st="gone"]{background:transparent;border-color:var(--bad);color:var(--bad);text-decoration:line-through}
-.sz.add{
-  min-width:auto;padding:6px 12px;border-style:dashed;color:var(--accent);
-  border-color:#4A5520;font-size:12.5px;letter-spacing:.4px;
-}
+.sz[data-st="full"]{background:var(--good);border-color:var(--good);color:#06240F}
+.sz[data-st="part"]{background:var(--warn);border-color:var(--warn);color:#2A1700}
+.sz[data-st="none"]{background:transparent;border-color:var(--bad);color:var(--bad)}
+.sz[data-st="none"] b{text-decoration:line-through}
+.sz.add{min-width:auto;padding:6px 12px;border-style:dashed;color:var(--accent);border-color:#4A5520;font-size:12.5px}
 .sz.extra{background:var(--accent);border-color:var(--accent);color:#11140A}
+
 .addrow{display:flex;gap:6px;padding:0 12px 10px}
 /* display:flex beats the browser's own [hidden]{display:none} — without this the
-   extra-size box sits open on all 353 cards. */
+   extra-size box sits open on every card. */
 .addrow[hidden]{display:none}
-.addrow input{
-  flex:1;min-width:0;background:var(--surface2);border:1px solid var(--line);
-  color:var(--text);border-radius:9px;padding:9px 12px;font:600 15px Archivo,sans-serif;
-}
+.addrow input{flex:1;min-width:0;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:9px 12px;font:600 15px Archivo,sans-serif}
 .addrow input::placeholder{color:var(--muted);font-weight:400}
-.addrow button{
-  background:var(--accent);border:none;color:#11140A;border-radius:9px;padding:9px 15px;
-  font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;
-}
+.addrow button{background:var(--accent);border:none;color:#11140A;border-radius:9px;padding:9px 15px;font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;cursor:pointer}
+
 .noterow{padding:0 12px 12px}
-.note{
-  width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);
-  border-radius:9px;padding:9px 12px;font:400 13.5px Archivo,sans-serif;resize:vertical;
-  min-height:38px;
-}
+.note{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:9px 12px;font:400 13.5px Archivo,sans-serif;resize:vertical;min-height:38px}
 .note::placeholder{color:var(--muted)}
 .note:focus{border-color:var(--accent);outline:none;min-height:70px}
 .note.has{border-color:var(--warn)}
+
 .acts{display:flex;gap:8px;padding:0 12px 12px;margin-top:auto}
-.acts button{
-  flex:1;border-radius:10px;padding:10px;cursor:pointer;
-  font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;
-  background:var(--surface2);border:1px solid var(--line);color:var(--text);
-}
+.acts button{flex:1;border-radius:10px;padding:11px;cursor:pointer;font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);border:1px solid var(--line);color:var(--text)}
 .acts .all{background:var(--good);border-color:var(--good);color:#06240F}
 .acts .clr{color:var(--muted)}
+.acts .tick[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06240F}
 
-.empty{padding:50px 10px;text-align:center;color:var(--muted)}
-
-/* ── send bar ───────────────────────────── */
-.send{
-  position:fixed;left:0;right:0;bottom:0;z-index:60;
-  background:rgba(14,16,20,.97);backdrop-filter:blur(8px);
-  border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom));
+/* ── jobs ── */
+.job{
+  display:flex;gap:12px;align-items:center;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--r);padding:14px;cursor:pointer;
+  text-align:left;width:100%;color:var(--text);font:600 15px Archivo,sans-serif;
 }
+.job .box{
+  flex:0 0 26px;width:26px;height:26px;border-radius:7px;border:2px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:15px;color:transparent;
+}
+.job[aria-pressed="true"]{border-color:var(--good)}
+.job[aria-pressed="true"] .box{background:var(--good);border-color:var(--good);color:#06240F}
+.job[aria-pressed="true"] .txt{color:var(--muted);text-decoration:line-through}
+.job .when{margin-left:auto;font:600 11px Archivo,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto}
+
+/* ── upload slots ── */
+.drop{padding:0 12px 12px}
+.slot{
+  display:flex;gap:10px;align-items:center;width:100%;cursor:pointer;
+  background:var(--surface2);border:1.5px dashed var(--line);border-radius:11px;
+  padding:13px;color:var(--text);font:700 13px Archivo,sans-serif;
+  text-transform:uppercase;letter-spacing:.5px;
+}
+.slot .ic{font-size:19px}
+.slot.cam{border-color:#2E4A5C;color:var(--cam)}
+.slot.vid{border-color:#4A5520;color:var(--accent)}
+.slot[disabled]{opacity:.6}
+.shots{display:flex;flex-wrap:wrap;gap:8px;padding:0 12px 12px}
+.shots figure{margin:0;position:relative}
+.shots img,.shots video{width:74px;height:74px;object-fit:cover;border-radius:9px;border:1px solid var(--line);display:block;background:var(--surface2)}
+.shots .rm{
+  position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;
+  background:var(--bad);color:#2A0710;border:none;font:700 13px Archivo,sans-serif;cursor:pointer;
+}
+.prog{padding:0 12px 12px;font:600 12px Archivo,sans-serif;color:var(--muted)}
+.prog i{display:block;height:6px;border-radius:999px;background:var(--surface2);margin-top:5px;overflow:hidden;border:1px solid var(--line)}
+.prog i b{display:block;height:100%;background:var(--cam);width:0}
+
+.empty{padding:44px 10px;text-align:center;color:var(--muted)}
+
+.send{position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(14,16,20,.97);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
 .send .inner{max-width:1100px;margin:0 auto;display:flex;gap:10px;align-items:center}
 .send .txt{font-size:12px;color:var(--muted);flex:1;min-width:0}
 .send .txt b{color:var(--text)}
-.send button{
-  background:var(--accent);border:none;color:#11140A;border-radius:11px;
-  padding:13px 20px;font:700 14px Archivo,sans-serif;text-transform:uppercase;
-  letter-spacing:.6px;cursor:pointer;
-}
+.send button{background:var(--accent);border:none;color:#11140A;border-radius:11px;padding:13px 20px;font:700 14px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.6px;cursor:pointer}
 .send button[disabled]{opacity:.45}
-.toast{
-  position:fixed;left:16px;right:16px;bottom:96px;z-index:70;
-  background:var(--good);color:#06240F;border-radius:11px;padding:13px 15px;
-  font:700 14px Archivo,sans-serif;text-align:center;
-  transform:translateY(160%);transition:transform .25s ease;
-}
+.toast{position:fixed;left:16px;right:16px;bottom:96px;z-index:70;background:var(--good);color:#06240F;border-radius:11px;padding:13px 15px;font:700 14px Archivo,sans-serif;text-align:center;transform:translateY(160%);transition:transform .25s ease}
 .toast.show{transform:translateY(0)}
 .toast.bad{background:var(--bad);color:#2A0710}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -179,42 +195,79 @@ h1 span{color:var(--accent)}
 <header>
   <div class="wrap">
     <div class="topline">
-      <h1>Daily <span>Count</span></h1>
+      <h1>Daily <span>Sheet</span></h1>
       <div class="date" id="today"></div>
-      <select class="who" id="who" aria-label="Who is counting">
+      <select class="who" id="who" aria-label="Who is working">
         <option>Deashinique</option>
         <option>Manager</option>
         <option>Owner</option>
       </select>
     </div>
-    <div class="bar"><i id="barfill"></i></div>
-    <div class="stats">
-      <span>Shoes <b id="s-shoes">0/0</b></span>
-      <span>Pairs found <b id="s-pairs">0/0</b></span>
-      <span class="miss">Missing <b id="s-miss">0</b></span>
-      <span>Extra found <b id="s-extra">0</b></span>
+    <div class="tabs">
+      <button class="tab" id="tab-today" data-tab="today" aria-selected="true">Today <b id="t-today">0/0</b></button>
+      <button class="tab" id="tab-count" data-tab="count" aria-selected="false">Stock count <b id="t-count">0/0</b></button>
     </div>
-    <div class="tools">
-      <input id="q" type="search" placeholder="Search shoe, colour or code…" autocomplete="off"/>
+    <div id="counthead" hidden>
+      <div class="bar"><i id="barfill"></i></div>
+      <div class="stats">
+        <span>Shoes <b id="s-shoes">0/0</b></span>
+        <span>Pairs found <b id="s-pairs">0/0</b></span>
+        <span class="miss">Missing <b id="s-miss">0</b></span>
+        <span>Extra found <b id="s-extra">0</b></span>
+      </div>
+      <div class="tools"><input id="q" type="search" placeholder="Search shoe, colour or code…" autocomplete="off"/></div>
+      <div class="tools chipbar">
+        <button class="filt" data-f="todo" aria-pressed="true">To count</button>
+        <button class="filt" data-f="short" aria-pressed="false">Missing</button>
+        <button class="filt" data-f="done" aria-pressed="false">Counted</button>
+        <button class="filt" data-f="all" aria-pressed="false">All</button>
+      </div>
     </div>
-    <div class="tools chipbar">
-      <button class="filt" data-f="todo" aria-pressed="true">To count</button>
-      <button class="filt" data-f="short" aria-pressed="false">Missing</button>
-      <button class="filt" data-f="done" aria-pressed="false">Counted</button>
-      <button class="filt" data-f="all" aria-pressed="false">All</button>
-    </div>
+    <div id="todayhead" class="tools"><div class="stats" style="margin-top:0">
+      <span>Jobs <b id="s-jobs">0/0</b></span>
+      <span>Photos <b id="s-shots">0</b></span>
+      <span>Clips <b id="s-clips">0</b></span>
+    </div></div>
   </div>
 </header>
 
 <main class="wrap">
-  <div class="list" id="list"></div>
-  <div class="empty" id="empty" hidden></div>
+  <div id="page-today">
+    <section>
+      <div class="shead"><h2>Jobs</h2><span class="n" id="n-jobs"></span>
+        <div class="why">Tick each one as you finish it.</div></div>
+      <div class="list" id="jobs"></div>
+    </section>
+
+    <section>
+      <div class="shead"><h2>Photos to take</h2><span class="n" id="n-shots"></span>
+        <div class="why">Shoot these on a clean background. Upload them here and they go up for you.</div></div>
+      <div class="list" id="shots"></div>
+    </section>
+
+    <section>
+      <div class="shead"><h2>TikTok clips</h2><span class="n" id="n-clips"></span>
+        <div class="why">Two shoes a day. A short clean video each — no talking needed.</div></div>
+      <div class="list" id="clips"></div>
+    </section>
+
+    <section>
+      <div class="shead"><h2>Today's ten</h2><span class="n" id="n-fix"></span>
+        <div class="why">Ten shoes to put right — sizes, price, name, box. A different ten every day.</div></div>
+      <div class="list" id="fix"></div>
+    </section>
+  </div>
+
+  <div id="page-count" hidden>
+    <div class="list count" id="list"></div>
+    <div class="empty" id="empty" hidden></div>
+  </div>
 </main>
 
 <div class="send">
   <div class="inner">
     <div class="txt" id="sendtxt">Loading…</div>
-    <button id="sendbtn" disabled>Send count</button>
+    <button id="sendbtn" disabled>Send today</button>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -225,32 +278,533 @@ h1 span{color:var(--accent)}
 'use strict';
 var API='https://sneakerplug242-api-production.up.railway.app';
 var KEY='sp242-shop-c988c5711bf067dccccc85b55fc14fde';
+var CLOUD='dhtoimjnv', PRESET='sp242xx';
 
 var TODAY=new Date().toISOString().slice(0,10);
-var STORE='sp_count_'+TODAY;
+var STORE='sp_day_'+TODAY;
 var shoes=(window.SP_SHOES||[]).slice();
-var marks=load(STORE);      /* size index -> 'here' | 'gone'  */
-var extras=load(STORE+'_x'); /* shoe id -> [sizes she found that are NOT on the list] */
-var notes=load(STORE+'_n');  /* shoe id -> what she wants to tell Rodney about it     */
-var filter='todo', query='';
 
-function load(k){ try{ return JSON.parse(localStorage.getItem(k)||'{}'); }catch(e){ return {}; } }
-function save(){
-  try{
-    localStorage.setItem(STORE,JSON.stringify(marks));
-    localStorage.setItem(STORE+'_x',JSON.stringify(extras));
-    localStorage.setItem(STORE+'_n',JSON.stringify(notes));
-  }catch(e){}
+/* Everything she does today, in one object. Saved to the phone on every change and
+   pushed to the shop a few seconds later, so nothing is lost if she closes the tab
+   and whoever is posting can see her uploads without waiting for her to finish. */
+var day=loadDay();
+function loadDay(){
+  var d={};
+  try{ d=JSON.parse(localStorage.getItem(STORE)||'{}'); }catch(e){ d={}; }
+  d.chores=d.chores||{}; d.fixed=d.fixed||{}; d.photos=d.photos||{}; d.videos=d.videos||{};
+  d.counts=d.counts||{}; d.extras=d.extras||{}; d.notes=d.notes||{}; d.fixNotes=d.fixNotes||{};
+  return d;
 }
-
-document.getElementById('today').textContent=
-  new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
+var pushT=null;
+function save(){
+  try{ localStorage.setItem(STORE,JSON.stringify(day)); }catch(e){}
+  clearTimeout(pushT); pushT=setTimeout(pushDay,3000);
+}
+function pushDay(){
+  fetch(API+'/shop/daily?key='+KEY,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({date:TODAY,by:whoSel.value,day:day})
+  }).catch(function(){ /* offline — the phone still has it, it'll go next change */ });
+}
 
 var whoSel=document.getElementById('who');
 try{ var w=localStorage.getItem('sp_count_who'); if(w) whoSel.value=w; }catch(e){}
-whoSel.onchange=function(){ try{ localStorage.setItem('sp_count_who',whoSel.value); }catch(e){} };
+whoSel.onchange=function(){ try{ localStorage.setItem('sp_count_who',whoSel.value); }catch(e){} save(); };
+document.getElementById('today').textContent=
+  new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
 
-/* ── live sizes from the shop, so the sheet matches the app ── */
+/* ── WHAT TODAY IS ───────────────────────────────────────────────────────
+   The day picks the work, not a person: the same date gives the same ten
+   shoes, the same photo list and the same two clips on every phone, and it
+   walks the whole catalogue instead of landing on the same shoes twice. */
+function dayNo(){ return Math.floor(Date.parse(TODAY+'T00:00:00Z')/86400000); }
+function rota(list,per,salt){
+  if(!list.length) return [];
+  var start=((dayNo()+salt)*per)%list.length, out=[];
+  for(var i=0;i<Math.min(per,list.length);i++) out.push(list[(start+i)%list.length]);
+  return out;
+}
+var CHORES=[
+  {id:'stacks',text:'Check all the stacks — everything in its right place',when:'Any time'},
+  {id:'boxes', text:'Every pair back in the right box, boxes closed',when:'Any time'},
+  {id:'front', text:'Front display wiped down and straight',when:'Any time'},
+  {id:'floor', text:'Sweep the floor',when:'End of shift'}
+];
+var noPic=shoes.filter(function(s){ return !s.i; });
+var SHOTS = noPic.length>=4 ? rota(noPic,4,0) : rota(shoes,4,3);
+var CLIPS = rota(shoes,2,13);
+var FIX   = rota(shoes,10,0);
+
+/* ── sizes, grouped, with a quantity each ───────────────────────────────
+   The shop stores one entry per pair, so ["8","8","9"] is two eights and a
+   nine. Showing three separate chips hid that: Rodney asked where she
+   confirms the QUANTITY. So sizes are grouped, each chip carries how many
+   are expected, and tapping knocks one off. */
+function groups(s){
+  var m={},order=[];
+  (s.s||[]).forEach(function(sz){ if(!(sz in m)){ m[sz]=0; order.push(sz); } m[sz]++; });
+  order.sort(function(a,b){ return (parseFloat(a)||0)-(parseFloat(b)||0); });
+  return order.map(function(sz){ return {size:sz,qty:m[sz]}; });
+}
+function found(id,size){ var c=day.counts[id]; return c?c[size]:undefined; }
+function setFound(id,size,v){
+  if(!day.counts[id]) day.counts[id]={};
+  if(v===undefined) delete day.counts[id][size]; else day.counts[id][size]=v;
+  var k=day.counts[id]; var any=false; for(var x in k){ any=true; break; }
+  if(!any) delete day.counts[id];
+  save();
+}
+/* full -> one less -> ... -> none here -> back to untouched */
+function nextCount(f,qty){ if(f===undefined) return qty; if(f<=0) return undefined; return f-1; }
+
+function tallyOf(s){
+  var g=groups(s),here=0,total=0,gone=0,touched=0;
+  g.forEach(function(x){
+    total+=x.qty;
+    var f=found(s.id,x.size);
+    if(f===undefined) return;
+    touched++; here+=f; gone+=(x.qty-f);
+  });
+  return {here:here,gone:gone,total:total,groups:g.length,touched:touched,done:g.length>0&&touched===g.length};
+}
+function totals(){
+  var t={shoes:0,shoesDone:0,pairs:0,here:0,miss:0,extra:0};
+  shoes.forEach(function(s){
+    if(!(s.s||[]).length) return;
+    var q=tallyOf(s);
+    t.shoes++; t.pairs+=q.total; t.here+=q.here; t.miss+=q.gone;
+    t.extra+=(day.extras[s.id]||[]).length;
+    if(q.done)t.shoesDone++;
+  });
+  return t;
+}
+function esc(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function byId(id){ for(var i=0;i<shoes.length;i++) if(shoes[i].id===id) return shoes[i]; }
+function label(s){ return (s.k||s.n)+' ('+s.id+')'; }
+function picOf(s){
+  return s.i
+    ? '<img class="pic" loading="lazy" src="'+esc(s.i)+'" alt="'+esc(s.n)+'" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'pic blank\',textContent:\'👟\'}))"/>'
+    : '<div class="pic blank">👟</div>';
+}
+function metaOf(s,extra){
+  return '<div class="meta">'+
+    '<div class="nick">'+esc(s.k||s.n)+'</div>'+
+    (s.k?'<div class="nm">'+esc(s.n)+'</div>':'')+
+    '<div class="sub">'+esc(s.c||'')+' · <em>$'+esc(s.p||'')+'</em> · '+esc(s.id)+'</div>'+
+    (extra||'')+'</div>';
+}
+
+/* ── TODAY ──────────────────────────────────────────────────────────── */
+function renderToday(){
+  document.getElementById('jobs').innerHTML=CHORES.map(function(c){
+    var on=!!day.chores[c.id];
+    return '<button class="job" data-chore="'+c.id+'" aria-pressed="'+on+'">'+
+      '<span class="box">✓</span><span class="txt">'+esc(c.text)+'</span>'+
+      '<span class="when">'+esc(c.when)+'</span></button>';
+  }).join('');
+
+  document.getElementById('shots').innerHTML=SHOTS.map(function(s){
+    return mediaCard(s,'photo');
+  }).join('') || '<div class="empty">Nothing to shoot today.</div>';
+
+  document.getElementById('clips').innerHTML=CLIPS.map(function(s){
+    return mediaCard(s,'video');
+  }).join('');
+
+  document.getElementById('fix').innerHTML=FIX.map(function(s){
+    var g=groups(s), on=!!day.fixed[s.id];
+    var sizes=g.map(function(x){ return x.size+(x.qty>1?' ×'+x.qty:''); }).join(' · ');
+    var note=day.fixNotes[s.id]||'';
+    return '<article class="card'+(on?' done':'')+'" id="f-'+esc(s.id)+'">'+
+      '<div class="head">'+picOf(s)+metaOf(s,
+        '<div class="tally"><b>'+(s.s||[]).length+'</b> pairs on record</div>')+'</div>'+
+      '<div class="sub" style="padding:0 12px 10px">'+esc(sizes)+'</div>'+
+      '<div class="noterow"><textarea class="note'+(note?' has':'')+'" data-fixnote="'+esc(s.id)+'"'+
+        ' placeholder="Anything wrong with this one? Price, name, colour, box…">'+esc(note)+'</textarea></div>'+
+      '<div class="acts"><button class="tick" data-fix="'+esc(s.id)+'" aria-pressed="'+on+'">'+
+        (on?'✓ Sorted':'Mark sorted')+'</button></div>'+
+    '</article>';
+  }).join('');
+  todayStats();
+}
+
+function mediaCard(s,kind){
+  var isVid=kind==='video';
+  var got=(isVid?day.videos:day.photos)[s.id]||[];
+  var thumbs=got.map(function(u,i){
+    var t=isVid
+      ? '<video src="'+esc(u)+'" muted playsinline></video>'
+      : '<img src="'+esc(u)+'" alt=""/>';
+    return '<figure>'+t+'<button class="rm" data-rm="'+esc(s.id)+'" data-kind="'+kind+'" data-i="'+i+'" aria-label="Remove">×</button></figure>';
+  }).join('');
+  return '<article class="card'+(got.length?' shot':'')+'" id="m-'+kind+'-'+esc(s.id)+'">'+
+    '<div class="head">'+picOf(s)+metaOf(s,
+      '<div class="tally"><b>'+got.length+'</b> '+(isVid?'clip':'photo')+(got.length===1?'':'s')+' uploaded</div>')+'</div>'+
+    (thumbs?'<div class="shots">'+thumbs+'</div>':'')+
+    '<div class="prog" id="p-'+kind+'-'+esc(s.id)+'" hidden>Uploading…<i><b></b></i></div>'+
+    '<div class="drop">'+
+      '<label class="slot '+(isVid?'vid':'cam')+'">'+
+        '<span class="ic">'+(isVid?'🎬':'📸')+'</span>'+
+        '<span>'+(isVid?'Add a clip':'Add a photo')+'</span>'+
+        '<input type="file" hidden '+(isVid?'accept="video/*"':'accept="image/*" capture="environment"')+
+          ' multiple data-up="'+esc(s.id)+'" data-kind="'+kind+'"/>'+
+      '</label>'+
+    '</div>'+
+  '</article>';
+}
+
+function todayStats(){
+  var jd=0; CHORES.forEach(function(c){ if(day.chores[c.id]) jd++; });
+  var shots=0; SHOTS.forEach(function(s){ shots+=(day.photos[s.id]||[]).length; });
+  var clips=0; CLIPS.forEach(function(s){ clips+=(day.videos[s.id]||[]).length; });
+  var fixed=0; FIX.forEach(function(s){ if(day.fixed[s.id]) fixed++; });
+  document.getElementById('s-jobs').textContent=jd+'/'+CHORES.length;
+  document.getElementById('s-shots').textContent=shots;
+  document.getElementById('s-clips').textContent=clips;
+  document.getElementById('n-jobs').textContent=jd+' of '+CHORES.length+' done';
+  document.getElementById('n-shots').textContent=SHOTS.length+' shoes';
+  document.getElementById('n-clips').textContent=CLIPS.length+' shoes';
+  document.getElementById('n-fix').textContent=fixed+' of '+FIX.length+' sorted';
+  var done=jd+fixed+(shots?1:0)+(clips?1:0);
+  var all=CHORES.length+FIX.length+2;
+  document.getElementById('t-today').textContent=done+'/'+all;
+  sendState();
+}
+
+/* ── COUNT ──────────────────────────────────────────────────────────── */
+var filter='todo', query='';
+var listEl=document.getElementById('list'), emptyEl=document.getElementById('empty');
+
+function matches(s){
+  if(!(s.s||[]).length) return false;   /* sold out — nothing to count */
+  if(query){
+    var hay=(s.b+' '+s.n+' '+(s.k||'')+' '+(s.c||'')+' '+s.id).toLowerCase();
+    if(hay.indexOf(query)<0) return false;
+  }
+  var q=tallyOf(s);
+  if(filter==='todo') return !q.done;
+  if(filter==='done') return q.done;
+  if(filter==='short') return q.gone>0 || (day.extras[s.id]||[]).length>0 || !!day.notes[s.id];
+  return true;
+}
+function tallyHTML(s){
+  var q=tallyOf(s), xs=(day.extras[s.id]||[]).length;
+  return '<b>'+q.here+'</b> of <b>'+q.total+'</b> pairs found'+
+    (q.gone?' · <b>'+q.gone+' missing</b>':'')+
+    (xs?' · <b>+'+xs+' extra</b>':'')+
+    (day.notes[s.id]?' · <b>note</b>':'');
+}
+function cardCls(s){
+  var q=tallyOf(s);
+  return 'card'+(q.gone?' short':(q.done?' done':''));
+}
+function chipFor(s,x){
+  var f=found(s.id,x.size);
+  var stt = f===undefined ? '' : (f>=x.qty?'full':(f<=0?'none':'part'));
+  var sub = x.qty>1
+    ? (f===undefined ? '×'+x.qty : f+' of '+x.qty)
+    : (f===undefined ? '' : (f>0?'here':'none'));
+  return '<button class="sz" data-id="'+esc(s.id)+'" data-sz="'+esc(x.size)+'"'+
+    (stt?' data-st="'+stt+'"':'')+' aria-label="Size '+esc(x.size)+'">'+
+    '<b>'+esc(x.size)+'</b>'+(sub?'<small>'+esc(sub)+'</small>':'')+'</button>';
+}
+function cardHTML(s){
+  var chips=groups(s).map(function(x){ return chipFor(s,x); }).join('');
+  var xs=day.extras[s.id]||[];
+  var xchips=xs.map(function(sz){
+    return '<button class="sz extra" data-xrm="'+esc(s.id)+'" data-sz="'+esc(sz)+'" title="Tap to remove"><b>'+esc(sz)+' ×</b></button>';
+  }).join('');
+  var note=day.notes[s.id]||'';
+  return '<article class="'+cardCls(s)+'" id="c-'+esc(s.id)+'">'+
+    '<div class="head">'+picOf(s)+metaOf(s,'<div class="tally">'+tallyHTML(s)+'</div>')+'</div>'+
+    '<div class="sizes">'+chips+xchips+
+      '<button class="sz add" data-xopen="'+esc(s.id)+'">+ Extra</button></div>'+
+    '<div class="addrow" id="x-'+esc(s.id)+'" hidden>'+
+      '<input id="xi-'+esc(s.id)+'" inputmode="decimal" autocomplete="off" placeholder="Size you found that is not listed"/>'+
+      '<button data-xadd="'+esc(s.id)+'">Add</button></div>'+
+    '<div class="noterow"><textarea class="note'+(note?' has':'')+'" data-note="'+esc(s.id)+'"'+
+      ' placeholder="Count wrong? Something else off? Write it here">'+esc(note)+'</textarea></div>'+
+    '<div class="acts">'+
+      '<button class="all" data-all="'+esc(s.id)+'">All here</button>'+
+      '<button class="clr" data-clr="'+esc(s.id)+'">Clear</button></div>'+
+  '</article>';
+}
+function renderCount(){
+  var rows=shoes.filter(matches);
+  listEl.innerHTML=rows.map(cardHTML).join('');
+  emptyEl.hidden=rows.length>0;
+  if(!rows.length){
+    emptyEl.textContent = filter==='todo'
+      ? (query?'Nothing left to count matching that.':'Every shoe is counted. 👍')
+      : 'Nothing here yet.';
+  }
+  countStats();
+}
+function countStats(){
+  var t=totals();
+  document.getElementById('s-shoes').textContent=t.shoesDone+'/'+t.shoes;
+  document.getElementById('s-pairs').textContent=t.here+'/'+t.pairs;
+  document.getElementById('s-miss').textContent=t.miss;
+  document.getElementById('s-extra').textContent=t.extra;
+  document.getElementById('t-count').textContent=t.shoesDone+'/'+t.shoes;
+  document.getElementById('barfill').style.width=(t.shoes?(t.shoesDone/t.shoes*100):0)+'%';
+  sendState();
+}
+function repaint(id){
+  var s=byId(id), el=document.getElementById('c-'+id);
+  if(!el) return;
+  el.className=cardCls(s);
+  el.querySelector('.tally').innerHTML=tallyHTML(s);
+  countStats();
+}
+
+/* ── sending ────────────────────────────────────────────────────────── */
+function sendState(){
+  var t=totals();
+  var jd=0; CHORES.forEach(function(c){ if(day.chores[c.id]) jd++; });
+  var shots=0,clips=0,fixed=0;
+  SHOTS.forEach(function(s){ shots+=(day.photos[s.id]||[]).length; });
+  CLIPS.forEach(function(s){ clips+=(day.videos[s.id]||[]).length; });
+  FIX.forEach(function(s){ if(day.fixed[s.id]) fixed++; });
+  var noted=0; for(var k in day.notes) noted++; for(var k2 in day.fixNotes) noted++;
+  var anything = t.shoesDone||t.extra||noted||jd||shots||clips||fixed;
+  document.getElementById('sendbtn').disabled=!anything;
+  document.getElementById('sendtxt').innerHTML = !anything
+    ? 'Tick the jobs, upload the pictures, count what you can. It saves as you go.'
+    : ['<b>'+jd+'</b> jobs',
+       '<b>'+shots+'</b> photos',
+       '<b>'+clips+'</b> clips',
+       '<b>'+fixed+'</b> sorted',
+       '<b>'+t.shoesDone+'</b> counted'].join(' · ');
+}
+
+function toast(msg,bad){
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show'+(bad?' bad':'');
+  setTimeout(function(){ t.className='toast'+(bad?' bad':''); },4200);
+}
+
+document.getElementById('sendbtn').onclick=function(){
+  var btn=this, who=whoSel.value, t=totals();
+  var jd=[],jm=[];
+  CHORES.forEach(function(c){ (day.chores[c.id]?jd:jm).push(c.text); });
+  var shotL=[],clipL=[],fixL=[],missL=[],xL=[],nL=[];
+  SHOTS.forEach(function(s){ var n=(day.photos[s.id]||[]).length; if(n) shotL.push('• '+label(s)+' — '+n+' photo'+(n===1?'':'s')); });
+  CLIPS.forEach(function(s){ var n=(day.videos[s.id]||[]).length; if(n) clipL.push('• '+label(s)+' — '+n+' clip'+(n===1?'':'s')); });
+  FIX.forEach(function(s){
+    if(day.fixed[s.id]) fixL.push('• '+label(s)+(day.fixNotes[s.id]?' — '+day.fixNotes[s.id]:''));
+    else if(day.fixNotes[s.id]) nL.push('• '+label(s)+' — '+day.fixNotes[s.id]);
+  });
+  shoes.forEach(function(s){
+    var q=tallyOf(s);
+    if(q.gone){
+      var miss=groups(s).filter(function(x){ var f=found(s.id,x.size); return f!==undefined && f<x.qty; })
+        .map(function(x){ var f=found(s.id,x.size); return x.size+(x.qty>1?' ('+f+' of '+x.qty+')':''); });
+      missL.push('• '+label(s)+' — '+q.gone+' missing: '+miss.join(', '));
+    }
+    var xs=day.extras[s.id]||[];
+    if(xs.length) xL.push('• '+label(s)+' — '+xs.length+' not on the list: '+xs.join(', '));
+    if(day.notes[s.id]) nL.push('• '+label(s)+' — '+day.notes[s.id]);
+  });
+
+  var text='📋 DAILY SHEET '+TODAY+' — '+who;
+  text+='\n\nJOBS: '+jd.length+' of '+CHORES.length+' done';
+  if(jm.length) text+='\nNOT DONE:\n• '+jm.join('\n• ');
+  if(shotL.length) text+='\n\nPHOTOS UPLOADED:\n'+shotL.join('\n');
+  if(clipL.length) text+='\n\nTIKTOK CLIPS UPLOADED:\n'+clipL.join('\n');
+  if(fixL.length) text+='\n\nTODAY\'S TEN — SORTED ('+fixL.length+' of '+FIX.length+'):\n'+fixL.join('\n');
+  if(t.shoesDone) text+='\n\nCOUNT: '+t.shoesDone+' of '+t.shoes+' shoes · '+t.here+' of '+t.pairs+' pairs found';
+  if(missL.length){ text+='\n\nNOT FOUND ('+t.miss+' pairs):\n'+missL.slice(0,30).join('\n');
+    if(missL.length>30) text+='\n…and '+(missL.length-30)+' more shoes short.'; }
+  if(xL.length){ text+='\n\nEXTRA PAIRS ON THE SHELF ('+t.extra+'):\n'+xL.slice(0,30).join('\n');
+    if(xL.length>30) text+='\n…and '+(xL.length-30)+' more.'; }
+  if(nL.length){ text+='\n\nHER NOTES:\n'+nL.slice(0,30).join('\n');
+    if(nL.length>30) text+='\n…and '+(nL.length-30)+' more.'; }
+
+  btn.disabled=true; btn.textContent='Sending…';
+  day.sentAt=new Date().toISOString(); save(); pushDay();
+  fetch(API+'/shop/note?key='+KEY,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({text:text,kind:'task',by:who})
+  })
+  .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json(); })
+  .then(function(){ toast('Sent to the shop ✅'); })
+  .catch(function(){ toast('Could not send — check your internet, today is saved',true); })
+  .then(function(){ btn.disabled=false; btn.textContent='Send today'; });
+};
+
+/* ── uploads ────────────────────────────────────────────────────────── */
+function uploadOne(file,kind,onProg){
+  return new Promise(function(res,rej){
+    var fd=new FormData();
+    fd.append('file',file);
+    fd.append('upload_preset',PRESET);
+    fd.append('folder','sp242/daily/'+TODAY);
+    var xhr=new XMLHttpRequest();
+    xhr.open('POST','https://api.cloudinary.com/v1_1/'+CLOUD+'/'+(kind==='video'?'video':'image')+'/upload');
+    xhr.upload.onprogress=function(e){ if(e.lengthComputable&&onProg) onProg(e.loaded/e.total); };
+    xhr.onload=function(){
+      try{
+        var j=JSON.parse(xhr.responseText||'{}');
+        if(j.secure_url) res(j.secure_url);
+        else rej(new Error((j.error&&j.error.message)||('http '+xhr.status)));
+      }catch(e){ rej(e); }
+    };
+    xhr.onerror=function(){ rej(new Error('network')); };
+    xhr.send(fd);
+  });
+}
+
+document.addEventListener('change',function(e){
+  var inp=e.target;
+  if(!inp || !inp.dataset || !inp.dataset.up) return;
+  var id=inp.dataset.up, kind=inp.dataset.kind;
+  var files=[].slice.call(inp.files||[]); inp.value='';
+  if(!files.length) return;
+  var box=document.getElementById('p-'+kind+'-'+id);
+  var bar=box.querySelector('b');
+  box.hidden=false;
+  var n=0;
+  function step(){
+    if(!files.length){
+      box.hidden=true; bar.style.width='0';
+      renderToday(); return;
+    }
+    var f=files.shift(); n++;
+    box.firstChild.nodeValue='Uploading '+n+'…';
+    uploadOne(f,kind,function(p){ bar.style.width=Math.round(p*100)+'%'; })
+      .then(function(url){
+        var bag=(kind==='video'?day.videos:day.photos);
+        bag[id]=(bag[id]||[]).concat(url);
+        save(); step();
+      })
+      .catch(function(err){
+        box.hidden=true; bar.style.width='0';
+        toast('Upload failed — '+(err.message||'try again'),true);
+        renderToday();
+      });
+  }
+  step();
+});
+
+/* ── taps ───────────────────────────────────────────────────────────── */
+document.addEventListener('click',function(e){
+  var b=e.target.closest('button'); if(!b) return;
+
+  if(b.dataset.tab){ showTab(b.dataset.tab); return; }
+
+  if(b.dataset.chore){
+    day.chores[b.dataset.chore]=!day.chores[b.dataset.chore];
+    if(!day.chores[b.dataset.chore]) delete day.chores[b.dataset.chore];
+    save(); renderToday(); return;
+  }
+  if(b.dataset.fix){
+    day.fixed[b.dataset.fix]=!day.fixed[b.dataset.fix];
+    if(!day.fixed[b.dataset.fix]) delete day.fixed[b.dataset.fix];
+    save(); renderToday(); return;
+  }
+  if(b.dataset.rm){
+    var bag=(b.dataset.kind==='video'?day.videos:day.photos);
+    (bag[b.dataset.rm]||[]).splice(+b.dataset.i,1);
+    if(bag[b.dataset.rm] && !bag[b.dataset.rm].length) delete bag[b.dataset.rm];
+    save(); renderToday(); return;
+  }
+
+  if(b.dataset.xopen){
+    var row=document.getElementById('x-'+b.dataset.xopen);
+    row.hidden=!row.hidden;
+    if(!row.hidden) document.getElementById('xi-'+b.dataset.xopen).focus();
+    return;
+  }
+  if(b.dataset.xadd){ addExtra(b.dataset.xadd); return; }
+  if(b.dataset.xrm){
+    var xid=b.dataset.xrm, sz=b.dataset.sz;
+    day.extras[xid]=(day.extras[xid]||[]).filter(function(v){ return v!==sz; });
+    if(!day.extras[xid].length) delete day.extras[xid];
+    save(); renderCount(); return;
+  }
+  if(b.classList.contains('sz')){
+    var id=b.dataset.id, size=b.dataset.sz;
+    var s=byId(id), g=groups(s), qty=1;
+    for(var i=0;i<g.length;i++) if(g[i].size===size) qty=g[i].qty;
+    var v=nextCount(found(id,size),qty);
+    setFound(id,size,v);
+    b.outerHTML=chipFor(s,{size:size,qty:qty});
+    repaint(id); return;
+  }
+  if(b.dataset.all){
+    var s2=byId(b.dataset.all);
+    day.counts[s2.id]={};
+    groups(s2).forEach(function(x){ day.counts[s2.id][x.size]=x.qty; });
+    save(); renderCount(); return;
+  }
+  if(b.dataset.clr){
+    var cid=b.dataset.clr;
+    delete day.counts[cid]; delete day.extras[cid]; delete day.notes[cid];
+    save(); renderCount(); return;
+  }
+  if(b.classList.contains('filt')){
+    filter=b.dataset.f;
+    [].forEach.call(document.querySelectorAll('.filt'),function(x){
+      x.setAttribute('aria-pressed',x===b?'true':'false'); });
+    renderCount(); window.scrollTo({top:0,behavior:'smooth'}); return;
+  }
+});
+
+function addExtra(id){
+  var el=document.getElementById('xi-'+id);
+  var v=(el.value||'').trim().replace(/[^0-9.]/g,'');
+  if(!v){ el.focus(); return; }
+  day.extras[id]=(day.extras[id]||[]).concat(v);
+  save(); el.value=''; renderCount();
+  var row=document.getElementById('x-'+id);
+  if(row){ row.hidden=false; document.getElementById('xi-'+id).focus(); }
+}
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Enter') return;
+  var t=e.target;
+  if(t && t.id && t.id.indexOf('xi-')===0){ e.preventDefault(); addExtra(t.id.slice(3)); }
+});
+
+/* Her words, saved as she types. No re-render: that pulls the keyboard down
+   and loses her place mid-sentence. */
+document.addEventListener('input',function(e){
+  var t=e.target; if(!t||!t.dataset) return;
+  var v=(t.value||'').trim();
+  if(t.dataset.note){
+    var id=t.dataset.note;
+    if(v) day.notes[id]=v; else delete day.notes[id];
+    t.classList.toggle('has',!!v); save();
+    var el=document.getElementById('c-'+id);
+    if(el) el.querySelector('.tally').innerHTML=tallyHTML(byId(id));
+    countStats(); return;
+  }
+  if(t.dataset.fixnote){
+    var fid=t.dataset.fixnote;
+    if(v) day.fixNotes[fid]=v; else delete day.fixNotes[fid];
+    t.classList.toggle('has',!!v); save(); sendState(); return;
+  }
+});
+var qEl=document.getElementById('q'), qT;
+qEl.oninput=function(){ clearTimeout(qT); qT=setTimeout(function(){
+  query=qEl.value.trim().toLowerCase(); renderCount(); },180); };
+
+/* ── tabs ───────────────────────────────────────────────────────────── */
+function showTab(name){
+  var isCount=name==='count';
+  document.getElementById('page-today').hidden=isCount;
+  document.getElementById('page-count').hidden=!isCount;
+  document.getElementById('counthead').hidden=!isCount;
+  document.getElementById('todayhead').hidden=isCount;
+  document.getElementById('tab-today').setAttribute('aria-selected',String(!isCount));
+  document.getElementById('tab-count').setAttribute('aria-selected',String(isCount));
+  try{ localStorage.setItem('sp_day_tab',name); }catch(e){}
+  if(isCount) renderCount();
+  window.scrollTo({top:0});
+}
+
+/* ── live sizes, so the sheet matches the shop ──────────────────────── */
 function refresh(){
   fetch(API+'/shop/state?key='+KEY,{cache:'no-store'})
     .then(function(r){ return r.ok?r.json():null; })
@@ -264,278 +818,17 @@ function refresh(){
         if(l&&l.sizes&&l.sizes.length) s.s=l.sizes;
         if(l&&l.price) s.p=l.price;
       });
-      render();
+      renderToday();
+      if(!document.getElementById('page-count').hidden) renderCount();
     })
     .catch(function(){ /* offline: the baked list still works */ });
 }
 
-/* ── counting state ── */
-function st(id,i){ var m=marks[id]; return (m&&m[i])||''; }
-function set(id,i,v){
-  if(!marks[id]) marks[id]={};
-  if(v) marks[id][i]=v; else delete marks[id][i];
-  if(!Object.keys(marks[id]).length) delete marks[id];
-  save();
-}
-function tallyOf(s){
-  var here=0,gone=0,n=s.s.length;
-  for(var i=0;i<n;i++){ var v=st(s.id,i); if(v==='here')here++; else if(v==='gone')gone++; }
-  return {here:here,gone:gone,total:n,touched:here+gone,done:(here+gone)===n&&n>0};
-}
-
-function totals(){
-  var t={shoes:0,shoesDone:0,pairs:0,here:0,miss:0,extra:0};
-  shoes.forEach(function(s){
-    var q=tallyOf(s);
-    t.shoes++; t.pairs+=q.total; t.here+=q.here; t.miss+=q.gone;
-    t.extra+=(extras[s.id]||[]).length;
-    if(q.done)t.shoesDone++;
-  });
-  return t;
-}
-
-function esc(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){
-  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-
-function matches(s){
-  if(query){
-    var hay=(s.b+' '+s.n+' '+(s.k||'')+' '+(s.c||'')+' '+s.id).toLowerCase();
-    if(hay.indexOf(query)<0) return false;
-  }
-  var q=tallyOf(s);
-  if(filter==='todo') return !q.done;
-  if(filter==='done') return q.done;
-  if(filter==='short') return q.gone>0 || (extras[s.id]||[]).length>0 || !!notes[s.id];
-  return true;
-}
-
-var listEl=document.getElementById('list'), emptyEl=document.getElementById('empty');
-
-function render(){
-  var rows=shoes.filter(matches);
-  listEl.innerHTML=rows.map(cardHTML).join('');
-  emptyEl.hidden=rows.length>0;
-  if(!rows.length){
-    emptyEl.textContent = filter==='todo'
-      ? (query?'Nothing left to count matching that.':'Every shoe is counted. Send it in 👇')
-      : 'Nothing here yet.';
-  }
-  stats();
-}
-
-function stats(){
-  var t=totals();
-  document.getElementById('s-shoes').textContent=t.shoesDone+'/'+t.shoes;
-  document.getElementById('s-pairs').textContent=t.here+'/'+t.pairs;
-  document.getElementById('s-miss').textContent=t.miss;
-  document.getElementById('s-extra').textContent=t.extra;
-  document.getElementById('barfill').style.width=(t.shoes?(t.shoesDone/t.shoes*100):0)+'%';
-  var noted=0; for(var k in notes) noted++;
-  var anything = t.shoesDone || t.extra || noted;
-  var btn=document.getElementById('sendbtn');
-  btn.disabled = !anything;
-  document.getElementById('sendtxt').innerHTML = !anything
-    ? 'Tap every size you can find. It saves as you go.'
-    : '<b>'+t.shoesDone+'</b> shoes counted · <b>'+t.here+'</b> pairs found'+
-      (t.miss?' · <b>'+t.miss+'</b> missing':'')+
-      (t.extra?' · <b>+'+t.extra+'</b> extra':'')+
-      (noted?' · <b>'+noted+'</b> noted':'');
-}
-
-function tallyHTML(s){
-  var q=tallyOf(s), xs=(extras[s.id]||[]).length;
-  return '<b>'+q.here+'</b> of <b>'+q.total+'</b> pairs found'+
-    (q.gone?' · <b>'+q.gone+' missing</b>':'')+
-    (xs?' · <b>+'+xs+' extra</b>':'')+
-    (notes[s.id]?' · <b>note</b>':'');
-}
-
-function cardHTML(s){
-  var q=tallyOf(s);
-  var cls='card'+(q.done?(q.gone?' short':' done'):(q.gone?' short':''));
-  var title=s.k?esc(s.k):esc(s.n);
-  var shot=s.i
-    ? '<img class="shot" loading="lazy" src="'+esc(s.i)+'" alt="'+esc(s.n)+'" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'shot blank\',textContent:\'👟\'}))"/>'
-    : '<div class="shot blank">👟</div>';
-  var chips=s.s.map(function(sz,i){
-    var v=st(s.id,i);
-    return '<button class="sz" data-id="'+esc(s.id)+'" data-i="'+i+'"'+(v?' data-st="'+v+'"':'')+
-           ' aria-label="Size '+esc(sz)+'">'+esc(sz)+'</button>';
-  }).join('');
-  var xs=extras[s.id]||[];
-  var xchips=xs.map(function(sz){
-    return '<button class="sz extra" data-xrm="'+esc(s.id)+'" data-sz="'+esc(sz)+'"'+
-           ' title="Tap to remove">'+esc(sz)+' &times;</button>';
-  }).join('');
-  var note=notes[s.id]||'';
-  return '<article class="'+cls+'" id="c-'+esc(s.id)+'">'+
-    '<div class="head">'+shot+
-      '<div class="meta">'+
-        '<div class="nick">'+title+'</div>'+
-        (s.k?'<div class="nm">'+esc(s.n)+'</div>':'')+
-        '<div class="sub">'+esc(s.c||'')+' · <em>$'+esc(s.p||'')+'</em> · '+esc(s.id)+'</div>'+
-        '<div class="tally">'+tallyHTML(s)+'</div>'+
-      '</div>'+
-    '</div>'+
-    '<div class="sizes">'+chips+xchips+
-      '<button class="sz add" data-xopen="'+esc(s.id)+'">+ Extra</button>'+
-    '</div>'+
-    '<div class="addrow" id="x-'+esc(s.id)+'" hidden>'+
-      '<input id="xi-'+esc(s.id)+'" inputmode="decimal" autocomplete="off"'+
-        ' placeholder="Size you found that is not listed"/>'+
-      '<button data-xadd="'+esc(s.id)+'">Add</button>'+
-    '</div>'+
-    '<div class="noterow">'+
-      '<textarea class="note'+(note?' has':'')+'" data-note="'+esc(s.id)+'"'+
-        ' placeholder="Count wrong? Something else off? Write it here">'+esc(note)+'</textarea>'+
-    '</div>'+
-    '<div class="acts">'+
-      '<button class="all" data-all="'+esc(s.id)+'">All here</button>'+
-      '<button class="clr" data-clr="'+esc(s.id)+'">Clear</button>'+
-    '</div>'+
-  '</article>';
-}
-
-/* one tap = found, two taps = missing, three = back to blank */
-var NEXT={'':'here','here':'gone','gone':''};
-
-document.addEventListener('click',function(e){
-  var b=e.target.closest('button'); if(!b) return;
-
-  if(b.dataset.xopen){
-    var row=document.getElementById('x-'+b.dataset.xopen);
-    row.hidden=!row.hidden;
-    if(!row.hidden) document.getElementById('xi-'+b.dataset.xopen).focus();
-    return;
-  }
-  if(b.dataset.xadd){ addExtra(b.dataset.xadd); return; }
-  if(b.dataset.xrm){
-    var xid=b.dataset.xrm, sz=b.dataset.sz;
-    extras[xid]=(extras[xid]||[]).filter(function(v){ return v!==sz; });
-    if(!extras[xid].length) delete extras[xid];
-    save(); render(); return;
-  }
-  if(b.classList.contains('sz')){
-    var id=b.dataset.id, i=+b.dataset.i;
-    var v=NEXT[st(id,i)]; set(id,i,v);
-    if(v) b.dataset.st=v; else delete b.dataset.st;
-    repaint(id); return;
-  }
-  if(b.dataset.all){
-    var s=byId(b.dataset.all);
-    marks[s.id]={}; s.s.forEach(function(_,i){ marks[s.id][i]='here'; }); save();
-    render(); return;
-  }
-  if(b.dataset.clr){
-    var cid=b.dataset.clr;
-    delete marks[cid]; delete extras[cid]; delete notes[cid];
-    save(); render(); return;
-  }
-  if(b.classList.contains('filt')){
-    filter=b.dataset.f;
-    [].forEach.call(document.querySelectorAll('.filt'),function(x){
-      x.setAttribute('aria-pressed', x===b?'true':'false'); });
-    render(); window.scrollTo({top:0,behavior:'smooth'}); return;
-  }
-});
-
-/* A pair on the shelf that the shop's list does not know about. Tapping a size
-   that is not there is the other half of "the count is wrong" — without this she
-   could only ever report a shortage. */
-function addExtra(id){
-  var el=document.getElementById('xi-'+id);
-  var v=(el.value||'').trim().replace(/[^0-9.]/g,'');
-  if(!v){ el.focus(); return; }
-  extras[id]=(extras[id]||[]).concat(v);
-  save(); el.value=''; render();
-  var row=document.getElementById('x-'+id);
-  if(row){ row.hidden=false; document.getElementById('xi-'+id).focus(); }
-}
-
-document.addEventListener('keydown',function(e){
-  if(e.key!=='Enter') return;
-  var t=e.target;
-  if(t && t.id && t.id.indexOf('xi-')===0){ e.preventDefault(); addExtra(t.id.slice(3)); }
-});
-
-/* Her own words, saved as she types. No re-render here: that would pull the
-   keyboard down and lose her place mid-sentence. */
-document.addEventListener('input',function(e){
-  var t=e.target;
-  if(!t || !t.dataset || !t.dataset.note) return;
-  var id=t.dataset.note, v=t.value.trim();
-  if(v) notes[id]=v; else delete notes[id];
-  t.classList.toggle('has',!!v);
-  save();
-  var el=document.getElementById('c-'+id);
-  if(el) el.querySelector('.tally').innerHTML=tallyHTML(byId(id));
-  stats();
-});
-
-function byId(id){ for(var i=0;i<shoes.length;i++) if(shoes[i].id===id) return shoes[i]; }
-
-/* update just this card's numbers and edge colour — keeps her place on the page */
-function repaint(id){
-  var s=byId(id), q=tallyOf(s), el=document.getElementById('c-'+id);
-  if(!el) return;
-  el.className='card'+(q.done?(q.gone?' short':' done'):(q.gone?' short':''));
-  el.querySelector('.tally').innerHTML=tallyHTML(s);
-  stats();
-}
-
-var qEl=document.getElementById('q'), qT;
-qEl.oninput=function(){ clearTimeout(qT); qT=setTimeout(function(){
-  query=qEl.value.trim().toLowerCase(); render(); },180); };
-
-/* ── send ── */
-function toast(msg,bad){
-  var t=document.getElementById('toast');
-  t.textContent=msg; t.className='toast show'+(bad?' bad':'');
-  setTimeout(function(){ t.className='toast'+(bad?' bad':''); },4000);
-}
-
-document.getElementById('sendbtn').onclick=function(){
-  var btn=this; var who=whoSel.value;
-  var t=totals(), lines=[], xlines=[], nlines=[];
-  shoes.forEach(function(s){
-    var q=tallyOf(s), label=(s.k||s.n)+' ('+s.id+')';
-    if(q.gone){
-      var missing=s.s.filter(function(_,i){ return st(s.id,i)==='gone'; });
-      lines.push('• '+label+' — '+q.gone+' missing: '+missing.join(', '));
-    }
-    var xs=extras[s.id]||[];
-    if(xs.length) xlines.push('• '+label+' — '+xs.length+' not on the list: '+xs.join(', '));
-    if(notes[s.id]) nlines.push('• '+label+' — '+notes[s.id]);
-  });
-  var text='📋 COUNT '+TODAY+' — '+who+'\n'+
-    t.shoesDone+' of '+t.shoes+' shoes counted · '+t.here+' of '+t.pairs+' pairs found';
-  if(lines.length){
-    text+='\n\nNOT FOUND ('+t.miss+' pairs):\n'+lines.slice(0,40).join('\n');
-    if(lines.length>40) text+='\n…and '+(lines.length-40)+' more shoes short.';
-  }
-  if(xlines.length){
-    text+='\n\nEXTRA PAIRS ON THE SHELF ('+t.extra+'):\n'+xlines.slice(0,40).join('\n');
-    if(xlines.length>40) text+='\n…and '+(xlines.length-40)+' more.';
-  }
-  if(nlines.length){
-    text+='\n\nHER NOTES:\n'+nlines.slice(0,40).join('\n');
-    if(nlines.length>40) text+='\n…and '+(nlines.length-40)+' more.';
-  }
-  if(!lines.length && !xlines.length && !nlines.length && t.shoesDone){
-    text+='\n\nEverything counted was on the shelf. ✅';
-  }
-  btn.disabled=true; btn.textContent='Sending…';
-  fetch(API+'/shop/note?key='+KEY,{
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({text:text, kind:'task', by:who})
-  })
-  .then(function(r){ if(!r.ok) throw new Error('http '+r.status); return r.json(); })
-  .then(function(){ toast('Sent to the shop ✅'); })
-  .catch(function(){ toast('Could not send — check your internet, your count is saved', true); })
-  .then(function(){ btn.disabled=false; btn.textContent='Send count'; });
-};
-
-render();
+renderToday();
+countStats();
+var startTab='today';
+try{ startTab=localStorage.getItem('sp_day_tab')||'today'; }catch(e){}
+showTab(startTab);
 refresh();
 })();
 </script>

@@ -118,6 +118,14 @@ const state = {
   // his phone had even reached the server. Now there always is: read it at
   // GET /shop/shifts/uploads. Keeps the last 30.
   uploadLog: loadFile('uploadLog.json', []),
+  // 📋 THE DAILY SHEET (Rodney 2026-09-23). One record per day for whoever is on
+  // the floor: which shoes were counted, which were photographed, which got a
+  // TikTok clip, which of the day's ten were fixed, and which chores are done.
+  // Shape: { "YYYY-MM-DD": {date, by, at, chores:{}, fixed:{}, photos:{shoeId:[url]},
+  //          videos:{shoeId:[url]}, counts:{shoeId:{size:found}}, extras:{}, notes:{}} }
+  // Kept OUT of /shop/state: the media URLs are only wanted by whoever is posting,
+  // and the state poll runs every few seconds on every staff phone.
+  daily: loadFile('daily.json', {}),
 };
 
 // ── one-time migration off the old root shifts.legacy.json ───────────────────
@@ -1567,6 +1575,42 @@ function mount(app) {
   });
 
   let noteTimes = [];
+  /* ── THE DAILY SHEET ────────────────────────────────────────────────────
+   * Read and write one day's floor work. Deliberately NOT routed through
+   * /shop/note: a note fires a WhatsApp blast and a push to every on-duty
+   * phone, and this saves every few seconds while she works. She sends one
+   * note at the end, on purpose.
+   */
+  app.get('/shop/daily', (req, res) => {
+    if (!auth(req, res)) return;
+    const d = String(req.query.date || '').slice(0, 10);
+    if (d) return res.json({ day: (state.daily || {})[d] || null });
+    // no date = the whole book, newest first, for whoever is posting the media
+    const all = state.daily || {};
+    const days = Object.keys(all).sort().reverse().slice(0, 30).map(k => all[k]);
+    res.json({ days });
+  });
+
+  app.post('/shop/daily', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const d = String(b.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return res.status(400).json({ error: 'bad date' });
+    state.daily = state.daily || {};
+    const prev = state.daily[d] || {};
+    state.daily[d] = Object.assign({}, prev, b.day || {}, {
+      date: d,
+      by: b.by || prev.by || '',
+      at: new Date().toISOString()
+    });
+    // 120 days is plenty to answer "what did we shoot last month" without the
+    // file growing forever.
+    const keys = Object.keys(state.daily).sort();
+    while (keys.length > 120) delete state.daily[keys.shift()];
+    persist('daily.json');
+    res.json({ ok: true, day: state.daily[d] });
+  });
+
   app.post('/shop/note', async (req, res) => {
     if (!auth(req, res)) return;
     const b = req.body || {};
