@@ -136,6 +136,8 @@ section{margin-top:22px}
 .shots{display:flex;flex-wrap:wrap;gap:8px;padding:0 12px 12px}
 .shots figure{margin:0;position:relative}
 .shots img,.shots video{width:74px;height:74px;object-fit:cover;border-radius:9px;border:1px solid var(--line);display:block;background:var(--surface2)}
+.shots .rawclip{width:74px;height:74px;border-radius:9px;border:1px solid var(--accent);background:var(--surface2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--accent);font:700 10px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.4px}
+.shots .rawclip span:first-child{font-size:22px}
 .shots .rm{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;background:var(--bad);color:#2A0710;border:none;font:700 13px Archivo,sans-serif;cursor:pointer}
 .prog{padding:0 12px 12px;font:600 12px Archivo,sans-serif;color:var(--muted)}
 .prog i{display:block;height:6px;border-radius:999px;background:var(--surface2);margin-top:5px;overflow:hidden;border:1px solid var(--line)}
@@ -399,7 +401,10 @@ function mediaCard(s,kind){
   var isVid=kind==='video';
   var got=(isVid?day.videos:day.photos)[s.id]||[];
   var thumbs=got.map(function(u,i){
-    var t=isVid?'<video src="'+esc(u)+'" muted playsinline></video>':'<img src="'+esc(u)+'" alt=""/>';
+    var t=!isVid ? '<img src="'+esc(u)+'" alt=""/>'
+      : (isRaw(u)
+          ? '<div class="rawclip"><span>🎬</span><span>saved</span></div>'
+          : '<video src="'+esc(u)+'" muted playsinline></video>');
     return '<figure>'+t+'<button class="rm" data-rm="'+esc(s.id)+'" data-kind="'+kind+'" data-i="'+i+'" aria-label="Remove">×</button></figure>';
   }).join('');
   return '<article class="card'+(got.length?' shot':'')+'" id="m-'+kind+'-'+esc(s.id)+'">'+
@@ -544,14 +549,14 @@ document.getElementById('sendbtn').onclick=function(){
 };
 
 /* ── uploads ───────────────────────────────────────────────────────── */
-function uploadOne(file,kind,onProg){
+function send(file,endpoint,preset,onProg){
   return new Promise(function(res,rej){
     var fd=new FormData();
     fd.append('file',file);
-    fd.append('upload_preset',kind==='video'?VPRESET:PRESET);
+    fd.append('upload_preset',preset);
     fd.append('folder','sp242/daily/'+TODAY);
     var xhr=new XMLHttpRequest();
-    xhr.open('POST','https://api.cloudinary.com/v1_1/'+CLOUD+'/'+(kind==='video'?'video':'image')+'/upload');
+    xhr.open('POST','https://api.cloudinary.com/v1_1/'+CLOUD+'/'+endpoint+'/upload');
     xhr.upload.onprogress=function(e){ if(e.lengthComputable&&onProg) onProg(e.loaded/e.total); };
     xhr.onload=function(){
       try{
@@ -564,6 +569,25 @@ function uploadOne(file,kind,onProg){
     xhr.send(fd);
   });
 }
+
+/* CLIPS, THE LONG WAY ROUND.
+   sp242xx converts every upload to webp, and Cloudinary refuses that for video
+   ("Invalid value webp for parameter video_file_type"), so /video/upload with it
+   can never work. sp242vid is the proper answer and this tries it first.
+   Until that preset exists, the clip goes to /raw/upload instead: raw does no
+   processing at all, so the mp4 arrives byte for byte — verified 2026-09-23,
+   the file downloads back identical. It is SERVED as image/webp with nosniff, so
+   it will not play in a browser tab, but it downloads and posts fine, and the
+   point is that her recording is never lost because of a setting. The moment
+   sp242vid exists every new clip is a real video URL again. */
+function uploadOne(file,kind,onProg){
+  if(kind!=='video') return send(file,'image',PRESET,onProg);
+  return send(file,'video',VPRESET,onProg).catch(function(err){
+    if(!/preset/i.test(String(err.message||''))) throw err;
+    return send(file,'raw',PRESET,onProg);
+  });
+}
+function isRaw(u){ return String(u).indexOf('/raw/upload/')>-1; }
 document.addEventListener('change',function(e){
   var inp=e.target;
   if(!inp||!inp.dataset||!inp.dataset.up) return;
@@ -584,10 +608,7 @@ document.addEventListener('change',function(e){
       })
       .catch(function(err){
         box.hidden=true; bar.style.width='0';
-        var m=String(err.message||'');
-        toast(/preset/i.test(m)&&kind==='video'
-          ? 'Clip uploads are not switched on yet — send this one to the shop WhatsApp'
-          : 'Upload failed — '+(m||'try again'), true);
+        toast('Upload failed — '+(String(err.message||'')||'try again'), true);
         renderToday();
       });
   }
