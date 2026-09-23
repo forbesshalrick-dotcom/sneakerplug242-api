@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#0E1014"/>
 <meta property="og:site_name" content="SneakerPlug242"/>
 <meta property="og:title" content="SneakerPlug242 — Daily Sheet"/>
-<meta property="og:description" content="Today's jobs, photos, clips and the stock count. Tick them off as you go."/>
+<meta property="og:description" content="Today's jobs, photos, clips and the stock check. Tick them off as you go."/>
 <meta property="og:url" content="https://242plug.com/tasks"/>
 <meta property="og:image" content="https://242plug.com/inbox/icon-192.png"/>
 <meta name="twitter:card" content="summary"/>
@@ -30,48 +30,31 @@ body{
   font-size:15px; line-height:1.4; -webkit-text-size-adjust:100%;
   padding-bottom:112px;
 }
-h1,h2,.display{font-family:"Anton",Impact,"Arial Black",sans-serif;font-weight:400;letter-spacing:.5px;text-transform:uppercase;margin:0}
+h1,h2{font-family:"Anton",Impact,"Arial Black",sans-serif;font-weight:400;letter-spacing:.5px;text-transform:uppercase;margin:0}
 .wrap{max-width:1100px;margin:0 auto;padding-inline:16px}
 
-header{
-  position:sticky;top:0;z-index:50;background:rgba(14,16,20,.96);
-  backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding-block:12px 0;
-}
+header{position:sticky;top:0;z-index:50;background:rgba(14,16,20,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding-block:12px 0}
 .topline{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 h1{font-size:23px;line-height:1}
 h1 span{color:var(--accent)}
 .date{font-size:12px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
-.who{
-  margin-left:auto;background:var(--surface2);border:1px solid var(--line);color:var(--text);
-  border-radius:999px;padding:7px 12px;font:600 13px Archivo,sans-serif;min-width:118px;
-}
+.who{margin-left:auto;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:7px 12px;font:600 13px Archivo,sans-serif;min-width:118px}
 .tabs{display:flex;gap:6px;margin-top:11px}
-.tab{
-  flex:1;background:transparent;border:1px solid var(--line);border-bottom:none;
-  color:var(--muted);border-radius:11px 11px 0 0;padding:11px 8px;cursor:pointer;
-  font:700 13px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.6px;
-}
-.tab[aria-selected="true"]{background:var(--surface);color:var(--text);border-color:var(--line)}
+.tab{flex:1;background:transparent;border:1px solid var(--line);border-bottom:none;color:var(--muted);border-radius:11px 11px 0 0;padding:11px 8px;cursor:pointer;font:700 13px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.6px}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--text)}
 .tab b{color:var(--accent);font-variant-numeric:tabular-nums}
-
 .stats{display:flex;gap:14px;margin-top:10px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
 .stats b{color:var(--text);font-variant-numeric:tabular-nums}
-.stats .miss b{color:var(--warn)}
+.stats .ok b{color:var(--good)}
+.stats .bad b{color:var(--warn)}
 .bar{height:8px;border-radius:999px;background:var(--surface2);overflow:hidden;margin-top:10px;border:1px solid var(--line)}
 .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s ease}
 .tools{display:flex;gap:8px;margin-top:11px;flex-wrap:wrap}
 .tools:last-child{padding-bottom:11px}
-#q{
-  flex:1 1 180px;min-width:0;background:var(--surface2);border:1px solid var(--line);
-  color:var(--text);border-radius:999px;padding:10px 15px;font:400 15px Archivo,sans-serif;
-}
+#q{flex:1 1 180px;min-width:0;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:10px 15px;font:400 15px Archivo,sans-serif}
 #q::placeholder{color:var(--muted)}
 .chipbar{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch}
-.filt{
-  flex:0 0 auto;background:transparent;border:1px solid var(--line);color:var(--muted);
-  border-radius:999px;padding:8px 13px;font:600 12.5px Archivo,sans-serif;
-  text-transform:uppercase;letter-spacing:.4px;cursor:pointer;
-}
+.filt{flex:0 0 auto;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:8px 13px;font:600 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.4px;cursor:pointer}
 .filt[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#11140A}
 
 section{margin-top:22px}
@@ -85,12 +68,17 @@ section{margin-top:22px}
 @media(min-width:1040px){.list.count{grid-template-columns:1fr 1fr 1fr}}
 
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
-.card.done{border-color:var(--good)}
-.card.short{border-color:var(--warn)}
+.card.ok{border-color:var(--good)}
+.card.bad{border-color:var(--warn)}
 .card.shot{border-color:var(--cam)}
 .head{display:flex;gap:12px;padding:12px}
 .pic{flex:0 0 86px;width:86px;height:86px;border-radius:10px;background:var(--surface2);object-fit:cover;border:1px solid var(--line)}
-.pic.blank{display:flex;align-items:center;justify-content:center;font-size:30px;color:#3A4150}
+/* No picture on the site is WHY a shoe is on the shoot list — so the tile carries
+   what she can actually find it by: the code, big. A grey shoe emoji told her
+   nothing (Rodney: "where is the pic?"). */
+.pic.blank{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-style:dashed;text-align:center;padding:4px}
+.pic.blank .code{font:700 15px Archivo,sans-serif;color:var(--cam);font-variant-numeric:tabular-nums;line-height:1}
+.pic.blank .none{font:600 9px Archivo,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;line-height:1.15}
 .meta{min-width:0;flex:1}
 .nick{font-family:"Anton",Impact,sans-serif;font-size:17px;line-height:1.1;text-transform:uppercase}
 .nm{font-size:13.5px;margin-top:2px}
@@ -98,33 +86,33 @@ section{margin-top:22px}
 .sub em{font-style:normal;color:var(--accent)}
 .tally{margin-top:6px;font:700 13px Archivo,sans-serif;color:var(--muted)}
 .tally b{color:var(--text)}
-.card.done .tally b{color:var(--good)}
-.card.short .tally b{color:var(--warn)}
+.card.ok .tally b{color:var(--good)}
+.card.bad .tally b{color:var(--warn)}
+.hint{padding:0 12px 6px;font-size:12px;color:var(--muted)}
 
 .sizes{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 12px}
-.sz{
-  min-width:50px;min-height:44px;padding:5px 8px;border-radius:9px;
-  background:var(--surface2);border:1px solid var(--line);color:var(--muted);
-  font:700 15px Archivo,sans-serif;font-variant-numeric:tabular-nums;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;
-  transition:transform .08s ease;
-}
-.sz small{font-size:10px;font-weight:700;opacity:.9;letter-spacing:.3px}
+.sz{min-width:50px;min-height:44px;padding:5px 8px;border-radius:9px;background:var(--surface2);border:1px solid var(--line);color:var(--muted);font:700 15px Archivo,sans-serif;font-variant-numeric:tabular-nums;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;transition:transform .08s ease}
+.sz small{font-size:10px;font-weight:700;opacity:.9}
 .sz:active{transform:scale(.94)}
-.sz[data-st="full"]{background:var(--good);border-color:var(--good);color:#06240F}
-.sz[data-st="part"]{background:var(--warn);border-color:var(--warn);color:#2A1700}
-.sz[data-st="none"]{background:transparent;border-color:var(--bad);color:var(--bad)}
-.sz[data-st="none"] b{text-decoration:line-through}
-.sz.add{min-width:auto;padding:6px 12px;border-style:dashed;color:var(--accent);border-color:#4A5520;font-size:12.5px}
-.sz.extra{background:var(--accent);border-color:var(--accent);color:#11140A}
+.sz[data-st="here"]{background:var(--good);border-color:var(--good);color:#06240F}
 
-.addrow{display:flex;gap:6px;padding:0 12px 10px}
-/* display:flex beats the browser's own [hidden]{display:none} — without this the
-   extra-size box sits open on every card. */
-.addrow[hidden]{display:none}
-.addrow input{flex:1;min-width:0;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:9px 12px;font:600 15px Archivo,sans-serif}
-.addrow input::placeholder{color:var(--muted);font-weight:400}
-.addrow button{background:var(--accent);border:none;color:#11140A;border-radius:9px;padding:9px 15px;font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;cursor:pointer}
+.acts{display:flex;gap:8px;padding:0 12px 12px;margin-top:auto}
+.acts button{flex:1;border-radius:10px;padding:12px;cursor:pointer;font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);border:1px solid var(--line);color:var(--text)}
+.acts .yes[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06240F}
+.acts .no{color:var(--bad)}
+.acts .no[aria-pressed="true"]{background:var(--bad);border-color:var(--bad);color:#2A0710}
+
+/* the sign that pops up when she says it's wrong */
+.fixbox{padding:0 12px 12px}
+.fixbox[hidden]{display:none}
+.fixbox .sign{
+  display:flex;align-items:center;gap:8px;background:rgba(255,84,112,.12);
+  border:1px solid var(--bad);border-radius:10px;padding:10px 12px;margin-bottom:8px;
+  font:700 13px Archivo,sans-serif;color:var(--bad);
+}
+.fixbox input{width:100%;background:var(--surface2);border:1px solid var(--bad);color:var(--text);border-radius:9px;padding:11px 12px;font:700 16px Archivo,sans-serif}
+.fixbox input::placeholder{color:var(--muted);font-weight:400}
+.fixbox .eg{font-size:11.5px;color:var(--muted);margin-top:5px}
 
 .noterow{padding:0 12px 12px}
 .note{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:9px 12px;font:400 13.5px Archivo,sans-serif;resize:vertical;min-height:38px}
@@ -132,56 +120,28 @@ section{margin-top:22px}
 .note:focus{border-color:var(--accent);outline:none;min-height:70px}
 .note.has{border-color:var(--warn)}
 
-.acts{display:flex;gap:8px;padding:0 12px 12px;margin-top:auto}
-.acts button{flex:1;border-radius:10px;padding:11px;cursor:pointer;font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);border:1px solid var(--line);color:var(--text)}
-.acts .all{background:var(--good);border-color:var(--good);color:#06240F}
-.acts .clr{color:var(--muted)}
-.acts .all.off{background:var(--surface2);border-color:var(--line);color:var(--text)}
-.acts .bad{color:var(--bad)}
-.acts .bad.on{background:var(--bad);border-color:var(--bad);color:#2A0710}
-.acts .tick[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06240F}
-
-/* ── jobs ── */
-.job{
-  display:flex;gap:12px;align-items:center;background:var(--surface);
-  border:1px solid var(--line);border-radius:var(--r);padding:14px;cursor:pointer;
-  text-align:left;width:100%;color:var(--text);font:600 15px Archivo,sans-serif;
-}
-.job .box{
-  flex:0 0 26px;width:26px;height:26px;border-radius:7px;border:2px solid var(--line);
-  display:flex;align-items:center;justify-content:center;font-size:15px;color:transparent;
-}
+.job{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;cursor:pointer;text-align:left;width:100%;color:var(--text);font:600 15px Archivo,sans-serif}
+.job .box{flex:0 0 26px;width:26px;height:26px;border-radius:7px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;color:transparent}
 .job[aria-pressed="true"]{border-color:var(--good)}
 .job[aria-pressed="true"] .box{background:var(--good);border-color:var(--good);color:#06240F}
 .job[aria-pressed="true"] .txt{color:var(--muted);text-decoration:line-through}
 .job .when{margin-left:auto;font:600 11px Archivo,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto}
 
-/* ── upload slots ── */
 .drop{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
-.slot.pick{border-style:solid;border-color:var(--line);color:var(--muted)}
-.slot{
-  display:flex;gap:10px;align-items:center;width:100%;cursor:pointer;
-  background:var(--surface2);border:1.5px dashed var(--line);border-radius:11px;
-  padding:13px;color:var(--text);font:700 13px Archivo,sans-serif;
-  text-transform:uppercase;letter-spacing:.5px;
-}
+.slot{display:flex;gap:10px;align-items:center;width:100%;cursor:pointer;background:var(--surface2);border:1.5px dashed var(--line);border-radius:11px;padding:13px;color:var(--text);font:700 13px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px}
 .slot .ic{font-size:19px}
 .slot.cam{border-color:#2E4A5C;color:var(--cam)}
 .slot.vid{border-color:#4A5520;color:var(--accent)}
-.slot[disabled]{opacity:.6}
+.slot.pick{border-style:solid;border-color:var(--line);color:var(--muted)}
 .shots{display:flex;flex-wrap:wrap;gap:8px;padding:0 12px 12px}
 .shots figure{margin:0;position:relative}
 .shots img,.shots video{width:74px;height:74px;object-fit:cover;border-radius:9px;border:1px solid var(--line);display:block;background:var(--surface2)}
-.shots .rm{
-  position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;
-  background:var(--bad);color:#2A0710;border:none;font:700 13px Archivo,sans-serif;cursor:pointer;
-}
+.shots .rm{position:absolute;top:-6px;right:-6px;width:24px;height:24px;border-radius:50%;background:var(--bad);color:#2A0710;border:none;font:700 13px Archivo,sans-serif;cursor:pointer}
 .prog{padding:0 12px 12px;font:600 12px Archivo,sans-serif;color:var(--muted)}
 .prog i{display:block;height:6px;border-radius:999px;background:var(--surface2);margin-top:5px;overflow:hidden;border:1px solid var(--line)}
 .prog i b{display:block;height:100%;background:var(--cam);width:0}
 
 .empty{padding:44px 10px;text-align:center;color:var(--muted)}
-
 .send{position:fixed;left:0;right:0;bottom:0;z-index:60;background:rgba(14,16,20,.97);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
 .send .inner{max-width:1100px;margin:0 auto;display:flex;gap:10px;align-items:center}
 .send .txt{font-size:12px;color:var(--muted);flex:1;min-width:0}
@@ -202,28 +162,25 @@ section{margin-top:22px}
       <h1>Daily <span>Sheet</span></h1>
       <div class="date" id="today"></div>
       <select class="who" id="who" aria-label="Who is working">
-        <option>Deashinique</option>
-        <option>Manager</option>
-        <option>Owner</option>
+        <option>Deashinique</option><option>Manager</option><option>Owner</option>
       </select>
     </div>
     <div class="tabs">
       <button class="tab" id="tab-today" data-tab="today" aria-selected="true">Today <b id="t-today">0/0</b></button>
-      <button class="tab" id="tab-count" data-tab="count" aria-selected="false">Stock count <b id="t-count">0/0</b></button>
+      <button class="tab" id="tab-count" data-tab="count" aria-selected="false">Stock check <b id="t-count">0/0</b></button>
     </div>
     <div id="counthead" hidden>
       <div class="bar"><i id="barfill"></i></div>
       <div class="stats">
-        <span>Shoes <b id="s-shoes">0/0</b></span>
-        <span>Pairs found <b id="s-pairs">0/0</b></span>
-        <span class="miss">Missing <b id="s-miss">0</b></span>
-        <span>Extra found <b id="s-extra">0</b></span>
+        <span>Checked <b id="s-shoes">0/0</b></span>
+        <span class="ok">Right <b id="s-ok">0</b></span>
+        <span class="bad">Needs fixing <b id="s-bad">0</b></span>
       </div>
       <div class="tools"><input id="q" type="search" placeholder="Search shoe, colour or code…" autocomplete="off"/></div>
       <div class="tools chipbar">
-        <button class="filt" data-f="todo" aria-pressed="true">To count</button>
-        <button class="filt" data-f="short" aria-pressed="false">Missing</button>
-        <button class="filt" data-f="done" aria-pressed="false">Counted</button>
+        <button class="filt" data-f="todo" aria-pressed="true">To check</button>
+        <button class="filt" data-f="bad" aria-pressed="false">Needs fixing</button>
+        <button class="filt" data-f="done" aria-pressed="false">Checked</button>
         <button class="filt" data-f="all" aria-pressed="false">All</button>
       </div>
     </div>
@@ -242,22 +199,19 @@ section{margin-top:22px}
         <div class="why">Tick each one as you finish it.</div></div>
       <div class="list" id="jobs"></div>
     </section>
-
     <section>
       <div class="shead"><h2>Photos to take</h2><span class="n" id="n-shots"></span>
-        <div class="why">Shoot these on a clean background. Upload them here and they go up for you.</div></div>
+        <div class="why">Six shoes picked for today. Take fresh pictures of these to be posted — clean background, a few angles.</div></div>
       <div class="list" id="shots"></div>
     </section>
-
     <section>
       <div class="shead"><h2>TikTok clips</h2><span class="n" id="n-clips"></span>
         <div class="why">Two shoes a day. A short clean video each — no talking needed.</div></div>
       <div class="list" id="clips"></div>
     </section>
-
     <section>
       <div class="shead"><h2>Today's ten</h2><span class="n" id="n-fix"></span>
-        <div class="why">Ten shoes to put right — sizes, price, name, box. A different ten every day.</div></div>
+        <div class="why">Ten shoes to check properly. A different ten every day.</div></div>
       <div class="list" id="fix"></div>
     </section>
   </div>
@@ -268,12 +222,10 @@ section{margin-top:22px}
   </div>
 </main>
 
-<div class="send">
-  <div class="inner">
-    <div class="txt" id="sendtxt">Loading…</div>
-    <button id="sendbtn" disabled>Send today</button>
-  </div>
-</div>
+<div class="send"><div class="inner">
+  <div class="txt" id="sendtxt">Loading…</div>
+  <button id="sendbtn" disabled>Send today</button>
+</div></div>
 <div class="toast" id="toast"></div>
 
 <script src="tasks-data.js"></script>
@@ -283,29 +235,24 @@ section{margin-top:22px}
 var API='https://sneakerplug242-api-production.up.railway.app';
 var KEY='sp242-shop-c988c5711bf067dccccc85b55fc14fde';
 var CLOUD='dhtoimjnv', PRESET='sp242xx';
-/* Photos and clips need SEPARATE presets. sp242xx converts everything to webp,
-   which Cloudinary rejects outright for video ("Invalid value webp for parameter
-   video_file_type"), so a clip uploaded through it fails every time. sp242vid is
-   the same unsigned preset with no format conversion. If it does not exist yet the
-   slot says so plainly instead of failing silently. */
+/* Photos and clips need SEPARATE presets. sp242xx converts everything to webp, which
+   Cloudinary rejects outright for video ("Invalid value webp for parameter
+   video_file_type"). sp242vid is the same unsigned preset with no format conversion. */
 var VPRESET='sp242vid';
 
 var TODAY=new Date().toISOString().slice(0,10);
 var STORE='sp_day_'+TODAY;
 var shoes=(window.SP_SHOES||[]).slice();
 
-/* Everything she does today, in one object. Saved to the phone on every change and
-   pushed to the shop a few seconds later, so nothing is lost if she closes the tab
-   and whoever is posting can see her uploads without waiting for her to finish. */
 var day=loadDay();
 function loadDay(){
   var d={};
   try{ d=JSON.parse(localStorage.getItem(STORE)||'{}'); }catch(e){ d={}; }
-  d.chores=d.chores||{}; d.fixed=d.fixed||{}; d.photos=d.photos||{}; d.videos=d.videos||{};
-  d.counts=d.counts||{}; d.extras=d.extras||{}; d.notes=d.notes||{}; d.fixNotes=d.fixNotes||{};
-  d.fixHere=d.fixHere||{};     /* shoeId -> {size:true}  sizes she actually saw   */
-  d.fixVerdict=d.fixVerdict||{};/* shoeId -> 'ok' | 'bad'                          */
-  d.fixReal=d.fixReal||{};     /* shoeId -> the real sizes, typed, when it's wrong */
+  d.chores=d.chores||{}; d.photos=d.photos||{}; d.videos=d.videos||{}; d.notes=d.notes||{};
+  /* ONE record per shoe, shared by the stock check and today's ten — a shoe done in
+     one is done in the other, so she never checks the same shelf twice.
+     { shoeId: { here:{size:true}, verdict:'ok'|'bad', real:'7, 8, 9' } } */
+  d.check=d.check||{};
   return d;
 }
 var pushT=null;
@@ -317,7 +264,7 @@ function pushDay(){
   fetch(API+'/shop/daily?key='+KEY,{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({date:TODAY,by:whoSel.value,day:day})
-  }).catch(function(){ /* offline — the phone still has it, it'll go next change */ });
+  }).catch(function(){ /* offline — the phone still has it, it goes on the next change */ });
 }
 
 var whoSel=document.getElementById('who');
@@ -326,10 +273,7 @@ whoSel.onchange=function(){ try{ localStorage.setItem('sp_count_who',whoSel.valu
 document.getElementById('today').textContent=
   new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'});
 
-/* ── WHAT TODAY IS ───────────────────────────────────────────────────────
-   The day picks the work, not a person: the same date gives the same ten
-   shoes, the same photo list and the same two clips on every phone, and it
-   walks the whole catalogue instead of landing on the same shoes twice. */
+/* ── what today is ─────────────────────────────────────────────────── */
 function dayNo(){ return Math.floor(Date.parse(TODAY+'T00:00:00Z')/86400000); }
 function rota(list,per,salt){
   if(!list.length) return [];
@@ -343,62 +287,39 @@ var CHORES=[
   {id:'front', text:'Front display wiped down and straight',when:'Any time'},
   {id:'floor', text:'Sweep the floor',when:'End of shift'}
 ];
-/* Six a day (Rodney 2026-09-23). Shoes with NO picture on the site come first —
-   those are the ones costing him sales — and once they run out it keeps walking
-   the rest of the catalogue so nothing goes years without a fresh shot. */
-var noPic=shoes.filter(function(s){ return !s.i; });
-var SHOTS = (function(){
-  var want=6, out=rota(noPic,Math.min(want,noPic.length),0);
-  if(out.length<want){
-    var have={}; out.forEach(function(s){ have[s.id]=1; });
-    rota(shoes.filter(function(s){ return !have[s.id]; }),want-out.length,3)
-      .forEach(function(s){ out.push(s); });
-  }
-  return out;
-})();
-var CLIPS = rota(shoes,2,13);
-var FIX   = rota(shoes,10,0);
+/* Six shoes a day to SHOOT FOR POSTING (Rodney 2026-09-23: "all my stock is on the
+   site, we are picking random shoes to post"). Straight off the whole catalogue —
+   this is content, not a hunt for shoes missing a picture. The tile shows the shoe
+   as the site has it so she knows which one to pull off the shelf. */
+var SHOTS=rota(shoes,6,5);
+var CLIPS=rota(shoes,2,13);
+var FIX=rota(shoes,10,0);
 
-/* ── sizes, grouped, with a quantity each ───────────────────────────────
-   The shop stores one entry per pair, so ["8","8","9"] is two eights and a
-   nine. Showing three separate chips hid that: Rodney asked where she
-   confirms the QUANTITY. So sizes are grouped, each chip carries how many
-   are expected, and tapping knocks one off. */
+/* ── the one thing she does to a shoe ──────────────────────────────── */
 function groups(s){
   var m={},order=[];
   (s.s||[]).forEach(function(sz){ if(!(sz in m)){ m[sz]=0; order.push(sz); } m[sz]++; });
   order.sort(function(a,b){ return (parseFloat(a)||0)-(parseFloat(b)||0); });
   return order.map(function(sz){ return {size:sz,qty:m[sz]}; });
 }
-function found(id,size){ var c=day.counts[id]; return c?c[size]:undefined; }
-function setFound(id,size,v){
-  if(!day.counts[id]) day.counts[id]={};
-  if(v===undefined) delete day.counts[id][size]; else day.counts[id][size]=v;
-  var k=day.counts[id]; var any=false; for(var x in k){ any=true; break; }
-  if(!any) delete day.counts[id];
-  save();
+function chk(id){ return day.check[id]; }
+function bag(id){ return day.check[id] || (day.check[id]={here:{},verdict:'',real:''}); }
+function tidy(id){
+  var c=day.check[id]; if(!c) return;
+  var any=false; for(var k in c.here){ any=true; break; }
+  if(!any && !c.verdict && !c.real) delete day.check[id];
 }
-/* full -> one less -> ... -> none here -> back to untouched */
-function nextCount(f,qty){ if(f===undefined) return qty; if(f<=0) return undefined; return f-1; }
+function saw(id,size){ var c=chk(id); return !!(c&&c.here[size]); }
+function verdictOf(id){ var c=chk(id); return (c&&c.verdict)||''; }
+function realOf(id){ var c=chk(id); return (c&&c.real)||''; }
 
-function tallyOf(s){
-  var g=groups(s),here=0,total=0,gone=0,touched=0;
-  g.forEach(function(x){
-    total+=x.qty;
-    var f=found(s.id,x.size);
-    if(f===undefined) return;
-    touched++; here+=f; gone+=(x.qty-f);
-  });
-  return {here:here,gone:gone,total:total,groups:g.length,touched:touched,done:g.length>0&&touched===g.length};
-}
 function totals(){
-  var t={shoes:0,shoesDone:0,pairs:0,here:0,miss:0,extra:0};
+  var t={shoes:0,checked:0,ok:0,bad:0};
   shoes.forEach(function(s){
     if(!(s.s||[]).length) return;
-    var q=tallyOf(s);
-    t.shoes++; t.pairs+=q.total; t.here+=q.here; t.miss+=q.gone;
-    t.extra+=(day.extras[s.id]||[]).length;
-    if(q.done)t.shoesDone++;
+    t.shoes++;
+    var v=verdictOf(s.id);
+    if(v){ t.checked++; if(v==='ok') t.ok++; else t.bad++; }
   });
   return t;
 }
@@ -406,11 +327,22 @@ function esc(x){ return String(x==null?'':x).replace(/[&<>"]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function byId(id){ for(var i=0;i<shoes.length;i++) if(shoes[i].id===id) return shoes[i]; }
 function label(s){ return (s.k||s.n)+' ('+s.id+')'; }
+var FRAMES='https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/';
+/* A few shoes have their picture only on his own phone (the storefront keeps some
+   images in local storage, not on the server), so there is no URL to put here. Try
+   the frames CDN by convention first; only if that 404s does the code tile show,
+   and the code is what she finds it by on the shelf. */
 function picOf(s){
-  return s.i
-    ? '<img class="pic" loading="lazy" src="'+esc(s.i)+'" alt="'+esc(s.n)+'" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'pic blank\',textContent:\'👟\'}))"/>'
-    : '<div class="pic blank">👟</div>';
+  var src=s.i||(FRAMES+s.id+'-thumb.jpg');
+  return '<img class="pic" loading="lazy" src="'+esc(src)+'" alt="'+esc(s.n)+'"'+
+    ' onerror="this.onerror=null;this.replaceWith(codeTile('+JSON.stringify(esc(s.id)).replace(/"/g,'&quot;')+'))"/>';
 }
+window.codeTile=function(id){
+  var d=document.createElement('div');
+  d.className='pic blank';
+  d.innerHTML='<span class="code">'+id+'</span><span class="none">photo on your phone</span>';
+  return d;
+};
 function metaOf(s,extra){
   return '<div class="meta">'+
     '<div class="nick">'+esc(s.k||s.n)+'</div>'+
@@ -419,7 +351,37 @@ function metaOf(s,extra){
     (extra||'')+'</div>';
 }
 
-/* ── TODAY ──────────────────────────────────────────────────────────── */
+/* THE CARD — the same everywhere (Rodney 2026-09-23: "I dont need those buttons,
+   only need Correct and incorrect"). She taps every size actually on the shelf,
+   then says whether the record is right. Incorrect raises a sign telling her to
+   write the correct sizes below, and that line is what updates the inventory. */
+function checkCard(s){
+  var g=groups(s), v=verdictOf(s.id), real=realOf(s.id), n=(s.s||[]).length;
+  var chips=g.map(function(x){
+    return '<button class="sz" data-h="'+esc(s.id)+'" data-sz="'+esc(x.size)+'"'+
+      (saw(s.id,x.size)?' data-st="here"':'')+'><b>'+esc(x.size)+'</b>'+
+      (x.qty>1?'<small>×'+x.qty+'</small>':'')+'</button>';
+  }).join('');
+  return '<article class="card'+(v==='ok'?' ok':(v==='bad'?' bad':''))+'" id="c-'+esc(s.id)+'">'+
+    '<div class="head">'+picOf(s)+metaOf(s,
+      '<div class="tally"><b>'+n+'</b> pair'+(n===1?'':'s')+' on record'+
+      (v==='ok'?' · <b>confirmed</b>':(v==='bad'?' · <b>needs fixing</b>':''))+'</div>')+'</div>'+
+    '<div class="hint">Tap every size that is actually on the shelf</div>'+
+    '<div class="sizes">'+chips+'</div>'+
+    '<div class="acts">'+
+      '<button class="yes" data-v="ok" data-id="'+esc(s.id)+'" aria-pressed="'+(v==='ok')+'">Correct</button>'+
+      '<button class="no" data-v="bad" data-id="'+esc(s.id)+'" aria-pressed="'+(v==='bad')+'">Incorrect</button>'+
+    '</div>'+
+    '<div class="fixbox" id="fx-'+esc(s.id)+'"'+(v==='bad'?'':' hidden')+'>'+
+      '<div class="sign"><span>✍️</span><span>Write the correct sizes below</span></div>'+
+      '<input id="fr-'+esc(s.id)+'" data-real="'+esc(s.id)+'" autocomplete="off"'+
+        ' value="'+esc(real)+'" placeholder="7, 8, 8, 9.5"/>'+
+      '<div class="eg">Every pair, one by one — two 8s is “8, 8”. This is what updates the shop.</div>'+
+    '</div>'+
+  '</article>';
+}
+
+/* ── TODAY ─────────────────────────────────────────────────────────── */
 function renderToday(){
   document.getElementById('jobs').innerHTML=CHORES.map(function(c){
     var on=!!day.chores[c.id];
@@ -427,62 +389,17 @@ function renderToday(){
       '<span class="box">✓</span><span class="txt">'+esc(c.text)+'</span>'+
       '<span class="when">'+esc(c.when)+'</span></button>';
   }).join('');
-
-  document.getElementById('shots').innerHTML=SHOTS.map(function(s){
-    return mediaCard(s,'photo');
-  }).join('') || '<div class="empty">Nothing to shoot today.</div>';
-
-  document.getElementById('clips').innerHTML=CLIPS.map(function(s){
-    return mediaCard(s,'video');
-  }).join('');
-
-  document.getElementById('fix').innerHTML=FIX.map(fixCard).join('');
+  document.getElementById('shots').innerHTML=SHOTS.map(function(s){ return mediaCard(s,'photo'); }).join('');
+  document.getElementById('clips').innerHTML=CLIPS.map(function(s){ return mediaCard(s,'video'); }).join('');
+  document.getElementById('fix').innerHTML=FIX.map(checkCard).join('');
   todayStats();
-}
-
-/* TODAY'S TEN — check the record against the shelf.
-   Rodney asked for the flow the old sheet had: she taps every size that is
-   actually there, then says whether the record is right. If it is wrong she
-   types what is really there, and that line is what gets applied to the
-   inventory when she submits. */
-function fixCard(s){
-  var g=groups(s), v=day.fixVerdict[s.id]||'';
-  var here=day.fixHere[s.id]||{};
-  var note=day.fixNotes[s.id]||'', real=day.fixReal[s.id]||'';
-  var chips=g.map(function(x){
-    var on=!!here[x.size];
-    return '<button class="sz" data-fh="'+esc(s.id)+'" data-sz="'+esc(x.size)+'"'+
-      (on?' data-st="full"':'')+'><b>'+esc(x.size)+'</b>'+
-      (x.qty>1?'<small>×'+x.qty+'</small>':'')+'</button>';
-  }).join('');
-  var n=(s.s||[]).length;
-  return '<article class="card'+(v==='ok'?' done':(v==='bad'?' short':''))+'" id="f-'+esc(s.id)+'">'+
-    '<div class="head">'+picOf(s)+metaOf(s,
-      '<div class="tally"><b>'+n+'</b> pair'+(n===1?'':'s')+' on record'+
-      (v==='ok'?' · <b>confirmed</b>':(v==='bad'?' · <b>needs fixing</b>':''))+'</div>')+'</div>'+
-    '<div class="sub" style="padding:0 12px 6px">Tap every size that is actually on the shelf</div>'+
-    '<div class="sizes">'+chips+'</div>'+
-    '<div class="acts">'+
-      '<button class="all'+(v==='ok'?'':' off')+'" data-fv="ok" data-id="'+esc(s.id)+'" aria-pressed="'+(v==='ok')+'">'+
-        (v==='ok'?'✓ Record is right':'Record is right')+'</button>'+
-      '<button class="bad'+(v==='bad'?' on':'')+'" data-fv="bad" data-id="'+esc(s.id)+'" aria-pressed="'+(v==='bad')+'">Not right</button>'+
-    '</div>'+
-    '<div class="addrow" id="fr-'+esc(s.id)+'"'+(v==='bad'?'':' hidden')+'>'+
-      '<input id="fri-'+esc(s.id)+'" data-real="'+esc(s.id)+'" autocomplete="off"'+
-        ' value="'+esc(real)+'" placeholder="The sizes really there — 7, 8, 8, 9.5"/>'+
-    '</div>'+
-    '<div class="noterow"><textarea class="note'+(note?' has':'')+'" data-fixnote="'+esc(s.id)+'"'+
-      ' placeholder="Anything else wrong? Price, name, colour, box…">'+esc(note)+'</textarea></div>'+
-  '</article>';
 }
 
 function mediaCard(s,kind){
   var isVid=kind==='video';
   var got=(isVid?day.videos:day.photos)[s.id]||[];
   var thumbs=got.map(function(u,i){
-    var t=isVid
-      ? '<video src="'+esc(u)+'" muted playsinline></video>'
-      : '<img src="'+esc(u)+'" alt=""/>';
+    var t=isVid?'<video src="'+esc(u)+'" muted playsinline></video>':'<img src="'+esc(u)+'" alt=""/>';
     return '<figure>'+t+'<button class="rm" data-rm="'+esc(s.id)+'" data-kind="'+kind+'" data-i="'+i+'" aria-label="Remove">×</button></figure>';
   }).join('');
   return '<article class="card'+(got.length?' shot':'')+'" id="m-'+kind+'-'+esc(s.id)+'">'+
@@ -491,18 +408,15 @@ function mediaCard(s,kind){
     (thumbs?'<div class="shots">'+thumbs+'</div>':'')+
     '<div class="prog" id="p-'+kind+'-'+esc(s.id)+'" hidden>Uploading…<i><b></b></i></div>'+
     '<div class="drop">'+
-      /* capture= opens the camera straight away — the camcorder for video, which is
-         Rodney's "can we take a vid in the app". The second slot has no capture, so
-         she can still send something already on the phone. */
+      /* capture= opens the camera straight away — the camcorder for video. The second
+         slot has no capture, so she can still send something already on the phone. */
       '<label class="slot '+(isVid?'vid':'cam')+'">'+
         '<span class="ic">'+(isVid?'🎥':'📸')+'</span>'+
         '<span>'+(isVid?'Record a clip':'Take a photo')+'</span>'+
-        '<input type="file" hidden capture="environment" '+
-          (isVid?'accept="video/*"':'accept="image/*"')+
+        '<input type="file" hidden capture="environment" '+(isVid?'accept="video/*"':'accept="image/*"')+
           ' data-up="'+esc(s.id)+'" data-kind="'+kind+'"/>'+
       '</label>'+
-      '<label class="slot pick">'+
-        '<span class="ic">🖼</span><span>From the phone</span>'+
+      '<label class="slot pick"><span class="ic">🖼</span><span>From the phone</span>'+
         '<input type="file" hidden multiple '+(isVid?'accept="video/*"':'accept="image/*"')+
           ' data-up="'+esc(s.id)+'" data-kind="'+kind+'"/>'+
       '</label>'+
@@ -514,7 +428,7 @@ function todayStats(){
   var jd=0; CHORES.forEach(function(c){ if(day.chores[c.id]) jd++; });
   var shots=0; SHOTS.forEach(function(s){ shots+=(day.photos[s.id]||[]).length; });
   var clips=0; CLIPS.forEach(function(s){ clips+=(day.videos[s.id]||[]).length; });
-  var fixed=0; FIX.forEach(function(s){ if(day.fixVerdict[s.id]) fixed++; });
+  var fixed=0; FIX.forEach(function(s){ if(verdictOf(s.id)) fixed++; });
   document.getElementById('s-jobs').textContent=jd+'/'+CHORES.length;
   document.getElementById('s-shots').textContent=shots;
   document.getElementById('s-clips').textContent=clips;
@@ -522,185 +436,102 @@ function todayStats(){
   document.getElementById('n-shots').textContent=SHOTS.length+' shoes';
   document.getElementById('n-clips').textContent=CLIPS.length+' shoes';
   document.getElementById('n-fix').textContent=fixed+' of '+FIX.length+' checked';
-  var done=jd+fixed+(shots?1:0)+(clips?1:0);
-  var all=CHORES.length+FIX.length+2;
-  document.getElementById('t-today').textContent=done+'/'+all;
+  document.getElementById('t-today').textContent=(jd+fixed+(shots?1:0)+(clips?1:0))+'/'+(CHORES.length+FIX.length+2);
   sendState();
 }
 
-/* ── COUNT ──────────────────────────────────────────────────────────── */
+/* ── STOCK CHECK ───────────────────────────────────────────────────── */
 var filter='todo', query='';
 var listEl=document.getElementById('list'), emptyEl=document.getElementById('empty');
-
 function matches(s){
-  if(!(s.s||[]).length) return false;   /* sold out — nothing to count */
+  if(!(s.s||[]).length) return false;             /* sold out — nothing to check */
   if(query){
     var hay=(s.b+' '+s.n+' '+(s.k||'')+' '+(s.c||'')+' '+s.id).toLowerCase();
     if(hay.indexOf(query)<0) return false;
   }
-  var q=tallyOf(s);
-  if(filter==='todo') return !q.done;
-  if(filter==='done') return q.done;
-  if(filter==='short') return q.gone>0 || (day.extras[s.id]||[]).length>0 || !!day.notes[s.id];
+  var v=verdictOf(s.id);
+  if(filter==='todo') return !v;
+  if(filter==='done') return !!v;
+  if(filter==='bad')  return v==='bad';
   return true;
-}
-function tallyHTML(s){
-  var q=tallyOf(s), xs=(day.extras[s.id]||[]).length;
-  return '<b>'+q.here+'</b> of <b>'+q.total+'</b> pairs found'+
-    (q.gone?' · <b>'+q.gone+' missing</b>':'')+
-    (xs?' · <b>+'+xs+' extra</b>':'')+
-    (day.notes[s.id]?' · <b>note</b>':'');
-}
-function cardCls(s){
-  var q=tallyOf(s);
-  return 'card'+(q.gone?' short':(q.done?' done':''));
-}
-function chipFor(s,x){
-  var f=found(s.id,x.size);
-  var stt = f===undefined ? '' : (f>=x.qty?'full':(f<=0?'none':'part'));
-  var sub = x.qty>1
-    ? (f===undefined ? '×'+x.qty : f+' of '+x.qty)
-    : (f===undefined ? '' : (f>0?'here':'none'));
-  return '<button class="sz" data-id="'+esc(s.id)+'" data-sz="'+esc(x.size)+'"'+
-    (stt?' data-st="'+stt+'"':'')+' aria-label="Size '+esc(x.size)+'">'+
-    '<b>'+esc(x.size)+'</b>'+(sub?'<small>'+esc(sub)+'</small>':'')+'</button>';
-}
-function cardHTML(s){
-  var chips=groups(s).map(function(x){ return chipFor(s,x); }).join('');
-  var xs=day.extras[s.id]||[];
-  var xchips=xs.map(function(sz){
-    return '<button class="sz extra" data-xrm="'+esc(s.id)+'" data-sz="'+esc(sz)+'" title="Tap to remove"><b>'+esc(sz)+' ×</b></button>';
-  }).join('');
-  var note=day.notes[s.id]||'';
-  return '<article class="'+cardCls(s)+'" id="c-'+esc(s.id)+'">'+
-    '<div class="head">'+picOf(s)+metaOf(s,'<div class="tally">'+tallyHTML(s)+'</div>')+'</div>'+
-    '<div class="sizes">'+chips+xchips+
-      '<button class="sz add" data-xopen="'+esc(s.id)+'">+ Extra</button></div>'+
-    '<div class="addrow" id="x-'+esc(s.id)+'" hidden>'+
-      '<input id="xi-'+esc(s.id)+'" inputmode="decimal" autocomplete="off" placeholder="Size you found that is not listed"/>'+
-      '<button data-xadd="'+esc(s.id)+'">Add</button></div>'+
-    '<div class="noterow"><textarea class="note'+(note?' has':'')+'" data-note="'+esc(s.id)+'"'+
-      ' placeholder="Count wrong? Something else off? Write it here">'+esc(note)+'</textarea></div>'+
-    '<div class="acts">'+
-      '<button class="all" data-all="'+esc(s.id)+'">All here</button>'+
-      '<button class="clr" data-clr="'+esc(s.id)+'">Clear</button></div>'+
-  '</article>';
 }
 function renderCount(){
   var rows=shoes.filter(matches);
-  listEl.innerHTML=rows.map(cardHTML).join('');
+  listEl.innerHTML=rows.map(checkCard).join('');
   emptyEl.hidden=rows.length>0;
   if(!rows.length){
     emptyEl.textContent = filter==='todo'
-      ? (query?'Nothing left to count matching that.':'Every shoe is counted. 👍')
+      ? (query?'Nothing left to check matching that.':'Every shoe is checked. 👍')
       : 'Nothing here yet.';
   }
   countStats();
 }
 function countStats(){
   var t=totals();
-  document.getElementById('s-shoes').textContent=t.shoesDone+'/'+t.shoes;
-  document.getElementById('s-pairs').textContent=t.here+'/'+t.pairs;
-  document.getElementById('s-miss').textContent=t.miss;
-  document.getElementById('s-extra').textContent=t.extra;
-  document.getElementById('t-count').textContent=t.shoesDone+'/'+t.shoes;
-  document.getElementById('barfill').style.width=(t.shoes?(t.shoesDone/t.shoes*100):0)+'%';
+  document.getElementById('s-shoes').textContent=t.checked+'/'+t.shoes;
+  document.getElementById('s-ok').textContent=t.ok;
+  document.getElementById('s-bad').textContent=t.bad;
+  document.getElementById('t-count').textContent=t.checked+'/'+t.shoes;
+  document.getElementById('barfill').style.width=(t.shoes?(t.checked/t.shoes*100):0)+'%';
   sendState();
 }
-function repaint(id){
-  var s=byId(id), el=document.getElementById('c-'+id);
-  if(!el) return;
-  el.className=cardCls(s);
-  el.querySelector('.tally').innerHTML=tallyHTML(s);
-  countStats();
-}
 
-/* ── sending ────────────────────────────────────────────────────────── */
+/* ── sending ───────────────────────────────────────────────────────── */
 function sendState(){
   var t=totals();
   var jd=0; CHORES.forEach(function(c){ if(day.chores[c.id]) jd++; });
-  var shots=0,clips=0,fixed=0;
+  var shots=0,clips=0;
   SHOTS.forEach(function(s){ shots+=(day.photos[s.id]||[]).length; });
   CLIPS.forEach(function(s){ clips+=(day.videos[s.id]||[]).length; });
-  FIX.forEach(function(s){ if(day.fixVerdict[s.id]) fixed++; });
-  var noted=0; for(var k in day.notes) noted++; for(var k2 in day.fixNotes) noted++;
-  var anything = t.shoesDone||t.extra||noted||jd||shots||clips||fixed;
+  var anything=t.checked||jd||shots||clips;
   document.getElementById('sendbtn').disabled=!anything;
   document.getElementById('sendtxt').innerHTML = !anything
-    ? 'Tick the jobs, upload the pictures, count what you can. It saves as you go.'
-    : ['<b>'+jd+'</b> jobs',
-       '<b>'+shots+'</b> photos',
-       '<b>'+clips+'</b> clips',
-       '<b>'+fixed+'</b> checked',
-       '<b>'+t.shoesDone+'</b> counted'].join(' · ');
+    ? 'Tick the jobs, upload the pictures, check what you can. It saves as you go.'
+    : ['<b>'+jd+'</b> jobs','<b>'+shots+'</b> photos','<b>'+clips+'</b> clips',
+       '<b>'+t.checked+'</b> shoes checked'].join(' · ');
 }
-
 function toast(msg,bad){
-  var t=document.getElementById('toast');
-  t.textContent=msg; t.className='toast show'+(bad?' bad':'');
-  setTimeout(function(){ t.className='toast'+(bad?' bad':''); },4200);
+  var el=document.getElementById('toast');
+  el.textContent=msg; el.className='toast show'+(bad?' bad':'');
+  setTimeout(function(){ el.className='toast'+(bad?' bad':''); },4200);
 }
 
 document.getElementById('sendbtn').onclick=function(){
   var btn=this, who=whoSel.value, t=totals();
-  var jd=[],jm=[];
-  CHORES.forEach(function(c){ (day.chores[c.id]?jd:jm).push(c.text); });
-  var shotL=[],clipL=[],fixL=[],missL=[],xL=[],nL=[];
+  var jdone=[],jmiss=[];
+  CHORES.forEach(function(c){ (day.chores[c.id]?jdone:jmiss).push(c.text); });
+  var shotL=[],clipL=[],okL=[],badL=[],applyL=[];
   SHOTS.forEach(function(s){ var n=(day.photos[s.id]||[]).length; if(n) shotL.push('• '+label(s)+' — '+n+' photo'+(n===1?'':'s')); });
   CLIPS.forEach(function(s){ var n=(day.videos[s.id]||[]).length; if(n) clipL.push('• '+label(s)+' — '+n+' clip'+(n===1?'':'s')); });
-  var badL=[], applyL=[];
-  FIX.forEach(function(s){
-    var v=day.fixVerdict[s.id];
-    var here=Object.keys(day.fixHere[s.id]||{});
-    var onRec=(s.s||[]).join(', ');
-    var tail=day.fixNotes[s.id]?' — '+day.fixNotes[s.id]:'';
-    if(v==='ok'){
-      fixL.push('• '+label(s)+' — record confirmed: '+onRec+tail);
-    } else if(v==='bad'){
-      var real=day.fixReal[s.id]||'';
-      badL.push('• '+label(s)+
-        '\n   on record: '+onRec+
-        (here.length?'\n   she saw: '+here.join(', '):'')+
-        (real?'\n   really there: '+real:'\n   (no corrected sizes typed)')+
-        (tail?'\n  '+tail:''));
-      if(real) applyL.push(s.id+' -> '+real);
-    } else if(day.fixNotes[s.id]){
-      nL.push('• '+label(s)+' — '+day.fixNotes[s.id]);
-    }
-  });
   shoes.forEach(function(s){
-    var q=tallyOf(s);
-    if(q.gone){
-      var miss=groups(s).filter(function(x){ var f=found(s.id,x.size); return f!==undefined && f<x.qty; })
-        .map(function(x){ var f=found(s.id,x.size); return x.size+(x.qty>1?' ('+f+' of '+x.qty+')':''); });
-      missL.push('• '+label(s)+' — '+q.gone+' missing: '+miss.join(', '));
-    }
-    var xs=day.extras[s.id]||[];
-    if(xs.length) xL.push('• '+label(s)+' — '+xs.length+' not on the list: '+xs.join(', '));
-    if(day.notes[s.id]) nL.push('• '+label(s)+' — '+day.notes[s.id]);
+    var v=verdictOf(s.id); if(!v) return;
+    var onRec=(s.s||[]).join(', ');
+    var here=Object.keys((chk(s.id)||{here:{}}).here);
+    if(v==='ok'){ okL.push('• '+label(s)+' — '+onRec); return; }
+    var real=realOf(s.id);
+    badL.push('• '+label(s)+
+      '\n   on record: '+onRec+
+      (here.length?'\n   she saw: '+here.join(', '):'')+
+      (real?'\n   really there: '+real:'\n   (no corrected sizes typed)'));
+    if(real) applyL.push(s.id+' -> '+real);
   });
 
   var text='📋 DAILY SHEET '+TODAY+' — '+who;
-  text+='\n\nJOBS: '+jd.length+' of '+CHORES.length+' done';
-  if(jm.length) text+='\nNOT DONE:\n• '+jm.join('\n• ');
+  text+='\n\nJOBS: '+jdone.length+' of '+CHORES.length+' done';
+  if(jmiss.length) text+='\nNOT DONE:\n• '+jmiss.join('\n• ');
   if(shotL.length) text+='\n\nPHOTOS UPLOADED:\n'+shotL.join('\n');
   if(clipL.length) text+='\n\nTIKTOK CLIPS UPLOADED:\n'+clipL.join('\n');
-  text+='\n\nTODAY\'S TEN — '+(fixL.length+badL.length)+' of '+FIX.length+' checked';
-  if(fixL.length) text+='\nRECORD CONFIRMED:\n'+fixL.join('\n');
-  if(badL.length) text+='\n\n⚠️ NEEDS FIXING:\n'+badL.join('\n');
+  text+='\n\nSTOCK CHECK: '+t.checked+' of '+t.shoes+' shoes — '+t.ok+' right, '+t.bad+' need fixing';
+  if(badL.length){ text+='\n\n⚠️ NEEDS FIXING:\n'+badL.slice(0,30).join('\n');
+    if(badL.length>30) text+='\n…and '+(badL.length-30)+' more.'; }
   if(applyL.length) text+='\n\nINVENTORY UPDATES TO APPLY:\n'+applyL.join('\n');
-  if(t.shoesDone) text+='\n\nCOUNT: '+t.shoesDone+' of '+t.shoes+' shoes · '+t.here+' of '+t.pairs+' pairs found';
-  if(missL.length){ text+='\n\nNOT FOUND ('+t.miss+' pairs):\n'+missL.slice(0,30).join('\n');
-    if(missL.length>30) text+='\n…and '+(missL.length-30)+' more shoes short.'; }
-  if(xL.length){ text+='\n\nEXTRA PAIRS ON THE SHELF ('+t.extra+'):\n'+xL.slice(0,30).join('\n');
-    if(xL.length>30) text+='\n…and '+(xL.length-30)+' more.'; }
-  if(nL.length){ text+='\n\nHER NOTES:\n'+nL.slice(0,30).join('\n');
-    if(nL.length>30) text+='\n…and '+(nL.length-30)+' more.'; }
+  if(okL.length) text+='\n\nCONFIRMED RIGHT ('+okL.length+'):\n'+okL.slice(0,30).join('\n')+
+    (okL.length>30?'\n…and '+(okL.length-30)+' more.':'');
 
   btn.disabled=true; btn.textContent='Sending…';
   day.sentAt=new Date().toISOString();
-  day.report=text;                    /* the exact copy Rodney gets */
-  day.apply=applyL.slice();           /* "<shoeId> -> 7, 8, 9" lines, ready to apply */
+  day.report=text;              /* the exact copy Rodney gets */
+  day.apply=applyL.slice();     /* "<shoeId> -> 7, 8, 9", ready to push to /shop/shoe */
   save(); pushDay();
   fetch(API+'/shop/note?key='+KEY,{
     method:'POST',headers:{'Content-Type':'application/json'},
@@ -712,7 +543,7 @@ document.getElementById('sendbtn').onclick=function(){
   .then(function(){ btn.disabled=false; btn.textContent='Send today'; });
 };
 
-/* ── uploads ────────────────────────────────────────────────────────── */
+/* ── uploads ───────────────────────────────────────────────────────── */
 function uploadOne(file,kind,onProg){
   return new Promise(function(res,rej){
     var fd=new FormData();
@@ -733,34 +564,28 @@ function uploadOne(file,kind,onProg){
     xhr.send(fd);
   });
 }
-
 document.addEventListener('change',function(e){
   var inp=e.target;
-  if(!inp || !inp.dataset || !inp.dataset.up) return;
+  if(!inp||!inp.dataset||!inp.dataset.up) return;
   var id=inp.dataset.up, kind=inp.dataset.kind;
   var files=[].slice.call(inp.files||[]); inp.value='';
   if(!files.length) return;
-  var box=document.getElementById('p-'+kind+'-'+id);
-  var bar=box.querySelector('b');
+  var box=document.getElementById('p-'+kind+'-'+id), bar=box.querySelector('b');
   box.hidden=false;
   var n=0;
   function step(){
-    if(!files.length){
-      box.hidden=true; bar.style.width='0';
-      renderToday(); return;
-    }
+    if(!files.length){ box.hidden=true; bar.style.width='0'; renderToday(); return; }
     var f=files.shift(); n++;
     box.firstChild.nodeValue='Uploading '+n+'…';
     uploadOne(f,kind,function(p){ bar.style.width=Math.round(p*100)+'%'; })
       .then(function(url){
-        var bag=(kind==='video'?day.videos:day.photos);
-        bag[id]=(bag[id]||[]).concat(url);
-        save(); step();
+        var b=(kind==='video'?day.videos:day.photos);
+        b[id]=(b[id]||[]).concat(url); save(); step();
       })
       .catch(function(err){
         box.hidden=true; bar.style.width='0';
         var m=String(err.message||'');
-        toast(/preset/i.test(m) && kind==='video'
+        toast(/preset/i.test(m)&&kind==='video'
           ? 'Clip uploads are not switched on yet — send this one to the shop WhatsApp'
           : 'Upload failed — '+(m||'try again'), true);
         renderToday();
@@ -769,77 +594,49 @@ document.addEventListener('change',function(e){
   step();
 });
 
-/* ── taps ───────────────────────────────────────────────────────────── */
+/* ── taps ──────────────────────────────────────────────────────────── */
+function redraw(id){
+  var s=byId(id);
+  ['c-'+id,'f-'+id].forEach(function(){});
+  var el=document.getElementById('c-'+id);
+  if(el) el.outerHTML=checkCard(s);
+  todayStats();
+  if(!document.getElementById('page-count').hidden) countStats();
+}
 document.addEventListener('click',function(e){
   var b=e.target.closest('button'); if(!b) return;
 
   if(b.dataset.tab){ showTab(b.dataset.tab); return; }
-
   if(b.dataset.chore){
     day.chores[b.dataset.chore]=!day.chores[b.dataset.chore];
     if(!day.chores[b.dataset.chore]) delete day.chores[b.dataset.chore];
     save(); renderToday(); return;
   }
-  if(b.dataset.fh){                      /* a size she can see on the shelf */
-    var fid=b.dataset.fh, fsz=b.dataset.sz;
-    var bag=day.fixHere[fid]||(day.fixHere[fid]={});
-    if(bag[fsz]){ delete bag[fsz]; b.removeAttribute('data-st'); }
-    else { bag[fsz]=true; b.setAttribute('data-st','full'); }
-    var any=false; for(var kk in bag){ any=true; break; }
-    if(!any) delete day.fixHere[fid];
-    save(); todayStats(); return;
-  }
-  if(b.dataset.fv){                      /* record right / not right */
-    var vid=b.dataset.id, want=b.dataset.fv;
-    if(day.fixVerdict[vid]===want) delete day.fixVerdict[vid];
-    else day.fixVerdict[vid]=want;
-    if(day.fixVerdict[vid]!=='bad') delete day.fixReal[vid];
-    save(); renderToday();
-    if(day.fixVerdict[vid]==='bad'){
-      var inp=document.getElementById('fri-'+vid);
-      if(inp) inp.focus();
-    }
-    return;
-  }
   if(b.dataset.rm){
-    var bag=(b.dataset.kind==='video'?day.videos:day.photos);
-    (bag[b.dataset.rm]||[]).splice(+b.dataset.i,1);
-    if(bag[b.dataset.rm] && !bag[b.dataset.rm].length) delete bag[b.dataset.rm];
+    var bg=(b.dataset.kind==='video'?day.videos:day.photos);
+    (bg[b.dataset.rm]||[]).splice(+b.dataset.i,1);
+    if(bg[b.dataset.rm]&&!bg[b.dataset.rm].length) delete bg[b.dataset.rm];
     save(); renderToday(); return;
   }
-
-  if(b.dataset.xopen){
-    var row=document.getElementById('x-'+b.dataset.xopen);
-    row.hidden=!row.hidden;
-    if(!row.hidden) document.getElementById('xi-'+b.dataset.xopen).focus();
+  if(b.dataset.h){                       /* a size she can see on the shelf */
+    var id=b.dataset.h, sz=b.dataset.sz, c=bag(id);
+    if(c.here[sz]){ delete c.here[sz]; b.removeAttribute('data-st'); }
+    else { c.here[sz]=true; b.setAttribute('data-st','here'); }
+    tidy(id); save(); todayStats();
+    if(!document.getElementById('page-count').hidden) countStats();
     return;
   }
-  if(b.dataset.xadd){ addExtra(b.dataset.xadd); return; }
-  if(b.dataset.xrm){
-    var xid=b.dataset.xrm, sz=b.dataset.sz;
-    day.extras[xid]=(day.extras[xid]||[]).filter(function(v){ return v!==sz; });
-    if(!day.extras[xid].length) delete day.extras[xid];
-    save(); renderCount(); return;
-  }
-  if(b.classList.contains('sz')){
-    var id=b.dataset.id, size=b.dataset.sz;
-    var s=byId(id), g=groups(s), qty=1;
-    for(var i=0;i<g.length;i++) if(g[i].size===size) qty=g[i].qty;
-    var v=nextCount(found(id,size),qty);
-    setFound(id,size,v);
-    b.outerHTML=chipFor(s,{size:size,qty:qty});
-    repaint(id); return;
-  }
-  if(b.dataset.all){
-    var s2=byId(b.dataset.all);
-    day.counts[s2.id]={};
-    groups(s2).forEach(function(x){ day.counts[s2.id][x.size]=x.qty; });
-    save(); renderCount(); return;
-  }
-  if(b.dataset.clr){
-    var cid=b.dataset.clr;
-    delete day.counts[cid]; delete day.extras[cid]; delete day.notes[cid];
-    save(); renderCount(); return;
+  if(b.dataset.v){                       /* Correct / Incorrect */
+    var vid=b.dataset.id, want=b.dataset.v, c2=bag(vid);
+    c2.verdict = (c2.verdict===want) ? '' : want;
+    if(c2.verdict!=='bad') c2.real='';
+    tidy(vid); save();
+    redrawEvery(vid);
+    if((day.check[vid]||{}).verdict==='bad'){
+      var inp=document.getElementById('fr-'+vid);
+      if(inp){ inp.focus(); inp.scrollIntoView({block:'center',behavior:'smooth'}); }
+    }
+    return;
   }
   if(b.classList.contains('filt')){
     filter=b.dataset.f;
@@ -849,50 +646,27 @@ document.addEventListener('click',function(e){
   }
 });
 
-function addExtra(id){
-  var el=document.getElementById('xi-'+id);
-  var v=(el.value||'').trim().replace(/[^0-9.]/g,'');
-  if(!v){ el.focus(); return; }
-  day.extras[id]=(day.extras[id]||[]).concat(v);
-  save(); el.value=''; renderCount();
-  var row=document.getElementById('x-'+id);
-  if(row){ row.hidden=false; document.getElementById('xi-'+id).focus(); }
+/* The same shoe can be on screen twice — in today's ten and in the stock check —
+   so both copies are redrawn, or one of them silently shows stale state. */
+function redrawEvery(id){
+  var s=byId(id);
+  [].forEach.call(document.querySelectorAll('#c-'+CSS.escape(id)),function(el){
+    el.outerHTML=checkCard(s);
+  });
+  todayStats();
+  if(!document.getElementById('page-count').hidden) countStats();
 }
-document.addEventListener('keydown',function(e){
-  if(e.key!=='Enter') return;
-  var t=e.target;
-  if(t && t.id && t.id.indexOf('xi-')===0){ e.preventDefault(); addExtra(t.id.slice(3)); }
-});
 
-/* Her words, saved as she types. No re-render: that pulls the keyboard down
-   and loses her place mid-sentence. */
 document.addEventListener('input',function(e){
-  var t=e.target; if(!t||!t.dataset) return;
-  var v=(t.value||'').trim();
-  if(t.dataset.note){
-    var id=t.dataset.note;
-    if(v) day.notes[id]=v; else delete day.notes[id];
-    t.classList.toggle('has',!!v); save();
-    var el=document.getElementById('c-'+id);
-    if(el) el.querySelector('.tally').innerHTML=tallyHTML(byId(id));
-    countStats(); return;
-  }
-  if(t.dataset.real){
-    var rid=t.dataset.real;
-    if(v) day.fixReal[rid]=v; else delete day.fixReal[rid];
-    save(); todayStats(); return;
-  }
-  if(t.dataset.fixnote){
-    var fid=t.dataset.fixnote;
-    if(v) day.fixNotes[fid]=v; else delete day.fixNotes[fid];
-    t.classList.toggle('has',!!v); save(); sendState(); return;
-  }
+  var t=e.target; if(!t||!t.dataset||!t.dataset.real) return;
+  var id=t.dataset.real, v=(t.value||'').trim();
+  bag(id).real=v; tidy(id); save(); sendState();
 });
 var qEl=document.getElementById('q'), qT;
 qEl.oninput=function(){ clearTimeout(qT); qT=setTimeout(function(){
   query=qEl.value.trim().toLowerCase(); renderCount(); },180); };
 
-/* ── tabs ───────────────────────────────────────────────────────────── */
+/* ── tabs ──────────────────────────────────────────────────────────── */
 function showTab(name){
   var isCount=name==='count';
   document.getElementById('page-today').hidden=isCount;
@@ -902,11 +676,11 @@ function showTab(name){
   document.getElementById('tab-today').setAttribute('aria-selected',String(!isCount));
   document.getElementById('tab-count').setAttribute('aria-selected',String(isCount));
   try{ localStorage.setItem('sp_day_tab',name); }catch(e){}
-  if(isCount) renderCount();
+  if(isCount) renderCount(); else renderToday();
   window.scrollTo({top:0});
 }
 
-/* ── live sizes, so the sheet matches the shop ──────────────────────── */
+/* ── live sizes, so the sheet matches the shop ─────────────────────── */
 function refresh(){
   fetch(API+'/shop/state?key='+KEY,{cache:'no-store'})
     .then(function(r){ return r.ok?r.json():null; })
