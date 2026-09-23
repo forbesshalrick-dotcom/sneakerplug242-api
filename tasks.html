@@ -136,6 +136,9 @@ section{margin-top:22px}
 .acts button{flex:1;border-radius:10px;padding:11px;cursor:pointer;font:700 12.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.5px;background:var(--surface2);border:1px solid var(--line);color:var(--text)}
 .acts .all{background:var(--good);border-color:var(--good);color:#06240F}
 .acts .clr{color:var(--muted)}
+.acts .all.off{background:var(--surface2);border-color:var(--line);color:var(--text)}
+.acts .bad{color:var(--bad)}
+.acts .bad.on{background:var(--bad);border-color:var(--bad);color:#2A0710}
 .acts .tick[aria-pressed="true"]{background:var(--good);border-color:var(--good);color:#06240F}
 
 /* ── jobs ── */
@@ -154,7 +157,8 @@ section{margin-top:22px}
 .job .when{margin-left:auto;font:600 11px Archivo,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto}
 
 /* ── upload slots ── */
-.drop{padding:0 12px 12px}
+.drop{padding:0 12px 12px;display:flex;flex-direction:column;gap:8px}
+.slot.pick{border-style:solid;border-color:var(--line);color:var(--muted)}
 .slot{
   display:flex;gap:10px;align-items:center;width:100%;cursor:pointer;
   background:var(--surface2);border:1.5px dashed var(--line);border-radius:11px;
@@ -299,6 +303,9 @@ function loadDay(){
   try{ d=JSON.parse(localStorage.getItem(STORE)||'{}'); }catch(e){ d={}; }
   d.chores=d.chores||{}; d.fixed=d.fixed||{}; d.photos=d.photos||{}; d.videos=d.videos||{};
   d.counts=d.counts||{}; d.extras=d.extras||{}; d.notes=d.notes||{}; d.fixNotes=d.fixNotes||{};
+  d.fixHere=d.fixHere||{};     /* shoeId -> {size:true}  sizes she actually saw   */
+  d.fixVerdict=d.fixVerdict||{};/* shoeId -> 'ok' | 'bad'                          */
+  d.fixReal=d.fixReal||{};     /* shoeId -> the real sizes, typed, when it's wrong */
   return d;
 }
 var pushT=null;
@@ -336,8 +343,19 @@ var CHORES=[
   {id:'front', text:'Front display wiped down and straight',when:'Any time'},
   {id:'floor', text:'Sweep the floor',when:'End of shift'}
 ];
+/* Six a day (Rodney 2026-09-23). Shoes with NO picture on the site come first —
+   those are the ones costing him sales — and once they run out it keeps walking
+   the rest of the catalogue so nothing goes years without a fresh shot. */
 var noPic=shoes.filter(function(s){ return !s.i; });
-var SHOTS = noPic.length>=4 ? rota(noPic,4,0) : rota(shoes,4,3);
+var SHOTS = (function(){
+  var want=6, out=rota(noPic,Math.min(want,noPic.length),0);
+  if(out.length<want){
+    var have={}; out.forEach(function(s){ have[s.id]=1; });
+    rota(shoes.filter(function(s){ return !have[s.id]; }),want-out.length,3)
+      .forEach(function(s){ out.push(s); });
+  }
+  return out;
+})();
 var CLIPS = rota(shoes,2,13);
 var FIX   = rota(shoes,10,0);
 
@@ -418,21 +436,44 @@ function renderToday(){
     return mediaCard(s,'video');
   }).join('');
 
-  document.getElementById('fix').innerHTML=FIX.map(function(s){
-    var g=groups(s), on=!!day.fixed[s.id];
-    var sizes=g.map(function(x){ return x.size+(x.qty>1?' ×'+x.qty:''); }).join(' · ');
-    var note=day.fixNotes[s.id]||'';
-    return '<article class="card'+(on?' done':'')+'" id="f-'+esc(s.id)+'">'+
-      '<div class="head">'+picOf(s)+metaOf(s,
-        '<div class="tally"><b>'+(s.s||[]).length+'</b> pair'+((s.s||[]).length===1?'':'s')+' on record</div>')+'</div>'+
-      '<div class="sub" style="padding:0 12px 10px">'+esc(sizes)+'</div>'+
-      '<div class="noterow"><textarea class="note'+(note?' has':'')+'" data-fixnote="'+esc(s.id)+'"'+
-        ' placeholder="Anything wrong with this one? Price, name, colour, box…">'+esc(note)+'</textarea></div>'+
-      '<div class="acts"><button class="tick" data-fix="'+esc(s.id)+'" aria-pressed="'+on+'">'+
-        (on?'✓ Sorted':'Mark sorted')+'</button></div>'+
-    '</article>';
-  }).join('');
+  document.getElementById('fix').innerHTML=FIX.map(fixCard).join('');
   todayStats();
+}
+
+/* TODAY'S TEN — check the record against the shelf.
+   Rodney asked for the flow the old sheet had: she taps every size that is
+   actually there, then says whether the record is right. If it is wrong she
+   types what is really there, and that line is what gets applied to the
+   inventory when she submits. */
+function fixCard(s){
+  var g=groups(s), v=day.fixVerdict[s.id]||'';
+  var here=day.fixHere[s.id]||{};
+  var note=day.fixNotes[s.id]||'', real=day.fixReal[s.id]||'';
+  var chips=g.map(function(x){
+    var on=!!here[x.size];
+    return '<button class="sz" data-fh="'+esc(s.id)+'" data-sz="'+esc(x.size)+'"'+
+      (on?' data-st="full"':'')+'><b>'+esc(x.size)+'</b>'+
+      (x.qty>1?'<small>×'+x.qty+'</small>':'')+'</button>';
+  }).join('');
+  var n=(s.s||[]).length;
+  return '<article class="card'+(v==='ok'?' done':(v==='bad'?' short':''))+'" id="f-'+esc(s.id)+'">'+
+    '<div class="head">'+picOf(s)+metaOf(s,
+      '<div class="tally"><b>'+n+'</b> pair'+(n===1?'':'s')+' on record'+
+      (v==='ok'?' · <b>confirmed</b>':(v==='bad'?' · <b>needs fixing</b>':''))+'</div>')+'</div>'+
+    '<div class="sub" style="padding:0 12px 6px">Tap every size that is actually on the shelf</div>'+
+    '<div class="sizes">'+chips+'</div>'+
+    '<div class="acts">'+
+      '<button class="all'+(v==='ok'?'':' off')+'" data-fv="ok" data-id="'+esc(s.id)+'" aria-pressed="'+(v==='ok')+'">'+
+        (v==='ok'?'✓ Record is right':'Record is right')+'</button>'+
+      '<button class="bad'+(v==='bad'?' on':'')+'" data-fv="bad" data-id="'+esc(s.id)+'" aria-pressed="'+(v==='bad')+'">Not right</button>'+
+    '</div>'+
+    '<div class="addrow" id="fr-'+esc(s.id)+'"'+(v==='bad'?'':' hidden')+'>'+
+      '<input id="fri-'+esc(s.id)+'" data-real="'+esc(s.id)+'" autocomplete="off"'+
+        ' value="'+esc(real)+'" placeholder="The sizes really there — 7, 8, 8, 9.5"/>'+
+    '</div>'+
+    '<div class="noterow"><textarea class="note'+(note?' has':'')+'" data-fixnote="'+esc(s.id)+'"'+
+      ' placeholder="Anything else wrong? Price, name, colour, box…">'+esc(note)+'</textarea></div>'+
+  '</article>';
 }
 
 function mediaCard(s,kind){
@@ -450,11 +491,20 @@ function mediaCard(s,kind){
     (thumbs?'<div class="shots">'+thumbs+'</div>':'')+
     '<div class="prog" id="p-'+kind+'-'+esc(s.id)+'" hidden>Uploading…<i><b></b></i></div>'+
     '<div class="drop">'+
+      /* capture= opens the camera straight away — the camcorder for video, which is
+         Rodney's "can we take a vid in the app". The second slot has no capture, so
+         she can still send something already on the phone. */
       '<label class="slot '+(isVid?'vid':'cam')+'">'+
-        '<span class="ic">'+(isVid?'🎬':'📸')+'</span>'+
-        '<span>'+(isVid?'Add a clip':'Add a photo')+'</span>'+
-        '<input type="file" hidden '+(isVid?'accept="video/*"':'accept="image/*" capture="environment"')+
-          ' multiple data-up="'+esc(s.id)+'" data-kind="'+kind+'"/>'+
+        '<span class="ic">'+(isVid?'🎥':'📸')+'</span>'+
+        '<span>'+(isVid?'Record a clip':'Take a photo')+'</span>'+
+        '<input type="file" hidden capture="environment" '+
+          (isVid?'accept="video/*"':'accept="image/*"')+
+          ' data-up="'+esc(s.id)+'" data-kind="'+kind+'"/>'+
+      '</label>'+
+      '<label class="slot pick">'+
+        '<span class="ic">🖼</span><span>From the phone</span>'+
+        '<input type="file" hidden multiple '+(isVid?'accept="video/*"':'accept="image/*"')+
+          ' data-up="'+esc(s.id)+'" data-kind="'+kind+'"/>'+
       '</label>'+
     '</div>'+
   '</article>';
@@ -464,14 +514,14 @@ function todayStats(){
   var jd=0; CHORES.forEach(function(c){ if(day.chores[c.id]) jd++; });
   var shots=0; SHOTS.forEach(function(s){ shots+=(day.photos[s.id]||[]).length; });
   var clips=0; CLIPS.forEach(function(s){ clips+=(day.videos[s.id]||[]).length; });
-  var fixed=0; FIX.forEach(function(s){ if(day.fixed[s.id]) fixed++; });
+  var fixed=0; FIX.forEach(function(s){ if(day.fixVerdict[s.id]) fixed++; });
   document.getElementById('s-jobs').textContent=jd+'/'+CHORES.length;
   document.getElementById('s-shots').textContent=shots;
   document.getElementById('s-clips').textContent=clips;
   document.getElementById('n-jobs').textContent=jd+' of '+CHORES.length+' done';
   document.getElementById('n-shots').textContent=SHOTS.length+' shoes';
   document.getElementById('n-clips').textContent=CLIPS.length+' shoes';
-  document.getElementById('n-fix').textContent=fixed+' of '+FIX.length+' sorted';
+  document.getElementById('n-fix').textContent=fixed+' of '+FIX.length+' checked';
   var done=jd+fixed+(shots?1:0)+(clips?1:0);
   var all=CHORES.length+FIX.length+2;
   document.getElementById('t-today').textContent=done+'/'+all;
@@ -572,7 +622,7 @@ function sendState(){
   var shots=0,clips=0,fixed=0;
   SHOTS.forEach(function(s){ shots+=(day.photos[s.id]||[]).length; });
   CLIPS.forEach(function(s){ clips+=(day.videos[s.id]||[]).length; });
-  FIX.forEach(function(s){ if(day.fixed[s.id]) fixed++; });
+  FIX.forEach(function(s){ if(day.fixVerdict[s.id]) fixed++; });
   var noted=0; for(var k in day.notes) noted++; for(var k2 in day.fixNotes) noted++;
   var anything = t.shoesDone||t.extra||noted||jd||shots||clips||fixed;
   document.getElementById('sendbtn').disabled=!anything;
@@ -581,7 +631,7 @@ function sendState(){
     : ['<b>'+jd+'</b> jobs',
        '<b>'+shots+'</b> photos',
        '<b>'+clips+'</b> clips',
-       '<b>'+fixed+'</b> sorted',
+       '<b>'+fixed+'</b> checked',
        '<b>'+t.shoesDone+'</b> counted'].join(' · ');
 }
 
@@ -598,9 +648,25 @@ document.getElementById('sendbtn').onclick=function(){
   var shotL=[],clipL=[],fixL=[],missL=[],xL=[],nL=[];
   SHOTS.forEach(function(s){ var n=(day.photos[s.id]||[]).length; if(n) shotL.push('• '+label(s)+' — '+n+' photo'+(n===1?'':'s')); });
   CLIPS.forEach(function(s){ var n=(day.videos[s.id]||[]).length; if(n) clipL.push('• '+label(s)+' — '+n+' clip'+(n===1?'':'s')); });
+  var badL=[], applyL=[];
   FIX.forEach(function(s){
-    if(day.fixed[s.id]) fixL.push('• '+label(s)+(day.fixNotes[s.id]?' — '+day.fixNotes[s.id]:''));
-    else if(day.fixNotes[s.id]) nL.push('• '+label(s)+' — '+day.fixNotes[s.id]);
+    var v=day.fixVerdict[s.id];
+    var here=Object.keys(day.fixHere[s.id]||{});
+    var onRec=(s.s||[]).join(', ');
+    var tail=day.fixNotes[s.id]?' — '+day.fixNotes[s.id]:'';
+    if(v==='ok'){
+      fixL.push('• '+label(s)+' — record confirmed: '+onRec+tail);
+    } else if(v==='bad'){
+      var real=day.fixReal[s.id]||'';
+      badL.push('• '+label(s)+
+        '\n   on record: '+onRec+
+        (here.length?'\n   she saw: '+here.join(', '):'')+
+        (real?'\n   really there: '+real:'\n   (no corrected sizes typed)')+
+        (tail?'\n  '+tail:''));
+      if(real) applyL.push(s.id+' -> '+real);
+    } else if(day.fixNotes[s.id]){
+      nL.push('• '+label(s)+' — '+day.fixNotes[s.id]);
+    }
   });
   shoes.forEach(function(s){
     var q=tallyOf(s);
@@ -619,7 +685,10 @@ document.getElementById('sendbtn').onclick=function(){
   if(jm.length) text+='\nNOT DONE:\n• '+jm.join('\n• ');
   if(shotL.length) text+='\n\nPHOTOS UPLOADED:\n'+shotL.join('\n');
   if(clipL.length) text+='\n\nTIKTOK CLIPS UPLOADED:\n'+clipL.join('\n');
-  if(fixL.length) text+='\n\nTODAY\'S TEN — SORTED ('+fixL.length+' of '+FIX.length+'):\n'+fixL.join('\n');
+  text+='\n\nTODAY\'S TEN — '+(fixL.length+badL.length)+' of '+FIX.length+' checked';
+  if(fixL.length) text+='\nRECORD CONFIRMED:\n'+fixL.join('\n');
+  if(badL.length) text+='\n\n⚠️ NEEDS FIXING:\n'+badL.join('\n');
+  if(applyL.length) text+='\n\nINVENTORY UPDATES TO APPLY:\n'+applyL.join('\n');
   if(t.shoesDone) text+='\n\nCOUNT: '+t.shoesDone+' of '+t.shoes+' shoes · '+t.here+' of '+t.pairs+' pairs found';
   if(missL.length){ text+='\n\nNOT FOUND ('+t.miss+' pairs):\n'+missL.slice(0,30).join('\n');
     if(missL.length>30) text+='\n…and '+(missL.length-30)+' more shoes short.'; }
@@ -629,7 +698,10 @@ document.getElementById('sendbtn').onclick=function(){
     if(nL.length>30) text+='\n…and '+(nL.length-30)+' more.'; }
 
   btn.disabled=true; btn.textContent='Sending…';
-  day.sentAt=new Date().toISOString(); save(); pushDay();
+  day.sentAt=new Date().toISOString();
+  day.report=text;                    /* the exact copy Rodney gets */
+  day.apply=applyL.slice();           /* "<shoeId> -> 7, 8, 9" lines, ready to apply */
+  save(); pushDay();
   fetch(API+'/shop/note?key='+KEY,{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({text:text,kind:'task',by:who})
@@ -708,10 +780,26 @@ document.addEventListener('click',function(e){
     if(!day.chores[b.dataset.chore]) delete day.chores[b.dataset.chore];
     save(); renderToday(); return;
   }
-  if(b.dataset.fix){
-    day.fixed[b.dataset.fix]=!day.fixed[b.dataset.fix];
-    if(!day.fixed[b.dataset.fix]) delete day.fixed[b.dataset.fix];
-    save(); renderToday(); return;
+  if(b.dataset.fh){                      /* a size she can see on the shelf */
+    var fid=b.dataset.fh, fsz=b.dataset.sz;
+    var bag=day.fixHere[fid]||(day.fixHere[fid]={});
+    if(bag[fsz]){ delete bag[fsz]; b.removeAttribute('data-st'); }
+    else { bag[fsz]=true; b.setAttribute('data-st','full'); }
+    var any=false; for(var kk in bag){ any=true; break; }
+    if(!any) delete day.fixHere[fid];
+    save(); todayStats(); return;
+  }
+  if(b.dataset.fv){                      /* record right / not right */
+    var vid=b.dataset.id, want=b.dataset.fv;
+    if(day.fixVerdict[vid]===want) delete day.fixVerdict[vid];
+    else day.fixVerdict[vid]=want;
+    if(day.fixVerdict[vid]!=='bad') delete day.fixReal[vid];
+    save(); renderToday();
+    if(day.fixVerdict[vid]==='bad'){
+      var inp=document.getElementById('fri-'+vid);
+      if(inp) inp.focus();
+    }
+    return;
   }
   if(b.dataset.rm){
     var bag=(b.dataset.kind==='video'?day.videos:day.photos);
@@ -788,6 +876,11 @@ document.addEventListener('input',function(e){
     var el=document.getElementById('c-'+id);
     if(el) el.querySelector('.tally').innerHTML=tallyHTML(byId(id));
     countStats(); return;
+  }
+  if(t.dataset.real){
+    var rid=t.dataset.real;
+    if(v) day.fixReal[rid]=v; else delete day.fixReal[rid];
+    save(); todayStats(); return;
   }
   if(t.dataset.fixnote){
     var fid=t.dataset.fixnote;
