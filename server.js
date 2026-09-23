@@ -155,9 +155,18 @@ app.set('trust proxy', true); // Railway runs behind a proxy → correct https i
 const saveRaw = (req, res, buf) => { if (buf && buf.length) req.rawBody = buf.toString(); };
 // 12mb JSON limit so the Inbox can POST a base64 photo to /inbox/upload (customer
 // chat messages are tiny; the client compresses photos well under this first).
-app.use(express.json({ strict: false, limit: '12mb', verify: saveRaw }));
-app.use(express.urlencoded({ extended: true, verify: saveRaw }));
-app.use(express.text({ type: () => true, verify: saveRaw }));
+// ⚠️ ONE ROUTE MUST SKIP ALL THREE. /shop/clip carries a raw phone video — tens of
+// megabytes of binary — and `express.text({type:()=>true})` matches EVERY content
+// type at its 100kb default, so it answered "Payload Too Large" before the clip
+// route ever ran (measured 2026-09-23 with a 7.3mb mp4). The route mounts its own
+// express.raw at 150mb; these three simply step aside for it and are unchanged for
+// everything else.
+const SKIP_BODY_PARSE = /^\/shop\/clip(?:\/|$)/;
+const bodyParse = (mw) => (req, res, next) =>
+  SKIP_BODY_PARSE.test(req.path) ? next() : mw(req, res, next);
+app.use(bodyParse(express.json({ strict: false, limit: '12mb', verify: saveRaw })));
+app.use(bodyParse(express.urlencoded({ extended: true, verify: saveRaw })));
+app.use(bodyParse(express.text({ type: () => true, verify: saveRaw })));
 // If JSON parsing fails (e.g. raw text labelled application/json), don't 500 —
 // keep the raw string so extractQuery can still read it.
 app.use((err, req, res, next) => {
