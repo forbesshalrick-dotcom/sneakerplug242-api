@@ -11326,9 +11326,20 @@ app.post('/inbox/send-shoe', async (req, res) => {
       if (i < batches.length - 1) await new Promise(rs => setTimeout(rs, BATCH_DELAY_MS));
     }
     record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: results.length, sent: totalSent, batches: batches.length });
+    // 🔓 A SEND THAT DELIVERED NOTHING MUST NOT LOCK THE RETRY OUT.
+    // Rodney 2026-09-23: "I tried again, it said 60 pictures already sent, but it hasn't
+    // sent. Customer is still waiting." The guard above is claimed BEFORE the send, which
+    // is right - it is what stops a double-tap becoming 172 images. But it was never given
+    // back, so when the send itself failed the guard went on refusing the ONE thing that
+    // would have fixed it, for half an hour, while he watched an empty chat. A duplicate
+    // costs noise; a guard held over a failure costs the sale.
+    if (!totalSent) inboxAlbumSentAt.delete(albumKey);
     const batchNote = batches.length > 1 ? ` (${batches.length} batches)` : '';
     res.json({ ok: totalSent > 0, found: results.length, sent: totalSent, batches: batches.length, error: totalSent > 0 ? undefined : ('Found ' + results.length + ' but none went out') });
-  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 160) }); }
+  } catch (e) {
+    inboxAlbumSentAt.delete(albumKey);     // same reason: nothing reached them, so let him try again
+    res.json({ ok: false, error: String(e).slice(0, 160) });
+  }
 });
 
 // 🗣 SPEAK-TO-TYPE fallback — transcribe a recorded clip with Whisper (same engine that
