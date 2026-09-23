@@ -124,6 +124,24 @@ async function repinCardUrls() {
 }
 repinCardUrls();
 const repinTick = setInterval(repinCardUrls, 5 * 60 * 1000);
+
+// 🆕 PUT NEW CATALOGUE SHOES ON THE SHELF (Rodney 2026-09-22: "so why would you only add
+// it to the catalogue and not the shop list? thats pretty stupid. were running a business you
+// know we need it done.") A shoe added to the catalogue used to be live on the website and
+// invisible to Kiki for ever, because she only sells what the shelf has confirmed. Three
+// batches in three days were sitting in stock and unsellable. Now anything in the catalogue
+// that the shelf has NEVER heard of gets its row from the sizes typed when it was added.
+// Only ever a shoe with no row at all - a sold-out shoe keeps its empty row and is left
+// alone, so this cannot resurrect stock that is gone.
+function seedShelfFromCatalogue() {
+  try {
+    const n = require('./shop').seedNewShoes(catalog, (m) => console.log('[shelf]', m));
+    if (n) console.log('[shelf] put ' + n + ' new shoe(s) on the shelf that had no shop row');
+  } catch (e) { console.log('[shelf] seeding failed:', e.message); }
+}
+setTimeout(seedShelfFromCatalogue, 15000);          // once the shop state has loaded
+const shelfTick = setInterval(seedShelfFromCatalogue, 10 * 60 * 1000);
+if (shelfTick.unref) shelfTick.unref();
 if (repinTick.unref) repinTick.unref();
 
 const app = express();

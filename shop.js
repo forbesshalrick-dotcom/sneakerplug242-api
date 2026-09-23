@@ -2530,4 +2530,40 @@ function deleteDateTask(dateKey, id) {
 // how a warning stops being believed.
 function pushCount() { return (webpush && Array.isArray(state.subs)) ? state.subs.length : 0; }
 
-module.exports = { pushCount, mount, addJob, setJobClosedHook, getJobs: () => (Array.isArray(state.jobs) ? state.jobs : []), setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
+// 🆕 A NEW SHOE MUST LAND ON THE SHELF, NOT JUST IN THE CATALOGUE.
+// Rodney 2026-09-22: "so why would you only add it to the catalogue and not the shop list?
+// thats pretty stupid. were running a business you know we need it done."
+//
+// He is right. The split itself is sound - the catalogue is the menu, the shelf is the
+// truth, and Kiki sells only from the shelf because the site once advertised 33 pairs that
+// were already gone. But nothing ever connected the two, so a shoe added to the catalogue
+// was live on the website and invisible to Kiki for ever. It cost him three batches in three
+// days: five Vomero 5s, six Air Max Plus and a brown 95, every one of them in stock and
+// unsellable, while customers were told we did not carry them.
+//
+// SAFE BECAUSE IT ONLY EVER TOUCHES A SHOE THE SHELF HAS NEVER HEARD OF. A shoe that sold
+// out has a row - empty sizes, or sold:true - and is left strictly alone, so this can never
+// resurrect stock that is gone, which is the exact failure the shelf rule exists to prevent.
+// A brand-new shoe has no row at all, and its catalogue sizes are what somebody typed when
+// they added it minutes ago. That is the best information in the building, so use it.
+function seedNewShoes(catalogue, note) {
+  if (!Array.isArray(catalogue) || !catalogue.length) return 0;
+  if (!Array.isArray(state.shoes)) state.shoes = [];
+  const known = new Set(state.shoes.map(s => String(s.id)));
+  const gone = new Set((state.deleted || []).map(String));
+  let added = 0;
+  for (const c of catalogue) {
+    const id = c && c.id != null ? String(c.id) : '';
+    if (!id || known.has(id) || gone.has(id)) continue;
+    const sizes = (c.sizesRaw || c.sizes || []).map(String).filter(Boolean);
+    if (!sizes.length) continue;                       // nothing to put on the shelf
+    state.shoes.push({ id, sizes, price: c.price, sold: false,
+                       updatedAt: Date.now(), seededFromCatalogue: true });
+    added++;
+    if (note) note('shelf: seeded ' + id + ' (' + sizes.length + ' pairs) - it was in the catalogue with no shop row');
+  }
+  if (added) { persist('shoes.json'); bump(); }
+  return added;
+}
+
+module.exports = { pushCount, seedNewShoes, mount, addJob, setJobClosedHook, getJobs: () => (Array.isArray(state.jobs) ? state.jobs : []), setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
