@@ -4762,7 +4762,30 @@ const waOutbox = [];
 // Which shop a YCloud customer wrote to - set by /ycloud/webhook, read when a reply
 // to them has to go out through the browser instead.
 const ycloudStore = new Map();
+// A PHOTO JOB. Same queue, same poller, different hands: the Mac forwards the size album
+// out of the catalogue chat instead of typing a message. See the note at album-sent-nothing.
+function queueWaPhotos(phone, size, asked) {
+  const now = Date.now();
+  if (waOutbox.some(q => q.phone === phone && q.size === size && now - q.at < 5 * 60000)) return;
+  waOutbox.unshift({ id: now.toString(36) + Math.random().toString(36).slice(2, 6),
+                     phone: String(phone), store: ycloudStore.get(String(phone)) || 'Foot Fetish',
+                     kind: 'photos', size: String(size), asked: asked || 0, at: now });
+  if (waOutbox.length > 60) waOutbox.length = 60;
+  try { recent.unshift({ at: new Date().toISOString(), endpoint: 'wa-outbox-photos-queued', sub: phone, size }); } catch (_) {}
+}
+// 🛑 SOME WORDS MUST NEVER LEAVE THE BUILDING.
+// Found live 2026-09-23: manager alerts route to "owner-phone-NOT-FOUND" and fall back to a
+// CUSTOMER'S own thread - "⚠️ THIS CUSTOMER IS CUT OFF ... ManyChat keeps rejecting messages",
+// addressed to the very customer it is about. ManyChat refused every one, so the leak was
+// invisible for months. The moment the outbox started carrying refused messages by hand, it
+// delivered them for real. The bridge is the right place to stop this: anything that reads
+// like an ops card is dropped rather than queued.
+const OPS_ONLY_RE = /THIS CUSTOMER IS CUT OFF|MANYCHAT IS DROPPING|ALBUM CUT SHORT|LINE IS DOWN|DELIVERY READY|END OF DAY|owner-phone|ManyChat keeps reject|failed sends in the last/i;
 function queueWaOutbox(phone, text) {
+  if (OPS_ONLY_RE.test(String(text || ''))) {
+    try { recent.unshift({ at: new Date().toISOString(), endpoint: 'wa-outbox-internal-blocked', sub: phone }); } catch (_) {}
+    return;
+  }
   const now = Date.now();
   // Never the same words twice to the same person inside a minute - a retry upstream must
   // not become two messages downstream.
@@ -4776,7 +4799,9 @@ function queueWaOutbox(phone, text) {
 app.get('/wa-outbox', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const now = Date.now();
-  const live = waOutbox.filter(q => now - q.at < 10 * 60000);
+  // A photo job is worth more patience than a line of text: the forward itself takes minutes,
+  // and a customer who asked for pictures will still want them at twenty past.
+  const live = waOutbox.filter(q => now - q.at < (q.kind === 'photos' ? 25 : 10) * 60000);
   waOutbox.length = 0; waOutbox.push(...live);
   res.json({ ok: true, items: live.slice().reverse().slice(0, 10) });
 });
@@ -7020,6 +7045,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // customer staring at a promise of pictures that never came.
         else if (!result.interrupted) {
           record(req, { endpoint: 'album-sent-nothing', sub, asked: outIdCount, droppedForSize: droppedWrongSize.length, leadIn: String(leadIn || '').slice(0, 100) });
+          // 📸 AND IF IT IS A YCLOUD CUSTOMER, SEND THEM BY HAND INSTEAD OF APOLOGISING.
+          // Rodney 2026-09-23: "whats wrong with the pictures?" - a customer on 4324406 asked
+          // for Jordans and Air Max in a 12, got the lead-in, then "Ugh, the photos aren't
+          // sending on my end right now" and a link to the website. Nothing was broken on our
+          // end in the way that message implies: ManyChat refused all 24 images with
+          // "Subscriber does not exist", because he never came in through ManyChat. His TEXT
+          // reaches him fine now - the outbox carries it through WhatsApp Web - but photos had
+          // no road at all, so the reply was an apology and a URL.
+          // The browser CAN send them: the same forward that put 40 pairs in this customer's
+          // chat by hand. So queue the size and let kiki-waoutbox forward the album.
+          try {
+            if (/^\d{10,15}$/.test(String(sub)) && inp && inp.size != null && String(inp.size).trim()) {
+              queueWaPhotos(String(sub), String(inp.size).trim(), outIdCount);
+            }
+          } catch (_) {}
           result.note = (result.note ? result.note + ' ' : '')
             + 'CRITICAL — ZERO photos actually reached this customer, but your lead-in already promised them pictures. DO NOT go silent and DO NOT just retry the same album. Reply NOW in words on this turn: name the pairs we have in their size with price and order code for each, and tell them they can see the pictures at 242plug.com. They are waiting on a promise you already made.';
         }
