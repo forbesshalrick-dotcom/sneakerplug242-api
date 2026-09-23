@@ -38,6 +38,12 @@ header{position:sticky;top:0;z-index:50;background:rgba(14,16,20,.96);backdrop-f
 h1{font-size:23px;line-height:1}
 h1 span{color:var(--accent)}
 .date{font-size:12px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
+.saved{
+  font:700 10.5px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--good);border:1px solid var(--good);border-radius:999px;padding:3px 9px;
+  opacity:0;transition:opacity .25s ease;
+}
+.saved.on{opacity:1}
 .who{margin-left:auto;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:7px 12px;font:600 13px Archivo,sans-serif;min-width:118px}
 .tabs{display:flex;gap:6px;margin-top:11px}
 .tab{flex:1;background:transparent;border:1px solid var(--line);border-bottom:none;color:var(--muted);border-radius:11px 11px 0 0;padding:11px 8px;cursor:pointer;font:700 13px Archivo,sans-serif;text-transform:uppercase;letter-spacing:.6px}
@@ -163,6 +169,7 @@ section{margin-top:22px}
     <div class="topline">
       <h1>Daily <span>Sheet</span></h1>
       <div class="date" id="today"></div>
+      <div class="saved" id="saved">Saved</div>
       <select class="who" id="who" aria-label="Who is working">
         <option>Deashinique</option><option>Manager</option><option>Owner</option>
       </select>
@@ -257,16 +264,75 @@ function loadDay(){
   d.check=d.check||{};
   return d;
 }
-var pushT=null;
+/* NOTHING MAY LEAVE THIS PHONE UNTIL WE HAVE SEEN THE SERVER'S COPY.
+   A refresh is safe on its own — every change is written to localStorage as it
+   happens, so reopening the page finds the day exactly as she left it. The
+   danger is the OTHER way round: open today's sheet on a second phone, or after
+   clearing site data, and localStorage is empty. Without this latch her first
+   tap would push that empty day over a morning's work. So the first save waits
+   for the pull, and the pull merges instead of replacing. */
+var pulled=false, pushT=null;
+var savedT=null;
 function save(){
   try{ localStorage.setItem(STORE,JSON.stringify(day)); }catch(e){}
+  /* She asked the fair question: what happens if I refresh? Nothing — but she
+     cannot see that, so say it. */
+  var tag=document.getElementById('saved');
+  if(tag){ tag.className='saved on'; clearTimeout(savedT);
+    savedT=setTimeout(function(){ tag.className='saved'; },1400); }
   clearTimeout(pushT); pushT=setTimeout(pushDay,3000);
 }
 function pushDay(){
+  if(!pulled) return;              /* not yet — the pull will re-arm this */
   fetch(API+'/shop/daily?key='+KEY,{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({date:TODAY,by:whoSel.value,day:day})
   }).catch(function(){ /* offline — the phone still has it, it goes on the next change */ });
+}
+
+function hasWork(d){
+  if(!d) return false;
+  var k=['chores','photos','videos','check','notes'];
+  for(var i=0;i<k.length;i++){ for(var x in (d[k[i]]||{})) return true; }
+  return false;
+}
+/* Union, never overwrite: anything the server knows about a shoe or a job that
+   this phone has not touched is taken; anything she has touched here wins,
+   because she is the one standing in front of the shelf. */
+function mergeDay(mine,theirs){
+  ['chores','photos','videos','check','notes'].forEach(function(k){
+    var a=mine[k]||(mine[k]={}), b=theirs[k]||{};
+    for(var id in b) if(!(id in a)) a[id]=b[id];
+  });
+  return mine;
+}
+function pullDay(){
+  return fetch(API+'/shop/daily?key='+KEY+'&date='+TODAY,{cache:'no-store'})
+    .then(function(r){ return r.ok?r.json():null; })
+    .then(function(j){
+      var theirs=j&&j.day;
+      if(theirs){
+        if(!hasWork(day)) day=loadInto(theirs);   /* fresh phone — take the day whole */
+        else mergeDay(day,theirs);
+        try{ localStorage.setItem(STORE,JSON.stringify(day)); }catch(e){}
+      }
+      pulled=true;
+      renderToday();
+      if(!document.getElementById('page-count').hidden) renderCount(); else countStats();
+    })
+    .catch(function(){
+      /* No answer from the shop. If this phone already holds work it is safe to
+         send — it cannot be blanker than what is there. If it does not, stay
+         local-only rather than risk pushing an empty day over hers, and keep
+         trying: she can go on working either way, nothing is lost. */
+      if(hasWork(day)) pulled=true; else setTimeout(pullDay,15000);
+      renderToday();
+    });
+}
+function loadInto(d){
+  d.chores=d.chores||{}; d.photos=d.photos||{}; d.videos=d.videos||{};
+  d.notes=d.notes||{}; d.check=d.check||{};
+  return d;
 }
 
 var whoSel=document.getElementById('who');
@@ -747,7 +813,8 @@ countStats();
 var startTab='today';
 try{ startTab=localStorage.getItem('sp_day_tab')||'today'; }catch(e){}
 showTab(startTab);
-refresh();
+pullDay();     /* what the shop already has for today, merged in before anything is sent */
+refresh();     /* and the live sizes */
 })();
 </script>
 </body>
