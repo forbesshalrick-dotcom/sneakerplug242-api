@@ -11838,6 +11838,47 @@ app.get(Object.keys(INVOICE_ASSETS), (req, res) => {
   res.set('Content-Type', entry[1]).set('Cache-Control', 'no-cache').send(body);
 });
 
+/* THE DAILY COUNT SHEET — /tasks
+ *
+ * Deashinique's stock-count sheet. It used to live in a Claude artifact, which
+ * only hands its data to a signed-in Claude account: opened from a WhatsApp link
+ * it silently fell back to placeholder shoes and grey boxes, and she was counting
+ * shoes that don't exist. Nothing warned her. This is the same job with no
+ * sign-in of any kind — anyone with the link sees the real catalogue.
+ *
+ * tasks-data.js carries the names and the thumbnail URLs (the shop's own frames
+ * repo); the sizes are re-read live from /shop/state on every load, so the sheet
+ * can never advertise a size the shop no longer has. Her taps save to the phone
+ * as she goes, and "Send count" posts a summary to /shop/note — a report for
+ * Rodney to read. It deliberately does NOT write stock: a miscount must never be
+ * able to wipe sizes out of inventory.
+ *
+ * Served like /invoice above: read once at boot, no static mount.
+ */
+const COUNT_ASSETS = {
+  '/tasks':          ['tasks.html',    'text/html; charset=utf-8'],
+  '/tasks.html':     ['tasks.html',    'text/html; charset=utf-8'],
+  '/count':          ['tasks.html',    'text/html; charset=utf-8'],
+  '/tasks-data.js':  ['tasks-data.js', 'application/javascript; charset=utf-8']
+};
+const COUNT_CACHE = {};
+Object.keys(COUNT_ASSETS).forEach((route) => {
+  const file = COUNT_ASSETS[route][0];
+  if (COUNT_CACHE[file] !== undefined) return;
+  try {
+    COUNT_CACHE[file] = require('fs').readFileSync(require('path').join(__dirname, file));
+  } catch (e) {
+    COUNT_CACHE[file] = null;
+    console.log('[count] missing file:', file, e.message);
+  }
+});
+app.get(Object.keys(COUNT_ASSETS), (req, res) => {
+  const entry = COUNT_ASSETS[req.path];
+  const body = entry && COUNT_CACHE[entry[0]];
+  if (!body) return res.status(404).type('text/plain').send('no page');
+  res.set('Content-Type', entry[1]).set('Cache-Control', 'no-cache').send(body);
+});
+
 let STORE_HTML = null, STORE_HTML_GZ = null;
 (function buildStoreHtml(){
   try {
