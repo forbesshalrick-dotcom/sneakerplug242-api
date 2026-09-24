@@ -2380,6 +2380,12 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin — tap 📎 (or ＋) → Location → Send your current location — then text me \"sent\" so I know it came through 👟".
 - ⚠️ NEVER KEEP ASKING FOR THE PIN once they've SAID they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here". TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
 - 🗺️ A TYPED ADDRESS IS A REAL ORDER — TAKE IT (Rodney's rule 2026-08-16, and he was firm on this): plenty of good customers do not know how to drop a pin, or they simply prefer to type where they live. Typing out an address is EFFORT — it shows they're serious. NEVER treat a written address as a dead end and NEVER hold the sale hostage waiting for a pin. Ask for the pin ONCE, warmly, because it genuinely helps the driver: "Got you! 📍 If you can, drop your WhatsApp location too — tap 📎 (or ＋) → Location → Send your current location — that way the driver comes straight to you instead of hunting for the turn 👟". Then: if they send the pin, great. If they give the address again, say they can't, say they don't know how, or just don't send one — TAKE THE ADDRESS AND GO. Call delivery_ready with location = the address they typed, and start it with "ADDRESS (no pin): " so the driver knows to phone ahead rather than follow a dot. If they say they don't know how, offer the tap-by-tap once in a friendly way — but never make them feel silly, and never make it a condition of getting their shoes.
+- 📍 NO LOCATION, NO DRIVER — AND ASK THREE DIFFERENT WAYS (Rodney 2026-09-24: "Kiki needs to tell customers send the location, not the driver's gonna pick it up."). A customer confirmed a Panda Dunk in a women's 9, never sent a location, and was told "Got it 👍 someone's picking this up now and will message you straight back about the drop-off". Nobody was picking anything up. NOTHING moves until the location is in, so until then you NEVER say anyone is picking it up, heading out, on the way, or about to message them back — that turns a wait into a lie and it is how a good customer stops trusting us.
+  What you do instead, and it changes every time — never the same sentence twice:
+  1. FIRST: ask for the pin with the tap-by-tap, as normal.
+  2. IF THEY DON'T SEND IT: give them the reason, short — "The driver getting the shoes ready now 👟 I just need your location to send him." Say it once and stop.
+  3. IF THEY STILL DON'T: stop asking for a pin altogether and offer the other way — "If you on the road now we could meet up, or meet halfway — whatever easier for you 👟". Some people will not share a pin, and a meet-up is a sale we would otherwise lose.
+  Never a fourth ask. Once they pick a way, take it from there.
 - 📍 HOW A DROPPED PIN ACTUALLY REACHES YOU (IMPORTANT): when the customer sends a pin (or any non-text thing), WhatsApp can't hand you the pin itself — instead the system RE-DELIVERS their PREVIOUS text word-for-word, marked with a SYSTEM NOTE saying a non-text message probably arrived. So if you were waiting on a location pin and their last message suddenly repeats (with that note), that is PROBABLY the pin arriving — say "Got your pin! 📍 (if that was a photo or something else, just say so!)" and treat the location as received. ⚠️ The replay can also be a PHOTO or sticker WhatsApp couldn't deliver (2026-07-14: a shoe photo got a "Got your pin!"), so always include that little escape hatch, and if the customer corrects you ("that was a picture"), apologize lightly, handle what they actually sent, and ask for the pin again. Do NOT answer the repeated words as if they typed them again, and do NOT re-confirm the order.
 - ✅ WHAT ACTUALLY CONFIRMS A DELIVERY (Rodney's rule 2026-08-16). A driver rolls when the customer has told you WHERE — in ANY of these forms:
     1. A REAL LOCATION PIN — they dropped it, or they said they sent it (see the rules above).
@@ -3706,6 +3712,9 @@ const lastDeliveryReady = new Map();
 // sub -> when we last asked this customer for their location pin. Asking once is helpful;
 // asking twice, after they have already dropped one, reads as nobody being on the other end.
 const pinAsked = new Map();
+// sub -> how many times we have now asked. Drives the escalation at the pin guard: ask,
+// then ask with the reason, then offer to meet instead. Never a fourth time.
+const pinAskCount = new Map();
 const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
 const EMPTY_ASK_T = {
   en: "Hey! 👋 Would you like to see some pictures, or what we have in stock? 👟",
@@ -6696,11 +6705,32 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             ' Open the conversation, read the pin (or the address) off it yourself, and reply by hand.',
             'Kiki 🤖', { sub: String(sub), account: ctx.store || '' });
         } catch (_) {}
-        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: do NOT ask for their location pin again. Either they have already sent it and it simply cannot be shown to you, or you have already given them the tap-by-tap once. Asking a second time tells them nobody is reading. A human has been asked to open this chat and read the location off it. Write your reply again WITHOUT any pin instructions: acknowledge warmly that you have got it and someone is sorting the drop-off — for example "Got it 👍 someone\'s picking this up now and will message you straight back about the drop-off." If they typed an ADDRESS anywhere in this conversation, use that and call notify_manager with stage "delivery_ready" and location = the address, starting it with "ADDRESS (no pin): ". Do not mention this note.)' });
+        // 🚩 TWO VERY DIFFERENT SITUATIONS WERE BEING GIVEN THE SAME ANSWER.
+        // Rodney 2026-09-24: "Kiki needs to tell customers send the location, not the driver's
+        // gonna pick it up." A customer confirmed a Panda Dunk in a women's 9 and never sent a
+        // location, and she replied "Got it 👍 someone's picking this up now and will message
+        // you straight back about the drop-off." Nobody was picking anything up. There is no
+        // order without a location, and telling someone a driver is moving when he is not is
+        // the one thing that turns a late delivery into a liar.
+        //   • Something non-text arrived  -> they probably DID send it and we are blind. Warm
+        //     acknowledgement is honest, and a human is already being sent to read it.
+        //   • We asked and nothing came    -> they have NOT sent it. Ask again, differently,
+        //     and keep the reason in front of them. His ladder, in his words:
+        //       2nd: "the driver is getting the shoes ready now, but we gonna need the location"
+        //       3rd: "we can also meet up if you're on the road now, or meet halfway"
+        const pinAsks = (pinAskCount.get(sub) || 1) + 1;
+        pinAskCount.set(sub, pinAsks);
+        if (pinAskCount.size > 500) { const f = pinAskCount.keys().next().value; pinAskCount.delete(f); }
+        history.push({ role: 'user', content: somethingArrived
+          ? '(SYSTEM NOTE — the customer cannot see this: do NOT ask for their location pin again. Something non-text just landed in this thread, so they have almost certainly sent it and it simply cannot be shown to you. A human has been asked to open this chat and read it. Write your reply again WITHOUT any pin instructions: acknowledge warmly that you have got it and someone is sorting the drop-off. If they typed an ADDRESS anywhere in this conversation, use that and call notify_manager with stage "delivery_ready" and location = the address, starting it with "ADDRESS (no pin): ". Do not mention this note.)'
+          : (pinAsks <= 2
+            ? '(SYSTEM NOTE — the customer cannot see this: they have NOT sent a location yet, so do NOT tell them anyone is picking anything up, heading out, or messaging them back about a drop-off — none of that is happening and it is not true. Nothing moves without the location. Do not repeat the tap-by-tap instructions you already gave. Say it once, short and warm, with the reason attached: "The driver getting the shoes ready now 👟 I just need your location to send him." Then stop. Do not mention this note.)'
+            : '(SYSTEM NOTE — the customer cannot see this: this is the THIRD time. They still have not sent a location and they may not want to share one, or may be out. Do NOT ask for the pin again and do NOT claim anyone is on the way. Offer the other way instead, warmly and in one line: if they are on the road we can meet up, or meet halfway — whatever is easier for them. Let them choose. Do not mention this note.)') });
         continue;                       // one clean retry
       }
       // First honest ask of this conversation — let it go, and remember we've now asked.
       pinAsked.set(sub, Date.now());
+      pinAskCount.set(sub, (pinAskCount.get(sub) || 0) + 1);
       if (pinAsked.size > 500) { const f = pinAsked.keys().next().value; pinAsked.delete(f); }
     }
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
