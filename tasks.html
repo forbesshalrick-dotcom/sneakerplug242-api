@@ -249,7 +249,14 @@ var CLOUD='dhtoimjnv', PRESET='sp242xx';
    video_file_type"). sp242vid is the same unsigned preset with no format conversion. */
 var VPRESET='sp242vid';
 
-var TODAY=new Date().toISOString().slice(0,10);
+/* HER DAY, NOT GREENWICH'S. toISOString() is UTC, and the Bahamas is UTC-4: at
+   8pm local the sheet would have rolled over to tomorrow's date mid-shift, so an
+   evening's work would vanish from the screen and start again on a blank day.
+   Yesterday she happened to submit at 6:26pm and missed it by 94 minutes. */
+var TODAY=(function(){
+  var d=new Date();
+  return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);
+})();
 var STORE='sp_day_'+TODAY;
 var shoes=(window.SP_SHOES||[]).slice();
 
