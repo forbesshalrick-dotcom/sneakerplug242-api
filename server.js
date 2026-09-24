@@ -3108,9 +3108,20 @@ function shopCodeFromToken(token) {
   // default rather than under a shop suffix.
   return null;
 }
+// WHICH CARDS ACTUALLY HAVE A PER-SHOP VERSION. Measured against the CDN, not assumed.
+// Rodney 2026-09-23: "new pics on the website still not sending." This swap rewrote EVERY
+// card to <id>-card-<shop>.jpg whether that file existed or not, so a shoe with only the
+// shared card got a 404 handed to ManyChat and simply never appeared. It was doing that to
+// airmaxterr001 and p60 for as long as they have been on the shelf, and it would have done
+// it to all twelve new Vomeros and Air Max Plus the moment they were switched on.
+// The shop card is a nicety - a coloured sticker. The picture arriving is not.
+let CARD_SHOP_IDS = new Set();
+try { CARD_SHOP_IDS = new Set(require('./cards-shops.json')); } catch (_) { /* fall back to the shared card */ }
 function cardForShop(url, token) {
   const shop = shopCodeFromToken(token);
   if (!shop || !url) return url;
+  const id = String(url).match(/\/([^/]+)-card\.jpg/i);
+  if (!id || !CARD_SHOP_IDS.has(id[1])) return url;   // no shop version on the CDN - send the real one
   return String(url).replace(/-card\.jpg(\?|$)/i, `-card-${shop}.jpg$1`);
 }
 
