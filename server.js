@@ -636,6 +636,24 @@ function isSlipOn(shoe) {
 // "looking for tennis" must never come back as Crocs. Read the LATEST signal only: if they
 // later say "crocs" or "slides" outright, that wins and nothing is filtered.
 const SNEAKER_WORD_RE = /\btennis\b|\bsneakers?\b|\bkicks\b|\btrainers?\b|\brunners?\b|\brunning shoes?\b/i;
+// 🎨 WHICH COLOUR DID THEY ASK FOR, AND DO THEY STILL WANT IT?
+// Rodney 2026-09-24: "if I came to you for all black, would you show me red, white, blue?"
+// Reads the newest words first, exactly like wantsSneakersOnly: the LATEST signal wins, so
+// "any colour" or "show me everything" after a colour ask clears the filter rather than
+// fighting it. Returns the colour words to keep, or [] for no filter at all.
+const COLOUR_WORDS = ['black', 'white', 'red', 'blue', 'green', 'pink', 'yellow', 'purple',
+  'grey', 'brown', 'orange', 'cream', 'tan', 'navy', 'gold', 'silver', 'beige', 'volt'];
+const ANY_COLOUR_RE = /\b(any colou?r|all colou?rs|whatever|any(thing)? is fine|don'?t mind|doesn'?t matter|no preference|show me everything|everything you (got|have)|all of them|surprise me)\b/i;
+function colourWanted(said) {
+  for (const raw of (said || [])) {
+    const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
+    if (!t.trim()) continue;
+    if (ANY_COLOUR_RE.test(t)) return [];          // they opened it back up - newest wins
+    const hits = COLOUR_WORDS.filter(c => new RegExp('\\b' + c + '\\b').test(t));
+    if (hits.length) return hits;
+  }
+  return [];
+}
 function wantsSneakersOnly(texts) {
   for (const t of texts) {                       // newest first
     const s = String(t || '');
@@ -2380,6 +2398,10 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin — tap 📎 (or ＋) → Location → Send your current location — then text me \"sent\" so I know it came through 👟".
 - ⚠️ NEVER KEEP ASKING FOR THE PIN once they've SAID they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here". TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
 - 🗺️ A TYPED ADDRESS IS A REAL ORDER — TAKE IT (Rodney's rule 2026-08-16, and he was firm on this): plenty of good customers do not know how to drop a pin, or they simply prefer to type where they live. Typing out an address is EFFORT — it shows they're serious. NEVER treat a written address as a dead end and NEVER hold the sale hostage waiting for a pin. Ask for the pin ONCE, warmly, because it genuinely helps the driver: "Got you! 📍 If you can, drop your WhatsApp location too — tap 📎 (or ＋) → Location → Send your current location — that way the driver comes straight to you instead of hunting for the turn 👟". Then: if they send the pin, great. If they give the address again, say they can't, say they don't know how, or just don't send one — TAKE THE ADDRESS AND GO. Call delivery_ready with location = the address they typed, and start it with "ADDRESS (no pin): " so the driver knows to phone ahead rather than follow a dot. If they say they don't know how, offer the tap-by-tap once in a friendly way — but never make them feel silly, and never make it a condition of getting their shoes.
+- 🎨 THEY ASKED FOR ONE COLOUR — THEY SEE ONE COLOUR (Rodney 2026-09-24: "Why if I came to you for all black, would you show me red, white, blue, and all of those? LOL. Really makes no sense, man."). If a customer asks for black, EVERY picture they get has black in it. Never widen an album back out to other colours because the exact shoe they named is missing — the colour is the LAST thing to give up, not the first.
+  - If we don't have the exact black one they asked for, send the OTHER BLACK ones. That is what they came for and they can pick from it.
+  - A short album in the right colour beats a long one they have to hunt through. Do not apologise for it and do not pad it.
+  - Only send other colours if THEY open it back up — "any colour", "whatever", "show me everything". Their newest words win.
 - 📍 NO LOCATION, NO DRIVER — AND ASK THREE DIFFERENT WAYS (Rodney 2026-09-24: "Kiki needs to tell customers send the location, not the driver's gonna pick it up."). A customer confirmed a Panda Dunk in a women's 9, never sent a location, and was told "Got it 👍 someone's picking this up now and will message you straight back about the drop-off". Nobody was picking anything up. NOTHING moves until the location is in, so until then you NEVER say anyone is picking it up, heading out, on the way, or about to message them back — that turns a wait into a lie and it is how a good customer stops trusting us.
   What you do instead, and it changes every time — never the same sentence twice:
   1. FIRST: ask for the pin with the tap-by-tap, as normal.
@@ -6863,6 +6885,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // foam clog goes out. Reads the RECENT chat, not just this turn's message — she said
         // "tennis" one turn and plain "Yes" on the turn the album actually sent.
         const droppedSlipOn = [];
+        const droppedWrongColour = [];
         let _photosOnTheirWay = false;   // queued for the browser - see album-sent-nothing below
         let womensExactCount = null, womensHalfUpCount = 0, womensTotalCount = 0;
         try {
@@ -6880,6 +6903,43 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keep);
             if (Array.isArray(inp.groups)) for (const g of inp.groups) {
               if (Array.isArray(g.ids)) g.ids = g.ids.filter(keep);
+            }
+          }
+        } catch (_) {}
+        // 🎨 COLOUR GUARD. Rodney 2026-09-24: "Why if I came to you for all black, would you
+        // show me red, white, blue, and all of those? LOL. Really makes no sense, man."
+        // A customer who asks for black and is shown the whole album has been ignored, and the
+        // album is worse than useless to them - they have to hunt for the one thing they asked
+        // for. The search already ranks and filters, but when it comes up short something
+        // widens it and the colour is the first thing thrown away. It must be the last.
+        // So: if they named a colour and have not since said any/whatever/all colours, no shoe
+        // without that colour goes out. A Black/Red still counts as black - he is objecting to
+        // shoes with NO black in them at all, not to a stripe.
+        // Reads the RECENT chat, not just this turn: they say "all black" once and then "yes".
+        try {
+          const recentSaid2 = [String(userText || '')].concat(
+            history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
+              .slice(-6).reverse().map(m => m.content)
+          );
+          const wanted = colourWanted(recentSaid2);
+          if (wanted.length) {
+            const liveM = liveShoeMap();
+            const keep = (id) => {
+              const sh = liveM[id];
+              if (!sh) return true;
+              const hay = String(`${sh.color || ''} ${sh.nickname || ''} ${sh.name || ''}`).toLowerCase()
+                            .replace(/\bgray\b/g, 'grey');
+              if (wanted.some(w => hay.includes(w))) return true;
+              droppedWrongColour.push(displayName(sh));
+              return false;
+            };
+            if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keep);
+            if (Array.isArray(inp.groups)) for (const g of inp.groups) {
+              if (Array.isArray(g.ids)) g.ids = g.ids.filter(keep);
+            }
+            if (droppedWrongColour.length) {
+              record(req, { endpoint: 'colour-guard-drop', sub, wanted: wanted.join('/'),
+                            dropped: droppedWrongColour.length });
             }
           }
         } catch (_) {}
@@ -7124,6 +7184,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           result.dropped_wrong_size = droppedWrongSize;
           result.note = (result.note ? result.note + ' ' : '')
             + `These shoes were NOT sent — they don't come in a ${inp.size}${inp.womens ? " (women's)" : ''}: ${droppedWrongSize.join('; ')}. If one of them fits what the customer wanted, you may offer it as a NEAREST-SIZE option, saying plainly it doesn't come in their size.`;
+        }
+        if (droppedWrongColour.length) {
+          result.dropped_wrong_colour = droppedWrongColour.length;
+          result.note = (result.note ? result.note + ' ' : '')
+            + `${droppedWrongColour.length} shoes were held back because they are NOT the colour this customer asked for. They asked for one colour, so they only ever see that colour — do NOT list the others, do NOT offer them, and do NOT apologise for a short album. If what is left is thin, say plainly that this is what we have in that colour right now.`;
         }
         // An employee never gets the 10-minute "see anything you liked?" nudge, even when
         // their number is on the show-in-Inbox list — that list is about where their
