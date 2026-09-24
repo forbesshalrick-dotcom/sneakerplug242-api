@@ -590,7 +590,24 @@ function findMatches(raw) {
     .sort((a, b) => b.score - a.score);
 
   const top = scored.length ? scored[0].score : 0;
-  const best = scored.filter(x => x.score === top);
+  let best = scored.filter(x => x.score === top);
+  // 🔢 A MODEL NUMBER IS THE SHOE, NOT A HINT.
+  // Rodney 2026-09-23: "And what about the New Balance 2000?" We do not have one - not in
+  // the catalogue, not on the shelf, not one file in the photo repo. But "new balance 2000"
+  // came back with FIFTY-NINE shoes: the brand scored, "2000" matched nothing, and scoring
+  // here is additive with nothing requiring every word to land. So a customer who names a
+  // shoe we do not carry is handed 59 that are not it, as though we had understood him.
+  // That is how somebody ends up writing "you don't have it" and leaving.
+  // If they named a model number and not one shoe in stock carries it, the honest answer is
+  // that we do not have it - which is what an empty result produces.
+  const modelNums = tokens.filter(t => /^\d{3,4}$/.test(t));
+  if (modelNums.length && best.length) {
+    const carries = (sh, n) => (`${sh.name} ${sh.nickname || ''}`).toLowerCase().includes(n);
+    if (!modelNums.every(n => best.some(x => carries(x.shoe, n)))) {
+      const kept = best.filter(x => modelNums.every(n => carries(x.shoe, n)));
+      best = kept;   // usually empty: say we don't have it rather than offer a wall of others
+    }
+  }
   return { tokens, sizeFilter, shoes: best.map(x => x.shoe), scored: best };
 }
 
