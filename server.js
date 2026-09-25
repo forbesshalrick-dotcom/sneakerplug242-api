@@ -392,6 +392,11 @@ function extractQuery(req) {
 function tokenize(str) {
   return (str || '')
     .toLowerCase()
+    // 🇺🇸 "gray" is how half our customers spell it and the catalogue says "Grey".
+    // searchInventory has normalised this for months; THIS path never did, so a customer who
+    // typed just "gray" got nothing at all while "gray jordan" found sixty-one (found in the
+    // 2026-09-25 sweep). Normalise on both sides here so the two always meet.
+    .replace(/\bgray\b/g, 'grey')
     .replace(/[^a-z0-9.\s]/g, ' ')
     // Split glued words like "jordan4" / "aj4" → "jordan 4" / "aj 4", so a URL
     // param or a no-space message still matches (leaves sizes like "9.5" alone).
@@ -2882,6 +2887,10 @@ function aliasTokens(s) {
   if (name.includes('tatum')) out.push('tatums');
   if (name.includes('roshe')) out.push('roshes', 'rosche');
   if (name.includes('terrascape')) out.push('terrascapes', 'terra');
+  // The shelf renamed this one "Air Max 21"; the catalogue calls it "Air Max 2021". Whichever
+  // a customer types has to find it (2026-09-25 sweep: "air max 2021" returned nothing).
+  if (/air max 2021/.test(name)) out.push('21', 'air max 21');
+  if (/air max 21\b/.test(name)) out.push('2021', 'air max 2021');
   if (name.includes('foam')) out.push('foams', 'rnr', 'foam rnr');
   if (name.includes('crocs')) out.push('croc');
   if (name.includes('asics')) out.push('asic', 'gel');
