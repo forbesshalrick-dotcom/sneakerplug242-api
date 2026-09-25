@@ -644,6 +644,21 @@ const SNEAKER_WORD_RE = /\btennis\b|\bsneakers?\b|\bkicks\b|\btrainers?\b|\brunn
 const COLOUR_WORDS = ['black', 'white', 'red', 'blue', 'green', 'pink', 'yellow', 'purple',
   'grey', 'brown', 'orange', 'cream', 'tan', 'navy', 'gold', 'silver', 'beige', 'volt'];
 const ANY_COLOUR_RE = /\b(any colou?r|all colou?rs|whatever|any(thing)? is fine|don'?t mind|doesn'?t matter|no preference|show me everything|everything you (got|have)|all of them|surprise me)\b/i;
+// 🗓️ ARE THEY ASKING FOR IT ON A LATER DAY?
+// Rodney 2026-09-24: "customer already said tomorrow why does kiki say driver getting it
+// ready?" He had written "2mroo after 12" and was told the driver was getting his shoes
+// ready now and we just needed his location. Nobody is getting anything ready for a
+// delivery that is tomorrow, and pushing for a pin tonight is pressure for no reason.
+// Bahamian spellings included on purpose - "2mroo", "2moro", "tommorow" all come through.
+const LATER_DAY_RE = /\b(tomorrow|tmr+w?|2\s?m(?:o?r|rr)o+w?|2moro|tommor?ow|nex[t]?\s+week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|later this week|another day|nex[t]?\s+day)\b/i;
+function saidLaterDay(said) {
+  for (const raw of (said || [])) {
+    const t = String(raw || '');
+    if (!t.trim()) continue;
+    if (LATER_DAY_RE.test(t)) return true;
+  }
+  return false;
+}
 function colourWanted(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
@@ -2402,6 +2417,9 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
   - If we don't have the exact black one they asked for, send the OTHER BLACK ones. That is what they came for and they can pick from it.
   - A short album in the right colour beats a long one they have to hunt through. Do not apologise for it and do not pad it.
   - Only send other colours if THEY open it back up — "any colour", "whatever", "show me everything". Their newest words win.
+- 🗓️ A DAY THEY NAMED IS A DAY YOU KEEP (Rodney 2026-09-24: "customer already said tomorrow why does kiki say driver getting it ready?"). A customer wrote "2mroo after 12" and was told the driver was getting his shoes ready now and we just needed his location. Nothing is being got ready for a delivery that is tomorrow, and chasing a pin tonight is pressure on somebody who has already told you when he wants it.
+  - The moment they name a later day — tomorrow, 2mroo, Sunday, next week — the order is SCHEDULED. Say the day back to them, tell them ONCE and relaxed that they can send their location whenever they're ready, even on the day, and then let it go.
+  - Never say anyone is getting shoes ready, loading up, heading out or on the way for a day that has not come yet.
 - 📍 NO LOCATION, NO DRIVER — AND ASK THREE DIFFERENT WAYS (Rodney 2026-09-24: "Kiki needs to tell customers send the location, not the driver's gonna pick it up."). A customer confirmed a Panda Dunk in a women's 9, never sent a location, and was told "Got it 👍 someone's picking this up now and will message you straight back about the drop-off". Nobody was picking anything up. NOTHING moves until the location is in, so until then you NEVER say anyone is picking it up, heading out, on the way, or about to message them back — that turns a wait into a lie and it is how a good customer stops trusting us.
   What you do instead, and it changes every time — never the same sentence twice:
   1. FIRST: ask for the pin with the tap-by-tap, as normal.
@@ -6742,10 +6760,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         //       3rd: "we can also meet up if you're on the road now, or meet halfway"
         const pinAsks = (pinAskCount.get(sub) || 1) + 1;
         pinAskCount.set(sub, pinAsks);
+        // A SCHEDULED ORDER IS NOT A WAITING ONE. If they have named a later day, nobody is
+        // loading a van tonight and there is nothing to chase - saying otherwise is pressure
+        // on a customer who has already told us when he wants it.
+        let _laterDay = false;
+        try {
+          _laterDay = saidLaterDay([String(userText || '')].concat(
+            history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
+              .slice(-8).reverse().map(m => m.content)));
+        } catch (_) {}
         if (pinAskCount.size > 500) { const f = pinAskCount.keys().next().value; pinAskCount.delete(f); }
         history.push({ role: 'user', content: somethingArrived
           ? '(SYSTEM NOTE — the customer cannot see this: do NOT ask for their location pin again. Something non-text just landed in this thread, so they have almost certainly sent it and it simply cannot be shown to you. A human has been asked to open this chat and read it. Write your reply again WITHOUT any pin instructions: acknowledge warmly that you have got it and someone is sorting the drop-off. If they typed an ADDRESS anywhere in this conversation, use that and call notify_manager with stage "delivery_ready" and location = the address, starting it with "ADDRESS (no pin): ". Do not mention this note.)'
-          : (pinAsks <= 2
+          : (_laterDay
+            ? '(SYSTEM NOTE \u2014 the customer cannot see this: they have already told you they want it on a LATER DAY, so do NOT chase them for a location tonight and do NOT say anyone is getting shoes ready or heading out \u2014 nothing is happening until that day. Do not repeat the pin instructions. Confirm the day back to them warmly and tell them once, relaxed, that they can send their location whenever they are ready, even on the day itself. Then let it go. Do not mention this note.)'
+          : pinAsks <= 2
             ? '(SYSTEM NOTE — the customer cannot see this: they have NOT sent a location yet, so do NOT tell them anyone is picking anything up, heading out, or messaging them back about a drop-off — none of that is happening and it is not true. Nothing moves without the location. Do not repeat the tap-by-tap instructions you already gave. Say it once, short and warm, with the reason attached: "The driver getting the shoes ready now 👟 I just need your location to send him." Then stop. Do not mention this note.)'
             : '(SYSTEM NOTE — the customer cannot see this: this is the THIRD time. They still have not sent a location and they may not want to share one, or may be out. Do NOT ask for the pin again and do NOT claim anyone is on the way. Offer the other way instead, warmly and in one line: if they are on the road we can meet up, or meet halfway — whatever is easier for them. Let them choose. Do not mention this note.)') });
         continue;                       // one clean retry
