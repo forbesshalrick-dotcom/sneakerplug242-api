@@ -703,6 +703,28 @@ function modelWanted(said) {
   }
   return null;
 }
+// 📏 RODNEY'S SIZE TABLE, IN CODE. Dictated 2026-09-25 and it overrides the old
+// women's-minus-1.5 arithmetic, because it is not a clean minus 1.5: a women's 7 and a
+// women's 8 are BOTH a men's 7, and a men's 9 ask must also carry the 9.5.
+// Returns the men's sizes to actually search, or null to leave it alone.
+const SIZE_TABLE_MENS = {
+  '5': ['5.5'], '5.5': ['5.5'], '6': ['6.5'], '6.5': ['6.5'],
+  '7': ['7'], '7.5': ['7.5'], '8': ['8'], '8.5': ['8.5'],
+  '9': ['9', '9.5'],                 // he sells the half up and settles it on the phone
+  '9.5': ['9.5'], '10': ['10'], '10.5': ['10.5'], '11': ['11'],
+  '11.5': ['11.5', '12'],            // one or two pairs exist; the 12 run small
+  '12': ['12'], '12.5': ['12.5'], '13': ['13'],
+};
+const SIZE_TABLE_WOMENS = {
+  '7': ['7'], '8': ['7'], '8.5': ['7'],
+  '9': ['8', '7.5'], '9.5': ['8'], '10': ['8.5'], '11': ['9.5'],
+};
+function sizesToSend(size, womens) {
+  const k = String(parseFloat(size));
+  const t = womens ? SIZE_TABLE_WOMENS[k] : SIZE_TABLE_MENS[k];
+  return t ? t.slice() : null;
+}
+
 function colourWanted(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
@@ -2469,6 +2491,24 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
   - Every shoe in a size album came out of a search for THAT SIZE. That is what the album is. So when they point at one and ask about that size, the answer is already yes: "Yes — everything I sent you there is in a 10 👟 want me to set one up?"
   - Answer in WORDS. Do not re-send the album, do not send any photos, do not ask which one — they are not asking for stock, they are double-checking the one they like.
   - DIFFERENT CASE: if they SEND YOU A PICTURE of their own — a new photo, off an ad or another page — that is not one of ours and we may not carry it. Look at it, name your best guess, and check it properly before you promise anything.
+📏 THE SIZE TABLE — WHAT YOU ACTUALLY SEND (Rodney 2026-09-25, dictated word for word. This overrides every other size rule. NEVER say the men's number to a woman — whatever they asked for is what you call it back to them.)
+MEN'S:
+- man 5 or 5.5 → send the 5.5
+- man 6 or 6.5 → send the 6.5
+- man 7 → send the 7        • man 8 → send the 8        • man 8.5 → send the 8.5
+- man 9 → send the 9 AND the 9.5, and just say "here's what we have in 9". Do NOT point out that some are a 9.5 — Rodney settles that on the phone before delivery.
+- man 9.5 → send the 9.5    • man 10 → send the 10
+- man 10.5 → send the 10.5, then tell them: not many options in a 10.5, we have more in 11. If they want, send the 11.
+- man 11 → send the 11
+- man 11.5 → only one or two pairs exist. Either send the 11.5 and say "we don't have much in 11.5, but the 12 run small" and send the 12 if they agree — or just send the 12 straight away, it is pretty much the same shoe.
+- man 12 → send the 12
+- man 12.5 → send the 12.5, then say not many options in 12.5, we have 13. If they agree, send the 13.
+- man 13 → send the 13
+- 14, 15 and up → WE DO NOT HAVE IT. Say so plainly and stop.
+WOMEN'S — stock is men's, so this is the conversion. Say "here's what we have in a women's <their number>", never the men's number:
+- woman 7 → men's 7          • woman 8 → men's 7       • woman 8.5 → men's 7
+- woman 9 → men's 8 AND men's 7.5
+- woman 9.5 → men's 8        • woman 10 → men's 8.5    • woman 11 → men's 9.5
 - 📦 SEND THE WHOLE CATEGORY, AND NAME WHAT IS MISSING (Rodney 2026-09-25: "Every fucking category you send, you're missing a few pictures"). A customer asked for ALL BLACK in a 9 and got six shoes. Three more all-black pairs exist in the half size up — including the all black Air Max 97 — and they were silently left out.
   - When they name a colour or a model, EVERY pair that fits goes. Do not trim it to keep the album short; a narrow ask is already short.
   - If something they would obviously want is NOT in their size, SAY IT rather than leave a hole: "the all black Shox only come in a 7, 8, 8.5 and 12 — no 9 😔". A customer who sees the gap and no explanation thinks we are hiding stock.
@@ -7273,7 +7313,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         } catch (_) {}
         const wantN = parseFloat(inp.size);
         if (!isNaN(wantN)) {
-          const acceptable = inp.womens === true
+          // Rodney's table first (see sizesToSend); the old arithmetic only as a fallback for
+          // anything the table does not cover.
+          const _table = sizesToSend(wantN, inp.womens === true);
+          const acceptable = _table ? _table.map(x => String(parseFloat(x)))
+            : inp.womens === true
             ? [String(wantN - 1.5), String(wantN - 1), String(wantN)]  // her size, her half-up, then the literal fallback
             : [String(wantN), String(wantN + 0.5)];
           const liveM = liveShoeMap();
