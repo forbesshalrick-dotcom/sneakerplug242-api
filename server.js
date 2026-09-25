@@ -2941,6 +2941,30 @@ async function runStockCensus(why) {
   return c;
 }
 
+// 📦 SHOES WE HAVE, PHOTOGRAPHED AND ON THE SHELF, THAT NOBODY CAN BUY.
+// Rodney 2026-09-25, twice in two days, on the all-black New Balance 2000: a customer sent a
+// photo of it, Kiki named it correctly - "New Balance 2002R in all black" - and then said "we
+// don't have that exact black 2002 in stock right now". We DO have it. It has a finished card
+// and a shelf row; its SIZES are empty, so liveShoeMap drops it and every search reads as no
+// stock. The day before, the same gap made her sell a customer a 9060 Black Gloss instead.
+// A shoe with no sizes is not absent, it is UNFINISHED - and the difference matters, because
+// one of those answers loses a sale we could have had.
+function sizelessMatches(p) {
+  try {
+    // getShoes() is the shelf itself - the same rows /shop/state serves.
+    const shelf = (require('./shop').getShoes && require('./shop').getShoes()) || [];
+    const rows = Array.isArray(shelf) ? shelf : Object.values(shelf || {});
+    const words = String((p && (p.query || p.color)) || '').toLowerCase().split(/[^a-z0-9.]+/).filter(w => w.length >= 3);
+    if (!words.length) return [];
+    return rows.filter(r => {
+      const sz = [].concat(r.sizesRaw || r.sizes || []).filter(x => String(x).trim());
+      if (sz.length) return false;                 // sellable, not our problem
+      const hay = `${r.name || ''} ${r.brand || ''} ${r.color || ''}`.toLowerCase();
+      return words.some(w => hay.includes(w));
+    }).slice(0, 4);
+  } catch (_) { return []; }
+}
+
 function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes, sneakers_only } = {}) {
   let rows = liveCatalog();
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
@@ -7006,6 +7030,30 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
         record(req, { endpoint: 'search', sub, params: p, found: found.length });
+        // Nothing found? Before she tells them no, check whether we own it and simply have
+        // not typed its sizes in. See sizelessMatches.
+        if (!found.length) {
+          try {
+            const unfinished = sizelessMatches(p);
+            if (unfinished.length) {
+              const names = unfinished.map(r => [r.name, r.color].filter(Boolean).join(' \u2014 ')).join('; ');
+              result.note = 'DO NOT say we do not have this. We DO have it - ' + names + ' - it is here and '
+                          + 'photographed, the sizes just have not been entered yet, so the search cannot see them. '
+                          + 'Tell them we have it and you are checking which sizes are left, ask what size they '
+                          + 'wear, and say you will come straight back to them. Someone has been alerted to finish it.';
+              record(req, { endpoint: 'sizeless-shoe-wanted', sub, ids: unfinished.map(r => r.id) });
+              try {
+                require('./shop').addAlert(
+                  '\U0001f4e6 *A CUSTOMER JUST ASKED FOR A SHOE WITH NO SIZES ENTERED* \u2014 ' + names + '\n'
+                  + 'It has photos and a shelf row but no sizes, so Kiki cannot sell it and every search says we are out. '
+                  + 'Put the sizes in and it goes out immediately.',
+                  'Kiki \U0001f916', { sub: String(sub), account: ctx.store || '',
+                    pushTitle: '\U0001f4e6 Sizes missing on a shoe someone wants',
+                    pushBody: names });
+              } catch (_) {}
+            }
+          } catch (_) {}
+        }
         // Completeness tracking: a PURE size search (size ± brand only) is a size-batch
         // request; a colour/query/price/womens search means the customer wanted something
         // specific and must NOT be widened to the whole size.
