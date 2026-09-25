@@ -7223,6 +7223,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           ).join(' ');
           const _brandKeys = [...new Set(turnSizeSearchBrands)];
           if (!staffName && turnGenericSizeAlbum && !turnHadRestrictiveSearch
+              && !_pointerOnly && !_pointerAsk
               && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1) {
             const _onlyBrand = _brandKeys[0] ? _brandKeys[0].split('+') : null;
             const _full = searchInventory(Object.assign(
@@ -7807,7 +7808,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       typeof m.content === 'string' ? m.content
         : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text || '').join(' ') : ''))
   ).join(' ');
-  const customerNamedSpecific = BRAND_WORD_RE.test(_recentCust);
+  // 👆 POINTING AT ONE SHOE IS NAMING IT. Rodney 2026-09-25: a customer tapped a Wet Cement
+  // Jordan 4 out of a size-10 album and asked "Do you have size 10 in this" - no brand word in
+  // it anywhere, so this read as a bare size request and appended the rest of the size on top
+  // of an album he had just been sent. He asked about ONE shoe. The pointer IS the naming.
+  const customerNamedSpecific = BRAND_WORD_RE.test(_recentCust) || _pointerOnly || _pointerAsk;
   // turnTopUpMerged: the rest-of-your-size was already folded into the album Kiki just sent
   // (see size-topup-merged above), so there is nothing left to append — firing here too would
   // re-send the very "and here's the rest 👇" second batch that merging exists to remove.
