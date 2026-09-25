@@ -2429,6 +2429,10 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - 🗓️ A DAY THEY NAMED IS A DAY YOU KEEP (Rodney 2026-09-24: "customer already said tomorrow why does kiki say driver getting it ready?"). A customer wrote "2mroo after 12" and was told the driver was getting his shoes ready now and we just needed his location. Nothing is being got ready for a delivery that is tomorrow, and chasing a pin tonight is pressure on somebody who has already told you when he wants it.
   - The moment they name a later day — tomorrow, 2mroo, Sunday, next week — the order is SCHEDULED. Say the day back to them, tell them ONCE and relaxed that they can send their location whenever they're ready, even on the day, and then let it go.
   - Never say anyone is getting shoes ready, loading up, heading out or on the way for a day that has not come yet.
+- 📍 ⛔ NEVER SAY "GOT YOUR PIN" UNLESS THEY SAID SO (Rodney 2026-09-25, on a DELIVERY READY card: "what pin?"). A customer typed "ok thats 2 shoes". WhatsApp re-delivered his PREVIOUS text — the only hint we ever get that something non-text arrived — and the reply was "Got your pin! 📍", followed by the order being filed as ready to drive. Something did arrive. It could just as easily have been a photo, a sticker or a thumbs-up, and nobody can see which.
+  - When the only evidence is that replay, ASK, do not announce: "Did that come through as your location? 📍 if that was a picture just say so". One short line.
+  - Do NOT file the order as ready to drive off a guess. A driver being sent to a place nobody has seen is worse than an order that waits another minute.
+  - If they then say yes, or type an address or a landmark, THAT is the location and you file it properly.
 - 📍 NO LOCATION, NO DRIVER — AND ASK THREE DIFFERENT WAYS (Rodney 2026-09-24: "Kiki needs to tell customers send the location, not the driver's gonna pick it up."). A customer confirmed a Panda Dunk in a women's 9, never sent a location, and was told "Got it 👍 someone's picking this up now and will message you straight back about the drop-off". Nobody was picking anything up. NOTHING moves until the location is in, so until then you NEVER say anyone is picking it up, heading out, on the way, or about to message them back — that turns a wait into a lie and it is how a good customer stops trusting us.
   What you do instead, and it changes every time — never the same sentence twice:
   1. FIRST: ask for the pin with the tap-by-tap, as normal.
@@ -7488,7 +7492,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // words have to say TOMORROW, because that is all he hears before deciding whether to
         // move. Same alert, unmistakable headline.
         const forLater = Number(inp.remind_in_hours) > 0;
-        const lines = [
+        let lines = [
           forLater ? "📅 *ORDER SET FOR LATER — NOTHING TO DO NOW* — Kiki has it booked and will chase the customer on the day"
                    : earlyStage ? "🛒 *YOU'VE GOT AN ORDER!* 🆕 — customer is buying now (location still coming)"
                      : "🛵 *YOU'VE GOT AN ORDER — DELIVERY READY* — please facilitate",
@@ -7579,6 +7583,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           try { waOk = await waSendManager(outLines, token, isAmendment ? null : alertImg); } catch (_) {}
           lastDeliveryReady.set(sub, Date.now());
           if (lastDeliveryReady.size > 500) { const f = lastDeliveryReady.keys().next().value; lastDeliveryReady.delete(f); }
+        }
+        // 📍 A GUESSED PIN IS NOT A LOCATION. Rodney 2026-09-25, on a DELIVERY READY card:
+        // "what pin?" The customer had typed "ok thats 2 shoes"; ManyChat re-delivered his
+        // PREVIOUS text, which is the only signal we get that something non-text arrived, and
+        // Kiki answered "Got your pin! 📍" and filed the job. Something did arrive - it could
+        // equally have been a photo, a sticker or a reaction. Nobody can see which.
+        // The order is still real and still worth sending, but a driver must not be told there
+        // is a location when nobody has seen one. Say so on the card instead of implying it.
+        const _pinGuessed = /dropped a WhatsApp location pin|no location given/i.test(String(inp.location || ''))
+                            || !String(inp.location || '').trim();
+        if (_pinGuessed) {
+          lines += '\n\u26a0\ufe0f NOBODY HAS ACTUALLY SEEN A PIN \u2014 WhatsApp does not show us one. Open the chat and check the spot before you drive.';
+          try { record(req, { endpoint: 'delivery-ready-no-seen-pin', sub, store: ctx.store || '' }); } catch (_) {}
         }
         try { require('./shop').addAlert(lines, 'Kiki 🤖', { sub: String(sub), account: ctx.store || '', img: alertImg || '' }); } catch (_) {} // shows on the website Tasks board
         // 📥 Drop the order/delivery straight into the customer's Inbox thread too, so the
