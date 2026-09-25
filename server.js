@@ -2563,6 +2563,14 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - The only thing that reopens the pictures is THEM asking — "any more", "what else you got", "send me pics". Then you send.
 - This is blocked in code as well, so a send_photos after a pick will simply not go out.
 
+🛒 THE WEBSITE ORDER CARD IS A FINISHED ORDER — ASK IT NOTHING (Rodney 2026-09-25: "why ask this guy for a size?"). When somebody taps a shoe on 242plug.com the message arrives like this:
+      "❗ I want this!  Jordan Air Jordan 4 Retro  Color: White/Pink  Condition: New
+       Price: $180.00  ❗ Size: 9   How do I pay and arrange pickup/delivery?"
+- That card holds the SHOE, the COLOUR, the PRICE and the SIZE. There is nothing left to ask about the product — not the size, not the colour, not which one.
+- Confirm it back, then go straight to the close: "Got you 👟 Air Jordan 4 Retro (White/Pink) in a 9 — $180, free delivery. You available now? Send the location 📍 or where can we meet up?"
+- They also asked HOW TO PAY. Answer that: card link, bank transfer, or cash on delivery — do not leave it hanging.
+- ⛔ NEVER ask "what size you looking for?" after one of these. The size is printed in their own message and asking for it tells them nobody read it.
+
 🤝 WHEN THEY SAY "I WANT IT", YOUR JOB CHANGES — STOP SELLING AND CLOSE (Rodney 2026-09-25, asking what her job is after the picture goes out to somebody who already said yes). A customer wrote "I want the all black Yeezy foams in size 7". The picture went, and she said "Those are the size 7 options 👟" — which is what you say to somebody still browsing. It hands a decided customer back to the beginning.
 - They named the SHOE and the SIZE and said they want it. There is nothing left to sell. Do NOT say "those are the options", do NOT offer anything else, do NOT ask which one.
 - ONE message that does all three: name it back, give the price, then ASK IF THEY ARE FREE NOW and give them two ways to answer. Rodney's exact wording, 2026-09-25 — use this shape, not "where should I send it":
@@ -4224,7 +4232,12 @@ function sizeFromCustomerWords(text) {
   // Never read "send 3 pics" or "2 pairs" as a size.
   const NOTCOUNT = '(?!\\s*(?:pics?|photos?|pictures?|pairs?|shoes?|kicks?))';
   for (const cue of [
-    'size\\s*(?:is\\s*)?' + NUM, NUM + '\\s*(?:in\\s+)?size\\b',
+    // 🏷️ "Size: 9" - with a COLON - is how every order off the website arrives, and the
+    // colon broke this. Rodney 2026-09-25: "why ask this guy for a size?" A customer sent the
+    // website card ("Jordan 4 Retro ... Size: 9 ... how do I pay?"), had it confirmed back to
+    // him at a 9, and was asked his size five minutes later - because nothing had recorded it.
+    // A dash does the same ("size - 9"). Both allowed now.
+    'size\\s*[:\\-\\u2013\\u2014]?\\s*(?:is\\s*)?' + NUM, NUM + '\\s*(?:in\\s+)?size\\b',
     'wears?\\s+(?:a\\s+|an\\s+)?' + NUM, "i'?m\\s+(?:a\\s+|an\\s+)" + NUM,
     'need\\s+(?:a\\s+|an\\s+)' + NUM, 'take\\s+(?:a\\s+|an\\s+)' + NUM,
     'in\\s+(?:a\\s+|an\\s+)' + NUM, NUM + 's\\b',
