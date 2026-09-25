@@ -2469,6 +2469,10 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
   - Every shoe in a size album came out of a search for THAT SIZE. That is what the album is. So when they point at one and ask about that size, the answer is already yes: "Yes — everything I sent you there is in a 10 👟 want me to set one up?"
   - Answer in WORDS. Do not re-send the album, do not send any photos, do not ask which one — they are not asking for stock, they are double-checking the one they like.
   - DIFFERENT CASE: if they SEND YOU A PICTURE of their own — a new photo, off an ad or another page — that is not one of ours and we may not carry it. Look at it, name your best guess, and check it properly before you promise anything.
+- 📦 SEND THE WHOLE CATEGORY, AND NAME WHAT IS MISSING (Rodney 2026-09-25: "Every fucking category you send, you're missing a few pictures"). A customer asked for ALL BLACK in a 9 and got six shoes. Three more all-black pairs exist in the half size up — including the all black Air Max 97 — and they were silently left out.
+  - When they name a colour or a model, EVERY pair that fits goes. Do not trim it to keep the album short; a narrow ask is already short.
+  - If something they would obviously want is NOT in their size, SAY IT rather than leave a hole: "the all black Shox only come in a 7, 8, 8.5 and 12 — no 9 😔". A customer who sees the gap and no explanation thinks we are hiding stock.
+  - Half a size up counts. We sell a 9.5 to a 9 every day — send it and say it is a half up.
 - 😶 ⛔ NEVER SAY YOU ARE CONFUSED WHEN YOU KNOW THE COLOUR AND THE SIZE (Rodney 2026-09-25: "Kiki keeps saying she don't understand what they saying most of the time... if customers ask for black tennis and Kiki doesn't know, Kiki can say THIS IS WHAT WE HAVE IN BLACK. She already knows the size. Stop acting fucking confused.").
   - "I'm not catching which one", "I can't quite see", "which one do you mean" — BANNED the moment you already have a colour or a model AND their size. You have everything you need: SEND.
   - Say it plainly and send: "This is what we have in black in your 9 👇". That is the answer to every vague ask.
@@ -7323,7 +7327,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const v = parseInt(process.env.NEAR_SIZE_MAX, 10);
             return isNaN(v) ? 6 : Math.max(0, v);
           })();
-          if (NEAR_SIZE_MAX > 0) {
+          // 🎯 A NARROW ASK IS ALREADY SMALL - DO NOT TRIM IT.
+          // Rodney 2026-09-25: "Every fucking category you send, you're missing a few
+          // pictures... you haven't sent the all black 97." He asked for ALL BLACK in a 9.
+          // Three all-black shoes have a true 9; four more have the 9.5 (the half up he sells
+          // to a 9 all day, including that 97). The cap that keeps a broad size browse
+          // deliverable then threw three of them away - so a six-shoe album looked like our
+          // whole black stock and it was not.
+          // The cap is for a bare "what you got in a 9", which can be a hundred shoes. When
+          // they have named a COLOUR or a MODEL the album is narrow already, and every pair
+          // that fits belongs in it.
+          let _narrowAsk = false;
+          try {
+            const said2 = [String(userText || '')].concat(
+              history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
+                .slice(-6).reverse().map(m => m.content));
+            _narrowAsk = !!(colourWanted(said2).length || modelWanted(said2));
+          } catch (_) {}
+          if (NEAR_SIZE_MAX > 0 && !_narrowAsk) {
             const exactN = inp.womens === true ? wantN - 1.5 : wantN;
             const isExact = (id) => {
               const s = liveM[id];
