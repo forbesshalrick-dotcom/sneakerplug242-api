@@ -7609,6 +7609,34 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // early stage looks identical to a send that failed, and the next person debugging a
         // "missing alert" chases a ghost.
         record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', remindH: inp.remind_in_hours || null, waOk, staffWa, staffOk, suppressed: alertable ? null : 'no-location-yet', amended: !!isAmendment });
+        // ⏳ AN ORDER THAT GOES QUIET IS WORTH A MESSAGE AFTER ALL.
+        // Rodney 2026-09-25: "kiki took the order and told nobody. I ANSWERED AFTER 12AM."
+        // A Jordan 5 at $180 was confirmed at 22:41. It went where the rule above sends it -
+        // the Tasks board and the Inbox thread, no WhatsApp - because there was no location
+        // yet, and that rule is his and it is right: an un-located order is a conversation in
+        // progress, not a job, and he was sick of being buzzed for them. He saw it at 00:05.
+        // By then the customer had gone home, and this morning he went somewhere else.
+        // The note right above says what to do if this ever happened: nudge him, do not switch
+        // the alerts back on. So nothing changes for an order that MOVES. Only one that goes
+        // COLD - no location, no human, twenty minutes gone, money still on the table - is
+        // worth the message, and by then it is not a conversation in progress any more.
+        if (!alertable) {
+          const _orderLines = lines, _orderStore = ctx.store, _orderSub = String(sub);
+          const _placedAt = Date.now();
+          setTimeout(() => {
+            try {
+              if ((lastDeliveryReady.get(_orderSub) || 0) > _placedAt) return;   // it moved
+              if (isHumanPaused(_orderSub)) return;                              // a person has it
+              const nudge = '\u23f3 *ORDER STILL WAITING* \u2014 confirmed 20 min ago and no location yet, nobody has picked it up.\n'
+                          + _orderLines.split('\n').slice(1).join('\n')
+                          + '\n\nOpen the chat and finish it before they go cold.';
+              try { require('./shop').addAlert(nudge, 'Kiki \U0001f916', { sub: _orderSub, account: _orderStore || '',
+                    pushTitle: '\u23f3 An order is going cold', pushBody: 'Confirmed 20 min ago, still no location' }); } catch (_) {}
+              try { queueForOwner(nudge, null, true); } catch (_) {}
+              recent.unshift({ at: new Date().toISOString(), endpoint: 'order-went-cold', sub: _orderSub });
+            } catch (_) {}
+          }, 20 * 60 * 1000);
+        }
         // FUTURE ORDER → also re-alert the owner when the day the customer named arrives
         // (Rodney's design 2026-07-13: heads-up now + a ⏰ reminder at the time it's for).
         const remindH = Number(inp.remind_in_hours);
