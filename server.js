@@ -3755,6 +3755,8 @@ const pinAsked = new Map();
 // sub -> how many times we have now asked. Drives the escalation at the pin guard: ask,
 // then ask with the reason, then offer to meet instead. Never a fourth time.
 const pinAskCount = new Map();
+// sub -> when we last fetched a human for them. See the throttle in the get_agent branch.
+const agentCalledAt = new Map();
 const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
 const EMPTY_ASK_T = {
   en: "Hey! 👋 Would you like to see some pictures, or what we have in stock? 👟",
@@ -6174,7 +6176,29 @@ function expectedFloatNow() {
     return Math.max(0, register - payouts - expenses);
   } catch (_) { return null; }
 }
+// 🛑 OUR OWN SHOP LINES, CHECKED ON EVERY ROAD IN - NOT JUST THE MANYCHAT ONE.
+// Rodney 2026-09-24: "I already dealt with this" - on an escalation that had fired eight
+// times in twenty seconds. Trendy Kicks' own number (8256405) was talking to the Foot Fetish
+// line, FF's Kiki read it as a customer in trouble and called get_agent, the alert landed
+// back in the shop chat, and round it went: 7 get_agent calls and 13 manager alerts inside
+// two minutes, all for nobody.
+// The guard for this has existed since 2026-09-17 - and it sits inside handleChat, which is
+// the MANYCHAT door. YCloud comes in through /ycloud/webhook and calls runChat directly, so
+// it walked straight past it. A guard on one entrance is not a guard.
+const OWN_LINE_NUMS = String(process.env.OWN_LINE_NUMBERS || '12428256405,12428033126,12424324406')
+  .split(',').map(x => x.replace(/[^0-9]/g, '')).filter(x => x.length >= 7);
+function isOurOwnLine(sub, req) {
+  const cand = [String(sub || ''), String((req && getPhone(req)) || '')]
+    .map(x => x.replace(/[^0-9]/g, '')).filter(x => x.length >= 7);
+  return cand.some(c => OWN_LINE_NUMS.some(n => c.endsWith(n.slice(-10))));
+}
+
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
+  // Every door, not just the front one. See isOurOwnLine above.
+  if (isOurOwnLine(sub, req)) {
+    try { record(req, { endpoint: 'own-line-blocked-runchat', sub, store: (ctx && ctx.store) || '' }); } catch (_) {}
+    return;
+  }
   let _isStaffChat = staffNameFor(req);
   // A SALE/RESTOCK/FLOAT report from the owner's OWN line counts as a staff action even if that
   // number is set as a test customer — so "black/blue tn sold in 8.5" records the sale instead of
@@ -7651,6 +7675,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       else if (tu.name === 'get_agent') {
         const inp = tu.input || {};
+        // ⏱️ ONE CALL FOR HELP PER CUSTOMER, NOT EIGHT.
+        // Rodney 2026-09-24, on the same escalation arriving over and over: "I already dealt
+        // with this." Seven get_agent calls and thirteen alerts in two minutes. The loop that
+        // caused it is blocked above, but the reason it HURT is that nothing here says a
+        // person can only be fetched once. Whoever is on the floor has already been told;
+        // telling them again every second is how a real alert stops being read.
+        // A second ask inside half an hour is answered without ringing anybody.
+        const _agentAt = agentCalledAt.get(String(sub)) || 0;
+        if (Date.now() - _agentAt < 30 * 60 * 1000) {
+          record(req, { endpoint: 'get-agent-throttled', sub, store: ctx.store,
+                        agoSec: Math.round((Date.now() - _agentAt) / 1000) });
+          toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
+            ok: true, already: true,
+            note: 'A team member was ALREADY alerted about this customer minutes ago and is on it. Do NOT alert anyone again and do NOT tell the customer you are escalating a second time. Just reassure them once, warmly and briefly, that somebody is on it.' }) });
+          continue;
+        }
+        agentCalledAt.set(String(sub), Date.now());
+        if (agentCalledAt.size > 500) { const f = agentCalledAt.keys().next().value; agentCalledAt.delete(f); }
         // Grab the customer's WhatsApp number so the team member can reach them fast.
         let custPhone = getPhone(req);
         if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
