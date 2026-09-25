@@ -707,6 +707,26 @@ function modelWanted(said) {
 // women's-minus-1.5 arithmetic, because it is not a clean minus 1.5: a women's 7 and a
 // women's 8 are BOTH a men's 7, and a men's 9 ask must also carry the 9.5.
 // Returns the men's sizes to actually search, or null to leave it alone.
+// 🌍 A 41 IS NOT A 41 - IT IS EUROPEAN. Rodney 2026-09-25: "41 is size 8, but Kiki is
+// sending the guy everything is 5 and a half." A Spanish-speaking customer said 42, then 41.
+// Both were read as US sizes, decided to be near our smallest, and he was sent 5s and 5.5s.
+// Nobody wears a US 41. Anything from 35 up is EU and has to be converted before anything
+// else touches it. Nike's own chart, and it puts EU 41 at a US 8 exactly as he says.
+const EU_TO_US_MENS = {
+  '38': '5.5', '38.5': '6', '39': '6.5', '40': '7', '40.5': '7.5', '41': '8', '42': '8.5',
+  '42.5': '9', '43': '9.5', '44': '10', '44.5': '10.5', '45': '11', '45.5': '11.5',
+  '46': '12', '47': '12.5', '47.5': '13', '48': '13',
+};
+function euToUsMens(size) {
+  const n = parseFloat(size);
+  if (isNaN(n) || n < 35 || n > 50) return null;       // a US size is never 35+
+  const exact = EU_TO_US_MENS[String(n)];
+  if (exact) return exact;
+  // Between two rows of the chart: EU minus 33 is the men's US, which is what the chart is.
+  const us = Math.round((n - 33) * 2) / 2;
+  return (us >= 4 && us <= 14) ? String(us) : null;
+}
+
 const SIZE_TABLE_MENS = {
   '5': ['5.5'], '5.5': ['5.5'], '6': ['6.5'], '6.5': ['6.5'],
   '7': ['7'], '7.5': ['7.5'], '8': ['8'], '8.5': ['8.5'],
@@ -720,7 +740,8 @@ const SIZE_TABLE_WOMENS = {
   '9': ['8', '7.5'], '9.5': ['8'], '10': ['8.5'], '11': ['9.5'],
 };
 function sizesToSend(size, womens) {
-  const k = String(parseFloat(size));
+  const eu = euToUsMens(size);        // 41 means a US 8, not a US 41 - see euToUsMens
+  const k = String(parseFloat(eu != null ? eu : size));
   const t = womens ? SIZE_TABLE_WOMENS[k] : SIZE_TABLE_MENS[k];
   return t ? t.slice() : null;
 }
@@ -2491,6 +2512,12 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
   - Every shoe in a size album came out of a search for THAT SIZE. That is what the album is. So when they point at one and ask about that size, the answer is already yes: "Yes — everything I sent you there is in a 10 👟 want me to set one up?"
   - Answer in WORDS. Do not re-send the album, do not send any photos, do not ask which one — they are not asking for stock, they are double-checking the one they like.
   - DIFFERENT CASE: if they SEND YOU A PICTURE of their own — a new photo, off an ad or another page — that is not one of ours and we may not carry it. Look at it, name your best guess, and check it properly before you promise anything.
+🌍 ANY SIZE FROM 35 UP IS EUROPEAN — CONVERT IT (Rodney 2026-09-25: "41 is size 8, but Kiki is sending the guy everything is 5 and a half"). A Spanish-speaking customer said 42, then 41; both were read as US sizes, judged to be near our smallest, and he was sent 5s and 5.5s. NOBODY WEARS A US 41.
+- 40=7 • 40.5=7.5 • 41=8 • 42=8.5 • 42.5=9 • 43=9.5 • 44=10 • 44.5=10.5 • 45=11 • 45.5=11.5 • 46=12 • 47=12.5 • 47.5=13
+- Convert FIRST, then use the table below on the US number.
+- Say it back in THEIR number: "here's what we have in a 41 👟". Do not make them do the maths.
+- Spanish, Creole or French usually means European sizing — if the number is 35 or more it is always EU.
+
 📏 THE SIZE TABLE — WHAT YOU ACTUALLY SEND (Rodney 2026-09-25, dictated word for word. This overrides every other size rule. NEVER say the men's number to a woman — whatever they asked for is what you call it back to them.)
 MEN'S:
 - man 5 or 5.5 → send the 5.5
