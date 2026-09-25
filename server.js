@@ -2535,6 +2535,12 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
   - Every shoe in a size album came out of a search for THAT SIZE. That is what the album is. So when they point at one and ask about that size, the answer is already yes: "Yes — everything I sent you there is in a 10 👟 want me to set one up?"
   - Answer in WORDS. Do not re-send the album, do not send any photos, do not ask which one — they are not asking for stock, they are double-checking the one they like.
   - DIFFERENT CASE: if they SEND YOU A PICTURE of their own — a new photo, off an ad or another page — that is not one of ours and we may not carry it. Look at it, name your best guess, and check it properly before you promise anything.
+🔒 ONCE THEY PICK, THE PICTURES STOP (Rodney 2026-09-25: "sending the customer too many photos. he picked a shoe a long time ago"). At 2:39 a customer wrote "I just want the Yeezy foams" and it was confirmed back to him. At 4:26 he asked "Are you available tonight?" and got an ALBUM. At 4:27, another album and "this is what we have in blue in your 7".
+- He is not shopping any more. He is arranging a meet. Every album after the pick is us talking over him.
+- After they pick, EVERY reply is logistics: the time, the place, the price, the confirmation. In words. No photos.
+- The only thing that reopens the pictures is THEM asking — "any more", "what else you got", "send me pics". Then you send.
+- This is blocked in code as well, so a send_photos after a pick will simply not go out.
+
 🤝 WHEN THEY SAY "I WANT IT", YOUR JOB CHANGES — STOP SELLING AND CLOSE (Rodney 2026-09-25, asking what her job is after the picture goes out to somebody who already said yes). A customer wrote "I want the all black Yeezy foams in size 7". The picture went, and she said "Those are the size 7 options 👟" — which is what you say to somebody still browsing. It hands a decided customer back to the beginning.
 - They named the SHOE and the SIZE and said they want it. There is nothing left to sell. Do NOT say "those are the options", do NOT offer anything else, do NOT ask which one.
 - ONE message that does all three: name it back, give the price, then ASK IF THEY ARE FREE NOW and give them two ways to answer. Rodney's exact wording, 2026-09-25 — use this shape, not "where should I send it":
@@ -3415,6 +3421,30 @@ function noteStopWord(sub, text) {
   const t = String(text || '');
   if (/\b(stop|enough|no more|don'?t send|dont send)\b/i.test(t)) stoppedAt.set(String(sub), Date.now());
   else if (/\b(send|show|see|pics?|pictures?|photos?|more)\b/i.test(t)) stoppedAt.delete(String(sub));
+}
+// 🔒 THEY PICKED A SHOE - STOP SENDING PICTURES OF OTHER ONES.
+// Rodney 2026-09-25: "sending the customer too many photos. he picked a shoe a long time ago."
+// At 2:39 the customer wrote "I just want the Yeezy foams" and it was confirmed back to him -
+// All Black Yeezy Foam, size 7, $70. Then at 4:26 he asked "Are you available tonight?" and
+// got an ALBUM. At 4:27, another album, "this is what we have in blue in your 7". He is not
+// shopping any more. He is arranging a meet, and every album is us talking over him.
+// Once a shoe is picked, the conversation is logistics - time, place, price. Pictures only go
+// out again if HE asks for them.
+const orderLocked = new Map();   // sub -> when they picked
+const PICKED_RE = /\b(i (just )?want|i'?ll take|lemme get|let me get|gimme|give me|i'?m taking|i'?ll buy|i want that|that one|deal|book it|lock it in)\b/i;
+const WANTS_PICS_RE = /\b(pics?|pictures?|photos?|show me|send me|see (some|more|what)|any (more|other)|what else|options)\b/i;
+function notePicked(sub, text) {
+  const t = String(text || '');
+  if (!t.trim()) return;
+  if (WANTS_PICS_RE.test(t)) { orderLocked.delete(String(sub)); return; }   // they reopened it
+  if (PICKED_RE.test(t)) {
+    orderLocked.set(String(sub), Date.now());
+    if (orderLocked.size > 500) { const f = orderLocked.keys().next().value; orderLocked.delete(f); }
+  }
+}
+function orderIsLocked(sub) {
+  const at = orderLocked.get(String(sub));
+  return !!(at && Date.now() - at < 6 * 60 * 60 * 1000);   // a pick holds for the day, not five minutes
 }
 function recentlyToldUsToStop(sub) {
   const at = stoppedAt.get(String(sub));
@@ -6619,7 +6649,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     } catch (_) {}
   }
-  try { noteStopWord(sub, userText); } catch (_) {}   // "Stop plz" holds the pictures back, see recentlyToldUsToStop
+  try { noteStopWord(sub, userText); } catch (_) {}
+  try { notePicked(sub, userText); } catch (_) {}   // "I just want the Yeezy foams" ends the browsing   // "Stop plz" holds the pictures back, see recentlyToldUsToStop
   if (_pointerOnly && !(ownerNotes.get(sub) || []).length) {
     // ⏱️ LONG ENOUGH FOR THE BROWSER TO ACTUALLY GO AND LOOK (Rodney 2026-09-19). The first
     // version waited 2.4s and that was never going to be enough: kiki-tagwatch has to open the
@@ -7279,6 +7310,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
+        // 🔒 They already picked. See orderIsLocked - pictures now are us talking over them.
+        if (orderIsLocked(sub) && !staffName) {
+          record(req, { endpoint: 'photos-blocked-order-picked', sub, store: ctx.store || '' });
+          toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
+            sent: 0, blocked: 'this customer already picked their shoe',
+            note: 'They have ALREADY chosen what they want - no more pictures. They are arranging the pickup now, not shopping. Answer what they actually asked (the time, the place, the price) in words. Only send photos again if THEY ask to see something.' }) });
+          continue;
+        }
         const includeSizes = inp.include_sizes !== false; // default true
         // SIZE GUARD (2026-07-13 — a "size 9" album went out including the Nike Shox,
         // which comes in no 9 or 9.5): when the customer's size is known, hard-drop any
