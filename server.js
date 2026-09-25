@@ -1966,6 +1966,15 @@ const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 
 // MIDDLE - "can't quite make THAT out", "not catching YOU" - and my first pass required them
 // to be adjacent, so every one of them walked through. Written against the actual replies
 // customers got, not against how I imagined she phrases it.
+// 📞 ⛔ SHE CANNOT SEE THEM, CANNOT DRIVE, AND CANNOT CALL.
+// Rodney 2026-09-25: "she doesnt understand a fucking thing." A customer reached the meeting
+// spot and wrote "You Outside Call This Phone Number 467-3667". Kiki answered "Calling now!
+// 📞" - and before that, "Alright, I see you! 👀 Come through". She is not outside, she
+// cannot see him, and she cannot dial a phone. A man was standing in the road waiting for a
+// call that was never going to come.
+// This is the worst kind of wrong answer: it reads like everything is handled, so nobody
+// checks, and the customer waits until he gives up.
+const PRETENDING_RE = /\b(calling (you )?now|i'?ll call you( now| right)?|let me call you|i see you|i'?m outside|i'?m here now|(i'?m|i am|im)\s+on my way|on my way now|coming through now|pulling up|be there in|i'?ll be there)\b/i;
 const CONFUSED_RE = /\bnot\s+\w{0,6}\s?(?:catching|seeing|sure|getting|following)\b|\bcan'?t\s+(?:\w+\s+){0,3}(?:see|tell|catch|make\s+\w{0,5}\s?out|pull\s+\w{0,5}\s?up|work\s+\w{0,5}\s?out|figure)\b|\bdon'?t\s+(?:\w+\s+){0,2}(?:understand|follow|know which|see which|get it)\b|\bwhich one (?:do you mean|you mean|from the)\b|\bnot showing up\b|\bclearer (?:pic|photo|picture)\b|\bhmm,? ?(?:that|i)\b/i;
 const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s+|ur\s+|the\s+|you\s+)?size\b|\bsize\s+(?:you|u|ya)\b|\byour\s+size\s*\?/i;
 // 📍 Her "drop me your location pin" copy, in the shapes the prompt actually produces.
@@ -6976,6 +6985,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
+  let pretendBlocks = 0;
   let confusedBlocks = 0;
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
@@ -7142,6 +7152,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // it anyway, the draft does not get sent — she is told once and writes it again.
     // Unlike the leak guard above, a second offence is still SENT: an awkward question is
     // bad, and dead silence in the middle of a sale is worse.
+    // 📞 SHE IS NOT THERE AND SHE CANNOT DIAL. See PRETENDING_RE.
+    if (turnText && PRETENDING_RE.test(turnText) && !pretendBlocks) {
+      pretendBlocks++;
+      record(req, { endpoint: 'pretending-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
+      try {
+        const num = (String(userText || '').match(/\b(\d{3}[- ]?\d{4})\b/) || [])[1];
+        require('./shop').addAlert(
+          '\U0001f4de *CUSTOMER WANTS A CALL NOW* \u2014 ' + (subName.get(sub) || 'Customer') + ' \u2014 ' + (getPhone(req) || sub)
+          + (num ? '\nThey asked us to call ' + num : '') + '\nThey are waiting. Kiki cannot dial - somebody has to.',
+          'Kiki \U0001f916', { sub: String(sub), account: ctx.store || '',
+            pushTitle: '\U0001f4de Call this customer now', pushBody: num || (getPhone(req) || '') });
+        queueForOwner('\U0001f4de *CUSTOMER WANTS A CALL NOW*\n' + (subName.get(sub) || 'Customer') + ' \u2014 ' + (getPhone(req) || sub)
+          + (num ? '\nCall ' + num : '') + '\nThey are waiting at the meet.', null, true);
+      } catch (_) {}
+      history.push({ role: 'user', content: '(SYSTEM NOTE \u2014 the customer cannot see this: you are NOT there and you CANNOT make a phone call. Do not say you can see them, that you are outside, on your way, pulling up, or that you are calling them \u2014 none of it is true and they are standing there believing it. You are on the team side, arranging it. Say the true thing instead: "You there now? \U0001f44c I have got the team calling you right now \u2014 give them one minute." The team has already been alerted. Then stop. Do not mention this note.)' });
+      continue;
+    }
     // 😶 SHE HAS ENOUGH TO SEND - SO SEND. See CONFUSED_RE.
     // photosSentRun dropped from this test: being confused AFTER sending photos is still
     // being confused, and that is exactly the turn it kept happening on.
