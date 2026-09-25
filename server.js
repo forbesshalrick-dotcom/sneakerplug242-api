@@ -1798,7 +1798,8 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // park the words here and let kiki-waoutbox carry them. It is the same shape as the order
   // alerts, which have been reaching his phone this way since 9 September.
   try {
-    const isPhoneSub = /^\d{10,15}$/.test(String(subscriberId || ''));
+    const isPhoneSub = ycloudStore.has(String(subscriberId || ''))
+                    && /^\d{10,15}$/.test(String(subscriberId || ''));   // see the note at album-sent-nothing
     const noSuchSub = /subscriber does not exist/i.test(String(body || ''));
     if (isPhoneSub && noSuchSub) {
       const text = (messages || []).filter(m => m && m.type === 'text' && m.text)
@@ -5195,7 +5196,23 @@ function queueWaPhotos(phone, size, asked) {
 // delivered them for real. The bridge is the right place to stop this: anything that reads
 // like an ops card is dropped rather than queued.
 const OPS_ONLY_RE = /THIS CUSTOMER IS CUT OFF|MANYCHAT IS DROPPING|ALBUM CUT SHORT|LINE IS DOWN|DELIVERY READY|END OF DAY|owner-phone|ManyChat keeps reject|failed sends in the last/i;
+// ⏳ "RITE NOW 👇" IS A LIE WHEN THE PICTURES TAKE FOUR MINUTES.
+// Rodney 2026-09-25: "pics taking to long to send." A customer gave his size at 7:19, was told
+// "This is what we have in size 10 rite now 👇 Ready to Order!" at 7:20, and by 7:21 had seen
+// nothing and typed "Send the picture please".
+// On this line the photos do not go through the pipe at all - they are forwarded by the
+// browser, one at a time, and that genuinely takes minutes. The words are the problem, not
+// the wait: "rite now" and an arrow promise something that is about to appear on screen.
+// So when an album is already queued for this customer, the lead-in says what is true.
+const LEADIN_RE = /this is what we have|here'?s (what|the|all)|ready to order/i;
 function queueWaOutbox(phone, text) {
+  try {
+    const waiting = waOutbox.some(q => q.kind === 'photos' && q.phone === String(phone));
+    if (waiting && LEADIN_RE.test(String(text || ''))) {
+      text = String(text).replace(/\s*\U0001f447\s*/g, ' ')
+        + "\n\n(sending them over now - give me a minute \U0001f4f8)";
+    }
+  } catch (_) {}
   if (OPS_ONLY_RE.test(String(text || ''))) {
     try { recent.unshift({ at: new Date().toISOString(), endpoint: 'wa-outbox-internal-blocked', sub: phone }); } catch (_) {}
     return;
@@ -7837,7 +7854,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const fallbackSize = (inp && inp.size != null && String(inp.size).trim())
               ? String(inp.size).trim()
               : String(knownSize || '').split('/')[0].trim();
-            if (/^\d{10,15}$/.test(String(sub)) && fallbackSize) {
+            // ☎️ A MANYCHAT SUBSCRIBER ID IS ALSO TEN DIGITS.
+            // Rodney 2026-09-25: "pics taking to long to send." The FF line was tied up
+            // forwarding albums to "+1 (190) 130-8605" and "+1 (159) 962-6055" - those are not
+            // phone numbers, they are ManyChat subscriber ids, and no such chat exists. Each
+            // impossible forward holds the browser for minutes, and a real customer who had
+            // just given his size sat behind them watching nothing arrive.
+            // Only a customer who came in through YCloud has a sub that IS their number, and
+            // ycloudStore is the register of exactly those.
+            if (ycloudStore.has(String(sub)) && /^\d{10,15}$/.test(String(sub)) && fallbackSize) {
               queueWaPhotos(String(sub), fallbackSize, outIdCount);
               _photosOnTheirWay = true;
             }
