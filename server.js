@@ -2413,6 +2413,11 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin — tap 📎 (or ＋) → Location → Send your current location — then text me \"sent\" so I know it came through 👟".
 - ⚠️ NEVER KEEP ASKING FOR THE PIN once they've SAID they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here". TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
 - 🗺️ A TYPED ADDRESS IS A REAL ORDER — TAKE IT (Rodney's rule 2026-08-16, and he was firm on this): plenty of good customers do not know how to drop a pin, or they simply prefer to type where they live. Typing out an address is EFFORT — it shows they're serious. NEVER treat a written address as a dead end and NEVER hold the sale hostage waiting for a pin. Ask for the pin ONCE, warmly, because it genuinely helps the driver: "Got you! 📍 If you can, drop your WhatsApp location too — tap 📎 (or ＋) → Location → Send your current location — that way the driver comes straight to you instead of hunting for the turn 👟". Then: if they send the pin, great. If they give the address again, say they can't, say they don't know how, or just don't send one — TAKE THE ADDRESS AND GO. Call delivery_ready with location = the address they typed, and start it with "ADDRESS (no pin): " so the driver knows to phone ahead rather than follow a dot. If they say they don't know how, offer the tap-by-tap once in a friendly way — but never make them feel silly, and never make it a condition of getting their shoes.
+- 🎯 THEY NAMED THE SHOE — DON'T ANSWER WITH A DIFFERENT ONE (Rodney 2026-09-25: "she found the shoe customer wants and still sent other shoes"). A customer asked for the Air Max Plus 3 Red/Blue in an 8.5. You found it, sent it, and said we had a 7 and an 8. He said "I need size 8.5". He was then sent New Balances.
+  - When they have named ONE shoe and we do not have their size in it, SAY THAT, plainly: "Ah, that one only come in a 7 and an 8 right now — no 8.5 😔". That is the whole answer and it is an honest one.
+  - THEN, and only as a short offer they can say no to, mention the nearest thing IN THE SAME MODEL, or ask if they want to see other shoes in their size. Never just send them.
+  - ⛔ NEVER answer a named shoe with a different brand or model. Sending New Balance to a man asking for an Air Max Plus 3 reads as nobody listening, and he has to work out for himself that the answer was no.
+  - The moment they name a model, that model is the conversation until THEY change it.
 - 🎨 THEY ASKED FOR ONE COLOUR — THEY SEE ONE COLOUR (Rodney 2026-09-24: "Why if I came to you for all black, would you show me red, white, blue, and all of those? LOL. Really makes no sense, man."). If a customer asks for black, EVERY picture they get has black in it. Never widen an album back out to other colours because the exact shoe they named is missing — the colour is the LAST thing to give up, not the first.
   - If we don't have the exact black one they asked for, send the OTHER BLACK ones. That is what they came for and they can pick from it.
   - A short album in the right colour beats a long one they have to hunt through. Do not apologise for it and do not pad it.
@@ -6800,7 +6805,29 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             ? '(SYSTEM NOTE \u2014 the customer cannot see this: they have already told you they want it on a LATER DAY, so do NOT chase them for a location tonight and do NOT say anyone is getting shoes ready or heading out \u2014 nothing is happening until that day. Do not repeat the pin instructions. Confirm the day back to them warmly and tell them once, relaxed, that they can send their location whenever they are ready, even on the day itself. Then let it go. Do not mention this note.)'
           : pinAsks <= 2
             ? '(SYSTEM NOTE — the customer cannot see this: they have NOT sent a location yet, so do NOT tell them anyone is picking anything up, heading out, or messaging them back about a drop-off — none of that is happening and it is not true. Nothing moves without the location. Do not repeat the tap-by-tap instructions you already gave. Say it once, short and warm, with the reason attached: "The driver getting the shoes ready now 👟 I just need your location to send him." Then stop. Do not mention this note.)'
-            : '(SYSTEM NOTE — the customer cannot see this: this is the THIRD time. They still have not sent a location and they may not want to share one, or may be out. Do NOT ask for the pin again and do NOT claim anyone is on the way. Offer the other way instead, warmly and in one line: if they are on the road we can meet up, or meet halfway — whatever is easier for them. Let them choose. Do not mention this note.)') });
+            : (function () {
+              // 🚨 A CUSTOMER WHO WANTS TO MEET IS A DELIVERY, AND NOBODY WAS BEING TOLD.
+              // Rodney 2026-09-25: "kiki never sent a delivery notification". A customer with a
+              // Jordan 5 at $180 said yes to meeting, told us he was ON Carmichael Road heading
+              // to Golden Gates, and no alert ever fired - because the alert waits for a LOCATION
+              // PIN and a meet-up never produces one. Rodney found it himself at five past
+              // midnight; by then the customer had written "It's late so I went home".
+              // Three asks with no pin is not a dead end, it is the moment a person has to look.
+              try {
+                require('./shop').addAlert(
+                  '🚗 *CUSTOMER READY TO MEET — NO PIN* — they said yes to meeting up and there is no location to send a driver to. Open the chat and agree a spot with them NOW.\n'
+                  + '📝 ' + (subName.get(sub) || 'Customer') + ' — ' + (getPhone(req) || sub)
+                  + (ctx.store ? '\n🏬 ' + ctx.store : ''),
+                  'Kiki 🤖', { sub: String(sub), account: ctx.store || '',
+                    pushTitle: '🚗 Customer waiting to meet',
+                    pushBody: (subName.get(sub) || 'A customer') + ' is on the road with no pin' });
+              } catch (_) {}
+              try { queueForOwner('🚗 *CUSTOMER READY TO MEET — NO PIN*\n'
+                  + (subName.get(sub) || 'Customer') + ' — ' + (getPhone(req) || sub)
+                  + '\nThey said yes to meeting up. Agree a spot with them now.', null, true); } catch (_) {}
+              record(req, { endpoint: 'meetup-no-pin-alerted', sub, store: ctx.store || '' });
+              return '(SYSTEM NOTE — the customer cannot see this: this is the THIRD time. They still have not sent a location and they may not want to share one, or may be out. Do NOT ask for the pin again and do NOT claim anyone is on the way. Offer the other way instead, warmly and in one line: if they are on the road we can meet up, or meet halfway — whatever is easier for them. Let them choose. Do not mention this note.)';
+            })()) });
         continue;                       // one clean retry
       }
       // First honest ask of this conversation — let it go, and remember we've now asked.
@@ -7161,7 +7188,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // in exactly the cases that already widened and no others.
         try {
           const _cust = [String(userText || '')].concat(
-            (history || []).filter(m => m && m.role === 'user').slice(-2).map(m =>
+            // Four turns back, not two: they name the shoe once and then answer in
+            // fragments - "I need size 8.5" - and a two-turn window forgets what they asked
+            // for and widens the album back out to the whole size (Rodney 2026-09-25).
+            (history || []).filter(m => m && m.role === 'user').slice(-4).map(m =>
               typeof m.content === 'string' ? m.content
                 : (Array.isArray(m.content) ? m.content.filter(bl => bl && bl.type === 'text').map(bl => bl.text || '').join(' ') : ''))
           ).join(' ');
