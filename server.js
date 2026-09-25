@@ -5289,6 +5289,38 @@ function saveReminders() {
 }
 // `sub` is the CUSTOMER's subscriber id (Rodney 2026-08-16). Without it a due reminder could
 // only ever reach Rodney; with it, Kiki can go straight back to the person who ordered.
+// ⏰ A TIME THE OWNER PROMISED BY HAND IS STILL A PROMISE.
+// Rodney 2026-09-25: "we losing fucking sales, kiki never told me about the order." A customer
+// said "I need it for tomorrow befor 12", Rodney typed "ok i can deliver 8am" himself, and
+// nothing anywhere recorded it. Kiki is PAUSED the moment a human replies - correctly, she
+// must not talk over him - but that also means she never files the order and never sets the
+// reminder. At 10:16 the customer wrote: "I was waiting on you to text from around 8... I
+// didn't hear from you so I went with someone else."
+// So when the owner's own words name a delivery time, that time gets a reminder, exactly as
+// if Kiki had taken the order.
+function promisedTimeFromOwner(text) {
+  const t = String(text || '').toLowerCase();
+  if (!/\b(deliver|drop|bring|come|reach|meet|see you|have it|get it to you)\b/.test(t)) return null;
+  const m = t.match(/\b(1[0-2]|[1-9])(?::([0-5][0-9]))?\s*(am|pm)\b/)
+         || t.match(/\bbefore\s+(1[0-2]|[1-9])\b/)
+         || (/\b(first thing|in the morning|the am|morning)\b/.test(t) ? ['', '8', '', 'am'] : null);
+  if (!m) return null;
+  let hh = parseInt(m[1], 10); const mm = parseInt(m[2] || '0', 10);
+  // A bare hour with no am/pm: "before 12" means NOON, not midnight - nobody delivers shoes at
+  // midnight, and reading it that way sets the reminder twelve hours wrong. 1-7 reads as the
+  // afternoon, 8-12 as the morning.
+  const ap = m[3] || (hh === 12 ? 'noon' : hh <= 7 ? 'pm' : 'am');
+  if (ap === 'pm' && hh < 12) hh += 12;
+  if (ap === 'am' && hh === 12) hh = 0;    // a real "12am" is midnight; a bare 12 is 'noon' above
+  // Nassau is UTC-4. Work out the next time the clock reads that.
+  const now = new Date(), nas = new Date(now.getTime() - 4 * 3600 * 1000);
+  const target = new Date(nas); target.setUTCHours(hh, mm, 0, 0);
+  if (target <= nas) target.setUTCDate(target.getUTCDate() + 1);
+  const ms = target.getTime() - nas.getTime();
+  if (ms < 5 * 60000 || ms > 8 * 24 * 3600 * 1000) return null;
+  // Half an hour BEFORE, so there is time to load the van rather than an alarm as it is missed.
+  return { ms: Math.max(60000, ms - 30 * 60000), hh, mm };
+}
 function scheduleOrderReminder(ms, store, lines, image, sub) {
   reminders.push({ at: Date.now() + ms, store: store || null, lines, image: image || null, sub: sub || null });
   saveReminders();
@@ -11532,6 +11564,20 @@ app.post('/inbox/send', async (req, res) => {
         if (imageUrl) inboxRecord(acct, sub, { dir: 'out', sender: 'rodney', text: '', img: imageUrl });
         if (audioUrl) inboxRecord(acct, sub, { dir: 'out', sender: 'rodney', text: '🎙 voice note' });
         if (text) inboxRecord(acct, sub, { dir: 'out', sender: 'rodney', text });
+      } catch (_) {}
+      // A DELIVERY TIME HE TYPED HIMSELF STILL NEEDS A REMINDER. See promisedTimeFromOwner.
+      try {
+        const promised = promisedTimeFromOwner(text);
+        if (promised) {
+          const who = (inboxThreads.get(inboxSubIndex.get(sub) || '') || {});
+          const when = String(promised.hh).padStart(2, '0') + ':' + String(promised.mm).padStart(2, '0');
+          scheduleOrderReminder(promised.ms, who.account || account,
+            '\u23f0 *DELIVERY YOU PROMISED* \u2014 ' + when + '\n'
+            + (who.name || 'Customer') + ' \u2014 ' + (who.phone || sub) + '\n'
+            + 'You told them: "' + String(text).slice(0, 120) + '"\n'
+            + 'They are expecting you. Message them before they give up.', null, String(sub));
+          record(req, { endpoint: 'owner-promise-reminder', sub, when, inMin: Math.round(promised.ms / 60000) });
+        }
       } catch (_) {}
       return res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
     }
