@@ -717,6 +717,25 @@ const EU_TO_US_MENS = {
   '42.5': '9', '43': '9.5', '44': '10', '44.5': '10.5', '45': '11', '45.5': '11.5',
   '46': '12', '47': '12.5', '47.5': '13', '48': '13',
 };
+// 👩 SHE SAID "WOMAN 9" IN PLAIN WORDS AND NOTHING LISTENED.
+// Rodney 2026-09-25: "black nike shox can be sent for woman 9 already told you that."
+// A customer typed exactly "Woman 9". The whole album went out as a MEN'S 9 - so she was
+// shown shoes that do not fit her and told the black Shox had no 9, when a women's 9 is a
+// men's 8 and the Shox has an 8 sitting right there.
+// Whether a size is women's cannot be left to whoever is reading the turn: it is the
+// difference between a shoe that fits and one that does not, and she said the word.
+const WOMENS_WORD_RE = /\b(wom[ae]n'?s?|womens|ladies|lady|female|girls?|her size|for my (wife|girl|girlfriend|daughter|mom|mother|sister))\b/i;
+const MENS_WORD_RE = /\b(m[ae]n'?s?|mens|male|guys?|for (my )?(husband|son|brother|dad|father))\b/i;
+function womensAsk(said) {
+  for (const raw of (said || [])) {
+    const t = String(raw || '');
+    if (!t.trim()) continue;
+    if (WOMENS_WORD_RE.test(t)) return true;      // newest word wins, same as the colour guard
+    if (MENS_WORD_RE.test(t)) return false;
+  }
+  return null;                                     // nobody said - leave it as the caller had it
+}
+
 function euToUsMens(size) {
   const n = parseFloat(size);
   if (isNaN(n) || n < 35 || n > 50) return null;       // a US size is never 35+
@@ -7342,7 +7361,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (!isNaN(wantN)) {
           // Rodney's table first (see sizesToSend); the old arithmetic only as a fallback for
           // anything the table does not cover.
-          const _table = sizesToSend(wantN, inp.womens === true);
+          // If the customer SAID women's (or men's), that wins over whatever was passed in.
+          let _womens = inp.womens === true;
+          try {
+            const said3 = [String(userText || '')].concat(
+              history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
+                .slice(-8).reverse().map(m => m.content));
+            const w = womensAsk(said3);
+            if (w !== null && w !== _womens) {
+              record(req, { endpoint: 'womens-ask-corrected', sub, size: inp.size, womens: w });
+              _womens = w; inp.womens = w;
+            }
+          } catch (_) {}
+          const _table = sizesToSend(wantN, _womens);
           const acceptable = _table ? _table.map(x => String(parseFloat(x)))
             : inp.womens === true
             ? [String(wantN - 1.5), String(wantN - 1), String(wantN)]  // her size, her half-up, then the literal fallback
