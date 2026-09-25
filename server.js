@@ -659,6 +659,50 @@ function saidLaterDay(said) {
   }
   return false;
 }
+// 👟 WHICH MODEL DID THEY ASK FOR - AND ONLY THAT MODEL.
+// Rodney 2026-09-25: "If person's only asking for Air Max Plus, send Air Max Plus. If people
+// only asking for Air Max 95, send Air Max 95. If some people only ask for Air Max, send all
+// the Air Max categories. And don't send no mixed shoes."
+// A specific model is a hard filter. A family word ("air max", "jordan", "new balance") opens
+// the whole family and nothing else. Their newest words win, same as the colour guard.
+const MODEL_RULES = [
+  // [what they said, what counts as that model]
+  [/\bair\s*max\s*plus\b|\btn\b|\btns\b/i,            /air max plus|\btn\b/i],
+  [/\bair\s*max\s*95\b|\b95s?\b/i,                      /air max 95/i],
+  [/\bair\s*max\s*97\b|\b97s?\b/i,                      /air max 97/i],
+  [/\bair\s*max\s*90\b|\b90s?\b/i,                      /air max 90/i],
+  [/\bair\s*max\s*270\b|\b270s?\b/i,                    /air max 270/i],
+  [/\bair\s*max\s*dn\b/i,                                 /air max dn/i],
+  [/\bvapor\s*max(es)?\b/i,                                /vapormax|vapor max/i],
+  [/\bvomero\b|\bv5\b/i,                                  /vomero/i],
+  [/\bdunks?\b/i,                                           /dunk/i],
+  [/\bair\s*force(s)?\s*(1|one)?\b|\baf1s?\b|\bforces\b/i, /air force/i],
+  [/\bscorpions?\b/i,                                       /scorpion/i],
+  [/\bshox\b/i,                                             /shox/i],
+  [/\bhuaraches?\b/i,                                       /huarache/i],
+  [/\b9060\b/i, /9060/i], [/\b1906\b/i, /1906/i], [/\b2002\b|\b2000\b/i, /200[02]/i],
+  [/\b550\b/i, /550/i],   [/\b530\b/i, /530/i],   [/\b740\b/i, /740/i], [/\b1000\b/i, /1000/i],
+  [/\bjordan\s*4s?\b|\baj4s?\b/i,  /jordan 4/i],
+  [/\bjordan\s*11s?\b|\baj11s?\b/i, /jordan 11/i],
+  [/\bjordan\s*5s?\b/i,  /jordan 5/i],
+  [/\bjordan\s*1s?\b|\baj1s?\b/i,  /jordan 1/i],
+  // Families last, so "air max 95" is matched as the 95 before it is matched as "air max".
+  [/\bair\s*max(es)?\b/i,          /air max|vapormax/i],
+  [/\bjordans?\b|\bjays?\b/i,     /jordan/i],
+  [/\bnew\s*balance\b|\bnb\b/i,  /new balance/i],
+  [/\basics\b/i,                    /asics/i],
+  [/\bcrocs?\b/i,                   /crocs/i],
+  [/\byeezy\b|\bfoam\b/i,         /yeezy|foam/i],
+];
+function modelWanted(said) {
+  for (const raw of (said || [])) {
+    const t = String(raw || '');
+    if (!t.trim()) continue;
+    if (/\b(any(thing)?|whatever|everything|all of (it|them)|surprise me|no preference)\b/i.test(t)) return null;
+    for (const [asked, matches] of MODEL_RULES) if (asked.test(t)) return matches;
+  }
+  return null;
+}
 function colourWanted(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
@@ -1818,6 +1862,14 @@ const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 
 // 📏 HER DRAFT ASKING A CUSTOMER WHAT SIZE THEY WEAR. Only the QUESTION shapes — a
 // confirmation like "in a 13?" or "want it in your size?" is not a re-ask and must still
 // get through. Used by the guard in the chat loop (search: size-reask-blocked).
+// 😶 "I DON'T UNDERSTAND" IS NOT AN ANSWER WHEN WE ALREADY KNOW ENOUGH TO SEND.
+// Rodney 2026-09-25: "Kiki keeps saying she don't understand what they saying most of the
+// time... if customers ask for black tennis and Kiki doesn't know, Kiki can say THIS IS WHAT
+// WE HAVE IN BLACK. She already knows the size. Stop acting fucking confused."
+// A customer said "Nike black number 9", got his album, then said "Nike black you put on the
+// flyer's" - and was told "I'm not catching which one from the flyer". We had a colour and we
+// had a size. That is everything needed to SEND, and sending is the answer.
+const CONFUSED_RE = /\b(?:i'?m\s+)?not\s+(?:catching|seeing|sure|getting)\b|\bcan'?t\s+(?:quite\s+)?(?:see|tell|catch|make out|pull up|work out)\b|\bdon'?t\s+(?:quite\s+)?(?:understand|follow|know which|see which)\b|\bwhich one (?:do you mean|you mean|from the)\b|\bnot showing up\b|\bhmm,? ?(?:that|i)\b/i;
 const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s+|ur\s+|the\s+|you\s+)?size\b|\bsize\s+(?:you|u|ya)\b|\byour\s+size\s*\?/i;
 // 📍 Her "drop me your location pin" copy, in the shapes the prompt actually produces.
 // Used by the guard in the chat loop (search: pin-reask-blocked) so we stop telling a
@@ -2417,6 +2469,14 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
   - Every shoe in a size album came out of a search for THAT SIZE. That is what the album is. So when they point at one and ask about that size, the answer is already yes: "Yes — everything I sent you there is in a 10 👟 want me to set one up?"
   - Answer in WORDS. Do not re-send the album, do not send any photos, do not ask which one — they are not asking for stock, they are double-checking the one they like.
   - DIFFERENT CASE: if they SEND YOU A PICTURE of their own — a new photo, off an ad or another page — that is not one of ours and we may not carry it. Look at it, name your best guess, and check it properly before you promise anything.
+- 😶 ⛔ NEVER SAY YOU ARE CONFUSED WHEN YOU KNOW THE COLOUR AND THE SIZE (Rodney 2026-09-25: "Kiki keeps saying she don't understand what they saying most of the time... if customers ask for black tennis and Kiki doesn't know, Kiki can say THIS IS WHAT WE HAVE IN BLACK. She already knows the size. Stop acting fucking confused.").
+  - "I'm not catching which one", "I can't quite see", "which one do you mean" — BANNED the moment you already have a colour or a model AND their size. You have everything you need: SEND.
+  - Say it plainly and send: "This is what we have in black in your 9 👇". That is the answer to every vague ask.
+  - 👟 AND DON'T MIX THE SHOES. Whatever they named is ALL they see:
+    • "Air Max Plus" → only Air Max Plus. • "Air Max 95" → only the 95s.
+    • just "Air Max" → every Air Max there is, and nothing else.
+    • "New Balance" → only New Balance. Never pad an album with other models.
+  - Only widen if THEY widen it — "anything", "whatever", "show me everything".
 - 🛑 IF WE DON'T HAVE IT, SAY SO — STOP GUESSING AFTER TWO TRIES (Rodney 2026-09-25). A customer circled ONE shoe in our own advert — the black-and-white "Sketch With The Past" Air Max 95 — and pointed at it five times: "That", "I just need that it like", "Okay need black white". We do not carry that shoe at all. Instead of saying so he was shown Dunks, Jordan 4s, black/yellow, black/blue, black/red, and finally wrote: "I tell you like that okay you don't get it give up."
   - You get TWO goes at matching a picture. If the second one is also wrong, STOP and say the true thing: "I don't have that exact one — sorry 🙏". That is a complete answer.
   - Then ONE offer, and only if it is real: the closest thing you actually have, named, or take their number for when it lands. Never another album.
@@ -6688,6 +6748,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
+  let confusedBlocks = 0;
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
@@ -6853,6 +6914,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // it anyway, the draft does not get sent — she is told once and writes it again.
     // Unlike the leak guard above, a second offence is still SENT: an awkward question is
     // bad, and dead silence in the middle of a sale is worse.
+    // 😶 SHE HAS ENOUGH TO SEND - SO SEND. See CONFUSED_RE.
+    if (turnText && knownSize && CONFUSED_RE.test(turnText) && confusedBlocks < 1 && !photosSentRun) {
+      let _askedColour = [], _askedModel = null;
+      try {
+        const said = [String(userText || '')].concat(
+          history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
+            .slice(-6).reverse().map(m => m.content));
+        _askedColour = colourWanted(said); _askedModel = modelWanted(said);
+      } catch (_) {}
+      if (_askedColour.length || _askedModel) {
+        confusedBlocks++;
+        record(req, { endpoint: 'confused-reply-blocked', sub, size: knownSize,
+                      colour: _askedColour.join('/') || null, hadModel: !!_askedModel,
+                      text: turnText.slice(0, 160) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE \u2014 the customer cannot see this: do NOT tell them you cannot tell which one, cannot see it, or are not catching it. You already know enough to answer: they want '
+          + (_askedColour.length ? _askedColour.join('/') + ' ' : '') + 'in a ' + knownSize + '. '
+          + 'Say "this is what we have in ' + (_askedColour.join('/') || 'that') + ' in your ' + knownSize + '" and CALL search_inventory then send_photos on this turn. '
+          + 'Saying you are confused to somebody who has already told you the colour and the size is how we lose them. Do not mention this note.)' });
+        forceSearchNext = true;
+        continue;
+      }
+    }
     if (turnText && knownSize && SIZE_REASK_RE.test(turnText)) {
       sizeReAsks++;
       record(req, { endpoint: 'size-reask-blocked', sub, store: ctx.store || '', size: knownSize, attempt: sizeReAsks, text: turnText.slice(0, 200) });
@@ -7122,6 +7205,29 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (Array.isArray(inp.groups)) for (const g of inp.groups) {
               if (Array.isArray(g.ids)) g.ids = g.ids.filter(keep);
             }
+          }
+        } catch (_) {}
+        // 👟 MODEL GUARD - "don't send no mixed shoes". See modelWanted.
+        const droppedWrongModel = [];
+        try {
+          const said = [String(userText || '')].concat(
+            history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
+              .slice(-6).reverse().map(m => m.content));
+          const want = modelWanted(said);
+          if (want) {
+            const liveM2 = liveShoeMap();
+            const keep = (id) => {
+              const sh = liveM2[id];
+              if (!sh) return true;
+              if (want.test(`${sh.name || ''} ${sh.nickname || ''}`)) return true;
+              droppedWrongModel.push(displayName(sh));
+              return false;
+            };
+            if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keep);
+            if (Array.isArray(inp.groups)) for (const g of inp.groups) {
+              if (Array.isArray(g.ids)) g.ids = g.ids.filter(keep);
+            }
+            if (droppedWrongModel.length) record(req, { endpoint: 'model-guard-drop', sub, dropped: droppedWrongModel.length });
           }
         } catch (_) {}
         // 🎨 COLOUR GUARD. Rodney 2026-09-24: "Why if I came to you for all black, would you
