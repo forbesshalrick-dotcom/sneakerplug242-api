@@ -619,7 +619,12 @@ function findMatches(raw) {
   // that we do not have it - which is what an empty result produces.
   const modelNums = tokens.filter(t => /^\d{3,4}$/.test(t));
   if (modelNums.length && best.length) {
-    const carries = (sh, n) => (`${sh.name} ${sh.nickname || ''}`).toLowerCase().includes(n);
+    // The NICKNAMES count as carrying the number too. Caught 2026-09-25: the shelf renamed
+    // c0455 to "Air Max 21" while the catalogue says "Air Max 2021", so a search for the
+    // number the customer typed found the shoe and then this guard threw it away again,
+    // because the live NAME does not contain "2021" - only its alias does.
+    const carries = (sh, n) =>
+      (`${sh.name} ${sh.nickname || ''} ${aliasTokens(sh).join(' ')}`).toLowerCase().includes(n);
     if (!modelNums.every(n => best.some(x => carries(x.shoe, n)))) {
       const kept = best.filter(x => modelNums.every(n => carries(x.shoe, n)));
       best = kept;   // usually empty: say we don't have it rather than offer a wall of others
