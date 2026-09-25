@@ -6937,6 +6937,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let photosSentRun = false; // did any photos go out this turn?
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
+  let lastSearchIds = [];    // the ids that search matched — see the completeness top-up in send_photos
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
@@ -7307,6 +7308,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         } else {
         found = searchInventory(p);
         lastSearchCount = found.length;
+        lastSearchIds = found.map(r => String(r.id));
         result = { shoes: found };
         }
         // Remember the customer's size (a single concrete size search = their size) so we can
@@ -7406,6 +7408,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keep);
             if (Array.isArray(inp.groups)) for (const g of inp.groups) {
               if (Array.isArray(g.ids)) g.ids = g.ids.filter(keep);
+            }
+          }
+        } catch (_) {}
+        // 📦 SEND EVERYTHING THAT SEARCH FOUND, NOT A HANDFUL OF IT.
+        // Rodney 2026-09-25: "black 97 and vapormax still not sent." He asked for all black in
+        // a 9. The search found THIRTY-EIGHT and five went out - the five with a true 9 - so
+        // the all black Air Max 97 and the VaporMax, both there in a 9.5, never left.
+        // Nothing filtered them: she simply picked a few out of the list. The old completeness
+        // top-up only ever fired on a bare size browse, so a colour ask - the most common ask
+        // we get - was never made whole.
+        // Everything below still applies afterwards (colour, model, size, the 40 cap), so this
+        // can only add shoes the same search already matched.
+        try {
+          if (!staffName && lastSearchIds.length) {
+            const have = new Set([].concat(inp.ids || [],
+              ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).map(String));
+            const missing = lastSearchIds.filter(id => !have.has(id));
+            if (missing.length && have.size < lastSearchIds.length) {
+              if (Array.isArray(inp.groups) && inp.groups.length) inp.groups.push({ ids: missing, label: '' });
+              else inp.ids = [].concat(inp.ids || [], missing);
+              record(req, { endpoint: 'album-completed-from-search', sub,
+                            kikiPicked: have.size, searchFound: lastSearchIds.length, added: missing.length });
             }
           }
         } catch (_) {}
