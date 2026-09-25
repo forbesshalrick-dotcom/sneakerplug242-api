@@ -2413,6 +2413,10 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin — tap 📎 (or ＋) → Location → Send your current location — then text me \"sent\" so I know it came through 👟".
 - ⚠️ NEVER KEEP ASKING FOR THE PIN once they've SAID they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here". TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
 - 🗺️ A TYPED ADDRESS IS A REAL ORDER — TAKE IT (Rodney's rule 2026-08-16, and he was firm on this): plenty of good customers do not know how to drop a pin, or they simply prefer to type where they live. Typing out an address is EFFORT — it shows they're serious. NEVER treat a written address as a dead end and NEVER hold the sale hostage waiting for a pin. Ask for the pin ONCE, warmly, because it genuinely helps the driver: "Got you! 📍 If you can, drop your WhatsApp location too — tap 📎 (or ＋) → Location → Send your current location — that way the driver comes straight to you instead of hunting for the turn 👟". Then: if they send the pin, great. If they give the address again, say they can't, say they don't know how, or just don't send one — TAKE THE ADDRESS AND GO. Call delivery_ready with location = the address they typed, and start it with "ADDRESS (no pin): " so the driver knows to phone ahead rather than follow a dot. If they say they don't know how, offer the tap-by-tap once in a friendly way — but never make them feel silly, and never make it a condition of getting their shoes.
+- ✅ "YOU HAVE THIS IN A 10?" ABOUT A PHOTO YOU JUST SENT = YES (Rodney 2026-09-25: "maybe kiki can answer Yes, everything in that list is in size 10"). A customer tapped one of our own Wet Cement Jordan 4 pictures out of a SIZE 10 album and asked "Do you have size 10 in this" — and got the whole size 10 album again, twice, about fifty photos.
+  - Every shoe in a size album came out of a search for THAT SIZE. That is what the album is. So when they point at one and ask about that size, the answer is already yes: "Yes — everything I sent you there is in a 10 👟 want me to set one up?"
+  - Answer in WORDS. Do not re-send the album, do not send any photos, do not ask which one — they are not asking for stock, they are double-checking the one they like.
+  - DIFFERENT CASE: if they SEND YOU A PICTURE of their own — a new photo, off an ad or another page — that is not one of ours and we may not carry it. Look at it, name your best guess, and check it properly before you promise anything.
 - 🎯 THEY NAMED THE SHOE — DON'T ANSWER WITH A DIFFERENT ONE (Rodney 2026-09-25: "she found the shoe customer wants and still sent other shoes"). A customer asked for the Air Max Plus 3 Red/Blue in an 8.5. You found it, sent it, and said we had a 7 and an 8. He said "I need size 8.5". He was then sent New Balances.
   - When they have named ONE shoe and we do not have their size in it, SAY THAT, plainly: "Ah, that one only come in a 7 and an 8 right now — no 8.5 😔". That is the whole answer and it is an honest one.
   - THEN, and only as a short offer they can say no to, mention the nearest thing IN THE SAME MODEL, or ask if they want to see other shoes in their size. Never just send them.
@@ -3232,7 +3236,7 @@ function recentlyToldUsToStop(sub) {
 // which one was never necessary; it just cost the sale. So keep the album and hand it to
 // her on the next turn.
 const albumShown = new Map();   // sub -> { at, shoes:[{name, price}] }
-function rememberAlbumShown(sub, shoes) {
+function rememberAlbumShown(sub, shoes, forSize) {
   const seen = new Set(), list = [];
   for (const s of shoes || []) {
     const n = displayName(s);
@@ -3240,7 +3244,8 @@ function rememberAlbumShown(sub, shoes) {
     seen.add(n);
     list.push({ name: n, price: parseFloat(s.price) || 0 });
   }
-  if (list.length) albumShown.set(String(sub), { at: Date.now(), shoes: list.slice(0, 40) });
+  if (list.length) albumShown.set(String(sub), { at: Date.now(), shoes: list.slice(0, 40),
+                                                 size: String(forSize || '').trim() });
   if (albumShown.size > 300) { const k = albumShown.keys().next().value; albumShown.delete(k); }
 }
 // The note Kiki gets when they point at one of those pictures.
@@ -3252,6 +3257,21 @@ function pointedAtAlbumNote(sub) {
   const head = 'The customer just POINTED AT one of the pictures we sent them (they replied to '
              + 'it). The quote does not reach us, so you cannot tell which - but here is '
              + 'EXACTLY what we sent them:\n' + lines + '\n\n';
+  // ✅ THE ALBUM WAS ALREADY THEIR SIZE, SO THE ANSWER IS JUST "YES".
+  // Rodney 2026-09-25: "maybe kiki can answer Yes, everything in that list is in size 10,
+  // because sometimes people are asking if you have this about the same shoe that was sent."
+  // A customer tapped our own Wet Cement Jordan 4 out of a size-10 album and asked "Do you
+  // have size 10 in this" - and got the whole size 10 album again, twice, about fifty
+  // pictures. He was not asking for stock, he was double-checking the one he liked. Every
+  // shoe in that album came out of a search for HIS size; that is what the album IS.
+  if (a.size && /^[0-9.]+$/.test(a.size)) {
+    return head + 'IMPORTANT: every single one of those came out of a search for a SIZE '
+         + a.size + ' - that is what that album was. So if they are asking whether we have '
+         + 'it in a ' + a.size + ', the answer is simply YES, and you can say so about the '
+         + 'whole lot: "Yes \u2014 everything I sent you there is in a ' + a.size + ' \U0001f45f". '
+         + 'Do NOT send the album again, do NOT send any photos, and do NOT ask which one. '
+         + 'Answer in words and ask if they want you to set it up.';
+  }
   if (prices.length === 1) {
     // One price across the album: the question they asked has one answer either way.
     return head + 'Every one of them is $' + prices[0] + ', so it does not matter which they '
@@ -3736,7 +3756,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       manychatSaid: answers, firstIds: albumTrace.slice(0, 3).map(t => t.id) });
     if (recent.length > 120) recent.length = 120;
   } catch (_) {}
-  try { if (shownShoes.length) rememberAlbumShown(sub, shownShoes); } catch (_) {}
+  try { if (shownShoes.length) rememberAlbumShown(sub, shownShoes, wantSize); } catch (_) {}
   return { sent, requested, interrupted, manualStopped, held_back: heldBack || undefined, last_shoe: lastShoeSent ? displayName(lastShoeSent) : null };
 }
 
@@ -6352,7 +6372,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   if (_pointerOnly) { try { noteQuoteWanted(sub, getPhone(req), ctx && ctx.store); } catch (_) {} }
   // WHAT WE JUST SHOWED THEM, handed over before she answers. This is the half that works on
   // a ManyChat line, where there is no browser page to read the tag out of.
-  if (_pointerOnly || _pointerAsk) {
+  // A NEW PICTURE IS NOT A POINTER. Rodney 2026-09-25: "sometimes people are asking if you
+  // have this about the same shoe that was sent, and sometimes they send a new picture we
+  // don't have." Those need opposite answers - one is "yes, that's ours", the other has to be
+  // looked at and might be something we do not stock. If an image came in on THIS turn they
+  // have sent us something new, so the album receipt does not apply.
+  const _sentUsAPicture = !!(image || (ctx && ctx.inPhotoUrl));
+  if ((_pointerOnly || _pointerAsk) && !_sentUsAPicture) {
     try {
       const albumNote = pointedAtAlbumNote(sub);
       if (albumNote) {
