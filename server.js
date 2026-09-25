@@ -3238,11 +3238,15 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
             // size and a half (Rodney 2026-08-04). The literal number stays last as a
             // fallback so a thin women's size still shows something; it is a women's n+1.5,
             // so its photo label now says plainly that it isn't her size.
-            ? (wideWomens ? [String(n - 1.5), String(n - 1), String(n)] : [String(n - 1.5)])
-            // MEN'S: on a normal "any" search ALWAYS also include the half-size UP, so a size 6
-            // request also shows the shoes that only come in 6.5 (Rodney's rule 2026-07-13 — don't
-            // lose a sale over a half size). A matching ("all") search stays exact.
-            : (isAll ? [String(n)] : [String(n), String(n + 0.5)]))
+            ? (wideWomens ? (sizesToSend(n, true) || [String(n - 1.5), String(n - 1), String(n)]) : [String(n - 1.5)])
+            // 📏 MEN'S: Rodney's table decides, not a blanket half-size-up.
+            // 2026-09-25: a customer asked for a 7.5 AND an 8 and was sent an 8.5. The old rule
+            // added half a size to EVERY number, so "7.5 and 8" quietly became "7.5, 8 and 8.5"
+            // - and on a multi-size ask that is over-reach, because he had already told us his
+            // range. His table says 7.5 means 7.5 and 8 means 8; a 9 is the one that carries the
+            // half up, and an 11.5 carries the 12. Same table the album guard uses, so the
+            // search and the guard can no longer disagree about what fits.
+            : (isAll ? [String(n)] : (sizesToSend(n, false) || [String(n), String(n + 0.5)])))
           .filter(x => x && x !== 'NaN')
       )];
   if (sizeList.length) {
