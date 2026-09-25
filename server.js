@@ -6585,9 +6585,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // image may be a plain URL string (ManyChat) OR a {data, media_type} base64 object
   // (WhatsApp Cloud API media needs an auth header to fetch, so we download it in the
   // webhook and pass the bytes here).
+  // 🔒 HTTPS OR NOT AT ALL. Rodney 2026-09-25, on a nonsense reply to a customer who had
+  // just said "Thanks": "what is this message for?" The API had answered 400 "Only HTTPS URLs
+  // are supported", the whole turn died, and the customer got the crash fallback - which asks
+  // for a size, on an order where the shoe and the size were already settled.
+  // One bad character in a URL should never cost a whole reply: an http:// link is upgraded,
+  // and anything that still is not a fetchable https URL is dropped so the turn runs on the
+  // words alone instead of failing outright.
+  let _imgUrl = (typeof image === 'string') ? image.trim() : '';
+  if (_imgUrl && /^http:\/\//i.test(_imgUrl)) _imgUrl = _imgUrl.replace(/^http:\/\//i, 'https://');
+  if (_imgUrl && !/^https:\/\//i.test(_imgUrl)) {
+    try { record(req, { endpoint: 'image-url-dropped', sub, url: _imgUrl.slice(0, 120) }); } catch (_) {}
+    _imgUrl = '';
+    image = null;                 // no picture this turn - answer the words
+  } else if (_imgUrl && typeof image === 'string') {
+    image = _imgUrl;
+  }
   const imageSource = (image && typeof image === 'object' && image.data)
     ? { type: 'base64', media_type: image.media_type || 'image/jpeg', data: image.data }
-    : { type: 'url', url: image };
+    : { type: 'url', url: _imgUrl || image };
   const userMsg = {
     role: 'user',
     content: image
@@ -6683,9 +6699,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
       // Only reached after the auto-retries above ALL failed. Keep the sale warm instead of
       // sounding broken: on a photo, acknowledge it and ask the size; otherwise ask for a resend.
+      // 🛑 THE CRASH LINE MUST NOT UNDO WHAT WE ALREADY KNOW.
+      // This is the only reply that never passes through the model, so every guard that stops
+      // Kiki re-asking a size is bypassed here. It asked "what size you need?" of a customer
+      // whose shoe and size were settled and who had just said "Thanks" (Rodney 2026-09-25).
+      // Say less rather than something wrong: if we already have their size, do not ask for it.
       const fallback = image
-        ? "Got your pic 📸 I'm running a lil slow this sec — what size you need? I'll check it for you right now 👟"
-        : "Hmm, that didn't come through on my end 👟 send it once more?";
+        ? (knownSize
+            ? "Got your pic 📸 give me one sec and I'll check that for you in your " + knownSize + " 👟"
+            : "Got your pic 📸 I'm running a lil slow this sec — what size you need? I'll check it for you right now 👟")
+        : "One sec 👟 my end running slow, let me come right back to you.";
       await sendChunk(sub, [{ type: 'text', text: fallback }], token).catch(() => {});
       return;
     }
