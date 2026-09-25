@@ -522,6 +522,18 @@ function scoreShoe(shoe, tokens, sizeFilter) {
   for (const mt of tokenize(shoe.name)) {
     if (mt.length >= 3 && tokenHas(tokens, mt)) score += 2;
   }
+  // 🗣️ THE NICKNAMES COUNT TOO - AND THIS PATH HAD NONE OF THEM.
+  // Rodney 2026-09-25: "everytime we build shit you leave out the categories until I find
+  // them 1 by 1 missing." So I tested every model we stock the way a customer says it, and
+  // four came back with NOTHING: "tn", "tns", "dn", and "air max 2021". TN is what half the
+  // island calls the Air Max Plus and we hold twenty-three of them; DN likewise.
+  // The reason is that aliasTokens - which knows tn, af1, aj, nb, forces, jays and the rest -
+  // is used by searchInventory and was never used HERE, in the older path /lookup calls. Only
+  // the handful of aliases that happen to sit in BRAND_KEYWORDS worked, which is why "nb"
+  // found sixty and "tn" found zero.
+  for (const at of aliasTokens(shoe)) {
+    if (at.length >= 2 && tokenHas(tokens, at)) { score += 2; break; }
+  }
 
   if (shoe.nickname) {
     // A nickname word only earns the big bonus when it's DISTINCTIVE — the actual
@@ -2858,7 +2870,21 @@ function aliasTokens(s) {
   const name = (s.name || '').toLowerCase();
   if (brand.includes('new balance')) out.push('nb');
   if (brand.includes('jordan') || name.includes('jordan')) out.push('aj', 'jordans', 'js', 'jays', 'retro', 'retros');
-  if (name.includes('air max plus')) out.push('tn');
+  // Every nickname the island actually uses, not just the one. Found missing 2026-09-25 by
+  // testing all 80 models the way a customer says them: "tns" and "dn" both returned nothing.
+  if (name.includes('air max plus')) out.push('tn', 'tns', 'tn3', 'plus', 'pluses');
+  if (/\bair max dn\b/.test(name)) out.push('dn', 'dns');
+  if (name.includes('vapormax') || name.includes('vapor max')) out.push('vapor', 'vapormax', 'vapormaxes', 'vm');
+  if (name.includes('vomero')) out.push('vomero', 'v5', 'zoom vomero');
+  if (name.includes('huarache')) out.push('huaraches', 'hurache', 'huraches');
+  if (name.includes('scorpion')) out.push('scorpions', 'scorpio');
+  if (name.includes('duck')) out.push('duckboot', 'duck boot', 'duckboots');
+  if (name.includes('tatum')) out.push('tatums');
+  if (name.includes('roshe')) out.push('roshes', 'rosche');
+  if (name.includes('terrascape')) out.push('terrascapes', 'terra');
+  if (name.includes('foam')) out.push('foams', 'rnr', 'foam rnr');
+  if (name.includes('crocs')) out.push('croc');
+  if (name.includes('asics')) out.push('asic', 'gel');
   if (name.includes('air force')) out.push('forces', 'force', 'af1', 'af');
   // SCORPIONS. Rodney 2026-09-23: a customer sent a photo of a cream Air Max Scorpion, was
   // told "don't think we have that exact cream one" and shown Air Max 270s instead - while we
