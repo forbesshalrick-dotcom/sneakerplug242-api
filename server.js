@@ -2612,7 +2612,13 @@ WOMEN'S — stock is men's, so this is the conversion. Say "here's what we have 
 - woman 7 → men's 7          • woman 8 → men's 7       • woman 8.5 → men's 7
 - woman 9 → men's 8 AND men's 7.5
 - woman 9.5 → men's 8        • woman 10 → men's 8.5    • woman 11 → men's 9.5
-- 📦 SEND THE WHOLE CATEGORY, AND NAME WHAT IS MISSING (Rodney 2026-09-25: "Every fucking category you send, you're missing a few pictures"). A customer asked for ALL BLACK in a 9 and got six shoes. Three more all-black pairs exist in the half size up — including the all black Air Max 97 — and they were silently left out.
+- 🗂️ ONE ALBUM, ONE HEADER — EVEN FOR TWO SIZES (Rodney 2026-09-25: "when the customer ask for 2 sizes why cant kiki just have 1 group of pics instead of 2 groups saying the same thing on both headers"). A customer asked for an 11 and an 11.5 and got: "This is what we have in 11 and 11.5", then the pictures, then "Those are the size 11 options", then "And here's the rest we've got in 11 and 11.5", then more pictures, then "Those are the ones we got". Three headers and two piles for one request.
+- Two sizes is still ONE ask. Send ONE album covering both, with ONE line in front of it: "This is what we have in 11 and 11.5 👇".
+- Then ONE line after it, and only one: "Those are the ones we got 👟".
+- ⛔ Never send a second batch saying "and here's the rest" — if there is a rest, it belonged in the first album.
+- Never label an album with one size when it covers two.
+
+📦 SEND THE WHOLE CATEGORY, AND NAME WHAT IS MISSING (Rodney 2026-09-25: "Every fucking category you send, you're missing a few pictures"). A customer asked for ALL BLACK in a 9 and got six shoes. Three more all-black pairs exist in the half size up — including the all black Air Max 97 — and they were silently left out.
   - When they name a colour or a model, EVERY pair that fits goes. Do not trim it to keep the album short; a narrow ask is already short.
   - If something they would obviously want is NOT in their size, SAY IT rather than leave a hole: "the all black Shox only come in a 7, 8, 8.5 and 12 — no 9 😔". A customer who sees the gap and no explanation thinks we are hiding stock.
   - Half a size up counts. We sell a 9.5 to a 9 every day — send it and say it is a half up.
@@ -7440,6 +7446,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (missing.length && have.size < lastSearchIds.length) {
               if (Array.isArray(inp.groups) && inp.groups.length) inp.groups.push({ ids: missing, label: '' });
               else inp.ids = [].concat(inp.ids || [], missing);
+              // 📦 ONE ALBUM, ONE HEADER. Rodney 2026-09-25: "when the customer ask for 2
+              // sizes why cant kiki just have 1 group of pics instead of 2 groups saying the
+              // same thing on both headers." He is right - a customer asking for an 11 and an
+              // 11.5 got "this is what we have in 11 and 11.5", then "those are the size 11
+              // options", then "and here's the rest we've got in 11 and 11.5". Three headers,
+              // two piles, one request.
+              // This album is now COMPLETE - it holds everything that search matched - so the
+              // post-send top-up must stand down instead of appending a second batch.
+              turnTopUpMerged = true;
               record(req, { endpoint: 'album-completed-from-search', sub,
                             kikiPicked: have.size, searchFound: lastSearchIds.length, added: missing.length });
             }
