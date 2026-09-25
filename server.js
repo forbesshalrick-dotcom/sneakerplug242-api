@@ -1931,7 +1931,11 @@ const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 
 // A customer said "Nike black number 9", got his album, then said "Nike black you put on the
 // flyer's" - and was told "I'm not catching which one from the flyer". We had a colour and we
 // had a size. That is everything needed to SEND, and sending is the answer.
-const CONFUSED_RE = /\b(?:i'?m\s+)?not\s+(?:catching|seeing|sure|getting)\b|\bcan'?t\s+(?:quite\s+)?(?:see|tell|catch|make out|pull up|work out)\b|\bdon'?t\s+(?:quite\s+)?(?:understand|follow|know which|see which)\b|\bwhich one (?:do you mean|you mean|from the)\b|\bnot showing up\b|\bhmm,? ?(?:that|i)\b/i;
+// Widened 2026-09-25 after it caught nothing all day. The real sentences have words in the
+// MIDDLE - "can't quite make THAT out", "not catching YOU" - and my first pass required them
+// to be adjacent, so every one of them walked through. Written against the actual replies
+// customers got, not against how I imagined she phrases it.
+const CONFUSED_RE = /\bnot\s+\w{0,6}\s?(?:catching|seeing|sure|getting|following)\b|\bcan'?t\s+(?:\w+\s+){0,3}(?:see|tell|catch|make\s+\w{0,5}\s?out|pull\s+\w{0,5}\s?up|work\s+\w{0,5}\s?out|figure)\b|\bdon'?t\s+(?:\w+\s+){0,2}(?:understand|follow|know which|see which|get it)\b|\bwhich one (?:do you mean|you mean|from the)\b|\bnot showing up\b|\bclearer (?:pic|photo|picture)\b|\bhmm,? ?(?:that|i)\b/i;
 const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s+|ur\s+|the\s+|you\s+)?size\b|\bsize\s+(?:you|u|ya)\b|\byour\s+size\s*\?/i;
 // 📍 Her "drop me your location pin" copy, in the shapes the prompt actually produces.
 // Used by the guard in the chat loop (search: pin-reask-blocked) so we stop telling a
@@ -2568,6 +2572,10 @@ WOMEN'S — stock is men's, so this is the conversion. Say "here's what we have 
   - When they name a colour or a model, EVERY pair that fits goes. Do not trim it to keep the album short; a narrow ask is already short.
   - If something they would obviously want is NOT in their size, SAY IT rather than leave a hole: "the all black Shox only come in a 7, 8, 8.5 and 12 — no 9 😔". A customer who sees the gap and no explanation thinks we are hiding stock.
   - Half a size up counts. We sell a 9.5 to a 9 every day — send it and say it is a half up.
+- 👕 THEY MAY BE MATCHING SOMETHING, NOT NAMING A SHOE (Rodney 2026-09-25: "what pic is she talking about?"). A customer typed "It's a jersey shirt it has black navy and white looking for shoes to match" — plain text, no picture — and was answered "I can't quite make that out 🙈 send a clearer pic". Then "I want to go with the jersey", answered with "I'm not catching you — the jersey's a shirt, not a sneaker".
+  - She told you everything: BLACK, NAVY and WHITE, to match a jersey, in her size. That is a colour request with extra words around it. Send those colours.
+  - People match shoes to an outfit all the time — a jersey, a dress, a uniform, a team. The clothing is the COLOUR, never a shoe to look up. "Shoes to match my black and gold dress" means black and gold shoes.
+  - ⛔ Never ask for "a clearer pic" of something they typed in words, and never say a shirt is not a sneaker. They know. They are telling you what to match.
 - 😶 ⛔ NEVER SAY YOU ARE CONFUSED WHEN YOU KNOW THE COLOUR AND THE SIZE (Rodney 2026-09-25: "Kiki keeps saying she don't understand what they saying most of the time... if customers ask for black tennis and Kiki doesn't know, Kiki can say THIS IS WHAT WE HAVE IN BLACK. She already knows the size. Stop acting fucking confused.").
   - "I'm not catching which one", "I can't quite see", "which one do you mean" — BANNED the moment you already have a colour or a model AND their size. You have everything you need: SEND.
   - Say it plainly and send: "This is what we have in black in your 9 👇". That is the answer to every vague ask.
@@ -7014,7 +7022,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // Unlike the leak guard above, a second offence is still SENT: an awkward question is
     // bad, and dead silence in the middle of a sale is worse.
     // 😶 SHE HAS ENOUGH TO SEND - SO SEND. See CONFUSED_RE.
-    if (turnText && knownSize && CONFUSED_RE.test(turnText) && confusedBlocks < 1 && !photosSentRun) {
+    // photosSentRun dropped from this test: being confused AFTER sending photos is still
+    // being confused, and that is exactly the turn it kept happening on.
+    if (turnText && knownSize && CONFUSED_RE.test(turnText) && confusedBlocks < 1) {
       let _askedColour = [], _askedModel = null;
       try {
         const said = [String(userText || '')].concat(
