@@ -782,9 +782,17 @@ const SIZE_TABLE_WOMENS = {
 };
 function sizesToSend(size, womens) {
   const eu = euToUsMens(size);        // 41 means a US 8, not a US 41 - see euToUsMens
-  const k = String(parseFloat(eu != null ? eu : size));
+  const n = parseFloat(eu != null ? eu : size);
+  const k = String(n);
   const t = womens ? SIZE_TABLE_WOMENS[k] : SIZE_TABLE_MENS[k];
-  return t ? t.slice() : null;
+  if (t) return t.slice();
+  // ⚠️ A SIZE HE DID NOT DICTATE KEEPS THE OLD HALF-UP RULE. Rodney 2026-09-25: "guy ask
+  // for jordan 7.5 / 8 he only received 7.5." His table names 7, 8 and 8.5 but never 7.5, and
+  // I had filled the gaps with "exact only" - so a 7.5 ask stopped matching the 8s it had
+  // always matched, and a Wet Cement sitting in 7, 8, 8.5 was thrown out of a 7.5 album.
+  // Anything the table does not name falls back to the rule that was there before it.
+  if (isNaN(n)) return null;
+  return womens ? [String(n - 1.5), String(n - 1), String(n)] : [String(n), String(n + 0.5)];
 }
 
 function colourWanted(said) {
@@ -7509,11 +7517,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               _womens = w; inp.womens = w;
             }
           } catch (_) {}
-          const _table = sizesToSend(wantN, _womens);
-          const acceptable = _table ? _table.map(x => String(parseFloat(x)))
-            : inp.womens === true
-            ? [String(wantN - 1.5), String(wantN - 1), String(wantN)]  // her size, her half-up, then the literal fallback
-            : [String(wantN), String(wantN + 0.5)];
+          // 📏 EVERY SIZE THEY ASKED FOR, NOT JUST THE FIRST ONE. A customer asked for
+          // Jordans in a 7.5 AND an 8; the search looked for both and found 29, then this
+          // guard only ever read inp.size - the 7.5 - and dropped every shoe that had the 8
+          // and no 7.5. He got four pictures and was told "those are the size 7.5 options".
+          const askedSizes = (Array.isArray(inp.sizes) && inp.sizes.length ? inp.sizes : [inp.size])
+            .map(x => parseFloat(x)).filter(x => !isNaN(x));
+          const acceptable = [...new Set(askedSizes.flatMap(n =>
+            (sizesToSend(n, _womens) || []).map(x => String(parseFloat(x)))))];
           const liveM = liveShoeMap();
           const fits = (id) => {
             const s = liveM[id];
