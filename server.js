@@ -1982,7 +1982,12 @@ const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s
 // customer to send the thing he has already sent. Deliberately NOT matching a bare
 // "where are you?" — asking where to meet is fine and must still get through; it is the
 // tap-by-tap pin instructions, sent twice, that make us look like nobody is reading.
-const PIN_ASK_RE = /\blocation pin\b|\bdrop (?:your|ur|a|the)\s+(?:whatsapp\s+)?(?:location|pin)\b|send your current location|→\s*location\s*→/i;
+// \U0001f4cd "DROP THAT PIN" IS ASKING FOR A PIN. Rodney 2026-09-26: "kiki ask for location from a
+// customer were already on the way to." The re-ask blocker below is keyed on this regex, and
+// this regex only knew "drop YOUR/A/THE pin". Kiki's second ask was "\U0001f44d Drop that pin for me
+// \U0001f4cd" - so it matched nothing, pinAsked was never consulted, and she asked a customer the
+// driver was already almost on top of. One missing word, same shape as "dis" and "gray".
+const PIN_ASK_RE = /\blocation pin\b|\bdrop (?:your|ur|a|the|that|dat|it|me)\b[^.?!]{0,20}?\b(?:location|pin)\b|\b(?:send|share|text)(?: me)?(?: your| ur| the| that| a)?\s+(?:whatsapp\s+)?(?:current\s+)?(?:location|pin)\b|\bpin for me\b|→\s*location\s*→/i;
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
 // ⚠️ WHOLESALE gets a DIFFERENT nudge (Rodney 2026-08-17). On Sneaker Inventory the
@@ -8782,7 +8787,25 @@ function handleChat(req, res) {
     // come through on my end 🙈 — fire it over one more time?" for a picture they never sent. A repeated
     // pointer/nudge word is the customer repeating THEMSELVES; handle it as words, not as a lost photo.
     const POINTER_REPEAT = /^(this|that|this one|that one|the one|these|those|it|yes|yeah|ya|yep|ok|okay|hello|hi|hey|\?+|\.+)$/i;
-    if (prevTxt && prevTxt === nowTxt && withinReplayWindow && !POINTER_REPEAT.test(nowTxt)) { nonTextReplay = true; lastReplayAt.set(sub, Date.now()); }
+    // 📍 WHILE WE ARE WAITING ON A PIN, A REPLAY *IS* THE PIN.
+    // Rodney 2026-09-26. Measured on this chat: the customer's last real words were "Yes" at
+    // 16:57. Then "Yes" arrived again at 17:35, 17:37, 17:41 and 17:47 - the voice call and,
+    // at 17:47, THE LOCATION PIN HE ACTUALLY DROPPED. Every one of them was ManyChat replaying
+    // his old text because it had nothing to put in Last Text Input.
+    // Neither guard above could catch it: "yes" is in POINTER_REPEAT (written for a customer
+    // repeating a pointer word), and the replays were 38 minutes apart, far outside the 90s
+    // window. So Kiki never saw a pin, asked a third time, and filed the order saying nobody
+    // had seen one - while a driver was already almost there.
+    // Both of those bounds exist for good reasons and they stay. This only lifts them for the
+    // one state where a replay has an obvious meaning: we ASKED for a pin and are waiting.
+    // Then the cost is lopsided - a human glancing at the chat is cheap, a missed pin is the
+    // delivery - so treat it as "something landed" and let the re-ask blocker stand her down.
+    const _waitingOnPin = (Date.now() - (pinAsked.get(sub) || 0)) < 45 * 60 * 1000;
+    const _pinWindow = _waitingOnPin && prevAt && (Date.now() - prevAt) < 60 * 60 * 1000;
+    if (prevTxt && prevTxt === nowTxt && (_pinWindow || (withinReplayWindow && !POINTER_REPEAT.test(nowTxt)))) {
+      nonTextReplay = true; lastReplayAt.set(sub, Date.now());
+      if (_pinWindow) record(req, { endpoint: 'replay-while-waiting-on-pin', sub, q: nowTxt.slice(0, 30) });
+    }
   }
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
   const turnAt = Date.now(); // when THIS message arrived — albums born from this turn ignore nothing after it
