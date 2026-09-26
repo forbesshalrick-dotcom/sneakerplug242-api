@@ -12477,18 +12477,23 @@ app.post('/inbox/send-shoe', async (req, res) => {
   const brands = Array.isArray(b.brands) ? b.brands.map(String).filter(Boolean) : null;
   let results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query });
   if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing sent.', found: 0 });
-  // 🛑 FORTY. NOT A GUIDELINE - A CEILING.
-  // Rodney 2026-09-23: "customer blocked me, you sent everything in the whole fucking album."
-  // 136 photos went to one woman who had asked for New Balance or Asics. She blocked the
-  // line. His rule has been forty for weeks, and it kept being treated as advice that a good
-  // enough reason could outweigh - 67 earlier the same day, then 136. A limit that lives in
-  // someone's judgement is not a limit. Nothing above this can be sent from here, whatever
-  // the search found and whoever asked for it; the extras are reported so the reply can
-  // honestly offer the rest.
-  const HAND_SEND_MAX = 40;
+  // Skip shoes this customer already has (a follow-up send after a partial one), so the
+  // rest of a size goes out without repeating a single picture.
+  if (Array.isArray(b.exclude_ids) && b.exclude_ids.length) {
+    const skip = new Set(b.exclude_ids.map(String));
+    results = results.filter(x => !skip.has(String(x.id)));
+    if (!results.length) return res.json({ ok: false, error: 'They already have every shoe that matched — nothing sent.', found: 0 });
+  }
+  // 📬 A HAND SEND SENDS EVERYTHING IT FOUND (Rodney 2026-09-26).
+  // This used to stop at 40 (set 2026-09-23, after 136 photos to one customer got the line
+  // blocked). On 09-26 he sent "size 8" to a customer who had just swapped down from a 9:
+  // 107 shoes matched, 40 went out, and the other 67 were dropped without a word. None of
+  // the 16 New Balance were among the 40, though New Balance was what she was buying. His call: "fix
+  // it so next time everything can send". The staff member choosing the filter is the
+  // limit now; STOP still ends the whole album at any point.
+  const HAND_SEND_MAX = Infinity;
   const foundTotal = results.length;
-  const overflow = Math.max(0, foundTotal - HAND_SEND_MAX);
-  if (overflow) results = results.slice(0, HAND_SEND_MAX);
+  const overflow = 0;
   // 🚦 AUTO-BATCH LARGE ALBUMS (2026-09-01, Rodney's call). A broad "sizes 12 & 11"
   // search matched 76 shoes and ManyChat returned 200 for all 76 while delivering ZERO.
   // Instead of refusing, auto-batch into 20-photo chunks with gaps between them, so a
@@ -12578,10 +12583,12 @@ app.post('/inbox/send-shoe', async (req, res) => {
     for (let i = 0; i < batches.length; i++) {
       const batchIds = batches[i];
       const isLast = (i === batches.length - 1);
-      // Last batch gets the lead-in built into sendShoePhotos; earlier ones are photos-only —
-      // a pics-only send stays bare on every batch, including the first.
-      const batchLeadIn = (isLast && !picsOnly) ? (leadIn + sizeNote) : '';
-      const r = await sendShoePhotos(sub, batchIds, token, true, null, batchLeadIn, false, i > 0 || picsOnly);
+      // ONE header, ONE closer (Rodney 2026-09-26, a size-8 send showed the header twice).
+      // The lead-in already went out above, so no batch repeats it. Every batch but the
+      // last is bare, so the "those are the ones" closer lands once, after the final photo.
+      // It used to be the reverse: batch 1 carried the closer and the last batch repeated
+      // the header, which read as two separate albums with the "that's all" in the middle.
+      const r = await sendShoePhotos(sub, batchIds, token, true, null, '', false, picsOnly || !isLast);
       totalSent += r.sent;
       // ✋ STOP MEANS STOP - ALL OF IT, NOT THIS BATCH.
       // Rodney 2026-09-23, showing me a customer who asked for all black and got ~200
