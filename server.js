@@ -3562,7 +3562,20 @@ function pointedAtAlbumNote(sub) {
   const lines = a.shoes.map(s => '\u2022 ' + s.name + ' - $' + s.price).join('\n');
   const head = 'The customer just POINTED AT one of the pictures we sent them (they replied to '
              + 'it). The quote does not reach us, so you cannot tell which - but here is '
-             + 'EXACTLY what we sent them:\n' + lines + '\n\n';
+             + 'EXACTLY what we sent them:\n' + lines + '\n\n'
+             // 🛑 NEVER NAME ONE OF THEM AS IF YOU KNOW. Rodney 2026-09-26: "kiki still
+             // cant identify pics." A customer tapped our ASICS White/Blue card and wrote
+             // "Bring that to". She asked the price and the size, he said yes - and she
+             // confirmed "New Balance 2000 (Black/White/Red)". Wrong shoe, and a colourway we
+             // have never owned in any model. Picking one off this list and stating it as
+             // fact is the single worst thing to do with this note: he thinks it is settled,
+             // and a driver goes out with something he never asked for.
+             + '⛔ You do NOT know which of those they mean, and you must never write one '
+             + 'of those names as though you do - not now, and not later in this chat when '
+             + 'they say "yes" to something else. A "yes" to a price or a size is NOT them '
+             + 'naming the shoe. If you genuinely have to know which one before you can go '
+             + 'further, say so plainly and let THEM say it: "which one was it, the ASICS or '
+             + 'the New Balance?" - never invent the answer, and never invent a colourway.\n\n';
   // ✅ THE ALBUM WAS ALREADY THEIR SIZE, SO THE ANSWER IS JUST "YES".
   // Rodney 2026-09-25: "maybe kiki can answer Yes, everything in that list is in size 10,
   // because sometimes people are asking if you have this about the same shoe that was sent."
@@ -6728,7 +6741,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const _pointerAsk = !_pointerOnly && new RegExp(
     '\\b' + _P + '(?: one)?\\b', 'i').test(String(userText || '')) &&
     String(userText || '').trim().split(/\s+/).length <= 8;
-  if (_pointerOnly) { try { noteQuoteWanted(sub, getPhone(req), ctx && ctx.store); } catch (_) {} }
+  // 🏷️ WAKE THE TAG READER FOR *ANY* POINTER, NOT JUST A BARE ONE.
+  // Rodney 2026-09-26: "kiki still cant identify pics." A customer quote-replied to our
+  // forwarded ASICS White/Blue card and wrote "Bring that to". Kiki asked the price and size,
+  // he said yes - and she booked him a "New Balance 2000 (Black/White/Red)", a shoe that is
+  // not the one he tapped and a colourway we do not own in any model.
+  // _pointerAsk was written for exactly this ("a pointer with a question wrapped round it")
+  // and the album-note path already used it. This handshake did not: it only fired when the
+  // message was NOTHING BUT the pointer, so "Bring that to", "Save this one for me",
+  // "how much for dis one" never sent kiki-tagwatch to go read the card off the screen.
+  // The reader was running the whole time and was never told there was anything to read -
+  // the same shape as every other bug this week: a guard that works, and a second path round it.
+  if (_pointerOnly || _pointerAsk) { try { noteQuoteWanted(sub, getPhone(req), ctx && ctx.store); } catch (_) {} }
   // WHAT WE JUST SHOWED THEM, handed over before she answers. This is the half that works on
   // a ManyChat line, where there is no browser page to read the tag out of.
   // A NEW PICTURE IS NOT A POINTER. Rodney 2026-09-25: "sometimes people are asking if you
