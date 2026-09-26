@@ -2432,7 +2432,7 @@ ${modelList}
 - EVEN IF THEY ONLY GAVE A SIZE (still show them — don't sit waiting): the moment you know their size, send the FULL ALBUM in that size right away (search_inventory + one send_photos with every id). A bare size with nothing else is STILL a green light to show everything — don't wait for another word and don't re-ask what they want. Everyone who gives us a size gets the whole lineup, so we never miss a customer. ⚠️ "SEND [SIZE]" IS AN ORDER, NOT A QUESTION (Rodney's rule 2026-07-13 — Bahamians talk short): "send 10.5", "send a ten and a half", "send 9", "shoot me the 8s", "let me get a 12" means SEND ME EVERYTHING YOU HAVE IN THAT SIZE, all brands. Do NOT reply "I need to know which shoe you want" or "what are you after?" — that's the #1 way to lose them. Just search that size (plus the half up) across ALL brands and send the whole album with "This is what we have in 10.5 rite now 👇 Ready to Order!".
 - Once it's clear they want options (or they've named a shoe) AND you know their size, THEN call search_inventory and send_photos with every match. If they said everything in one message ("any blue Asics in size 8", "you got Jordan 4 in a 9?"), that's clear intent — go ahead and show them.
 - Specific shoe: if they name a shoe ("Jordan 4", "Air Max 95"), help with that; ask their size only if you need it to narrow things down.
-- YOU CAN FIND ANYTHING — ASK THE SIZE, DON'T COACH (Rodney 2026-07-24, replaces the old example-prompts rule): you have the FULL, live inventory and can send anything in seconds. When a customer asks what we have — "what's in stock?", "wha all yall have?", "show me what you got" — do NOT lecture them on how to ask, do NOT list example questions ("you can ask me 'what you got in Jordans?', 'any New Balance?'…" — that menu reply annoyed a real customer 2026-07-24 who just wanted the goods). Ask ONE short thing — their SIZE — and GO: "What size you wear? 👟 I'll send you everything we got in it 🔥" — then the moment they answer, search that size (+ the half-size up) and send the photos. If they already gave a size, brand, or colour anywhere in the chat, skip the question entirely and just send the batch. One question max, then pictures — the photos ARE the answer.
+- YOU CAN FIND ANYTHING — ASK THE SIZE, DON'T COACH (Rodney 2026-07-24, replaces the old example-prompts rule): you have the FULL, live inventory and can send anything in seconds. When a customer asks what we have — "what's in stock?", "wha all yall have?", "show me what you got" — do NOT lecture them on how to ask, do NOT list example questions ("you can ask me 'what you got in Jordans?', 'any New Balance?'…" — that menu reply annoyed a real customer 2026-07-24 who just wanted the goods). Ask ONE short thing — their SIZE — and GO: "What size you wear? 👟 I'll send you everything we got in it 🔥" — then the moment they answer, search that size (+ the half-size up) and send the photos. If they already gave a SIZE anywhere in the chat, skip the question entirely and just send the batch. A brand or a colour on its own is NOT enough to skip it — “all black” or “any ASICS” with no size is still a pile, and a pile with no size is what lost the 8.5 on 2026-09-25 (sixteen ASICS went out, he picked the brown, the brown is a 5.5 and a 6.5). ONE named pair goes out with no size, always. FOUR OR MORE waits for the size. One question max, then pictures — the photos ARE the answer, and if they dodge the question send the album anyway with the sizes on the captions rather than asking twice.
 - HANDLE THESE QUESTION SHAPES DIRECTLY (call search_inventory, then send_photos of the matches):
   • "do you have the red Jordan 4 in 8.5?" → query "red Jordan 4" (or brand+color) + size "8.5" → confirm and send it.
   • "what do you have in pink?" → color "pink", no size → send everything pink.
@@ -7504,6 +7504,47 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             }
           }
         } catch (_) {}
+        // 📏 NO SIZE, NO BIG ALBUM. Rodney 2026-09-25, and it is the root of half of today:
+        // "This is the problem we have when Kiki starts sending too many pictures, not knowing
+        // the person's size. Now she sent too many options and the person wants the brown, but
+        // we don't have that in eight and a half because he sent the size afterwards."
+        // A customer sent a reel at 8:16 and got SIXTEEN ASICS across every size. He picked the
+        // Brown/White. He gave his size at 8:19 - an 8.5 - and the brown comes in 5.5 and 6.5
+        // only. He had already decided on a shoe we cannot sell him, and everything after that
+        // was us walking it back: "What I wanted ain't on that line up you jus send".
+        // He wrote the same thing on 2026-09-09: "sometimes when people see too much shoes
+        // that's not in their size and they want one of those, now when you show them what you
+        // have in their size, they don't want any."
+        // THIS IS A COUNT, NOT A BAN. A named pair still goes out instantly with no size - that
+        // is the older rule and it stands. What is banned is the PILE: four or more shoes fired
+        // at someone whose size we never asked for. Asking costs one message; showing costs the
+        // shoe they fall for.
+        // It sits AFTER the completeness top-up on purpose - that top-up turns a 2-shoe send
+        // into 38, so counting before it would measure the wrong album.
+        const _haveSize = !!(String(knownSize || '').trim()
+          || (inp.size != null && String(inp.size).trim())
+          || (Array.isArray(inp.sizes) && inp.sizes.length));
+        const _albumCount = [].concat(inp.ids || [],
+          ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).length;
+        // ASK ONCE, DO NOT HARASS (Rodney, 2026-09-09). If we already put the question to them
+        // and they dodged it, ignored it, or just want to look, the album goes out anyway with
+        // the sizes on the captions. Withholding pictures to squeeze a size out of somebody is
+        // its own way of losing them, and he has said so plainly. So this gate fires ONCE.
+        let _alreadyAsked = false;
+        try {
+          _alreadyAsked = history.filter(m => m && m.role === 'assistant').slice(-6).some(m => {
+            const t = typeof m.content === 'string' ? m.content
+              : (Array.isArray(m.content) ? m.content.map(c => (c && c.text) || '').join(' ') : '');
+            return /what size|size you (wear|need|looking)|your size/i.test(t);
+          });
+        } catch (_) {}
+        if (!_haveSize && !staffName && _albumCount > 3 && !_alreadyAsked) {
+          record(req, { endpoint: 'photos-blocked-no-size', sub, store: ctx.store || '', would: _albumCount });
+          toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
+            sent: 0, blocked: 'no size yet', would_have_sent: _albumCount,
+            note: 'STOP - do not send these ' + _albumCount + ' pictures. We still do not know their size, and showing somebody a pile they cannot buy from is how we lose them: they fall for one, give the size after, and we have to take it back. Ask the size on its own, one warm line - "What size you wear? I\'ll send you everything we got in it \ud83d\udc5f" - and send NOTHING else this turn. The moment they answer, send the whole lot in that size.' }) });
+          continue;
+        }
         // 👟 MODEL GUARD - "don't send no mixed shoes". See modelWanted.
         const droppedWrongModel = [];
         try {
