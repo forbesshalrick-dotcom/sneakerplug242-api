@@ -7190,6 +7190,42 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             : "Got your pic 📸 I'm running a lil slow this sec — what size you need? I'll check it for you right now 👟")
         : "One sec 👟 my end running slow, let me come right back to you.";
       await sendChunk(sub, [{ type: 'text', text: fallback }], token).catch(() => {});
+      // 🔁 "LET ME COME RIGHT BACK TO YOU" HAS TO BE TRUE.
+      // Rodney 2026-09-27: "Why is her end running a little slow? The guy didn't send a
+      // picture, he only sent text." He is right that the line has nothing to do with pictures
+      // - it is the crash reply, the one thing that never passes through the model. The worse
+      // half is what came after it: NOTHING. A customer who asked "I won't be able to purchase
+      // until Monday if that's okay" - a yes-or-no - got the stall at 07:59 and silence for two
+      // and a half hours. A failed model call was quietly ending conversations.
+      // So actually go back. One more attempt half a minute later, plain words only: the
+      // question that crashed a turn is almost always a simple one, and answering it is worth
+      // far more than the tool loop we are skipping. If that fails too, a human is told,
+      // because by then nobody else knows this customer is waiting.
+      try {
+        const _sub = sub, _token = token, _hist = history.slice(), _sys = system;
+        const _who = subName.get(_sub) || getPhone(req) || _sub;
+        const _store = (ctx && ctx.store) || '';
+        setTimeout(async () => {
+          try {
+            const again = await callClaude(_hist, _sys);
+            const text = (again && again.ok && Array.isArray(again.data && again.data.content))
+              ? again.data.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ').trim()
+              : '';
+            if (text) {
+              await sendChunk(_sub, [{ type: 'text', text: text.slice(0, 900) }], _token).catch(() => {});
+              try { recent.unshift({ at: new Date().toISOString(), endpoint: 'crash-retry-answered', sub: _sub }); } catch (_) {}
+              return;
+            }
+          } catch (_) {}
+          try { recent.unshift({ at: new Date().toISOString(), endpoint: 'crash-retry-failed', sub: _sub }); } catch (_) {}
+          try {
+            require('./shop').addAlert('⚠️ GO ANSWER THIS CUSTOMER - Kiki crashed mid-reply to '
+              + _who + ' and told them she would come right back. She could not. Nobody has '
+              + 'answered them since. Open the chat and reply by hand.',
+              'Kiki 🤖', { sub: String(_sub), account: _store });
+          } catch (_) {}
+        }, 30000);
+      } catch (_) {}
       return;
     }
     history.push({ role: 'assistant', content: data.content });
