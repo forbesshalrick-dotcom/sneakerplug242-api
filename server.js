@@ -6975,6 +6975,40 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     userText = '(SYSTEM NOTE — this is NOT the person\'s words, do NOT quote it or say "I got your note": the photo in this message is from ' + staffName + ', one of OUR STAFF. It is their end-of-shift FLOAT CASH or a RECEIPT — never a shoe. If it is cash/banknotes: count it denomination by denomination — Bahamian $ and US $ each 1:1. ⚠️ ONE PHOTO ONLY (anti-fraud): the WHOLE float must be in ONE single flat photo. Do NOT add up or count across multiple photos, and do NOT accept a "second photo of the rest" — count only what is in THIS one image (this stops the same bills being photographed twice or reused). If the bills OVERLAP, are folded/stacked, or it does not all fit in one shot, tell them to lay the ENTIRE float out FLAT on the table with no overlapping and take ONE clear overhead photo of all of it — never guess a stacked count (2026-07-17: Kiki counted $60 as $50 on stacked bills). Once every note is clearly visible, show your count.' + floatLine + ' If it is a receipt: read the total and call record_expense. Keep replies short — nothing about shoes, sizes, or "if it was a shoe photo".)'
       + (userText && userText.trim() ? ('\n\nThey also typed: ' + userText) : '');
   }
+  // 📍 A PICTURE THAT ARRIVES WHILE WE ARE WAITING FOR A PIN IS THE PIN.
+  // Rodney 2026-09-27: "nothing came for this. no notification." 807-7702 asked for the All
+  // Black Air Force 1, was told "Send the location 📍 or where can we meet up?" at 17:15:23,
+  // and DROPPED HIS PIN at 17:16:29. It reached us as an ordinary inbound IMAGE - a map
+  // thumbnail, no words - and she answered "The driver getting the shoes ready now 👟 I just
+  // need your location to send him." He had just sent it. No order was ever filed, so nobody
+  // was told, and a man who had done everything right sat waiting on a driver that did not
+  // exist.
+  // The replay guard cannot help here: nothing was replayed, a real attachment came in. So
+  // this is the other door - we asked for a location, and a wordless picture came back.
+  // It is not proof (they might be sending a shoe), which is why this does not file the order
+  // by itself. It stops her asking twice, and it puts a human in front of the chat.
+  try {
+    const _waitingPin = (Date.now() - (pinAsked.get(sub) || 0)) < 45 * 60 * 1000;
+    if (_waitingPin && _sentUsAPicture && !String(userText || '').trim() && !staffName) {
+      system += `\n\n📍 THEY JUST SENT A PICTURE AND WE ARE WAITING ON THEIR LOCATION. You asked this
+customer for their location, and what came back is an image with no words. On WhatsApp a
+dropped pin arrives exactly like this - a little map - so it is almost certainly their
+LOCATION, not a shoe. Look at it: if it is a map, treat the location as RECEIVED. Say "Got
+your pin 📍" and file the order with notify_manager stage delivery_ready.
+⛔ Do NOT ask them for the location again, and do NOT say a driver is getting the shoes
+ready or heading out - nothing is moving until the order is actually filed, and saying it is
+turns a wait into a lie. If you genuinely cannot tell what the picture is, say so plainly and
+ask them to type the area name instead - never re-ask for the pin they just sent.`;
+      record(req, { endpoint: 'picture-while-waiting-on-pin', sub, store: (ctx && ctx.store) || '' });
+      try {
+        require('./shop').addAlert('📍 GO LOOK AT THIS CHAT - we asked '
+          + (subName.get(sub) || ('customer ' + sub)) + ' for their location and a PICTURE came '
+          + 'back with no words. That is usually the pin. Open the chat, read the spot off it '
+          + 'and get the driver moving - do not make them send it twice.',
+          'Kiki 🤖', { sub: String(sub), account: (ctx && ctx.store) || '' });
+      } catch (_) {}
+    }
+  } catch (_) {}
   if (staffName) {
     system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
 - 🚫 NEVER ASK THEM TO "VERIFY" OR TYPE A STAFF/TEAM PHONE NUMBER (Rodney 2026-07-19, CRITICAL — Kiki demanded Rodney "confirm your team phone for this sale", he typed his number and she said "system doesn't recognize that number", dead-ending the sale): the system already knows who they are from the WhatsApp number they're texting FROM — a number TYPED into the chat proves nothing and can't be checked, so asking for one is always wrong and always fails. NEVER say "confirm your team phone", "verify you're on a staff number", "message from your official team phone", or treat a typed number as verification. You are ALREADY in staff mode with ${staffName} — just help them: record the sale/restock/float directly (with the normal photo-confirm step). If a tool ever refuses, follow the tool's instructions (send the photo, get a YES, call it again) — do NOT invent a phone-verification step.
