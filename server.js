@@ -4180,6 +4180,23 @@ const lastDeliveryReady = new Map();
 // sub -> when we last asked this customer for their location pin. Asking once is helpful;
 // asking twice, after they have already dropped one, reads as nobody being on the other end.
 const pinAsked = new Map();
+// 📍 A PIN WE BELIEVE HAS ALREADY LANDED - see picture-while-waiting-on-pin. Held for
+// hours, not minutes: Rodney 2026-09-27, a customer dropped his pin at 17:16 and was asked for
+// it AGAIN at 17:53. "Why would Kiki need the location again after the guy done sent it?"
+const pinProbablyArrived = new Map();
+// What WE have already told this customer about a driver. If any of it is in the recent
+// transcript, the driver exists as far as they are concerned.
+const DRIVER_CLAIMED_RE = /\bdriver\b[^.!?]{0,40}\b(?:on (?:the|his) way|heading|coming|getting|ready|close|near)\b|\bon (?:the|his) way\b|\bheading (?:out|over|to you)\b|\bgetting the shoes ready\b/i;
+function recentTurnsText(hist) {
+  try {
+    return (hist || []).slice(-10).map(m => {
+      if (!m) return '';
+      if (typeof m.content === 'string') return m.content;
+      if (Array.isArray(m.content)) return m.content.map(c => (c && c.text) || '').join(' ');
+      return '';
+    }).join(' \n ');
+  } catch (_) { return ''; }
+}
 // sub -> how many times we have now asked. Drives the escalation at the pin guard: ask,
 // then ask with the reason, then offer to meet instead. Never a fourth time.
 const pinAskCount = new Map();
@@ -7000,6 +7017,8 @@ ready or heading out - nothing is moving until the order is actually filed, and 
 turns a wait into a lie. If you genuinely cannot tell what the picture is, say so plainly and
 ask them to type the area name instead - never re-ask for the pin they just sent.`;
       record(req, { endpoint: 'picture-while-waiting-on-pin', sub, store: (ctx && ctx.store) || '' });
+      pinProbablyArrived.set(String(sub), Date.now());
+      if (pinProbablyArrived.size > 500) { const f = pinProbablyArrived.keys().next().value; pinProbablyArrived.delete(f); }
       try {
         require('./shop').addAlert('📍 GO LOOK AT THIS CHAT - we asked '
           + (subName.get(sub) || ('customer ' + sub)) + ' for their location and a PICTURE came '
@@ -7138,6 +7157,7 @@ ask them to type the area name instead - never re-ask for the pin they just sent
   let pretendBlocks = 0;
   let confusedBlocks = 0;
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
+  let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
   // 👟 A BARE SIZE IS A REQUEST FOR PICTURES. SEARCH, THEN SHOW — NEVER ASK AGAIN.
@@ -7379,6 +7399,29 @@ ask them to type the area name instead - never re-ask for the pin they just sent
         continue;
       }
     }
+    // 🚗 NEVER TAKE THE DRIVER BACK. Rodney 2026-09-27: "she said we're on the way. All she
+    // have to do is say, let me check the driver, see how far he is. Come on."
+    // 807-7702 was told at 17:16 "The driver getting the shoes ready now". At 17:53 he asked
+    // "Are they on the way?" and got "Not yet 👟 I just need your location first" - the third
+    // request for a pin that was sitting on his screen, and a flat contradiction of what we had
+    // already told him. Whichever of those two sentences is true, we said the other one.
+    // Once we have claimed a driver, "not yet" is never the reply to "are they on the way".
+    // The customer is chasing, not shopping: check, or say we are checking. Never re-open the
+    // location, and never walk the driver back.
+    if (turnText && !staffName && DRIVER_CLAIMED_RE.test(recentTurnsText(history))
+        && /\bnot yet\b|\bstill need\b|\bneed your location\b|\bdrop (?:your|a|the) (?:whatsapp )?pin\b/i.test(turnText)
+        && driverWalkBacks < 1) {
+      driverWalkBacks++;
+      record(req, { endpoint: 'driver-walkback-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 200) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+        + 'ALREADY told this customer a driver was getting their shoes ready. You cannot now say '
+        + '"not yet" or ask for their location again - they sent it, and they are asking because '
+        + 'they are waiting. Whichever sentence is true, you have just told them both. Write the '
+        + 'reply again: tell them you are checking with the driver on how far he is and that you '
+        + 'will come straight back - warm, one or two lines. Do NOT ask for a pin, do NOT ask '
+        + 'where to meet, and do NOT say nothing is moving. Do not mention this note.)' });
+      continue;                       // one clean retry
+    }
     if (turnText && knownSize && SIZE_REASK_RE.test(turnText)) {
       sizeReAsks++;
       record(req, { endpoint: 'size-reask-blocked', sub, store: ctx.store || '', size: knownSize, attempt: sizeReAsks, text: turnText.slice(0, 200) });
@@ -7401,7 +7444,9 @@ ask them to type the area name instead - never re-ask for the pin they just sent
     if (turnText && PIN_ASK_RE.test(turnText)) {
       const replayAt = lastReplayAt.get(sub) || 0;
       const askedAt  = pinAsked.get(sub) || 0;
-      const somethingArrived = replayAt && (Date.now() - replayAt) < 10 * 60 * 1000;
+      const pinSeenAt = pinProbablyArrived.get(String(sub)) || 0;
+      const somethingArrived = (replayAt && (Date.now() - replayAt) < 10 * 60 * 1000)
+        || (pinSeenAt && Date.now() - pinSeenAt < 6 * 60 * 60 * 1000);
       const alreadyAsked     = askedAt  && (Date.now() - askedAt)  < 30 * 60 * 1000;
       if ((somethingArrived || alreadyAsked) && pinReAsks < 1) {
         pinReAsks++;
