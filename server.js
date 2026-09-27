@@ -3443,7 +3443,17 @@ function clusterShoesByModel(arr) {
 // so a malfunctioning "sends all stock" dump can be cut off mid-album by hand.
 const sendAbort = new Set();
 // Customers with an album going out right now - see the note at /inbox/send-shoe.
-const albumInFlight = new Set();
+// 🔓 A MAP, NOT A SET, SO THE LOCK CAN DIE OF OLD AGE. Rodney 2026-09-27, blocked from
+// sending: "this guy need the full album 3 times" - the app kept answering "An album is still
+// going out to this customer. Hit ✋ STOP first if you want to send something else."
+// It was a deadlock. The lock is released at the END of the send loop, so a send that HANGS
+// (a browser or ManyChat call that never returns) never reaches the release, and STOP could
+// not help either: stop-send only added to sendAbort, which the hung loop never gets round to
+// reading. So the error told him to press the one button that could not clear it, forever.
+// Now it carries the time it started and anything older than ALBUM_LOCK_MAX is treated as
+// dead. A stale lock cannot outlive one album; the double-tap it was built for is 156ms.
+const albumInFlight = new Map();   // sub -> when this album started
+const ALBUM_LOCK_MAX = 10 * 60 * 1000;
 
 // ── PER-SHOP CARDS ──────────────────────────────────────────────────────────────
 // Each business has its own look (Rodney 2026-09-17): Trendy Kicks and Foot Fetish
@@ -12501,6 +12511,11 @@ app.post('/inbox/stop-send', (req, res) => {
   const sub = String((req.body && req.body.sub) || '').replace(/[^0-9]/g, '');
   if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
   sendAbort.add(sub);
+  // ✋ STOP MEANS HE CAN SEND AGAIN. The in-flight lock is released at the end of the send
+  // loop, so a hung send held it forever and this button - the one the error message tells him
+  // to press - did nothing about it. Releasing it here is safe: he asked for the album to stop,
+  // and sendAbort above already halts the loop if it is still alive.
+  albumInFlight.delete(sub);
   record(req, { endpoint: 'inbox-stop-send', sub });
   res.json({ ok: true });
 });
@@ -12602,12 +12617,16 @@ app.post('/inbox/send-shoe', async (req, res) => {
   // under them. The last pair of calls came 156ms apart - a double-click on the button.
   // An album is slow and blocks everyone queued behind it, so a second one for the same
   // person is never what was meant.
-  if (albumInFlight.has(sub)) {
-    record(req, { endpoint: 'inbox-send-shoe-already-running', sub, account, what, found: results.length });
+  const _lockedAt = albumInFlight.get(sub) || 0;
+  if (_lockedAt && Date.now() - _lockedAt < ALBUM_LOCK_MAX) {
+    record(req, { endpoint: 'inbox-send-shoe-already-running', sub, account, what, found: results.length,
+                  heldFor: Math.round((Date.now() - _lockedAt) / 1000) });
     return res.json({ ok: false, busy: true, found: results.length, sent: 0,
       error: 'An album is still going out to this customer. Hit \u270b STOP first if you want to send something else.' });
   }
-  albumInFlight.add(sub);
+  if (_lockedAt) record(req, { endpoint: 'album-lock-expired', sub, account,
+                               heldFor: Math.round((Date.now() - _lockedAt) / 1000) });
+  albumInFlight.set(sub, Date.now());
   inboxAlbumSentAt.set(albumKey, Date.now());
   setHumanPause(sub); clearFollowUp(sub);
   // 📷 PICS ONLY (staff toggle on the Send pictures panel): bare photos, no label bubbles,
