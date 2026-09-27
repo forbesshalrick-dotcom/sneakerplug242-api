@@ -3527,15 +3527,71 @@ const WANTS_PICS_RE = /\b(pics?|pictures?|photos?|show me|send me|see (some|more
 function notePicked(sub, text) {
   const t = String(text || '');
   if (!t.trim()) return;
-  if (WANTS_PICS_RE.test(t)) { orderLocked.delete(String(sub)); return; }   // they reopened it
+  if (WANTS_PICS_RE.test(t)) {                                   // they reopened it
+    orderLocked.delete(String(sub));
+    orderReopened.set(String(sub), Date.now());
+    if (orderReopened.size > 500) { const f = orderReopened.keys().next().value; orderReopened.delete(f); }
+    return;
+  }
   if (PICKED_RE.test(t)) {
     orderLocked.set(String(sub), Date.now());
     if (orderLocked.size > 500) { const f = orderLocked.keys().next().value; orderLocked.delete(f); }
   }
 }
+// 📝 THEY ASKED TO SEE MORE - that reopens the shopping, and it must outlive a restart
+// the same way the lock does.
+const orderReopened = new Map();   // sub -> when they asked for pictures again
+// 🗄️ AN OPEN ORDER IS A PICK, AND IT SURVIVES A DEPLOY.
+// Rodney 2026-09-27: a customer who ordered an All Black VaporMax in an 8.5 at 21:22, and who
+// wrote "I need the vapor max delivered now" twice while waiting, was answered at 08:19 with
+// "This is what we have in Yeezy/New Balance/Jordan/Crocs/Asics/Nike" and THREE HUNDRED AND
+// SIXTY TWO photographs over twenty-two minutes. He was not shopping. He was chasing a late
+// delivery.
+// orderLocked already existed and is right - but it is a plain in-memory Map, and we deploy
+// several times a day, so every restart forgets who has already bought. His pick was made
+// last night and wiped before morning.
+// shop notes ARE persisted, and an order writes one. So the durable answer to "has this
+// person already picked" is simply: do they have an order that nobody has marked done?
+let _openOrderCache = { at: 0, subs: null };
+function subsWithOpenOrders() {
+  if (_openOrderCache.subs && Date.now() - _openOrderCache.at < 15000) return _openOrderCache.subs;
+  const subs = new Set();
+  try {
+    const notes = require('./shop').getNotes() || [];
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    for (const n of notes) {
+      if (!n || n.done) continue;
+      if (!/NEW ORDER|DELIVERY READY|YOU'?VE GOT AN ORDER|\u{1F6F5}/iu.test(String(n.text || ''))) continue;
+      let at = 0; try { at = new Date(n.createdAt).getTime(); } catch (_) {}
+      if (!at || at < cutoff) continue;
+      if (n.sub) subs.add(String(n.sub).replace(/[^0-9]/g, ''));
+      const ph = (String(n.text || '').match(/wa\.me\/(\d{7,})/i) || [])[1];
+      if (ph) subs.add(ph);
+    }
+  } catch (_) {}
+  _openOrderCache = { at: Date.now(), subs };
+  return subs;
+}
+function hasOpenOrder(sub) {
+  const s = String(sub || '').replace(/[^0-9]/g, '');
+  if (!s) return false;
+  const subs = subsWithOpenOrders();
+  if (subs.has(s)) return true;
+  // The note carries the PHONE for lines where the sub is not the number, so match that too.
+  try {
+    const t = inboxThreads.get(inboxSubIndex.get(s) || '') || null;
+    const ph = t && String(t.phone || '').replace(/[^0-9]/g, '');
+    if (ph && (subs.has(ph) || subs.has(ph.replace(/^1/, '')))) return true;
+  } catch (_) {}
+  return false;
+}
 function orderIsLocked(sub) {
   const at = orderLocked.get(String(sub));
-  return !!(at && Date.now() - at < 6 * 60 * 60 * 1000);   // a pick holds for the day, not five minutes
+  if (at && Date.now() - at < 6 * 60 * 60 * 1000) return true;   // a pick holds for the day, not five minutes
+  // They told us to show them more - honour that over the order record.
+  const re = orderReopened.get(String(sub));
+  if (re && Date.now() - re < 6 * 60 * 60 * 1000) return false;
+  return hasOpenOrder(sub);
 }
 function recentlyToldUsToStop(sub) {
   const at = stoppedAt.get(String(sub));
@@ -3563,7 +3619,7 @@ function rememberAlbumShown(sub, shoes, forSize) {
     const n = displayName(s);
     if (!n || seen.has(n)) continue;
     seen.add(n);
-    list.push({ name: n, price: parseFloat(s.price) || 0 });
+    list.push({ name: n, price: parseFloat(s.price) || 0, id: s.id || '' });
   }
   if (list.length) albumShown.set(String(sub), { at: Date.now(), shoes: list.slice(0, 40),
                                                  size: String(forSize || '').trim() });
@@ -7584,6 +7640,46 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             note: 'STOP - do not send these ' + _albumCount + ' pictures. We still do not know their size, and showing somebody a pile they cannot buy from is how we lose them: they fall for one, give the size after, and we have to take it back. Ask the size on its own, one warm line - "What size you wear? I\'ll send you everything we got in it \ud83d\udc5f" - and send NOTHING else this turn. The moment they answer, send the whole lot in that size.' }) });
           continue;
         }
+        // 📏 A SIZE IS AN ANSWER ABOUT THE SHOE ON THE TABLE, NOT A NEW ORDER FOR THE WHOLE SHOP.
+        // Rodney 2026-09-27: "The customer asked for a New Balance 2000... when the customer said
+        // she wanted size 7, Kiki forgot that the customer already asked for New Balance 2000
+        // options and she sent the whole album. Why does she send the whole album so long as the
+        // customer says their size? ... That's confusion."
+        // Measured on 433-9404: at 8:05 we sent three New Balance 2000s and said "Those are the
+        // ones we got". She asked "what size you need?". The customer typed "7" - one character,
+        // plainly about those three - and got "This is what we have in a 7 rite now" and a fresh
+        // catalogue-wide album.
+        // A bare size right after a narrow album is the customer ANSWERING US. The right reply is
+        // which of those come in a 7, not a new pile. So: block the wide album and hand her back
+        // the shoes she already showed them.
+        try {
+          const _shown = albumShown.get(String(sub));
+          const _saidNow = String(userText || '').trim();
+          const _bareSize = _saidNow && _saidNow.split(/\s+/).length <= 3
+                            && sizeFromCustomerWords(_saidNow) != null;
+          if (!staffName && _bareSize && _shown && Date.now() - _shown.at < 30 * 60 * 1000
+              && _shown.shoes.length && _shown.shoes.length <= 6) {
+            const _outIds = [].concat(inp.ids || [],
+              ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).map(String);
+            const _shownIds = new Set(_shown.shoes.map(x => String(x.id || '')).filter(Boolean));
+            const _newOnes = _outIds.filter(id => !_shownIds.has(id));
+            // Only step in when she is genuinely widening away from what they were looking at.
+            if (_outIds.length > _shown.shoes.length && _newOnes.length > _shown.shoes.length) {
+              record(req, { endpoint: 'photos-blocked-size-answers-shown-album', sub,
+                            shown: _shown.shoes.length, would: _outIds.length });
+              toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
+                sent: 0, blocked: 'that size is an answer about the shoes you just showed them',
+                they_are_looking_at: _shown.shoes.map(x => x.name),
+                note: 'STOP - do not send a new album. You just showed them ' + _shown.shoes.length
+                    + ' shoe(s) and asked their size; this is them ANSWERING you about THOSE, not '
+                    + 'asking to see the whole shop in a ' + _saidNow + '. Tell them which of the '
+                    + 'ones you already sent come in that size, by name, in words - and if none do, '
+                    + 'say so plainly and ask if they want to see what else is in it. Only send new '
+                    + 'pictures if THEY ask for something different.' }) });
+              continue;
+            }
+          }
+        } catch (_) {}
         // 👟 MODEL GUARD - "don't send no mixed shoes". See modelWanted.
         const droppedWrongModel = [];
         try {
