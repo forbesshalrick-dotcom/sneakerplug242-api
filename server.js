@@ -4655,7 +4655,15 @@ const inboxSubIndex = new Map();  // sub -> threadKey (so an outbound send finds
 // Guards the inbox against firing the SAME album at the same customer twice — see the note
 // in POST /inbox/send-shoe. Keyed `sub|id,id,id` so a different album is never blocked.
 const inboxAlbumSentAt = new Map();
-const INBOX_ALBUM_REPEAT_MS = 3 * 60 * 1000;
+// ✋📸 HE WANTS TO SEND PICTURES FREELY. Rodney 2026-09-27, after being refused twice
+// while trying to get a full album to one customer: "yes I want to send pics freely".
+// These two guards were built against a DOUBLE-TAP and a browser retrying the POST - 86 shoes
+// going out twice 42 seconds apart, and two albums 156ms apart. That is what they should
+// catch, and nothing more. Three minutes is long enough to stand between him and a customer,
+// which it did today: he pressed send, was told to wait, and the sale sat still.
+// A double-tap is under a second. A deliberate re-send is not. Fifteen seconds tells them
+// apart and hands the judgement back to the person holding the phone.
+const INBOX_ALBUM_REPEAT_MS = 15 * 1000;
 // Shoe Box (SB, the direct Meta line) is hidden from the Inbox until it's verified with Meta.
 // Threads/locations are still recorded in the background; this just hides them from the list +
 // the New-chat picker. Flip on with SHOW_SHOE_BOX=1 in Railway (or change the default) once verified.
@@ -12754,8 +12762,11 @@ app.post('/inbox/send-shoe', async (req, res) => {
   // under them. The last pair of calls came 156ms apart - a double-click on the button.
   // An album is slow and blocks everyone queued behind it, so a second one for the same
   // person is never what was meant.
+  // Same rule as above: refuse the double-tap, never the second deliberate send. An album
+  // already running no longer locks him out - he asked for it, and he is the one who can see
+  // the customer's chat.
   const _lockedAt = albumInFlight.get(sub) || 0;
-  if (_lockedAt && Date.now() - _lockedAt < ALBUM_LOCK_MAX) {
+  if (_lockedAt && Date.now() - _lockedAt < INBOX_ALBUM_REPEAT_MS) {
     record(req, { endpoint: 'inbox-send-shoe-already-running', sub, account, what, found: results.length,
                   heldFor: Math.round((Date.now() - _lockedAt) / 1000) });
     return res.json({ ok: false, busy: true, found: results.length, sent: 0,
