@@ -3593,9 +3593,22 @@ function orderIsLocked(sub) {
   if (re && Date.now() - re < 6 * 60 * 60 * 1000) return false;
   return hasOpenOrder(sub);
 }
+// ✋ WHEN RODNEY PRESSES STOP IT HAS TO OUTLAST THE NEXT ALBUM.
+// Rodney 2026-09-27: "picture sayd its sending but not sent" - his own photo sat spinning
+// because the line was busy firing 463 pictures at one customer across two shops.
+// sendAbort halts the album that is RUNNING, and sendShoePhotos clears it on entry so a stale
+// stop cannot kill tomorrow's send - both correct on their own, and together they mean the
+// stop button only ever kills one batch. Kiki starts the next album a moment later, the flag
+// is wiped, and it pours again. Measured today: TK was stopped at 08:47 and kept sending
+// until 09:16, another 36 photos. This is the same failure as "200 photos after 4 stop
+// presses" - the customer-word path was fixed with stoppedAt, the owner's button never was.
+const ownerStoppedAt = new Map();   // sub -> when a human pressed STOP on this chat
+const OWNER_STOP_HOLD = 30 * 60 * 1000;
 function recentlyToldUsToStop(sub) {
   const at = stoppedAt.get(String(sub));
-  return !!(at && Date.now() - at < 5 * 60 * 1000);
+  if (at && Date.now() - at < 5 * 60 * 1000) return true;
+  const own = ownerStoppedAt.get(String(sub));
+  return !!(own && Date.now() - own < OWNER_STOP_HOLD);
 }
 
 // 🖼️ WHAT WE JUST PUT IN FRONT OF THIS CUSTOMER.
@@ -12607,6 +12620,27 @@ app.post('/inbox/stop-send', (req, res) => {
   const sub = String((req.body && req.body.sub) || '').replace(/[^0-9]/g, '');
   if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
   sendAbort.add(sub);
+  // Hold the stop for half an hour so the NEXT album cannot simply start over. Staff hand
+  // sends still go out (sendShoePhotos only applies this to Kiki's own sends), so pressing
+  // stop never blocks Rodney from sending what he actually wants.
+  ownerStoppedAt.set(sub, Date.now());
+  if (ownerStoppedAt.size > 500) { const f = ownerStoppedAt.keys().next().value; ownerStoppedAt.delete(f); }
+  // 👥 THE SAME PERSON IS A DIFFERENT SUBSCRIBER ON EVERY SHOP.
+  // +12428059165 is 1384337683 on Trendy Kicks and 1542750924 on Official Sneaker Crew, and
+  // both were pouring albums into the same phone this morning. Stopping one left the other
+  // running, which is not what anybody means by STOP.
+  try {
+    const me = inboxThreads.get(inboxSubIndex.get(sub) || '');
+    const myPhone = me && String(me.phone || '').replace(/[^0-9]/g, '');
+    if (myPhone) for (const [, t] of inboxThreads) {
+      const ph = String((t && t.phone) || '').replace(/[^0-9]/g, '');
+      const other = String((t && t.sub) || '').replace(/[^0-9]/g, '');
+      if (ph && ph === myPhone && other && other !== sub) {
+        sendAbort.add(other); ownerStoppedAt.set(other, Date.now());
+        record(req, { endpoint: 'stop-send-sibling', sub, also: other, account: t.account || '' });
+      }
+    }
+  } catch (_) {}
   // ✋ STOP MEANS HE CAN SEND AGAIN. The in-flight lock is released at the end of the send
   // loop, so a hung send held it forever and this button - the one the error message tells him
   // to press - did nothing about it. Releasing it here is safe: he asked for the album to stop,
@@ -12623,6 +12657,13 @@ app.post('/inbox/send-shoe', async (req, res) => {
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
   const sub = String(b.sub || '').replace(/[^0-9]/g, '');
   if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  // ✋ A HAND SEND IS RODNEY SAYING "SEND THIS" - IT OUTRANKS ANY STOP.
+  // The 30-minute hold on the STOP button exists to keep KIKI from starting another album the
+  // moment one is killed. It must never stand between Rodney and a customer: the hand-send
+  // path does not pass isStaff, so without this his own send would be refused by his own stop.
+  ownerStoppedAt.delete(sub);
+  stoppedAt.delete(sub);
+  sendAbort.delete(sub);
   const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
