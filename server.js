@@ -7267,7 +7267,22 @@ ask them to type the area name instead - never re-ask for the pin they just sent
       // far more than the tool loop we are skipping. If that fails too, a human is told,
       // because by then nobody else knows this customer is waiting.
       try {
-        const _sub = sub, _token = token, _hist = history.slice(), _sys = system;
+        // 🧹 RETRY LIGHT, NOT IDENTICAL. Rodney 2026-09-28, on a customer whose voice note
+        // transcribed perfectly and still got the crash line: "why can't Kiki understand this
+        // guy's message? He sent a voice note, but the voice note came out clearly."
+        // She understood it fine - the CALL failed. And a 400 is returned immediately with no
+        // retry at all, so if the request itself is the problem (a base64 photo still sitting
+        // in the history, a block the API will not take) then sending the very same request
+        // again half a minute later fails in exactly the same way. Both customers this has hit
+        // had sent a photo earlier in the conversation.
+        // So the second attempt carries words only: images stripped, the last dozen turns kept.
+        const _sub = sub, _token = token, _sys = system;
+        const _hist = history.slice(-12).map(m => {
+          if (!m || typeof m.content === 'string' || !Array.isArray(m.content)) return m;
+          const keep = m.content.filter(c => c && (c.type === 'text' || c.type === 'tool_result' || c.type === 'tool_use'));
+          const words = m.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ').trim();
+          return { role: m.role, content: keep.length ? keep : (words || '(message)') };
+        }).filter(m => m && m.content && (typeof m.content === 'string' ? m.content.trim() : m.content.length));
         const _who = subName.get(_sub) || getPhone(req) || _sub;
         const _store = (ctx && ctx.store) || '';
         setTimeout(async () => {
@@ -7284,7 +7299,7 @@ ask them to type the area name instead - never re-ask for the pin they just sent
           } catch (_) {}
           try { recent.unshift({ at: new Date().toISOString(), endpoint: 'crash-retry-failed', sub: _sub }); } catch (_) {}
           try {
-            require('./shop').addAlert('⚠️ GO ANSWER THIS CUSTOMER - Kiki crashed mid-reply to '
+            require('./shop').addAlert('⚠️ GO ANSWER THIS CUSTOMER (model call failed, status ' + status + ') - Kiki crashed mid-reply to '
               + _who + ' and told them she would come right back. She could not. Nobody has '
               + 'answered them since. Open the chat and reply by hand.',
               'Kiki 🤖', { sub: String(_sub), account: _store });
