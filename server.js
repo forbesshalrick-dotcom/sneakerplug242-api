@@ -7935,9 +7935,28 @@ and it must NEVER be answered with a question back.`;
             const keep = (id) => {
               const sh = liveM[id];
               if (!sh) return true;
-              const hay = String(`${sh.color || ''} ${sh.nickname || ''} ${sh.name || ''}`).toLowerCase()
-                            .replace(/\bgray\b/g, 'grey');
-              if (wanted.some(w => hay.includes(w))) return true;
+              // 🎨 THE COLOUR THEY ASKED FOR HAS TO BE THE SHOE'S COLOUR, NOT A STRIPE ON IT.
+              // Rodney 2026-09-28: "Customer asks for black, size 11, Kiki sent many different
+              // colors." He asked for black in an 11 and got 23 pictures under a header that
+              // read "This is what we have in all black in size 11" - among them an AIR JORDAN
+              // 4 RETRO RED/BLACK/GREY, which is a red shoe. Only FIVE shoes in an 11 are
+              // actually black; the other eighteen merely had black somewhere in the name.
+              // Cause: this matched the colour word ANYWHERE in the colourway, so Red/Black/Grey,
+              // Grey/Black, White/Black and Pink/Black/Silver all counted as black.
+              // Our colourways are written dominant-first - "Black/Red" is a black shoe with red
+              // on it, "Red/Black/Grey" is a red one - so the first colour is the shoe's colour.
+              // That keeps the old rule he asked for (a stripe of another colour is fine) and
+              // drops the ones that are really another colour wearing some black.
+              const _col = String(sh.color || '').toLowerCase().replace(/\bgray\b/g, 'grey').trim();
+              const _lead = _col.split(/[\/,]/)[0].replace(/\ball\b/g, '').trim();
+              if (_col && wanted.some(w => _lead === w || _lead.startsWith(w + ' ') || _lead.endsWith(' ' + w))) return true;
+              // No colour field to judge (older rows): fall back to the old loose match rather
+              // than drop a shoe we simply have no colour for.
+              if (!_col) {
+                const hay = String(`${sh.nickname || ''} ${sh.name || ''}`).toLowerCase()
+                              .replace(/\bgray\b/g, 'grey');
+                if (wanted.some(w => hay.includes(w))) return true;
+              }
               droppedWrongColour.push(displayName(sh));
               return false;
             };
@@ -8109,7 +8128,28 @@ and it must NEVER be answered with a question back.`;
           }
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
-        const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        // 🏷️ DO NOT CALL IT "ALL BLACK" UNLESS IT IS. Rodney 2026-09-28: the customer typed
+        // "Black size 11" and the header that went out over the album read "This is what we have
+        // in ALL BLACK in size 11 rite now" - over a Black/Green, a Black/Pink and a
+        // Red/Black/Grey. He asked for black; "all black" is our own words, and it is a promise
+        // about every picture underneath it. Say "in black" unless every one of them really is.
+        try {
+          const _m = leadIn.match(/\ball\s+(black|white|grey|gray|red|blue|green|pink|purple|orange|yellow|brown|cream|navy)\b/i);
+          if (_m) {
+            const _ids = [].concat(inp.ids || [],
+              ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).map(String);
+            const _lm = liveShoeMap();
+            const _pure = _ids.every(id => {
+              const c = String((_lm[id] || {}).color || '').toLowerCase().replace(/\bgray\b/g, 'grey').trim();
+              return !c || c === _m[1].toLowerCase() || c === 'all ' + _m[1].toLowerCase();
+            });
+            if (!_pure) {
+              leadIn = leadIn.replace(_m[0], _m[1]);
+              record(req, { endpoint: 'leadin-all-colour-softened', sub, colour: _m[1], shoes: _ids.length });
+            }
+          }
+        } catch (_) {}
         // Completeness tracking: record which ids actually went out, and whether THIS album's
         // lead-in is a GENERIC size batch (mentions no brand, model or colour) — the case where
         // it must show every brand in the size. A lead-in naming a brand/model/colour (e.g.
