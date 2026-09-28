@@ -1987,6 +1987,8 @@ const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s
 // this regex only knew "drop YOUR/A/THE pin". Kiki's second ask was "\U0001f44d Drop that pin for me
 // \U0001f4cd" - so it matched nothing, pinAsked was never consulted, and she asked a customer the
 // driver was already almost on top of. One missing word, same shape as "dis" and "gray".
+// A customer telling us how they mean to pay - a statement, not a question. See card-link-missing.
+const CARD_INTENT_RE = /\b(?:pay(?:ing|ment)?|paid)\b[^.?!]{0,30}\b(?:card|visa|mastercard|debit|credit)\b|\b(?:card|visa|mastercard|debit|credit)\b[^.?!]{0,30}\bpay\b|\bno (?:cash|money) on me\b|\bdon'?t have (?:any )?cash\b|\byou (?:take|accept|got) card\b|\bhow (?:do|can) i pay\b|\bpayment (?:link|options?|method)\b/i;
 // Asking a customer to narrow by brand or model. See brand-question-blocked.
 // 📏 THE SMALLEST SIZE WE CARRY - a real question that deserves a real number.
 // Rodney 2026-09-28: a customer asked "what size do you start from in ladies? Seven or eight?"
@@ -7204,6 +7206,7 @@ and it must NEVER be answered with a question back.`;
   let confusedBlocks = 0;
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
+  let cardLinkMisses = 0;      // they said card and the reply had no link in it
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
@@ -7492,6 +7495,29 @@ and it must NEVER be answered with a question back.`;
         + 'reply again: tell them you are checking with the driver on how far he is and that you '
         + 'will come straight back - warm, one or two lines. Do NOT ask for a pin, do NOT ask '
         + 'where to meet, and do NOT say nothing is moving. Do not mention this note.)' });
+      continue;                       // one clean retry
+    }
+    // 💳 THEY SAID CARD. SEND THE CARD LINK.
+    // Rodney 2026-09-28: "why not send the payment link?" A customer wrote "I paying with card I
+    // don't have any cash on me" and was answered "I got navy options for you! What size you
+    // wear?" - the payment sentence ignored completely, and a colour nobody had mentioned.
+    // The rule for this already exists and says the card link is ALWAYS one of the options and
+    // must never be left off. But it is written as "ONLY if the customer ASKS about payment -
+    // how do I pay?, you take card?" - and this man did not ask a question. He told us how he
+    // was paying. A statement is not a question, so nothing fired.
+    // Telling us they have no cash is the strongest buying signal there is. Answer it.
+    if (turnText && !staffName && CARD_INTENT_RE.test(String(userText || ''))
+        && !/242plug\.com\/pay/i.test(turnText) && cardLinkMisses < 1) {
+      cardLinkMisses++;
+      record(req, { endpoint: 'card-link-missing', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: this '
+        + 'customer just told you they are paying by CARD. That is not small talk and it is not a '
+        + 'question you can skip - it is them telling you how they intend to buy. Say yes, card is '
+        + 'fine, and GIVE THEM THE LINK: https://242plug.com/pay?amount=<PRICE> with the real '
+        + 'price of the shoe they are buying in it. If the shoe is not settled yet, tell them card '
+        + 'is no problem and carry on getting the shoe and size sorted - but never ignore what '
+        + 'they said, and never answer a payment message with a question about something else. Do '
+        + 'not mention this note.)' });
       continue;                       // one clean retry
     }
     // 🛑 "WHAT YOU GOT IN A 12" IS ALREADY SPECIFIC. NEVER ASK WHICH BRAND.
