@@ -1987,6 +1987,19 @@ const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s
 // this regex only knew "drop YOUR/A/THE pin". Kiki's second ask was "\U0001f44d Drop that pin for me
 // \U0001f4cd" - so it matched nothing, pinAsked was never consulted, and she asked a customer the
 // driver was already almost on top of. One missing word, same shape as "dis" and "gray".
+// Asking a customer to narrow by brand or model. See brand-question-blocked.
+// 📏 THE SMALLEST SIZE WE CARRY - a real question that deserves a real number.
+// Rodney 2026-09-28: a customer asked "what size do you start from in ladies? Seven or eight?"
+// and was asked a question back. "You need to answer those and send us some pictures."
+// Read off the shelf, not remembered, so it cannot go stale.
+function smallestSizeWeCarry() {
+  try {
+    const have = sizesWeStock();
+    const ns = [...have].map(Number).filter(n => !isNaN(n)).sort((a, b) => a - b);
+    return ns.length ? ns[0] : null;
+  } catch (_) { return null; }
+}
+const BRAND_QUESTION_RE = /\b(?:which|what|any particular|something)\s+(?:brand|model|make)\b|\bspecific\s+(?:shoe\s+)?(?:brand|model|style)\b|\bacross all brands\b|\blooking for (?:a|any) (?:specific|particular)\b|\bwhat (?:kind|type) of (?:shoe|sneaker)\b|\bwhat\s+(?:\w+\s+)?(?:shoe|shoes|sneakers?|kicks)\s+(?:you|are you|u)\s+(?:looking for|after|want)\b|\bwhich one (?:you|are you) (?:looking for|after)\b/i;
 const PIN_ASK_RE = /\blocation pin\b|\bdrop (?:your|ur|a|the|that|dat|it|me)\b[^.?!]{0,20}?\b(?:location|pin)\b|\b(?:send|share|text)(?: me)?(?: your| ur| the| that| a)?\s+(?:whatsapp\s+)?(?:current\s+)?(?:location|pin)\b|\bpin for me\b|→\s*location\s*→/i;
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
@@ -7039,6 +7052,15 @@ ask them to type the area name instead - never re-ask for the pin they just sent
       } catch (_) {}
     }
   } catch (_) {}
+  try {
+    const _small = smallestSizeWeCarry();
+    if (_small != null) {
+      system += `\n\n📏 THE SMALLEST SIZE WE CARRY IS ${_small}. If anybody asks what size we start
+at, what the smallest is, or "do you start at a 7 or an 8" - give them that number straight,
+in one short line, and then show them what is in it. It is a real question with a real answer
+and it must NEVER be answered with a question back.`;
+    }
+  } catch (_) {}
   if (staffName) {
     system += `\n\n🎽 STAFF CHAT — this person is ${staffName}, one of OUR OWN store staff (recognized by their WhatsApp number). Talk like a coworker: casual and quick — no sales pitch, no catalog offers, no "Ready to Order!" lines, no follow-up nudges.
 - 🚫 NEVER ASK THEM TO "VERIFY" OR TYPE A STAFF/TEAM PHONE NUMBER (Rodney 2026-07-19, CRITICAL — Kiki demanded Rodney "confirm your team phone for this sale", he typed his number and she said "system doesn't recognize that number", dead-ending the sale): the system already knows who they are from the WhatsApp number they're texting FROM — a number TYPED into the chat proves nothing and can't be checked, so asking for one is always wrong and always fails. NEVER say "confirm your team phone", "verify you're on a staff number", "message from your official team phone", or treat a typed number as verification. You are ALREADY in staff mode with ${staffName} — just help them: record the sale/restock/float directly (with the normal photo-confirm step). If a tool ever refuses, follow the tool's instructions (send the photo, get a YES, call it again) — do NOT invent a phone-verification step.
@@ -7169,6 +7191,7 @@ ask them to type the area name instead - never re-ask for the pin they just sent
   let confusedBlocks = 0;
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
+  let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
   // 👟 A BARE SIZE IS A REQUEST FOR PICTURES. SEARCH, THEN SHOW — NEVER ASK AGAIN.
@@ -7446,6 +7469,32 @@ ask them to type the area name instead - never re-ask for the pin they just sent
         + 'reply again: tell them you are checking with the driver on how far he is and that you '
         + 'will come straight back - warm, one or two lines. Do NOT ask for a pin, do NOT ask '
         + 'where to meet, and do NOT say nothing is moving. Do not mention this note.)' });
+      continue;                       // one clean retry
+    }
+    // 🛑 "WHAT YOU GOT IN A 12" IS ALREADY SPECIFIC. NEVER ASK WHICH BRAND.
+    // Rodney 2026-09-28: "Why the fuck do you have to ask which brand somebody needs when they
+    // ask you what do you have in 12? If somebody asks you what do you have in 12, that means
+    // they're interested in everything that you have in size 12... Asking a brand now confuses
+    // customers because some customers don't even know the brand. They're just looking to see
+    // options and if they see something they like, then they pick one."
+    // A customer asked at 12:49 for what we had in a size 12 and was answered with "are you
+    // looking for a specific shoe model, or would you like to see what we have across all
+    // brands?" - a question, for a question that had already been asked properly. She then
+    // asked what size we start at in ladies and got ANOTHER question. Two straight questions,
+    // two counter-questions, no answer and no pictures.
+    // The size IS the request. Send the album.
+    if (turnText && !staffName && knownSize && !photosSentRun && BRAND_QUESTION_RE.test(turnText)
+        && brandQuestions < 1) {
+      brandQuestions++;
+      record(req, { endpoint: 'brand-question-blocked', sub, store: ctx.store || '', size: knownSize, text: turnText.slice(0, 200) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+        + 'just asked this customer which brand or model they want. They already told you their '
+        + 'size (' + knownSize + ') and asked what we have in it - that IS the request, and it is '
+        + 'specific enough. Plenty of people cannot name a brand; they want to SEE what there is '
+        + 'and pick. Do not ask which brand, which model, or whether they want a particular one. '
+        + 'Search their size and SEND THE PICTURES now. If they asked anything else in the same '
+        + 'breath, answer that in words on the same turn. Do not mention this note.)' });
+      forcePhotosNext = true;
       continue;                       // one clean retry
     }
     if (turnText && knownSize && SIZE_REASK_RE.test(turnText)) {
