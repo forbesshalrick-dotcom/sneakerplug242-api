@@ -7759,6 +7759,7 @@ and it must NEVER be answered with a question back.`;
         // "tennis" one turn and plain "Yes" on the turn the album actually sent.
         const droppedSlipOn = [];
         const droppedWrongColour = [];
+        let _colourWanted = [];   // what colour they asked for, so the album can be ordered by it
         let _photosOnTheirWay = false;   // queued for the browser - see album-sent-nothing below
         let womensExactCount = null, womensHalfUpCount = 0, womensTotalCount = 0;
         try {
@@ -7891,6 +7892,36 @@ and it must NEVER be answered with a question back.`;
             }
           }
         } catch (_) {}
+        // 🎨 THE ALL-BLACK ONES GO FIRST. Rodney 2026-09-28: "you send the all black sets
+        // first. Why do you mix it? If the person asks for black, then of course the all black
+        // would be the priority. The ones that have black and colored accents shouldn't be mixed
+        // right at the first options. They can send maybe last."
+        // He is right about how people read an album: the first few pictures are the answer and
+        // the rest is the long tail. A man who asked for black should see the black ones before
+        // he sees a black-and-pink one, not have them shuffled together.
+        // The guard above already settled WHICH shoes qualify (the colour must be the shoe's own,
+        // not a stripe). This only settles the ORDER: pure first, accented after, each keeping
+        // the order the search already ranked them in.
+        try {
+          if (_colourWanted.length) {
+            const lmO = liveShoeMap();
+            const isPure = (id) => {
+              const c = String((lmO[id] || {}).color || '').toLowerCase().replace(/\bgray\b/g, 'grey').trim();
+              return _colourWanted.some(w => c === w || c === 'all ' + w);
+            };
+            const order = (arr) => {
+              const pure = arr.filter(isPure), rest = arr.filter(x => !isPure(x));
+              return pure.concat(rest);
+            };
+            if (Array.isArray(inp.ids) && inp.ids.length) inp.ids = order(inp.ids);
+            if (Array.isArray(inp.groups)) for (const g of inp.groups) {
+              if (Array.isArray(g.ids) && g.ids.length) g.ids = order(g.ids);
+            }
+            const _n = [].concat(inp.ids || [], ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : []));
+            record(req, { endpoint: 'colour-pure-first', sub, colour: _colourWanted.join('/'),
+                          pure: _n.filter(isPure).length, total: _n.length });
+          }
+        } catch (_) {}
         // 👟 MODEL GUARD - "don't send no mixed shoes". See modelWanted.
         const droppedWrongModel = [];
         try {
@@ -7930,6 +7961,7 @@ and it must NEVER be answered with a question back.`;
               .slice(-6).reverse().map(m => m.content)
           );
           const wanted = colourWanted(recentSaid2);
+          _colourWanted = wanted;
           if (wanted.length) {
             const liveM = liveShoeMap();
             const keep = (id) => {
