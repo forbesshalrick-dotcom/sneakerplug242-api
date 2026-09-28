@@ -7262,7 +7262,17 @@ and it must NEVER be answered with a question back.`;
       : undefined;
     if (forceSearchNext) forceSearchNext = false;
     if (forcePhotosNext) forcePhotosNext = false;
-    const { ok, status, data } = await callClaude(history, system, staffPhotoTools ? undefined : forceTool, staffPhotoTools);
+    // 🧹 SANITISE BEFORE *EVERY* CALL, NOT JUST AT THE START OF THE TURN.
+    // Rodney 2026-09-28: "why kiki confused?" - Sheldon got the crash line twice in four hours,
+    // both times on the message that arranges the delivery ("around about 5 o'clock", "I get off
+    // at 4:30 I live golden gate 1"). That is the turn where the order tools fire.
+    // sanitizeHistory's own comment says why it matters: an assistant tool_use with no matching
+    // tool_result makes the API reject THE WHOLE CONVERSATION with a 400 - and a 400 is returned
+    // immediately with no retry, straight to "my end running slow". It was only being applied
+    // when the turn was LOADED, but this loop calls the model again for every tool, appending as
+    // it goes, so a tool block that goes dangling mid-turn was never cleaned before the next call.
+    // Cheap to run, and it turns a dead conversation into a reply.
+    const { ok, status, data } = await callClaude(sanitizeHistory(history), system, staffPhotoTools ? undefined : forceTool, staffPhotoTools);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
       // Only reached after the auto-retries above ALL failed. Keep the sale warm instead of
