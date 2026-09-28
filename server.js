@@ -6842,14 +6842,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // invisible. A pointer can also carry the question with it ("how much for dis one"), which
   // is still a pointer - the words around it do not tell us which picture either.
   const _P = '(?:this|that|dis|dat|dese|dose|these|those)';
-  const _pointerOnly = new RegExp(
+  // 👆 A POINTING FINGER IS A POINTER. Rodney 2026-09-28, on a customer who tapped one of
+  // our size-11 photos and replied with nothing but 👆 - and was told "Got you 👟 Air Force 1
+  // (All Black) — $120" for a shoe that is not in that picture: "kiki picked the wrong shoe".
+  // Every pointer word we know is a WORD. This customer used no words at all, so none of the
+  // pointer machinery fired: the tag reader was never woken, the album note was never attached,
+  // and she was left to guess out of fifty-two shoes. It is the commonest way people point.
+  const _POINT_EMOJI = /^[\s.!?]*(?:[\u{1F446}\u{1F447}\u{1F448}\u{1F449}\u{261D}\u{2B06}\u{1F53C}][\u{FE0F}\u{1F3FB}-\u{1F3FF}]*)+[\s.!?]*$/u;
+  const _pointedWithEmoji = _POINT_EMOJI.test(String(userText || ''));
+  const _pointerOnly = _pointedWithEmoji || new RegExp(
     '^\\s*(?:' + _P + '|' + _P + ' one|the one|i want ' + _P + '(?: one)?|want ' + _P + '|'
     + _P + ' (?:would|will) do)\\s*[.!?]*\\s*$', 'i').test(String(userText || ''));
   // A pointer with a question wrapped round it - "how much for dis one", "what size dis come
   // in" - is the same problem and the album note answers it just as well.
-  const _pointerAsk = !_pointerOnly && new RegExp(
-    '\\b' + _P + '(?: one)?\\b', 'i').test(String(userText || '')) &&
-    String(userText || '').trim().split(/\s+/).length <= 8;
+  // "👆 how much" is the same thing with a question wrapped round it - see _pointerAsk below.
+  const _POINT_EMOJI_ANY = /[\u{1F446}\u{1F447}\u{1F448}\u{1F449}\u{261D}\u{2B06}\u{1F53C}]/u;
+  const _pointerAsk = !_pointerOnly
+    && (new RegExp('\\b' + _P + '(?: one)?\\b', 'i').test(String(userText || ''))
+        || _POINT_EMOJI_ANY.test(String(userText || '')))
+    && String(userText || '').trim().split(/\s+/).length <= 8;
   // 🏷️ WAKE THE TAG READER FOR *ANY* POINTER, NOT JUST A BARE ONE.
   // Rodney 2026-09-26: "kiki still cant identify pics." A customer quote-replied to our
   // forwarded ASICS White/Blue card and wrote "Bring that to". Kiki asked the price and size,
