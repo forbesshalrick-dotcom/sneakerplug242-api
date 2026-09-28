@@ -4382,6 +4382,19 @@ function sizeFromCustomerWords(text) {
     const a = normSize(r[1]), b = normSize(r[2]);
     return a === b ? a : (a + '/' + b);
   }
+  // 🔢 A MESSAGE THAT IS NOTHING BUT A NUMBER IS A SIZE.
+  // Rodney 2026-09-28: "when kiki gets the size she forgets what shoe she was speaking about."
+  // 829-2664 was asked "What size you looking for?" and answered "10". Nothing recorded it -
+  // every cue below needs a size WORD next to the number, and he used none, because he had just
+  // been ASKED. So custSize stayed empty, knownSize stayed empty, and the guard that stops her
+  // re-asking never armed: two hours later she asked "What size you wear?" all over again, and
+  // when he said "10" a second time she sent 67 pictures of everything in a 10 instead of the
+  // New Balance 2000 from the ad they had been discussing all morning.
+  // A lone number in a shoe shop is a shoe size - it is the commonest possible answer to the
+  // commonest possible question, and it was the one shape we could not read. Money, pair counts,
+  // phone numbers and times are already stripped above, so what reaches here is genuinely bare.
+  const _bare = s.trim().replace(/[.!?\s]+$/, '');
+  if (new RegExp('^' + NUM + '$').test(_bare) && ok(_bare)) return normSize(_bare);
   // Then a single size that has a size WORD attached to it, so a stray number in an ordinary
   // sentence is never mistaken for one.
   // Never read "send 3 pics" or "2 pairs" as a size.
