@@ -4377,6 +4377,17 @@ function sizeFromCustomerWords(text) {
   const HALF = '(?:\\.5|\\s*1/2|\\s+and\\s+a\\s+half)?';
   const NUM = '(\\d{1,2}' + HALF + ')';
   const ok = (x) => { const n = parseFloat(normSize(x)); return n >= SIZE_MIN && n <= SIZE_MAX; };
+  // 👟 "THE BLUE 5s" IS A JORDAN 5, NOT A SIZE 5.
+  // Rodney 2026-09-28: "customer ask for jordan 5: size". A customer wrote "Tota yll have the
+  // blue awake 5s?" and was answered "This is what we have in blue in your 5 rite now" - a
+  // size-5 album full of Jordan 4s. He named a MODEL and we heard a shoe size.
+  // Jordan model numbers and shoe sizes are the same numbers, so the words around them are the
+  // only thing that can tell them apart. A colour or a model word anywhere in front of "<n>s"
+  // makes it the shoe: "the blue 5s", "black 4s", "Jordan 11s", "the blue awake 5s".
+  // "Shoot me the 8s" stays a size - it has its own send/shoot/gimme cue below, and no colour.
+  const MODELISH = new RegExp('\\b(?:blue|black|red|white|green|grey|pink|purple|orange|yellow|brown'
+    + '|cream|navy|gold|silver|tan|jordan|aj|retro|dunk|max|plus|foam|dn|tn)\\b[^.?!]{0,25}?\\b\\d{1,2}s\\b');
+  const plainNumS = !MODELISH.test(s);
   // A RANGE first — "14/15", "14 or 15", "14-15". Two sizes in one breath is a big-foot
   // customer telling you he sits between them; keep BOTH so nobody quietly rounds him down.
   const r = s.match(new RegExp(NUM + '\\s*(?:/|-|\\bor\\b|\\bto\\b)\\s*' + NUM));
@@ -4410,12 +4421,22 @@ function sizeFromCustomerWords(text) {
     'size\\s*[:\\-\\u2013\\u2014]?\\s*(?:is\\s*)?' + NUM, NUM + '\\s*(?:in\\s+)?size\\b',
     'wears?\\s+(?:a\\s+|an\\s+)?' + NUM, "i'?m\\s+(?:a\\s+|an\\s+)" + NUM,
     'need\\s+(?:a\\s+|an\\s+)' + NUM, 'take\\s+(?:a\\s+|an\\s+)' + NUM,
-    'in\\s+(?:a\\s+|an\\s+)' + NUM, NUM + 's\\b',
+    'in\\s+(?:a\\s+|an\\s+)' + NUM,
+    // 👟 "THE BLUE 5s" IS A JORDAN 5, NOT A SIZE 5.
+    // Rodney 2026-09-28: "customer ask for jordan 5: size". A customer wrote "Tota yll have the
+    // blue awake 5s?" and was answered "This is what we have in blue in your 5 rite now" - a
+    // size-5 album full of Jordan 4s. He named a MODEL and we heard a shoe size.
+    // Jordan model numbers and shoe sizes are the same numbers, so the words around them are the
+    // only thing that tells them apart. A colour or a model word in front of it - "the blue 5s",
+    // "black 4s", "Jordan 11s" - makes it the shoe. "Shoot me the 8s" is still a size and is
+    // caught by the send/shoot/gimme cue above, so nothing that worked stops working.
+    NUM + 's\\b',
     // "send 10.5", "shoot me the 8s", "lemme get a 12" — Bahamians talk short.
     '(?:send|shoot|show|get|gimme|lemme have)\\s+(?:me\\s+)?(?:a\\s+|an\\s+|the\\s+)?' + NUM + NOTCOUNT + '\\b',
     // A half size is only ever a shoe size — "10 and a half", "9 1/2", or a bare "10.5".
     '(\\d{1,2}\\s*(?:1/2|and\\s+a\\s+half))', '(\\d{1,2}\\.5)' + NOTCOUNT + '\\b',
   ]) {
+    if (cue === NUM + 's\\b' && !plainNumS) continue;   // a model number, not a size
     const m = s.match(new RegExp('\\b' + cue));
     if (m && ok(m[1])) return normSize(m[1]);
   }
