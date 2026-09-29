@@ -1994,6 +1994,8 @@ const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s
 // driver was already almost on top of. One missing word, same shape as "dis" and "gray".
 // A customer telling us how they mean to pay - a statement, not a question. See card-link-missing.
 const CARD_INTENT_RE = /\b(?:pay(?:ing|ment)?|paid)\b[^.?!]{0,30}\b(?:card|visa|mastercard|debit|credit)\b|\b(?:card|visa|mastercard|debit|credit)\b[^.?!]{0,30}\bpay\b|\bno (?:cash|money) on me\b|\bdon'?t have (?:any )?cash\b|\byou (?:take|accept|got) card\b|\bhow (?:do|can) i pay\b|\bpayment (?:link|options?|method)\b/i;
+// A customer asking what ELSE a shoe comes in. See colour-list-blocked - the answer is photos.
+const COLOUR_ASK_RE = /\bwhat\s+(?:other\s+)?colou?rs?\b|\bwhich\s+colou?rs?\b|\bcome[sz]?\s+in\s+(?:what|any\s+other|other)\b|\bany\s+other\s+colou?rs?\b|\bbesides?\s+(?:the\s+)?(?:white|black|red|blue|green|grey|gray|pink|purple)\b|\bwhat\s+else\s+(?:you\s+)?(?:got|have)\b.{0,20}\bcolou?rs?\b/i;
 // Asking a customer to narrow by brand or model. See brand-question-blocked.
 // 📏 THE SMALLEST SIZE WE CARRY - a real question that deserves a real number.
 // Rodney 2026-09-28: a customer asked "what size do you start from in ladies? Seven or eight?"
@@ -7339,6 +7341,7 @@ and it must NEVER be answered with a question back.`;
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let cardLinkMisses = 0;      // they said card and the reply had no link in it
+  let colourListed = 0;        // answering "what colours" with words instead of pictures
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
@@ -7664,6 +7667,28 @@ and it must NEVER be answered with a question back.`;
     // asked what size we start at in ladies and got ANOTHER question. Two straight questions,
     // two counter-questions, no answer and no pictures.
     // The size IS the request. Send the album.
+    // 🎨 "WHAT COLOURS DOES IT COME IN" IS ANSWERED WITH PICTURES.
+    // Rodney 2026-09-29: "why not send the fucking pics". A customer asked "The new balance
+    // comes in what color besides white?" and got a TYPED LIST - "Black/White, Pink/White,
+    // Purple/Yellow, Wavy Blue, Grey/Black, and Multicolor - all $130. Which one you want?"
+    // Nobody can pick a shoe off a list of colour names. That is six photographs, and we have
+    // every one of them.
+    // The rule "size known = pictures, never a text list" has been in the prompt for months,
+    // but it is written about SIZES. A colour question walked straight past it.
+    if (turnText && !staffName && !photosSentRun && colourListed < 1
+        && COLOUR_ASK_RE.test(String(userText || ''))
+        && (turnText.match(/\/|,/g) || []).length >= 2) {
+      colourListed++;
+      record(req, { endpoint: 'colour-list-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+        + 'just answered "what colours does it come in" by TYPING OUT a list of colourways. '
+        + 'Nobody picks a shoe off a list of words - that is what the photos are for, and we '
+        + 'have one for every colour we own. Call send_photos NOW with that model in their size '
+        + 'and let them see them. One short lead-in line is all the text you need. Do not list '
+        + 'the colours again. Do not mention this note.)' });
+      forcePhotosNext = true;
+      continue;                       // one clean retry
+    }
     if (turnText && !staffName && knownSize && !photosSentRun && BRAND_QUESTION_RE.test(turnText)
         && brandQuestions < 1) {
       brandQuestions++;
