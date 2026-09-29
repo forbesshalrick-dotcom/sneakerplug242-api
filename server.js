@@ -4273,7 +4273,23 @@ const redactOwnerName = (s) => String(s || '')
   .replace(/\bRodney'?s?\b/gi, (m) => (/'s$/i.test(m) ? "the owner's" : 'the owner'));
 
 async function callClaude(messages, system, toolChoice, toolsOverride) {
-  const body = { model: AI_MODEL, max_tokens: 1024, system: redactOwnerName(system || buildSystemPrompt()), tools: toolsOverride || AI_TOOLS, messages };
+  // 💰 CACHE THE PART THAT NEVER CHANGES. Rodney 2026-09-29, looking at his Anthropic
+  // invoices: "im already being charged many times" - credit grants several times a day.
+  // Measured: the system prompt is ~157 KB and the tool definitions ~17 KB, so EVERY call
+  // re-sends about 43,600 input tokens before the customer has said a word. A single customer
+  // message runs the tool loop 3-6 times, so one "what you got in a 10" costs roughly 175,000
+  // input tokens. Nothing was cached - there was not one cache_control in the file.
+  // The prompt and the tools are byte-identical from call to call, which is exactly what the
+  // cache is for: a cache read bills at a tenth of the input price. Marking the end of the
+  // tools and the end of the system prompt makes everything before those points a cache hit
+  // for the next five minutes, which on a busy line is every call after the first.
+  // Nothing about her behaviour changes - the model sees the identical prompt either way.
+  const _sysText = redactOwnerName(system || buildSystemPrompt());
+  const _tools = (toolsOverride || AI_TOOLS).map((t, i, a) =>
+    (i === a.length - 1) ? Object.assign({}, t, { cache_control: { type: 'ephemeral' } }) : t);
+  const body = { model: AI_MODEL, max_tokens: 1024,
+    system: [{ type: 'text', text: _sysText, cache_control: { type: 'ephemeral' } }],
+    tools: _tools, messages };
   if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
   // AUTO-RETRY transient failures (overloaded 529 / rate-limit 429 / 5xx / network blips).
   // These are common with vision and used to drop STRAIGHT to the "hiccup" message on the
