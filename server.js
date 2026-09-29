@@ -3656,6 +3656,8 @@ function rememberAlbumShown(sub, shoes, forSize) {
   }
   if (list.length) albumShown.set(String(sub), { at: Date.now(), shoes: list.slice(0, 40),
                                                  size: String(forSize || '').trim() });
+  // ONE shoe shown is a shoe CHOSEN - that is the pair the conversation is now about.
+  try { if (list.length === 1) rememberShoe(sub, list[0].name, list[0].price); } catch (_) {}
   if (albumShown.size > 300) { const k = albumShown.keys().next().value; albumShown.delete(k); }
 }
 // The note Kiki gets when they point at one of those pictures.
@@ -4354,6 +4356,20 @@ const convos = new Map();    // subscriberId -> message history
 // said it once (history gets trimmed to 24 msgs, so a size given early can fall out — this
 // survives that). Set when Kiki searches a single size; injected back into her context.
 const custSize = new Map();   // sub -> { size, ts }
+// 👟 THE SHOE THIS CUSTOMER IS ALREADY ON.
+// Rodney 2026-09-29: "why the fuck Kiki keep forgetting what the fuck the customer wants?"
+// sjay asked for a white Air Force 1 in a 12 at 11:23, was sent it and told the price - and at
+// 12:25, an hour later in the SAME conversation, "hey I'm interested in a pair" was answered
+// with "Let me pull up what we have in a 12 for you - check out 242plug.com. What style
+// catches your eye?" The history was there; she just started over.
+// The size has had a memory of its own for months and it works. The SHOE never did.
+const custShoe = new Map();   // sub -> { name, price, ts }
+function rememberShoe(sub, name, price) {
+  const n = String(name || '').trim();
+  if (!n) return;
+  custShoe.set(String(sub), { name: n.slice(0, 60), price: price || 0, ts: Date.now() });
+  if (custShoe.size > 600) { const f = custShoe.keys().next().value; custShoe.delete(f); }
+}
 
 // 📏 READ THE SIZE OUT OF THE CUSTOMER'S OWN WORDS — not just out of Kiki's searches.
 //
@@ -4493,21 +4509,35 @@ const CONVOS_FILE = (() => {
 try {
   if (CONVOS_FILE && require('fs').existsSync(CONVOS_FILE)) {
     const saved = JSON.parse(require('fs').readFileSync(CONVOS_FILE, 'utf8'));
-    const cutoff = Date.now() - 6 * 60 * 60 * 1000; // only chats active in the last 6h
+    // 🧠 SIX HOURS WAS THROWING AWAY LIVE CUSTOMERS. Rodney 2026-09-29: "why the fuck
+    // Kiki keep forgetting what the fuck the customer wants?" sjay settled an Air Force 1
+    // (White) in a 12 at 2:34pm and said "I will text tomorrow morning for you to deliver".
+    // He texted at 11:22am and got the FIRST-TIME WELCOME - because the greeting fires on
+    // history.length === 0, and his history had been dropped at the last restart: 2:42pm to
+    // the 10:21pm deploy is seven and a half hours, just past this cutoff.
+    // We deploy several times a day, so every restart was quietly wiping anyone who had gone
+    // quiet for six hours - which is exactly what a customer collecting tomorrow looks like.
+    // Three days keeps the people who said they would come back, and the trim to 24 messages
+    // means each one costs almost nothing to hold.
+    const cutoff = Date.now() - 72 * 60 * 60 * 1000;
     const entries = Object.entries(saved.chats || {})
       .filter(([, v]) => v && v.ts > cutoff && Array.isArray(v.h))
       .sort((a, b) => b[1].ts - a[1].ts)
-      .slice(0, 400); // safety cap
+      .slice(0, 1500); // safety cap - each chat is trimmed to 24 messages, so this stays small
     for (const [sub, v] of entries) { convos.set(sub, v.h); convoTouched.set(sub, v.ts); }
     // Restore remembered sizes on their OWN 12h window (matches the TTL where sizeCtx is
     // built) — deliberately longer than the 6h chat cutoff above, because knowing the
     // customer's size is still useful after their older history has been pruned.
-    const sizeCutoff = Date.now() - 12 * 60 * 60 * 1000;
+    const sizeCutoff = Date.now() - 72 * 60 * 60 * 1000;   // feet do not change overnight
     let sizesBack = 0;
     for (const [sub, v] of Object.entries(saved.sizes || {})) {
       if (v && v.size && (v.ts || 0) > sizeCutoff) { custSize.set(sub, v); sizesBack++; }
     }
-    console.log('[convos] restored', convos.size, 'conversations,', sizesBack, 'sizes');
+    let shoesBack = 0;
+    for (const [sub, v] of Object.entries(saved.shoes || {})) {
+      if (v && v.name && (v.ts || 0) > sizeCutoff) { custShoe.set(sub, v); shoesBack++; }
+    }
+    console.log('[convos] restored', convos.size, 'conversations,', sizesBack, 'sizes,', shoesBack, 'shoes');
   }
 } catch (e) { console.log('[convos] restore failed:', e.message); }
 let convosSaveT = null;
@@ -4523,7 +4553,12 @@ function saveConvos() { // debounced best-effort write
       // custSize was memory-only, so any restart in between wiped it while convos survived.)
       const sizes = {};
       for (const [sub, v] of custSize) if (v && v.size) sizes[sub] = v;
-      require('fs').writeFileSync(CONVOS_FILE, JSON.stringify({ chats, sizes }));
+      // ...and the SHOE they are on, for exactly the same reason. A restart that forgets the
+      // pair a customer already picked is how "I'm interested in a pair" gets answered with
+      // "what style catches your eye?".
+      const shoes = {};
+      for (const [sub, v] of custShoe) if (v && v.name) shoes[sub] = v;
+      require('fs').writeFileSync(CONVOS_FILE, JSON.stringify({ chats, sizes, shoes }));
     } catch (_) {}
   }, 2000);
   if (convosSaveT.unref) convosSaveT.unref();
@@ -7199,6 +7234,22 @@ and it must NEVER be answered with a question back.`;
       ? `\n\n[THIS CUSTOMER'S SIZE = ${knownSize} (they told you earlier in this chat). When they ask to see ANY other shoe, brand or model next — "any New Balance?", "show me Jordans", "what you got in ___" — go STRAIGHT to search_inventory + send_photos in size ${knownSize} on this turn. Do NOT reply "what size you looking for?" — you already know it. Only ask again if they clearly want a DIFFERENT size.]`
       : `\n\n[THIS CUSTOMER'S SIZE = ${knownSize}, AND WE DO NOT CARRY IT. They have already told you — NEVER ask their size again, not once. The biggest size on our shelf right now is a ${ceiling}. Do NOT offer them anything more than ONE size below what they asked for: a ${ceiling} to somebody who wears a ${knownSize} is not "the closest we can get you", it is a shoe that does not fit, and "some of these run big" is a sales line, not help. Do NOT use the try-on offer to bridge that gap either — bringing him two shoes that are both too small is still bringing him nothing. Say plainly and warmly that we top out at a ${ceiling} right now, and then STOP SELLING — that is a complete answer on its own. Offer NOTHING on the end of it (Rodney 2026-09-06, his exact words: "no callback just say sorry no we dont") — no call back, no taking his name or number, no get_agent, no nearest size, no try-on. "Nah sorry — we stop at a ${ceiling} right now 🙏" is the whole message. If he asks again, answer again just as short; if he asks for something else, help him with that as normal.]`;
   }
+  // 👟 AND THE SHOE THEY ARE ALREADY ON - see rememberShoe. Same idea as the size above:
+  // a customer who has been shown one specific pair and given its price has not come back an
+  // hour later to start from nothing.
+  try {
+    const shoeMem = custShoe.get(String(sub));
+    if (shoeMem && shoeMem.name && (Date.now() - (shoeMem.ts || 0)) < 72 * 60 * 60 * 1000) {
+      sizeCtx += `\n\n[THIS CUSTOMER IS ALREADY ON THE ${shoeMem.name}`
+        + (shoeMem.price ? ` ($${shoeMem.price})` : '')
+        + (knownSize ? ` in a ${knownSize}` : '')
+        + `. That is the pair this conversation is about - you have shown it to them already. `
+        + `If they come back with anything open-ended ("I'm interested in a pair", "you there?", `
+        + `"good day", "still available?"), answer about THAT shoe by name - do NOT start over, `
+        + `do NOT ask what style catches their eye, and do NOT send them to the website. Only `
+        + `move off it if THEY name something different.]`;
+    }
+  } catch (_) {}
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
   // full-res customer photos with an "I can't open that file" reply).
