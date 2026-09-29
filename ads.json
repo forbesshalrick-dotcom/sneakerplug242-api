@@ -1,0 +1,34 @@
+{
+  "_why": "The ads Trendy Kicks is running RIGHT NOW. Rodney 2026-09-29: 'Kiki never understands when a customer asks for a certain advertisement... the guy asks for the price in size nine and Kiki starts sending them all type of pictures. She don't even know which one he want the price for.' Facebook does not tell us which ad was tapped (and ManyChat does not pass it), so a customer arriving off an ad is invisible to us. This list is what they could possibly be asking about. Keep it in step with what is actually live - anything listed here is what Kiki will name and price.",
+  "shop": "Trendy Kicks",
+  "updated": "2026-09-29",
+  "ads": [
+    {
+      "id": "nb9060-bw",
+      "label": "New Balance 9060 — Black/White and White/Black",
+      "caption": "Free Delivery",
+      "shoes": [
+        { "id": "c0403", "name": "New Balance 9060 Black/White", "price": 130 },
+        { "id": "c0400", "name": "New Balance 9060 White/Black", "price": 130 }
+      ]
+    },
+    {
+      "id": "allblack",
+      "label": "All Black — New Balance 9060 and Air VaporMax Plus",
+      "caption": "Free DELIVERY",
+      "shoes": [
+        { "id": "c0406", "name": "New Balance 9060 All Black", "price": 130 },
+        { "id": "c0451", "name": "Air VaporMax All Black", "price": 120 }
+      ]
+    },
+    {
+      "id": "af1",
+      "label": "Air Force 1 — black and white, $120",
+      "caption": "$120 · FREE DELIVERY",
+      "shoes": [
+        { "id": "co574", "name": "Air Force 1 All Black", "price": 120 },
+        { "id": "co576", "name": "Air Force 1 White", "price": 120 }
+      ]
+    }
+  ]
+}
