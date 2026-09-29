@@ -13213,7 +13213,19 @@ app.post('/inbox/send-shoe', async (req, res) => {
                                heldFor: Math.round((Date.now() - _lockedAt) / 1000) });
   albumInFlight.set(sub, Date.now());
   inboxAlbumSentAt.set(albumKey, Date.now());
-  setHumanPause(sub); clearFollowUp(sub);
+  // 📸 SENDING PICTURES IS NOT TAKING OVER THE CONVERSATION.
+  // Rodney 2026-09-29: "Kiki not answering the messages, so I had to answer the last two
+  // messages for her." Measured on 425-84xx: he hand-sent the ASICS album at 12:29, the
+  // customer asked "Do you have these?" at 12:42 and "Am i goin to get these today?" at 12:48,
+  // and Kiki said nothing to either - he answered both himself.
+  // Nothing was broken. /inbox/send-shoe called setHumanPause(), which mutes her for FORTY-FIVE
+  // MINUTES. That window is right when a human TYPES a reply - they have the conversation and
+  // Kiki talking over them is the bug it was built to stop. Firing an album is the opposite: it
+  // is him helping her, and he expects her to carry on. He hand-sends constantly, so in
+  // practice this was muting her all day.
+  // Two minutes is enough to stop her narrating over the pictures as they land; after that the
+  // chat is hers again.
+  setHumanPause(sub, 2 * 60 * 1000); clearFollowUp(sub);
   // 📷 PICS ONLY (staff toggle on the Send pictures panel): bare photos, no label bubbles,
   // no lead-in line at all — so WhatsApp clumps them into one album a staff member can
   // forward to a customer in one tap, same behaviour already used for batch 2+ below.
