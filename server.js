@@ -672,7 +672,12 @@ const ANY_COLOUR_RE = /\b(any colou?r|all colou?rs|whatever|any(thing)? is fine|
 // ready now and we just needed his location. Nobody is getting anything ready for a
 // delivery that is tomorrow, and pushing for a pin tonight is pressure for no reason.
 // Bahamian spellings included on purpose - "2mroo", "2moro", "tommorow" all come through.
-const LATER_DAY_RE = /\b(tomorrow|tmr+w?|2\s?m(?:o?r|rr)o+w?|2moro|tommor?ow|nex[t]?\s+week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|later this week|another day|nex[t]?\s+day)\b/i;
+// Rodney 2026-09-29, from a live ad chat: the customer answered "Later within the week" and
+// was told "Let me call the driver now to see how far he is! He'll be right with you". The
+// guard was here and did not fire - it knew "later this week" and not "later WITHIN the week".
+// One word. So it now catches the ordinary ways people put a thing off, not a fixed list of
+// four phrasings: a bare "later", "in a few days", "when I get paid", "end of the week".
+const LATER_DAY_RE = /\b(tomorrow|tmr+w?|2\s?m(?:o?r|rr)o+w?|2moro|tommor?ow|nex[t]?\s+week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|another day|nex[t]?\s+day)\b|\blater\b(?!\s*(?:today|on\s+today))|\bin\s+a\s+(?:few|couple)\s+(?:of\s+)?(?:days?|weeks?)\b|\b(?:this|within|during|end\s+of)\s+the\s+week\b|\bwhen\s+i\s+(?:get\s+paid|get\s+my\s+money|cash\s+out)\b|\bnot\s+(?:right\s+now|today|tonight)\b|\bsome\s*time\s+(?:later|next)\b/i;
 function saidLaterDay(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '');
@@ -2688,7 +2693,7 @@ WOMEN'S — stock is men's, so this is the conversion. Say "here's what we have 
 - 📍 NO LOCATION, NO DRIVER — AND ASK THREE DIFFERENT WAYS (Rodney 2026-09-24: "Kiki needs to tell customers send the location, not the driver's gonna pick it up."). A customer confirmed a Panda Dunk in a women's 9, never sent a location, and was told "Got it 👍 someone's picking this up now and will message you straight back about the drop-off". Nobody was picking anything up. NOTHING moves until the location is in, so until then you NEVER say anyone is picking it up, heading out, on the way, or about to message them back — that turns a wait into a lie and it is how a good customer stops trusting us.
   What you do instead, and it changes every time — never the same sentence twice:
   1. FIRST: ask for the pin with the tap-by-tap, as normal.
-  2. IF THEY DON'T SEND IT: give them the reason, short — "The driver getting the shoes ready now 👟 I just need your location to send him." Say it once and stop.
+  2. IF THEY DON'T SEND IT: give them the reason, short — "Soon as you send me the location 📍 I can get this straight out to you 👟". Say it once and stop. NEVER say a driver is getting shoes ready, loading up or on his way before the location is in - nothing is happening yet, and claiming it is how a wait turns into a lie.
   3. IF THEY STILL DON'T: stop asking for a pin altogether and offer the other way — "If you on the road now we could meet up, or meet halfway — whatever easier for you 👟". Some people will not share a pin, and a meet-up is a sale we would otherwise lose.
   Never a fourth ask. Once they pick a way, take it from there.
 - 📍 HOW A DROPPED PIN ACTUALLY REACHES YOU (IMPORTANT): when the customer sends a pin (or any non-text thing), WhatsApp can't hand you the pin itself — instead the system RE-DELIVERS their PREVIOUS text word-for-word, marked with a SYSTEM NOTE saying a non-text message probably arrived. So if you were waiting on a location pin and their last message suddenly repeats (with that note), that is PROBABLY the pin arriving — say "Got your pin! 📍 (if that was a photo or something else, just say so!)" and treat the location as received. ⚠️ The replay can also be a PHOTO or sticker WhatsApp couldn't deliver (2026-07-14: a shoe photo got a "Got your pin!"), so always include that little escape hatch, and if the customer corrects you ("that was a picture"), apologize lightly, handle what they actually sent, and ask for the pin again. Do NOT answer the repeated words as if they typed them again, and do NOT re-confirm the order.
@@ -7650,7 +7655,7 @@ and it must NEVER be answered with a question back.`;
           : (_laterDay
             ? '(SYSTEM NOTE \u2014 the customer cannot see this: they have already told you they want it on a LATER DAY, so do NOT chase them for a location tonight and do NOT say anyone is getting shoes ready or heading out \u2014 nothing is happening until that day. Do not repeat the pin instructions. Confirm the day back to them warmly and tell them once, relaxed, that they can send their location whenever they are ready, even on the day itself. Then let it go. Do not mention this note.)'
           : pinAsks <= 2
-            ? '(SYSTEM NOTE — the customer cannot see this: they have NOT sent a location yet, so do NOT tell them anyone is picking anything up, heading out, or messaging them back about a drop-off — none of that is happening and it is not true. Nothing moves without the location. Do not repeat the tap-by-tap instructions you already gave. Say it once, short and warm, with the reason attached: "The driver getting the shoes ready now 👟 I just need your location to send him." Then stop. Do not mention this note.)'
+            ? '(SYSTEM NOTE — the customer cannot see this: they have NOT sent a location yet, so do NOT tell them anyone is picking anything up, heading out, or messaging them back about a drop-off — none of that is happening and it is not true. Nothing moves without the location. Do not repeat the tap-by-tap instructions you already gave. Say it once, short and warm: "Soon as you send me the location 📍 I can get this straight out to you 👟" - and do NOT claim a driver is getting anything ready or heading out, because nothing starts until the location is in. Then stop. Do not mention this note.)'
             : (function () {
               // 🚨 A CUSTOMER WHO WANTS TO MEET IS A DELIVERY, AND NOBODY WAS BEING TOLD.
               // Rodney 2026-09-25: "kiki never sent a delivery notification". A customer with a
@@ -9064,6 +9069,39 @@ function handleChat(req, res) {
   }
   const sub = getContactId(req);
   const token = getToken(req);
+
+  /* 📢 THE AD THEY TAPPED, ON THE MANYCHAT LINE TOO.
+   * Rodney 2026-09-29: a customer came off a Click-to-WhatsApp ad for the all-black VaporMax,
+   * opened with "Hello! Can I get more info on this?" and "Any 10", and was answered with the
+   * generic "are you looking for something specific?" then sixty size-10 JORDAN 4s. Kiki never
+   * knew which shoe the ad showed.
+   * The handling for this already existed and was written months ago - but it lives in
+   * /wa-webhook, the DIRECT META door. Trendy Kicks comes through MANYCHAT, which is this
+   * function, and nothing here ever looked for it. The same bug shape as the tag reader and
+   * the own-line block: a guard on one entrance only.
+   * ManyChat will only send what the flow maps, so accept every reasonable spelling and build
+   * the same system note the Meta side builds. Absent = behaves exactly as before. */
+  try {
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const pick = (...keys) => { for (const k of keys) { const v = b[k]; if (v != null && String(v).trim()) return String(v).trim(); } return ''; };
+    const adHead = pick('ad_headline', 'adHeadline', 'referral_headline', 'headline');
+    const adBody = pick('ad_body', 'adBody', 'referral_body', 'ad_text');
+    const adId   = pick('ad_id', 'adId', 'referral_source_id', 'ctwa_clid', 'source_id');
+    const adSrc  = pick('ad_source_url', 'referral_source_url', 'source_url');
+    if (adHead || adBody || adId || adSrc) {
+      const bits = [adHead, adBody].filter(Boolean).join(' \u2014 ').slice(0, 160);
+      const note = '(SYSTEM: this customer arrived by tapping our WhatsApp ad'
+        + (bits ? ' \u2014 the ad said: ' + bits : '')
+        + (adSrc ? ' \u2014 ' + adSrc.slice(0, 80) : '')
+        + (adId ? ' \u2014 ad id ' + adId : '')
+        + '. They are asking about THAT shoe. Do NOT open with the generic greeting and do NOT '
+        + 'ask what they are looking for - name the shoe from the ad and help them with it. If '
+        + 'they give only a size, that size is for THAT shoe, not a request for the whole '
+        + 'catalogue.)';
+      userText = note + (String(userText || '').trim() ? '\n\n' + userText : '');
+      try { record(req, { endpoint: 'manychat-ad-referral', sub, headline: adHead.slice(0, 60), adId: adId || null }); } catch (_) {}
+    }
+  } catch (_) {}
 
   // 🛑 OUR OWN SHOPS MUST NEVER TALK TO EACH OTHER (Rodney 2026-09-17, watching it
   // happen: "tk and osc are talking to each other no stop"). TK and OSC each have the other
