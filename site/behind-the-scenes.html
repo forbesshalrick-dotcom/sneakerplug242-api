@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en-BS">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Behind the message — Nightshift</title>
+<meta name="description" content="Watch the bot handle a real request: 'you have any black work shoes?' It asks the size, searches the live stock in front of you, sends labelled photo options, takes the pick and dispatches a driver.">
+<link rel="canonical" href="https://nightshift242.com/behind-the-scenes.html">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nightshift242.com/behind-the-scenes.html">
+<meta property="og:title" content="Behind the message">
+<meta property="og:description" content="The machine room: watch the bot filter live stock down to the matches, send labelled options and dispatch a driver.">
+<meta property="og:image" content="https://nightshift242.com/assets/img/og.png">
+<meta name="theme-color" content="#FF4A1C">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/ibm-plex-mono-600.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/archivo-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/css/site.css?v=20260815e">
+<style>
+  .bts{ display:grid; grid-template-columns:minmax(0,368px) minmax(0,1fr); gap:clamp(18px,2.5vw,32px); align-items:start; }
+  /* minmax(0,1fr), not 1fr: a bare 1fr is minmax(auto,1fr), so the inventory
+     table's min-width propagated up and stretched the whole page at 375px */
+  @media (max-width:940px){ .bts{ grid-template-columns:minmax(0,1fr); } }
+
+  .runner{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:20px; }
+  .runner .state{ font-family:var(--display); font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2); margin-left:auto; }
+  .rail{ height:3px; background:var(--line); position:relative; margin-bottom:26px; }
+  .rail span{ position:absolute; inset:0 auto 0 0; background:var(--accent); width:0; }
+
+  /* ---------- phone ---------- */
+  .ph{ border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; background:#ECE5DD; box-shadow:var(--shadow); }
+  .ph-bar{ display:flex; align-items:center; gap:10px; padding:11px 13px; background:#075E54; color:#fff; }
+  .ph-bar .av{ width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,.22); display:grid; place-items:center; font-size:12px; font-weight:700; }
+  .ph-bar .nm{ font-size:15px; font-weight:700; line-height:1.15; }
+  .ph-bar .st{ font-size:11.5px; opacity:.85; }
+  .ph-thread{
+    flex:1; padding:14px 12px; display:flex; flex-direction:column; gap:8px; justify-content:flex-end;
+    min-height:520px; max-height:620px; overflow-y:auto;
+    background-color:#ECE5DD;
+    background-image:radial-gradient(circle at 18% 24%,rgba(0,0,0,.05) 0 3px,transparent 3px),
+                     radial-gradient(circle at 72% 62%,rgba(0,0,0,.04) 0 4px,transparent 4px);
+    background-size:130px 130px;
+  }
+  .pb{ position:relative; font-size:14px; line-height:1.4; padding:8px 11px 16px; max-width:86%; border-radius:8px; box-shadow:0 1px 1px rgba(0,0,0,.12); animation:pop .3s ease both; }
+  .pb.cust{ align-self:flex-start; background:#fff; color:#111; border-top-left-radius:2px; }
+  .pb.bot{ align-self:flex-end; background:#DCF8C6; color:#111; border-top-right-radius:2px; }
+  .pb .tm{ position:absolute; right:8px; bottom:3px; font-size:10.5px; color:#7A8A7A; }
+  .pb .sp{ display:inline-block; width:46px; }
+  @keyframes pop{ from{ opacity:0; transform:translateY(6px); } }
+
+  /* the album — one photo, one label underneath. This is the mechanic. */
+  .album{ align-self:flex-end; background:#DCF8C6; border-radius:8px; border-top-right-radius:2px; padding:8px 8px 18px; display:grid; grid-template-columns:1fr 1fr; gap:6px; max-width:92%; box-shadow:0 1px 1px rgba(0,0,0,.12); animation:pop .3s ease both; position:relative; }
+  .album figure{ margin:0; display:flex; flex-direction:column; }
+  .album .shot{ aspect-ratio:1; border-radius:5px 5px 0 0; }
+  .album figcaption{ background:#111; color:#fff; border-radius:0 0 5px 5px; text-align:center; padding:4px 3px 5px; font-family:var(--display); font-size:12.5px; font-weight:600; letter-spacing:.08em; }
+  .album figcaption b{ display:block; font-weight:400; font-size:9.5px; opacity:.75; letter-spacing:.01em; margin-top:1px; }
+  .album .tm{ bottom:4px; }
+
+  /* ---------- stock scanner: the physical representation ---------- */
+  .scan{ background:#14100E; color:#F7F4F1; padding:16px; }
+  .scan-hd{ display:flex; align-items:center; gap:9px; font-family:var(--display); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,.55); padding-bottom:12px; border-bottom:1px solid rgba(255,255,255,.14); }
+  .scan-hd .pulse{ width:7px; height:7px; border-radius:50%; background:#5A5148; }
+  .scan-hd .pulse.on{ background:var(--accent); }
+  .scan-hd .n{ margin-left:auto; color:#fff; font-variant-numeric:tabular-nums; letter-spacing:.06em; }
+
+  .funnel{ display:flex; flex-wrap:wrap; gap:6px; padding:13px 0 14px; }
+  .fstep{ display:flex; align-items:baseline; gap:7px; padding:5px 10px; border:1px solid rgba(255,255,255,.16); font-family:var(--display); font-size:11.5px; color:rgba(255,255,255,.45); }
+  .fstep.on{ border-color:var(--accent); color:#fff; }
+  .fstep .v{ font-weight:600; font-variant-numeric:tabular-nums; }
+  .fstep.on .v{ color:#FF8B62; }
+
+  .grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(44px,1fr)); gap:5px; }
+  .tile{
+    aspect-ratio:1; border-radius:4px; position:relative; overflow:hidden;
+    display:grid; place-items:center; border:1px solid rgba(255,255,255,.14);
+    transition:opacity .35s ease, filter .35s ease, transform .25s ease, box-shadow .25s ease;
+  }
+  .tile .c{ position:absolute; inset:0; }
+  /* a chip, not a text-shadow: white-on-swatch hit 2.14:1 on the pale
+     colours, and shadows don't count toward contrast */
+  .tile .k{ position:relative; font-family:var(--display); font-size:9px; color:#fff;
+    background:rgba(0,0,0,.72); padding:1px 4px; border-radius:3px; }
+  .tile[data-s="out"]{ opacity:.12; filter:grayscale(1); }
+  .tile[data-s="scan"]{ box-shadow:0 0 0 2px #FFD9C9 inset; }
+  .tile[data-s="hit"]{ box-shadow:0 0 0 2px var(--accent), 0 0 16px rgba(255,74,28,.55); transform:scale(1.08); z-index:2; }
+  .tile .lab{
+    position:absolute; inset:auto 0 0 0; background:var(--accent); color:#fff;
+    font-family:var(--display); font-size:9px; text-align:center; padding:1px 0;
+    opacity:0; transition:opacity .3s ease;
+  }
+  .tile[data-s="hit"] .lab{ opacity:1; }
+
+  /* ---------- log + inventory ---------- */
+  .sys{ background:#14100E; color:#F7F4F1; padding:0 16px 16px; }
+  .sys-log{ display:flex; flex-direction:column; gap:2px; padding-top:12px; border-top:1px solid rgba(255,255,255,.14); max-height:250px; overflow-y:auto; }
+  .ev{ display:grid; grid-template-columns:58px 18px 1fr; gap:9px; align-items:baseline; padding:4px 0; font-size:13px; animation:pop .28s ease both; }
+  .ev .at{ font-family:var(--display); font-size:11px; color:rgba(255,255,255,.4); font-variant-numeric:tabular-nums; }
+  .ev .ic{ text-align:center; font-size:11px; }
+  .ev .tx{ color:rgba(255,255,255,.9); line-height:1.4; }
+  .ev .tx b{ color:#fff; font-weight:600; }
+  .ev code{ font-family:var(--display); font-size:11.5px; background:rgba(255,255,255,.1); padding:1px 5px; color:#FFB89C; }
+  .ev.good .ic{ color:#7BD88F; }
+  .ev.warn .tx{ color:#FFC48A; } .ev.warn .ic{ color:#FFC48A; }
+  .ev.human{ background:rgba(255,74,28,.15); margin-inline:-8px; padding-inline:8px; border-left:2px solid var(--accent); }
+
+  .inv{ border:1px solid var(--line); margin-top:18px; }
+  .inv-hd{ display:flex; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line); background:var(--surface); font-family:var(--display); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-2); }
+  .inv-hd .live{ margin-left:auto; color:var(--accent-ink); }
+  table.stock{ width:100%; border-collapse:collapse; font-size:14px; min-width:430px; }
+  table.stock th, table.stock td{ text-align:left; padding:9px 14px; border-bottom:1px solid var(--line); }
+  table.stock th{ font-family:var(--display); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-2); font-weight:400; }
+  table.stock tbody tr:last-child td{ border-bottom:0; }
+  table.stock .code{ font-family:var(--display); font-weight:600; }
+  table.stock .qty{ font-family:var(--display); font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
+  table.stock .tag{ font-family:var(--display); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); }
+  tr.hit{ background:color-mix(in srgb, var(--accent) 13%, transparent); transition:background .4s ease; }
+  tr.hit .tag{ color:var(--accent-ink); }
+  .qty.drop{ color:var(--accent-ink); }
+
+  .legend{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); }
+  .legend div{ background:var(--ground); padding:18px 20px; display:flex; flex-direction:column; gap:7px; }
+  .legend h3{ font-family:var(--display); font-size:14px; font-weight:600; }
+  .legend p{ color:var(--ink-2); font-size:14.5px; }
+
+  /* ---------- the owner's side ----------------------------------------------
+     Everything above is the customer's half. This is the half a brochure site
+     cannot show, and it is the half that decides whether somebody buys from us
+     or from whoever is cheaper: the shop still has to be run in the morning.
+     Drawn as real interface rather than described in a paragraph — a screen a
+     person recognises sells better than a sentence about "management tools". */
+  .o-wrap{ display:grid; grid-template-columns:minmax(0,1fr); gap:22px; }
+  @media (min-width:900px){ .o-wrap{ grid-template-columns:minmax(0,1fr) minmax(0,330px); align-items:start; } }
+
+  .o-app{ border:1px solid var(--line); background:var(--ground); overflow:hidden; box-shadow:var(--shadow); min-width:0; }
+  .o-top{ display:flex; align-items:center; gap:9px; padding:12px 15px; background:#14100E; color:#fff; }
+  .o-top .o-dot{ width:8px; height:8px; border-radius:50%; background:#7BD88F; flex:none; }
+  .o-top .o-nm{ font-family:var(--display); font-size:13px; letter-spacing:.06em; }
+  .o-top .o-who{ margin-left:auto; font-size:11.5px; color:rgba(255,255,255,.6); }
+
+  .o-tabs{ display:flex; gap:0; overflow-x:auto; scrollbar-width:none; border-bottom:1px solid var(--line); background:var(--surface); }
+  .o-tabs::-webkit-scrollbar{ display:none; }
+  .o-tabs button{
+    flex:none; border:0; background:none; cursor:pointer; padding:12px 15px;
+    font-family:var(--display); font-size:11.5px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--ink-2); border-bottom:2px solid transparent; white-space:nowrap;
+  }
+  .o-tabs button:hover{ color:var(--ink); }
+  .o-tabs button[aria-selected="true"]{ color:var(--ink); border-bottom-color:var(--accent); }
+  .o-tabs button:focus-visible{ outline:2px solid var(--accent); outline-offset:-3px; }
+  /* On a phone a sideways scroller hides the last tab and nobody goes looking
+     for it. Six of them wrap into two tidy rows instead. */
+  @media (max-width:620px){
+    .o-tabs{ flex-wrap:wrap; overflow-x:visible; }
+    .o-tabs button{ flex:1 1 33%; padding-inline:8px; text-align:center; }
+  }
+
+  .o-panel{ padding:16px; min-height:352px; }
+  .o-panel[hidden]{ display:none; }
+  .o-note{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); color:var(--ink-2); font-size:13.5px; line-height:1.6; }
+
+  /* today */
+  .o-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(124px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); margin-bottom:16px; }
+  .o-stat{ background:var(--ground); padding:13px 14px; display:flex; flex-direction:column; gap:3px; }
+  .o-stat .k{ font-family:var(--display); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2); }
+  .o-stat .v{ font-family:var(--display); font-size:25px; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .o-stat .v small{ font-size:13px; font-weight:400; color:var(--ink-2); }
+  .o-stat.hot .v{ color:var(--accent-ink); }
+
+  .o-row{ display:flex; align-items:center; gap:11px; padding:10px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+  .o-row:last-child{ border-bottom:0; }
+  .o-row .o-ic{ width:26px; height:26px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:12px; background:var(--surface); }
+  .o-row .o-main{ flex:1; min-width:0; line-height:1.4; }
+  .o-row .o-main b{ font-weight:600; }
+  .o-row .o-sub{ display:block; color:var(--ink-2); font-size:12.5px; margin-top:1px; }
+  .o-row .o-amt{ font-family:var(--display); font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .o-row .o-when{ font-family:var(--display); font-size:11px; color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  .o-chip{ display:inline-block; font-family:var(--display); font-size:10px; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border:1px solid var(--line); color:var(--ink-2); }
+  .o-chip.ok{ border-color:#7BD88F; color:#2E7D4F; }
+  .o-chip.hot{ border-color:var(--accent); color:var(--accent-ink); }
+
+  /* stock */
+  .o-item{ padding:11px 0; border-bottom:1px solid var(--line); }
+  .o-item:last-child{ border-bottom:0; }
+  .o-item .o-nm{ font-size:14.5px; font-weight:600; display:flex; gap:9px; align-items:baseline; }
+  .o-item .o-nm span{ font-family:var(--display); font-size:11px; color:var(--ink-2); font-weight:400; margin-left:auto; }
+  .o-sizes{ display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  .o-sz{ font-family:var(--display); font-size:11.5px; border:1px solid var(--line); padding:3px 8px; display:flex; gap:6px; align-items:baseline; font-variant-numeric:tabular-nums; }
+  .o-sz b{ font-weight:600; }
+  .o-sz.low{ border-color:var(--accent); color:var(--accent-ink); }
+  .o-sz.gone{ opacity:.4; text-decoration:line-through; }
+
+  /* tasks */
+  .o-task{ display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px; }
+  .o-task:last-child{ border-bottom:0; }
+  .o-box{ width:17px; height:17px; flex:none; border:1.5px solid var(--ink-2); border-radius:3px; margin-top:2px; display:grid; place-items:center; font-size:11px; color:#fff; }
+  .o-task.done .o-box{ background:var(--accent); border-color:var(--accent); }
+  .o-task.done .o-main{ color:var(--ink-2); }
+  .o-task .o-main{ flex:1; line-height:1.4; }
+
+  /* roster */
+  table.o-week{ width:100%; border-collapse:collapse; font-size:13.5px; min-width:0; }
+  table.o-week th, table.o-week td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  table.o-week th{ font-family:var(--display); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); font-weight:400; }
+  table.o-week td:first-child, table.o-week th:first-child{ padding-left:0; font-weight:600; }
+  table.o-week .off{ color:var(--ink-2); }
+  table.o-week .fill{ color:var(--accent-ink); }
+
+  /* the messages that go out */
+  .o-msg{ background:#DCF8C6; color:#111; border-radius:8px; border-top-right-radius:2px; padding:9px 12px; font-size:13.5px; line-height:1.5; white-space:pre-line; margin-bottom:9px; box-shadow:0 1px 1px rgba(0,0,0,.1); }
+  .o-msg:last-child{ margin-bottom:0; }
+  .o-msg .to{ display:block; font-family:var(--display); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#4B6B4B; margin-bottom:5px; }
+  .o-msgs{ background:#ECE5DD; padding:12px; border:1px solid var(--line); }
+
+  /* the aside */
+  .o-points{ display:flex; flex-direction:column; gap:1px; background:var(--line); border:1px solid var(--line); }
+  .o-points div{ background:var(--ground); padding:15px 16px; display:flex; flex-direction:column; gap:6px; }
+  .o-points h3{ font-family:var(--display); font-size:13.5px; font-weight:600; }
+  .o-points p{ color:var(--ink-2); font-size:14px; line-height:1.55; }
+
+  @media (prefers-reduced-motion:reduce){ .pb,.ev,.album{ animation:none; } .tile{ transition:none; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-head">
+  <div class="bar">
+    <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav class="nav" id="nav" aria-label="Main">
+      <a href="services.html">Services</a>
+      <a href="pricing.html">Pricing</a>
+      <a href="demos/index.html">Demos</a>
+      <a href="case-study.html">Case study</a>
+      <a href="about.html">About</a>
+      <a class="btn btn-primary btn-sm" href="contact.html">Start a project</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Behind the message</p>
+        <h1 class="h-xl">"Yo you have any<br>blackwork shoes?"</h1>
+        <p class="lead">No code, no size, spelled however it came out the thumb. That is what a real customer sends. Watch the bot ask the one question it needs, search the whole shelf in front of you, send back labelled options, take the pick and put a driver on the road.</p>
+      </div>
+
+      <div class="runner">
+        <button class="btn btn-primary" id="play" type="button">▶ Play the walkthrough</button>
+        <button class="btn btn-ghost" id="step" type="button">Step forward</button>
+        <button class="btn btn-ghost" id="reset" type="button">Restart</button>
+        <span class="state" id="state">Ready</span>
+      </div>
+      <div class="rail"><span id="rail"></span></div>
+
+      <div class="bts">
+        <div>
+          <p class="eyebrow" style="margin-bottom:12px">What the customer sees</p>
+          <div class="ph">
+            <div class="ph-bar">
+              <span class="av">TK</span>
+              <span><span class="nm">Trendy Kicks</span><br><span class="st">online</span></span>
+            </div>
+            <div class="ph-thread" id="thread" role="log" aria-live="polite" aria-label="Customer conversation"></div>
+          </div>
+        </div>
+
+        <div>
+          <p class="eyebrow" style="margin-bottom:12px">What actually happens</p>
+
+          <div class="scan">
+            <div class="scan-hd">
+              <span class="pulse" id="pulse"></span> Stock search
+              <span class="n" id="scanN">40 styles on the shelf</span>
+            </div>
+            <div class="funnel" id="funnel">
+              <span class="fstep" data-f="all">all stock <span class="v">40</span></span>
+              <span class="fstep" data-f="black">black <span class="v">—</span></span>
+              <span class="fstep" data-f="work">work shoe <span class="v">—</span></span>
+              <span class="fstep" data-f="size">size 10 in stock <span class="v">—</span></span>
+            </div>
+            <div class="grid" id="grid" role="img" aria-label="Live stock being filtered down to the matches"></div>
+          </div>
+
+          <div class="sys">
+            <div class="sys-log" id="syslog" role="log" aria-live="polite" aria-label="System events"></div>
+          </div>
+
+          <div class="inv">
+            <div class="inv-hd">Inventory <span class="live" id="invstate">watching</span></div>
+            <div class="table-scroll">
+              <table class="stock">
+                <thead><tr><th scope="col">Label</th><th scope="col">Shoe</th><th scope="col">Size</th><th scope="col">Status</th><th scope="col" style="text-align:right">Qty</th></tr></thead>
+                <tbody id="stock">
+                  <tr data-code="A6"><td class="code">A6</td><td>Black leather steel-toe</td><td>10</td><td class="tag" data-tag>In stock</td><td class="qty" data-qty>3</td></tr>
+                  <tr data-code="B2"><td class="code">B2</td><td>Black slip-resistant</td><td>10</td><td class="tag" data-tag>In stock</td><td class="qty" data-qty>2</td></tr>
+                  <tr data-code="C4"><td class="code">C4</td><td>Black chef shoe</td><td>10</td><td class="tag" data-tag>In stock</td><td class="qty" data-qty>4</td></tr>
+                  <tr data-code="D1"><td class="code">D1</td><td>Black safety boot</td><td>10</td><td class="tag" data-tag>In stock</td><td class="qty" data-qty>1</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted" style="font-size:14.5px;margin-top:22px;max-width:var(--measure)">
+        <strong>What this is:</strong> the real shape of a conversation the bot handles on THE PLUG 242 — vague request, size question, live search, labelled album, pick, delivery — played back at readable speed. The 40 tiles are a sample shelf for the walkthrough, not a live feed of anyone's stock.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── the owner's side ──────────────────────────────────────────────────
+       Rodney's ask, 11 Aug: "behind the scenes should now show business owner
+       UI — tasks, sales, inventory, logs, employee schedules that are messaged
+       to employees weekly, notifications of a delivery via the bot."
+       This is the half a competitor cannot show, because they are selling a
+       website and this is a business running. -->
+  <section class="band">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">The other half</p>
+        <h2 class="h-lg">The chat is the front door.<br>This is the shop.</h2>
+        <p class="lead">A bot that takes an order and drops it into nothing is a toy. Every order above lands in a system your staff work from on the phones they already own — takings, stock, the day's jobs, next week's roster, and the messages that go out without anybody typing them. These are real screens, not a promise.</p>
+      </div>
+
+      <div class="o-wrap">
+        <div class="o-app">
+          <div class="o-top">
+            <span class="o-dot"></span>
+            <span class="o-nm">THE SHOP</span>
+            <span class="o-who">Signed in — Rodney (owner)</span>
+          </div>
+
+          <div class="o-tabs" role="tablist" aria-label="What the owner sees">
+            <button type="button" role="tab" id="ot-0" aria-controls="op-0" aria-selected="true">Today</button>
+            <button type="button" role="tab" id="ot-1" aria-controls="op-1" aria-selected="false">Sales</button>
+            <button type="button" role="tab" id="ot-2" aria-controls="op-2" aria-selected="false">Stock</button>
+            <button type="button" role="tab" id="ot-3" aria-controls="op-3" aria-selected="false">Jobs</button>
+            <button type="button" role="tab" id="ot-4" aria-controls="op-4" aria-selected="false">Roster</button>
+            <button type="button" role="tab" id="ot-5" aria-controls="op-5" aria-selected="false">Alerts</button>
+          </div>
+
+          <!-- TODAY -->
+          <div class="o-panel" role="tabpanel" id="op-0" aria-labelledby="ot-0" tabindex="0">
+            <div class="o-stats">
+              <div class="o-stat"><span class="k">Taken today</span><span class="v">$1,284</span></div>
+              <div class="o-stat"><span class="k">Orders</span><span class="v">9 <small>· 2 waiting</small></span></div>
+              <div class="o-stat hot"><span class="k">Low stock</span><span class="v">4 <small>sizes</small></span></div>
+              <div class="o-stat"><span class="k">On today</span><span class="v">2 <small>staff</small></span></div>
+            </div>
+
+            <div class="o-row">
+              <span class="o-ic">🛵</span>
+              <span class="o-main"><b>Order #4471 out for delivery</b><span class="o-sub">Marlon left 8 min ago · Sea Breeze, pin on the order</span></span>
+              <span class="o-amt">$180</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">💬</span>
+              <span class="o-main"><b>Order #4472 waiting on payment</b><span class="o-sub">Bot sent the account 3 min ago · nothing back yet</span></span>
+              <span class="o-amt">$130</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">⚠️</span>
+              <span class="o-main"><b>Down to one pair</b><span class="o-sub">Jordan 4 Red Thunder · size 9 · last one on the shelf</span></span>
+              <span class="o-chip hot">Reorder</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">🙋</span>
+              <span class="o-main"><b>Handed to a person</b><span class="o-sub">Customer says a sole came apart — waiting on you, not the bot</span></span>
+              <span class="o-when">11:02</span>
+            </div>
+
+            <p class="o-note">Everything on this screen wrote itself. Nobody opened a spreadsheet, and nobody had to remember to tell you.</p>
+          </div>
+
+          <!-- SALES -->
+          <div class="o-panel" role="tabpanel" id="op-1" aria-labelledby="ot-1" tabindex="0" hidden>
+            <div class="o-row">
+              <span class="o-ic">📎</span>
+              <span class="o-main"><b>#4470 · Air Max 95, size 10</b><span class="o-sub">Kiki took it · bank transfer · receipt attached · logged by Jess</span></span>
+              <span class="o-amt">$130</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">📎</span>
+              <span class="o-main"><b>#4469 · Jordan 4 Bred, size 9.5</b><span class="o-sub">Cash on delivery · driver photographed the money · logged by Marlon</span></span>
+              <span class="o-amt">$180</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">📎</span>
+              <span class="o-main"><b>#4468 · New Balance 9060, size 8</b><span class="o-sub">Card on the website · paid before it left the shelf</span></span>
+              <span class="o-amt">$130</span>
+            </div>
+            <div class="o-row">
+              <span class="o-ic">🧾</span>
+              <span class="o-main"><b>Float counted — start of shift</b><span class="o-sub">Jess counted $340 · the app did the adding, a person did the counting</span></span>
+              <span class="o-when">09:04</span>
+            </div>
+
+            <p class="o-note">Every sale carries who logged it, how it was paid, and a photograph of the proof. Not because anybody is under suspicion — because in six months, when a payment is queried, the answer is one tap away instead of an argument.</p>
+          </div>
+
+          <!-- STOCK -->
+          <div class="o-panel" role="tabpanel" id="op-2" aria-labelledby="ot-2" tabindex="0" hidden>
+            <div class="o-item">
+              <div class="o-nm">Jordan 4 · Red Thunder <span>$180</span></div>
+              <div class="o-sizes">
+                <span class="o-sz">7 <b>2</b></span><span class="o-sz">8 <b>3</b></span>
+                <span class="o-sz low">9 <b>1</b></span><span class="o-sz">10 <b>4</b></span>
+                <span class="o-sz gone">11 <b>0</b></span>
+              </div>
+            </div>
+            <div class="o-item">
+              <div class="o-nm">Air Max 95 · Neon <span>$130</span></div>
+              <div class="o-sizes">
+                <span class="o-sz">8 <b>2</b></span><span class="o-sz">9 <b>5</b></span>
+                <span class="o-sz">10 <b>2</b></span><span class="o-sz low">10.5 <b>1</b></span>
+              </div>
+            </div>
+            <div class="o-item">
+              <div class="o-nm">New Balance 9060 · Grey <span>$130</span></div>
+              <div class="o-sizes">
+                <span class="o-sz">7.5 <b>2</b></span><span class="o-sz">8 <b>4</b></span>
+                <span class="o-sz">9 <b>3</b></span><span class="o-sz">9.5 <b>2</b></span>
+              </div>
+            </div>
+
+            <p class="o-note">Staff change these from their own phones while standing at the shelf, and the bot is reading the same numbers a second later. There is one count, not a shop count and a website count that drift apart by Friday.</p>
+          </div>
+
+          <!-- JOBS -->
+          <div class="o-panel" role="tabpanel" id="op-3" aria-labelledby="ot-3" tabindex="0" hidden>
+            <div class="o-task done"><span class="o-box">✓</span><span class="o-main">Count the float and photograph it<span class="o-sub">Jess · 9:04am</span></span></div>
+            <div class="o-task done"><span class="o-box">✓</span><span class="o-main">Restock the front shelf from the back room<span class="o-sub">Jess · 9:40am</span></span></div>
+            <div class="o-task done"><span class="o-box">✓</span><span class="o-main">Post the day's picks to the story<span class="o-sub">Marlon · 10:15am</span></span></div>
+            <div class="o-task"><span class="o-box"></span><span class="o-main">Check the two orders waiting on payment<span class="o-sub">Due 2:00pm</span></span></div>
+            <div class="o-task"><span class="o-box"></span><span class="o-main">Bag tomorrow's island shipments — boat sails Thursday<span class="o-sub">Due 4:30pm</span></span></div>
+            <div class="o-task"><span class="o-box"></span><span class="o-main">Count back the float and close off<span class="o-sub">End of shift</span></span></div>
+
+            <p class="o-note">The same six jobs land every morning without you sending a single message, and you can see from anywhere which ones are actually done — and by whom.</p>
+          </div>
+
+          <!-- ROSTER -->
+          <div class="o-panel" role="tabpanel" id="op-4" aria-labelledby="ot-4" tabindex="0" hidden>
+            <div class="table-scroll">
+              <table class="o-week">
+                <thead><tr><th>Day</th><th>Opening</th><th>Closing</th><th>Driver</th></tr></thead>
+                <tbody>
+                  <tr><td>Mon</td><td>Jess</td><td>Marlon</td><td>Marlon</td></tr>
+                  <tr><td>Tue</td><td>Jess</td><td>Jess</td><td>Marlon</td></tr>
+                  <tr><td>Wed</td><td>Marlon</td><td>Jess</td><td class="fill">Manager</td></tr>
+                  <tr><td>Thu</td><td>Jess</td><td>Marlon</td><td>Marlon</td></tr>
+                  <tr><td>Fri</td><td>Marlon</td><td>Marlon</td><td>Marlon</td></tr>
+                  <tr><td>Sat</td><td>Jess</td><td>Marlon</td><td>Marlon</td></tr>
+                  <tr><td>Sun</td><td class="off">Closed</td><td class="off">Closed</td><td class="off">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <p class="o-note">Written once, then messaged to every member of staff on Sunday evening. Nobody can say they never saw it, and any shift left empty falls to the manager rather than quietly going unstaffed.</p>
+          </div>
+
+          <!-- ALERTS -->
+          <div class="o-panel" role="tabpanel" id="op-5" aria-labelledby="ot-5" tabindex="0" hidden>
+            <div class="o-msgs">
+              <div class="o-msg"><span class="to">→ Marlon, on delivery</span>Order #4471 ready 🛵
+Jordan 4 Red Thunder, size 9 · $180 cash on arrival
+Sea Breeze — pin is on the order. Call her when you're close.</div>
+              <div class="o-msg"><span class="to">→ Rodney, owner</span>💰 Sale confirmed — $180
+#4471 · Jordan 4 Red Thunder, size 9
+Paid: cash on delivery · Marlon out at 11:14</div>
+              <div class="o-msg"><span class="to">→ Jess, on shift</span>⚠️ Down to the last pair
+Jordan 4 Red Thunder, size 9 — one left after this order.
+Pull it from the site or reorder.</div>
+              <div class="o-msg"><span class="to">→ Everybody, Sunday 7pm</span>📅 Next week's schedule is up.
+You're opening Mon, Tue, Thu and Sat.
+Anything you can't make, say now, not Monday morning 🙏</div>
+            </div>
+
+            <p class="o-note">These go out on their own. That is the whole point — you are not the wire that every message has to travel down.</p>
+          </div>
+        </div>
+
+        <div class="o-points">
+          <div>
+            <h3>One count, not four</h3>
+            <p>The shelf, the website, the bot and the staff phones all read the same number. Nothing to reconcile on a Sunday night.</p>
+          </div>
+          <div>
+            <h3>Proof, not memory</h3>
+            <p>Payment screenshots pin to the sale they belong to. Money questions get answered by a photograph, not by two people remembering differently.</p>
+          </div>
+          <div>
+            <h3>Humans count the cash</h3>
+            <p>A person counts, the system does the arithmetic and keeps the photo. It never quietly decides what is in the drawer.</p>
+          </div>
+          <div>
+            <h3>It works on their phones</h3>
+            <p>No tablets to buy, no terminal on a counter. Whatever your staff already carry in their pocket is the equipment.</p>
+          </div>
+          <div>
+            <h3>You can be asleep</h3>
+            <p>An order at 2am still alerts a driver, still drops the stock, still logs itself. You read what happened in the morning.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-surface">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Why it works this way</p>
+        <h2 class="h-lg">The labels are the whole trick.</h2>
+      </div>
+      <div class="legend">
+        <div><h3>It asks the size first</h3><p>Sending twelve photos before knowing the size burns the customer's data and their patience. One question, then a short answer — that is the difference between a helpful bot and a spammy one.</p></div>
+        <div><h3>It reads bad spelling</h3><p>"Blackwork shoes" is not a category in any database. The bot turns it into black + work shoe before it searches, the same way a person would.</p></div>
+        <div><h3>One photo, one label</h3><p>Every option gets a code underneath it. The customer types two characters instead of describing "the one with the strap" — and the bot knows exactly which pair that is, with no back and forth.</p></div>
+        <div><h3>It only shows what exists</h3><p>The album is built from the live count in that size. Nothing gets offered that has to be walked back five minutes later.</p></div>
+        <div><h3>Delivery still gets a human</h3><p>Once an address is in, staff get an alert on their own phones. The bot arranges the run; a person still drives it.</p></div>
+        <div><h3>Then the shelf comes down</h3><p>The sale writes back to inventory, the count drops, the order gets a number, and the whole chain is logged so any sale can be audited later.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band no-border">
+    <div class="wrap">
+      <div class="stack stack-md" style="max-width:640px">
+        <p class="eyebrow">Next</p>
+        <h2 class="h-lg">Want this running on your stock?</h2>
+        <p class="lead">Tell us what you sell and how you count it now. That is the whole first conversation.</p>
+        <div class="btn-row" style="margin-top:10px">
+          <a class="btn btn-primary" href="https://wa.me/12424481632?text=Hi%2C%20I%20watched%20the%20behind-the-scenes%20walkthrough%20and%20I%27d%20like%20one%20for%20my%20business." rel="noopener">Message us on WhatsApp</a>
+          <a class="btn btn-ghost" href="demos/index.html">Try the demos</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="logo" href="index.html"><svg class="mark-clock" width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9.25" stroke="currentColor" stroke-width="1.9"/><path d="M12 12 L16 9.7" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><path d="M12 12 L12 5.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.2" fill="var(--accent)"/></svg>Nightshift<span class="dot">.</span></a>
+        <p>Websites and WhatsApp order bots for Bahamian businesses. Nassau, New Providence.</p>
+      </div>
+      <div class="foot-col">
+        <h3>Site</h3>
+        <ul>
+          <li><a href="services.html">Services</a></li>
+          <li><a href="pricing.html">Pricing</a></li>
+          <li><a href="demos/index.html">Demos</a></li>
+          <li><a href="behind-the-scenes.html">Behind the message</a></li>
+          <li><a href="case-study.html">Case study</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Start a project</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h3>Reach us</h3>
+        <ul>
+          <li><a href="https://wa.me/12424481632" rel="noopener">WhatsApp</a></li>
+          <li><a href="mailto:hello@nightshift242.com">hello@nightshift242.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Nightshift · Nassau, Bahamas</span>
+      <span>Replies within 4 business hours</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* The owner panel's tabs. Plain buttons + hidden panels, so with JavaScript
+   off the visitor still gets every screen stacked down the page rather than a
+   dead widget. */
+(function () {
+  var tabs = document.querySelectorAll('.o-tabs [role="tab"]');
+  if (!tabs.length) return;
+  function show(i) {
+    tabs.forEach(function (t, n) {
+      var panel = document.getElementById(t.getAttribute("aria-controls"));
+      t.setAttribute("aria-selected", String(n === i));
+      if (panel) panel.hidden = n !== i;
+    });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { show(i); });
+    t.addEventListener("keydown", function (e) {
+      var d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      var n = (i + d + tabs.length) % tabs.length;
+      tabs[n].focus(); show(n);
+    });
+  });
+})();
+</script>
+<script src="assets/js/site.js?v=20260815e" defer></script>
+<script>
+(function () {
+  "use strict";
+
+  var COLOURS = { black:"#1A1A1A", white:"#EDEDED", tan:"#B98B55", red:"#A3342E", blue:"#2B4C7E", grey:"#6E6E6E" };
+
+  /* 40 styles on the sample shelf. Exactly four are black work shoes with a
+     size 10 on hand — those four become the labelled album. */
+  var SHELF = [
+    {k:"A6",c:"black",t:"work",s10:true,lab:"A6"},
+    {k:"B2",c:"black",t:"work",s10:true,lab:"B2"},
+    {k:"C4",c:"black",t:"work",s10:true,lab:"C4"},
+    {k:"D1",c:"black",t:"work",s10:true,lab:"D1"},
+    {k:"E3",c:"black",t:"work",s10:false},
+    {k:"F7",c:"black",t:"sneaker",s10:true},
+    {k:"G2",c:"black",t:"sneaker",s10:true},
+    {k:"H8",c:"black",t:"dress",s10:true},
+    {k:"J5",c:"black",t:"sneaker",s10:false},
+    {k:"K1",c:"white",t:"sneaker",s10:true},
+    {k:"L9",c:"white",t:"sneaker",s10:true},
+    {k:"M4",c:"white",t:"work",s10:true},
+    {k:"N6",c:"tan",t:"work",s10:true},
+    {k:"P3",c:"tan",t:"dress",s10:true},
+    {k:"Q7",c:"red",t:"sneaker",s10:true},
+    {k:"R2",c:"red",t:"sneaker",s10:false},
+    {k:"S8",c:"blue",t:"sneaker",s10:true},
+    {k:"T5",c:"blue",t:"work",s10:false},
+    {k:"U1",c:"grey",t:"sneaker",s10:true},
+    {k:"V9",c:"grey",t:"work",s10:true},
+    {k:"W3",c:"black",t:"sneaker",s10:true},
+    {k:"X6",c:"white",t:"dress",s10:false},
+    {k:"Y2",c:"tan",t:"sneaker",s10:true},
+    {k:"Z4",c:"blue",t:"dress",s10:true},
+    {k:"A1",c:"grey",t:"sneaker",s10:false},
+    {k:"B7",c:"red",t:"work",s10:true},
+    {k:"C3",c:"white",t:"sneaker",s10:true},
+    {k:"D8",c:"black",t:"dress",s10:false},
+    {k:"E5",c:"tan",t:"work",s10:false},
+    {k:"F2",c:"blue",t:"sneaker",s10:true},
+    {k:"G9",c:"grey",t:"dress",s10:true},
+    {k:"H4",c:"white",t:"work",s10:false},
+    {k:"J7",c:"red",t:"dress",s10:true},
+    {k:"K3",c:"black",t:"sneaker",s10:true},
+    {k:"L6",c:"tan",t:"sneaker",s10:true},
+    {k:"M8",c:"blue",t:"work",s10:true},
+    {k:"N2",c:"grey",t:"sneaker",s10:true},
+    {k:"P9",c:"white",t:"dress",s10:true},
+    {k:"Q4",c:"black",t:"work",s10:false},
+    {k:"R6",c:"red",t:"sneaker",s10:true}
+  ];
+
+  var ALBUM = [
+    { lab:"A6", name:"Leather steel-toe", price:"$95" },
+    { lab:"B2", name:"Slip-resistant",    price:"$78" },
+    { lab:"C4", name:"Chef shoe",         price:"$65" },
+    { lab:"D1", name:"Safety boot",       price:"$110" }
+  ];
+
+  var N_ALL   = SHELF.length,
+      N_BLACK = SHELF.filter(function(x){ return x.c==="black"; }).length,
+      N_WORK  = SHELF.filter(function(x){ return x.c==="black" && x.t==="work"; }).length,
+      N_HIT   = SHELF.filter(function(x){ return x.c==="black" && x.t==="work" && x.s10; }).length;
+
+  var thread=document.getElementById("thread"), syslog=document.getElementById("syslog"),
+      grid=document.getElementById("grid"), stock=document.getElementById("stock"),
+      rail=document.getElementById("rail"), stateEl=document.getElementById("state"),
+      invEl=document.getElementById("invstate"), pulse=document.getElementById("pulse"),
+      funnel=document.getElementById("funnel"), scanN=document.getElementById("scanN"),
+      playBtn=document.getElementById("play"), stepBtn=document.getElementById("step"),
+      resetBtn=document.getElementById("reset");
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var byKey = {};
+  SHELF.forEach(function(s){ byKey[s.k]=s; });
+
+  function el(tag,cls,html){ var n=document.createElement(tag); if(cls)n.className=cls; if(html!=null)n.innerHTML=html; return n; }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+  function stamp(t){ return '<span class="sp"></span><span class="tm">'+t+'</span>'; }
+
+  function buildGrid(){
+    grid.innerHTML="";
+    SHELF.forEach(function(item){
+      var t=el("div","tile");
+      t.dataset.k=item.k; t.dataset.s="idle";
+      t.innerHTML='<span class="c" style="background:'+COLOURS[item.c]+'"></span>'+
+                  '<span class="k">'+item.k+'</span>'+
+                  '<span class="lab">'+(item.lab||"")+'</span>';
+      grid.appendChild(t);
+    });
+  }
+  function tiles(){ return Array.prototype.slice.call(grid.children); }
+  function setF(name,val){
+    var f=funnel.querySelector('[data-f="'+name+'"]');
+    if(!f) return;
+    f.querySelector(".v").textContent=val;
+    f.classList.add("on");
+  }
+
+  /* the visible search: sweep the whole shelf, then knock out what fails */
+  function runScan(phase){
+    var all=tiles();
+    if(phase==="all"){
+      pulse.classList.add("on");
+      setF("all",SHELF.length);
+      all.forEach(function(t,idx){
+        setTimeout(function(){
+          t.dataset.s="scan";
+          setTimeout(function(){ if(t.dataset.s==="scan") t.dataset.s="idle"; }, reduced?0:230);
+        }, reduced?0:idx*11);
+      });
+    } else if(phase==="black"){
+      var n=0;
+      all.forEach(function(t){
+        if(byKey[t.dataset.k].c!=="black") t.dataset.s="out"; else n++;
+      });
+      setF("black",n);
+    } else if(phase==="work"){
+      var n2=0;
+      all.forEach(function(t){
+        if(t.dataset.s==="out") return;
+        if(byKey[t.dataset.k].t!=="work") t.dataset.s="out"; else n2++;
+      });
+      setF("work",n2);
+    } else if(phase==="size"){
+      var n3=0;
+      all.forEach(function(t){
+        if(t.dataset.s==="out") return;
+        if(!byKey[t.dataset.k].s10) t.dataset.s="out"; else { t.dataset.s="hit"; n3++; }
+      });
+      setF("size",n3);
+      scanN.textContent=n3+" to show the customer";
+      pulse.classList.remove("on");
+    }
+  }
+
+  var SCRIPT=[
+    {k:"cust",text:"Yo you have any blackwork shoes?",tm:"6:12 pm",wait:700},
+    {k:"sys",at:"18:12:04",ic:"→",tx:"Message received on <b>WhatsApp</b>",wait:420},
+    {k:"sys",at:"18:12:04",ic:"⚙",tx:'Normalising: <code>blackwork</code> → <b>black</b> + <b>work shoe</b>',wait:520},
+    {k:"sys",at:"18:12:05",ic:"?",cls:"warn",tx:"No size given — <b>ask before sending photos</b>",wait:520},
+    {k:"bot",text:"Yes 👍 What size you need?",tm:"6:12 pm",wait:800},
+
+    {k:"cust",text:"size 10",tm:"6:13 pm",wait:620},
+    {k:"sys",at:"18:13:11",ic:"⌕",tx:"Searching live stock <code>colour=black type=work size=10</code>",wait:380},
+    {k:"scan",phase:"all",wait:700},
+    {k:"scan",phase:"black",wait:620},
+    {k:"sys",at:"18:13:12",ic:"·",tx:"Colour filter — <b>"+N_BLACK+" black</b> styles left",wait:420},
+    {k:"scan",phase:"work",wait:620},
+    {k:"sys",at:"18:13:12",ic:"·",tx:"Category filter — <b>"+N_WORK+" work shoes</b> left",wait:420},
+    {k:"scan",phase:"size",wait:700},
+    {k:"sys",at:"18:13:13",ic:"✓",cls:"good",tx:"<b>"+N_HIT+" matches</b> with a size 10 on the shelf",wait:520},
+    {k:"sys",at:"18:13:13",ic:"🏷",tx:"Building album — <b>one photo, one label</b> each",wait:620},
+
+    {k:"bot",text:"This is what we have in size 10 black work shoes 👇",tm:"6:13 pm",wait:620},
+    {k:"album",tm:"6:13 pm",wait:820},
+    {k:"bot",text:"Pick the label under the one you want — A6, B2, C4 or D1.",tm:"6:13 pm",wait:900},
+
+    {k:"cust",text:"A6",tm:"6:14 pm",wait:620},
+    {k:"sys",at:"18:14:02",ic:"⚙",tx:'Label <code>A6</code> → <b>Black leather steel-toe</b>, size 10, $95',wait:520},
+    {k:"sys",at:"18:14:02",ic:"⏸",tx:"Reserved — <b>A6 size 10 held 15 min</b>",wait:520,inv:{code:"A6",tag:"1 held"}},
+    {k:"bot",text:"A6 — black leather steel-toe, size 10. $95. You collecting, or you want it delivered?",tm:"6:14 pm",wait:900},
+
+    {k:"cust",text:"delivery",tm:"6:15 pm",wait:600},
+    {k:"sys",at:"18:15:20",ic:"⚙",tx:"Delivery selected — address needed",wait:460},
+    {k:"bot",text:"Sweet. Where am I sending it?",tm:"6:15 pm",wait:800},
+
+    {k:"cust",text:"Sea Breeze, off Prince Charles",tm:"6:16 pm",wait:640},
+    {k:"sys",at:"18:16:03",ic:"📍",tx:"Address captured — zone <b>Nassau mainland</b>, delivery free",wait:520},
+    {k:"sys",at:"18:16:03",ic:"👤",cls:"human",tx:"Driver alert sent to <b>staff WhatsApp</b> — run assigned",wait:800},
+    {k:"bot",text:"Got it 🛵 A driver will be out to you in a few — delivery on the mainland is free. I'll send the tracking link.",tm:"6:16 pm",wait:900},
+
+    {k:"sys",at:"18:16:05",ic:"−",tx:"Stock write: <code>A6 size 10 −1</code>",wait:560,inv:{code:"A6",tag:"Sold 1",qty:2}},
+    {k:"sys",at:"18:16:05",ic:"✓",cls:"good",tx:"Confirmed: order <b>TK-2287</b> written and logged",wait:520},
+    {k:"sys",at:"18:16:05",ic:"■",tx:"Done — <b>4 minutes, nobody typed a reply</b>",wait:0}
+  ];
+
+  var i=0,timer=null,running=false;
+
+  function render(b){
+    if(b.k==="cust"||b.k==="bot"){
+      thread.appendChild(el("div","pb "+(b.k==="cust"?"cust":"bot"), esc(b.text)+stamp(b.tm)));
+    } else if(b.k==="album"){
+      var html="";
+      ALBUM.forEach(function(a){
+        html+='<figure><span class="shot" style="background:linear-gradient(140deg,#2B2B2B,#5A5A5A)"></span>'+
+              '<figcaption>'+a.lab+'<b>'+a.name+' · '+a.price+'</b></figcaption></figure>';
+      });
+      thread.appendChild(el("div","album",html+stamp(b.tm)));
+    } else if(b.k==="sys"){
+      syslog.appendChild(el("div","ev "+(b.cls||""),
+        '<span class="at">'+b.at+'</span><span class="ic">'+b.ic+'</span><span class="tx">'+b.tx+'</span>'));
+      syslog.scrollTop=syslog.scrollHeight;
+    } else if(b.k==="scan"){
+      runScan(b.phase);
+    }
+    thread.scrollTop=thread.scrollHeight;
+
+    if(b.inv){
+      var row=stock.querySelector('tr[data-code="'+b.inv.code+'"]');
+      if(row){
+        row.classList.add("hit");
+        row.querySelector("[data-tag]").textContent=b.inv.tag;
+        if(b.inv.qty!=null){
+          var q=row.querySelector("[data-qty]");
+          q.textContent=b.inv.qty; q.classList.add("drop");
+        }
+        invEl.textContent=b.inv.qty!=null?"updated":"holding";
+      }
+    }
+  }
+
+  function progress(){
+    rail.style.width=Math.round((i/SCRIPT.length)*100)+"%";
+    var label=i===0?"Ready":i>=SCRIPT.length?"Complete":running?"Running":"Paused";
+    stateEl.textContent=label+(i?" · "+i+" of "+SCRIPT.length:"");
+  }
+  function tick(){
+    if(i>=SCRIPT.length){ stop(true); return; }
+    var b=SCRIPT[i++];
+    render(b); progress();
+    if(running){
+      if(i>=SCRIPT.length){ stop(true); return; }
+      timer=setTimeout(tick, reduced?110:b.wait);
+    }
+  }
+  function start(){ if(i>=SCRIPT.length) reset(); running=true; playBtn.textContent="❚❚ Pause"; tick(); }
+  function stop(done){ running=false; clearTimeout(timer); playBtn.textContent=done?"▶ Play again":"▶ Resume"; progress(); }
+  function reset(){
+    clearTimeout(timer); running=false; i=0;
+    thread.innerHTML=""; syslog.innerHTML="";
+    buildGrid(); pulse.classList.remove("on");
+    scanN.textContent=N_ALL+" styles on the shelf";
+    Array.prototype.forEach.call(funnel.querySelectorAll(".fstep"),function(f,idx){
+      f.classList.remove("on");
+      f.querySelector(".v").textContent = idx===0 ? String(N_ALL) : "—";
+    });
+    invEl.textContent="watching";
+    Array.prototype.forEach.call(stock.querySelectorAll("tr"),function(r){
+      r.classList.remove("hit");
+      r.querySelector("[data-tag]").textContent="In stock";
+      var q=r.querySelector("[data-qty]");
+      q.classList.remove("drop");
+      q.textContent={A6:"3",B2:"2",C4:"4",D1:"1"}[r.dataset.code];
+    });
+    playBtn.textContent="▶ Play the walkthrough";
+    progress();
+  }
+
+  playBtn.addEventListener("click",function(){ running?stop(false):start(); });
+  stepBtn.addEventListener("click",function(){ if(running) stop(false); if(i<SCRIPT.length) tick(); });
+  resetBtn.addEventListener("click",reset);
+
+  buildGrid();
+  progress();
+})();
+</script>
+</body>
+</html>

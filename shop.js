@@ -1,0 +1,2724 @@
+// shop.js — shared "brain" for the SNEAKERPLUG242 web app.
+// Stores notes/tasks, sales, activity log and inventory in one place so every
+// employee phone sees the same data. Persists to a Railway volume (/data) so it
+// survives restarts. Sends WhatsApp alerts to employees on new notes via ManyChat.
+
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+// Base catalog (immutable) — used only as a resurrection guard: a device's FIRST-EVER
+// push for a catalog shoe id must never claim more stock than the catalog's own baseline
+// (see the /shop/shoe guard below, 2026-07-24: sold-out catalog items reappearing in stock).
+let CATALOG_BASE = {};
+try { require('./catalog.json').forEach(s => { if (s && s.id != null) CATALOG_BASE[s.id] = s; }); } catch (_) {}
+
+// ── web push ─────────────────────────────────────────────────────────────────
+// Lets us notify the installed staff PWA about a new delivery/task even when the
+// app is fully closed. The PUBLIC key is also baked into the website (index.html);
+// they MUST match. Override via env on Railway if you ever rotate the keys.
+let webpush = null;
+try { webpush = require('web-push'); } catch (_) { console.log('[shop] web-push not installed — push disabled'); }
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || 'BPq6mcx1D_CUpEjdWBW-1PWXPtQ20UiLfE5V22xUr1LHqe-ZwnOpbGe5x3EuPcoH7J9a1m3VE6vaN7IjqPnbAzU';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || 'MQPaHYxJWm0bryPNJipgF4nXvzyZe5gjgQQ5TnhRGqk';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:rodneymunnings@gmail.com';
+if (webpush) {
+  try { webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE); }
+  catch (e) { console.log('[shop] VAPID setup failed — push disabled:', e.message); webpush = null; }
+}
+
+// 🔴 THE REASON RODNEY'S PHONE STAYED SILENT (2026-09-10).
+// web-push defaults every message to Urgency: normal. Google turns that into a NORMAL-priority
+// FCM message, and Android will NOT wake a dozing phone for one — it parks it until the phone
+// happens to come alive on its own. That is the exact symptom we chased for two nights: Google
+// answers "accepted", the subscription is alive, and the notification is simply never drawn.
+// Two labelled test alerts were fired at his two registered phones and NEITHER was drawn, while
+// the same devices had drawn 16 notifications earlier when the phones were awake and in use.
+// `urgency: 'high'` is the documented way to say "this is worth waking the device for" — it is
+// what a chat app sends. This shop's push volume is tiny (16 in a day), so there is no battery
+// or throttling cost worth weighing against a delivery order nobody sees.
+// TTL 1 day, not the 4-week default: a delivery job that surfaces next week is worse than
+// useless, because a driver could act on an order that was filled days ago.
+const PUSH_OPTS = { TTL: 86400, urgency: 'high' };
+
+// Shared key the website sends with every request. It lives in the (public)
+// client JS so it's a gate against random scanners, not a strong secret — the
+// note endpoint is also rate-limited below to blunt abuse.
+const SHOP_KEY = process.env.SHOP_KEY || 'sp242-shop-c988c5711bf067dccccc85b55fc14fde';
+const MAX_SALES = 5000;
+const MAX_LOG = 2000;
+
+// ── persistence ────────────────────────────────────────────────────────────
+// Prefer the mounted volume at /data; fall back to a local folder if it isn't
+// there yet (data is then only kept until the next restart, but nothing breaks).
+function pickDataDir() {
+  const candidates = [process.env.DATA_DIR, '/data', path.join(__dirname, 'data')].filter(Boolean);
+  for (const dir of candidates) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.accessSync(dir, fs.constants.W_OK);
+      return dir;
+    } catch (_) { /* try next */ }
+  }
+  return path.join(__dirname, 'data');
+}
+const DATA_DIR = pickDataDir();
+const PERSISTENT = DATA_DIR === '/data' || DATA_DIR === process.env.DATA_DIR;
+console.log('[shop] data dir:', DATA_DIR, PERSISTENT ? '(persistent)' : '(EPHEMERAL — attach a volume to keep data)');
+
+function loadFile(name, fallback) {
+  try {
+    const raw = fs.readFileSync(path.join(DATA_DIR, name), 'utf8');
+    const v = JSON.parse(raw);
+    return v == null ? fallback : v;
+  } catch (_) { return fallback; }
+}
+
+const state = {
+  notes: loadFile('notes.json', []),       // [{id, text, kind, shoeId, shoeLabel, by, done, doneBy, createdAt, doneAt}]
+  sales: loadFile('sales.json', []),       // mirror of website sale records
+  log: loadFile('log.json', []),           // mirror of website audit entries
+  shoes: loadFile('shoes.json', null),     // null = server has no inventory yet (don't overwrite devices)
+  deleted: loadFile('deleted.json', []),   // deleted shoe ids
+  employees: loadFile('employees.json', {}), // { name: "+1242..." } WhatsApp numbers
+  accounts: loadFile('accounts.json', {}),  // { name: "passwordOrEmpty" } login accounts
+  roles: loadFile('roles.json', {}),        // { name: "supervisor"|"line_staff" }
+  deletedStaff: loadFile('deletedStaff.json', []), // names permanently removed — devices must never re-add these
+  proofs: loadFile('proofs.json', {}),      // saleId -> {media_type, data(base64), by, at} — payment screenshots pinned to a sale (kept OUT of /shop/state so the poll payload stays small)
+  subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
+  pushSeen: loadFile('pushSeen.json', []),  // proof a notification was DRAWN on a screen — sw.js posts here after showNotification. Persisted so "has one EVER landed?" survives a deploy.
+  // 🚚 DELIVERY JOBS — the thing behind the link in every order alert (Rodney 2026-09-09).
+  // The alert now goes to the "Shoe Delivery Orders!" group, which every driver is in. That
+  // fixes "nobody told me" but creates a new problem: five people see the same job and none
+  // of them knows if another already took it. So every alert carries a link to a page with
+  // two buttons — SOLD or DIDN'T SELL — and whoever taps first closes it for everyone. The
+  // record is kept here, NOT in the alert queue, because that queue empties after 30 minutes
+  // and a driver may not open the link until he is standing at the door.
+  jobs: loadFile('jobs.json', []),          // [{id, text, at, state:'open'|'sold'|'failed', by, atDone, note}]
+  logins: loadFile('logins.json', {}),      // SERVER-side login patterns: { name: {hash, salt} } — hashed, never plaintext
+  rev: loadFile('rev.json', { n: 1 }),
+  dateTasks: loadFile('dateTasks.json', {}), // { "YYYY-MM-DD": [{id,text,by,at}] } — queued into THAT evening's WhatsApp reminder (not an instant alert like notes/tasks above)
+  // 🔍 SHOE AUDIT (Rodney 2026-07-29). The inventory "reverting" has been patched five
+  // separate times and keeps coming back, because every fix was reasoned from a symptom
+  // instead of a record. Nothing has ever written down WHAT actually changed a shoe. This
+  // does: every write to /shop/shoe, /shop/shoes and /shop/shoe/delete is logged with the
+  // before/after sizes, the decision the guards made, and where the request came from. Next
+  // time a size reappears there is a fact to read instead of a theory to argue about.
+  shoeAudit: loadFile('shoeAudit.json', []),
+  // 📅 WORK SCHEDULE — THE one source of truth (Rodney 2026-08-09).
+  // Was three copies that had to be kept in step by hand: localStorage on each phone, a
+  // hardcoded seed baked into storefront.html twice, and the root shifts.json this server
+  // read for the "you work tomorrow" WhatsApp reminder. They happened to agree, but nothing
+  // made them agree — and the two web views rendered the same data by different rules, so
+  // the page looked like it was contradicting itself. Now every phone and the reminder read
+  // this list. Shape: [{id, date:"YYYY-MM-DD", employee, type:"morning"|"evening"}].
+  // A day with NO record for a slot is not missing data — it means the Manager covers it.
+  shifts: loadFile('shifts.json', null),   // null = never migrated (see migrateLegacyShifts below)
+  // 📋 Every schedule-upload ATTEMPT, good or bad (Rodney 2026-08-09). He uploaded a
+  // schedule "over and over and nothing happens" — and there was no way to tell whether
+  // his phone had even reached the server. Now there always is: read it at
+  // GET /shop/shifts/uploads. Keeps the last 30.
+  uploadLog: loadFile('uploadLog.json', []),
+  // 📋 THE DAILY SHEET (Rodney 2026-09-23). One record per day for whoever is on
+  // the floor: which shoes were counted, which were photographed, which got a
+  // TikTok clip, which of the day's ten were fixed, and which chores are done.
+  // Shape: { "YYYY-MM-DD": {date, by, at, chores:{}, fixed:{}, photos:{shoeId:[url]},
+  //          videos:{shoeId:[url]}, counts:{shoeId:{size:found}}, extras:{}, notes:{}} }
+  // Kept OUT of /shop/state: the media URLs are only wanted by whoever is posting,
+  // and the state poll runs every few seconds on every staff phone.
+  daily: loadFile('daily.json', {}),
+};
+
+// ── one-time migration off the old root shifts.legacy.json ───────────────────
+// The legacy file was { "Name": { "shifts": { "YYYY-MM-DD": "8:00 AM - 3:00 PM" } } }.
+// Convert it to records ONCE, then never read it again. This is a migration of real data
+// Rodney already had — nothing here invents a shift.
+const SHIFT_HOURS = { morning: '8:00 AM - 3:00 PM', evening: '3:00 PM - 10:00 PM' };
+function hoursToType(h) {
+  const s = String(h || '').toLowerCase();
+  if (/^\s*8/.test(s)) return 'morning';
+  if (/^\s*3/.test(s)) return 'evening';
+  // fall back on the END time if the start is written oddly (e.g. "08:00")
+  return /10\s*(:00)?\s*pm/.test(s) ? 'evening' : 'morning';
+}
+let persistShiftsOnBoot = false;
+if (state.shifts == null) {
+  const migrated = [];
+  try {
+    const legacy = require('./shifts.legacy.json') || {};
+    for (const [name, info] of Object.entries(legacy)) {
+      const days = (info && info.shifts) || {};
+      for (const [date, hours] of Object.entries(days)) {
+        migrated.push({ id: date + '|' + name, date, employee: name, type: hoursToType(hours) });
+      }
+    }
+  } catch (_) { /* no legacy file — start empty, which is correct, not broken */ }
+  migrated.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  state.shifts = migrated;
+  persistShiftsOnBoot = true;
+  console.log('[shop] shifts migrated from shifts.legacy.json:', migrated.length);
+}
+
+// Baseline seed so the core staff numbers/accounts come back automatically after a
+// redeploy even before a persistent disk is attached (the /data folder is wiped on
+// every Railway deploy). Only fills keys that are MISSING — never clobbers a value
+// already loaded from /data or pushed up by a device. Update if core staff change.
+const SEED_EMPLOYEES = { Manager: '12428033126', Deashinique: '12424684477' };
+const SEED_ACCOUNTS = { Manager: '', Deashinique: '' };
+for (const k of Object.keys(SEED_EMPLOYEES)) if (!(k in state.employees)) state.employees[k] = SEED_EMPLOYEES[k];
+for (const k of Object.keys(SEED_ACCOUNTS)) if (!(k in state.accounts)) state.accounts[k] = SEED_ACCOUNTS[k];
+
+const dirty = new Set();
+function persist(name) { dirty.add(name); schedule(); }
+let timer = null;
+function schedule() {
+  if (timer) return;
+  timer = setTimeout(() => {
+    timer = null;
+    for (const name of dirty) {
+      try {
+        const key = name.replace('.json', '');
+        fs.writeFileSync(path.join(DATA_DIR, name), JSON.stringify(state[key]));
+      } catch (e) { console.error('[shop] write failed', name, e.message); }
+    }
+    dirty.clear();
+  }, 400);
+}
+function bump() { state.rev.n++; persist('rev.json'); }
+// Write the migrated schedule to /data straight away so the legacy file is never needed again.
+if (persistShiftsOnBoot) persist('shifts.json');
+
+// ── 📅 SCHEDULE helpers ──────────────────────────────────────────────────────
+// The rule, in one place so the website, the popup and the WhatsApp reminder can't drift:
+// an employee assigned to a slot works it; a slot with nobody assigned is the Manager's.
+const SHIFT_TYPES = ['morning', 'evening'];
+function getShifts() { return Array.isArray(state.shifts) ? state.shifts : []; }
+function shiftKey(s) { return String(s.date) + '|' + String(s.employee) + '|' + String(s.type); }
+function setShifts(list) {
+  // de-dupe on date+employee+slot so a re-import can't double a day up
+  const seen = new Set(), out = [];
+  for (const s of list) { const k = shiftKey(s); if (!seen.has(k)) { seen.add(k); out.push(s); } }
+  out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.type < b.type ? -1 : 1)));
+  state.shifts = out;
+  persist('shifts.json'); bump();
+  return out;
+}
+// ── 📅 SCHEDULE FILE PARSING ─────────────────────────────────────────────────
+// All three upload formats are parsed HERE, on the server, so there is exactly one
+// definition of "what a schedule file looks like" and the phone just shows the result.
+//
+// THE FORMAT (documented on the upload box in the website too):
+//   Six columns, one row per calendar day, in this order:
+//     Employee | Day | Date | Start | End | Shift
+//   e.g.  Deashinique  Sunday  Aug 09, 2026  3:00pm  10:00pm  Night
+//   An off day is written with OFF as the shift and "-" for Start and End.
+//   Dates: "Aug 09, 2026" (or 2026-08-09). Times: "8:00am" / "3:00pm" (or 08:00 / 15:00).
+// Whether a row is the MORNING or the EVENING slot is decided by its START time, not by
+// the word in the Shift column — the word is only a label and people rename it.
+
+const MONTHS = { jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12 };
+const DAYNAMES = /^(sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)(day|nesday|rsday|urday|s)?$/i;
+
+function normDate(raw) {
+  const s = String(raw || '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return s;
+  // "Aug 09, 2026" / "August 9 2026"
+  let monName, dayStr, yrStr;
+  m = s.match(/([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (m) { monName = m[1]; dayStr = m[2]; yrStr = m[3]; }
+  else {
+    // "9 Aug 2026"
+    m = s.match(/(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})/);
+    if (!m) return null;
+    monName = m[2]; dayStr = m[1]; yrStr = m[3];
+  }
+  const mo = MONTHS[monName.slice(0, 3).toLowerCase()];
+  if (!mo) return null;
+  const day = parseInt(dayStr, 10), yr = parseInt(yrStr, 10);
+  if (!day || day > 31 || !yr) return null;
+  return yr + '-' + String(mo).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+}
+
+// "8:00am" | "3:00pm" | "08:00" | "15:00" | "8am"  →  hour in 24h, or null
+function parseHour(raw) {
+  const s = String(raw || '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!s || s === '-' || s === '—' || s === 'off') return null;
+  const m = s.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)?$/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  if (isNaN(h) || h > 23) return null;
+  if (m[3] === 'pm' && h < 12) h += 12;
+  if (m[3] === 'am' && h === 12) h = 0;
+  return h;
+}
+// Before noon = the 8am–3pm slot; noon or later = the 3pm–10pm slot.
+function hourToType(h) { return h < 12 ? 'morning' : 'evening'; }
+
+// One text row → a shift record, or null for an OFF/blank/header row.
+// Returns {skip:true} for rows that are legitimately not shifts (OFF days, headers) and
+// {error:"..."} for rows that look like they were MEANT to be shifts but couldn't be read.
+function parseShiftLine(line, fallbackStaff) {
+  const raw = String(line || '').replace(/ /g, ' ').trim();
+  if (!raw) return { skip: true };
+  // header row
+  if (/employee/i.test(raw) && /date/i.test(raw) && /(start|shift)/i.test(raw)) return { skip: true };
+
+  const dateMatch = raw.match(/(\d{4}-\d{2}-\d{2})|([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})/);
+  if (!dateMatch) return { skip: true };           // no date = not a schedule row
+  const date = normDate(dateMatch[0]);
+  if (!date) return { error: 'could not read the date "' + dateMatch[0] + '"' };
+
+  const before = raw.slice(0, dateMatch.index).trim();
+  const after = raw.slice(dateMatch.index + dateMatch[0].length).trim();
+
+  // employee = everything before the date, minus a trailing weekday name
+  let empTokens = before.split(/[\s|,\t]+/).filter(Boolean);
+  while (empTokens.length && DAYNAMES.test(empTokens[empTokens.length - 1])) empTokens.pop();
+  const employee = empTokens.join(' ').trim() || String(fallbackStaff || '').trim();
+
+  const restTokens = after.split(/[\s|,\t]+/).filter(Boolean);
+  // an OFF day: the Manager covers both slots, which is exactly what "no record" means
+  if (/\boff\b/i.test(after)) return { skip: true, off: true, date, employee };
+
+  const startHour = parseHour(restTokens[0]);
+  if (startHour == null) {
+    // "-" placeholders with no OFF word still mean a day nobody was rostered
+    if (restTokens.length && /^[-—]+$/.test(restTokens[0])) return { skip: true, off: true, date, employee };
+    // A TITLE line, not a broken row. Real rows carry a weekday ("Deashinique Sunday
+    // Aug 09, 2026 …"); a header like "Deashinique | August 9 - October 10, 2026 |
+    // Morning 8:00am-3:00pm" has a date in it but no weekday, and complaining about it
+    // makes a perfectly good file look half-broken (2026-08-09: Rodney's own PDF reported
+    // "skipped 1 row" purely because of its subtitle). Only call it an error when the line
+    // really does look like it was meant to be a shift.
+    if (!DAYNAMES.test(String(before).split(/[\s|,\t]+/).filter(Boolean).pop() || '')
+        && !/\b(sun|mon|tues?|wed(nes)?|thur?s?|fri|sat(ur)?)day\b/i.test(raw)) {
+      return { skip: true, title: true };
+    }
+    return { error: date + ': could not read the start time "' + (restTokens[0] || '(blank)') + '"' };
+  }
+  if (!employee) return { error: date + ': no employee name on the row' };
+
+  return { shift: { date, employee, type: hourToType(startHour) } };
+}
+
+// Whole-file parsers. Each returns { rows:[...], errors:[...], staff, from, to }.
+function parseScheduleJson(text) {
+  let obj;
+  try { obj = JSON.parse(text); } catch (e) { throw new Error('that file is not valid JSON (' + e.message + ')'); }
+  const staff = obj && (obj.staff || obj.employee) ? String(obj.staff || obj.employee) : '';
+  const list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.shifts) ? obj.shifts : null);
+  if (!list) throw new Error('the JSON has no "shifts" list in it');
+  const rows = [], errors = [];
+  for (const r of list) {
+    if (!r || typeof r !== 'object') continue;
+    const date = normDate(r.date);
+    if (!date) { errors.push('bad date: ' + JSON.stringify(r.date)); continue; }
+    const employee = String(r.staff || r.employee || staff || '').trim();
+    if (!employee) { errors.push(date + ': no staff name'); continue; }
+    // an OFF entry carries no hours — skip it, the Manager fallback covers the day
+    const startHour = parseHour(r.start);
+    if (startHour == null) {
+      if (/off/i.test(String(r.shift || '')) || !r.start || /^[-—]+$/.test(String(r.start).trim())) continue;
+      errors.push(date + ': could not read start time ' + JSON.stringify(r.start));
+      continue;
+    }
+    rows.push({ date, employee, type: hourToType(startHour) });
+  }
+  return {
+    rows, errors,
+    from: obj && obj.period_start ? normDate(obj.period_start) : null,
+    to: obj && obj.period_end ? normDate(obj.period_end) : null,
+  };
+}
+
+// Split one CSV line into fields, honouring "quoted, fields" — the Date column is
+// normally quoted precisely because "Aug 09, 2026" has a comma in it.
+function csvFields(line) {
+  const out = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ',' || c === '\t') { out.push(cur.trim()); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+function parseScheduleLines(text, fallbackStaff) {
+  const rows = [], errors = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    // A comma-or-tab separated row is re-joined with spaces first, so the single
+    // whitespace-based row reader below works for CSV and PDF text alike.
+    const flat = (line.indexOf(',') > -1 || line.indexOf('\t') > -1)
+      ? csvFields(line).filter(f => f !== '').join('   ')
+      : line;
+    const r = parseShiftLine(flat, fallbackStaff);
+    if (r.error) errors.push(r.error);
+    else if (r.shift) rows.push(r.shift);
+  }
+  return { rows, errors, from: null, to: null };
+}
+
+// Who is on for a given day, filling uncovered slots with the Manager. Used by the
+// WhatsApp reminder so it says the same thing the page does.
+function dayRoster(dateStr) {
+  const onDay = getShifts().filter(s => s && s.date === dateStr);
+  return SHIFT_TYPES.map(type => {
+    const hit = onDay.find(s => s.type === type);
+    return {
+      type,
+      hours: SHIFT_HOURS[type],
+      employee: hit ? hit.employee : 'Manager',
+      isFallback: !hit,
+    };
+  });
+}
+
+// ── shoe audit ───────────────────────────────────────────────────────────────
+// Record EVERY attempted change to a shoe, accepted or not. `grew` is the one that
+// matters most: a size count going UP is a size coming BACK — i.e. a revert. Kept to
+// the last MAX_SHOE_AUDIT entries and persisted, so it survives a redeploy.
+// Raised with the lookback above. The protections scan this newest-first and stop at the
+// cutoff, so the real limit on how far back they can see is whichever runs out first —
+// the 14 days or these rows. Writes are debounced, so the bigger file costs little.
+const MAX_SHOE_AUDIT = 8000;
+const sizeCount = (arr) => (Array.isArray(arr) ? arr.length : 0);
+function reqSource(req) {
+  try {
+    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || '';
+    const ua = String(req.headers['user-agent'] || '').slice(0, 80);
+    const by = (req.body && (req.body.by || req.body.clientId || (req.body.shoe && req.body.shoe.by))) || '';
+    return { ip, ua, by: String(by).slice(0, 40) };
+  } catch (_) { return {}; }
+}
+function auditShoe(req, id, decision, before, after, extra) {
+  try {
+    const b = before || null, a = after || null;
+    const bN = sizeCount(b && b.sizes), aN = sizeCount(a && a.sizes);
+    const entry = Object.assign({
+      at: new Date().toISOString(),
+      id: String(id),
+      decision,                                  // accepted | added | skipped-stale | skipped-deleted | shrink-from-stale-app | resurrection-guard | bulk | deleted
+      beforeSizes: b ? b.sizes : null,
+      afterSizes: a ? a.sizes : null,
+      beforeSold: b ? !!b.sold : null,
+      afterSold: a ? !!a.sold : null,
+      // 🚩 the revert signal: stock went UP, or a sold shoe came back to life
+      grew: (decision === 'accepted' || decision === 'added' || decision === 'shrink-from-stale-app' || decision === 'bulk')
+            && (aN > bN || (b && b.sold && a && !a.sold)),
+      inT: (a && (a.updatedAt || a.createdAt)) || 0,
+      exT: (b && (b.updatedAt || b.createdAt)) || 0,
+      src: reqSource(req),
+    }, extra || {});
+    state.shoeAudit.unshift(entry);
+    if (state.shoeAudit.length > MAX_SHOE_AUDIT) state.shoeAudit.length = MAX_SHOE_AUDIT;
+    persist('shoeAudit.json');
+    if (entry.grew) console.log('[shop] ⚠️ STOCK GREW', entry.id, JSON.stringify(entry.beforeSizes), '->', JSON.stringify(entry.afterSizes), entry.decision, JSON.stringify(entry.src));
+    if (decision === 'accepted' || decision === 'added' || decision === 'shrink-from-stale-app' || decision === 'bulk') maybeAlertRevert(entry);
+    return entry;
+  } catch (_) { return null; }
+}
+
+// ── revert alarm ─────────────────────────────────────────────────────────────
+// Stock going UP is not automatically wrong — Rodney adds new pairs all the time, and
+// pinging him for that would be noise he'd learn to ignore. A REVERT is narrower and
+// unmistakable: a size that was REMOVED from this very shoe within the last 48h has
+// come BACK. That we can prove from the audit itself, so that's the only thing we shout
+// about. (Rodney 2026-07-29, after years of reverts that nobody could catch in the act.)
+// How far back the revert/restock protections read the audit. 48 hours was too short:
+// a size hand-added on Monday lost its protection by Thursday, so a stale phone could
+// quietly delete a restock that was only three days old (Rodney 2026-08-15). Raised to
+// 14 days, and the audit depth below raised with it — the window is only ever as good as
+// the number of rows we still hold.
+const REVERT_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
+const revertAlertAt = new Map();          // shoeId -> ts of last alert (don't nag)
+// Repeat pushes of a tombstoned shoe get logged at most once an hour per shoe — see the
+// note on the deleted branch in POST /shop/shoe.
+const deletedPushAudited = new Map();     // shoeId -> ts of last audited deleted-push
+const DELETED_AUDIT_GAP_MS = 60 * 60 * 1000;
+const REVERT_ALERT_GAP_MS = 10 * 60 * 1000;
+function shoeLabel(id) {
+  const c = CATALOG_BASE[id];
+  if (!c) return String(id);
+  return [c.brand, c.name, c.color].filter(Boolean).join(' ').trim() || String(id);
+}
+function countSizes(arr) { return (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[String(s)] = (m[String(s)] || 0) + 1, m), {}); }
+function maybeAlertRevert(entry) {
+  try {
+    const beforeC = countSizes(entry.beforeSizes), afterC = countSizes(entry.afterSizes);
+    const added = Object.keys(afterC).filter(s => afterC[s] > (beforeC[s] || 0));
+    const lost  = Object.keys(beforeC).filter(s => (afterC[s] || 0) < beforeC[s]);
+    const unSold = !!(entry.beforeSold && !entry.afterSold);
+    if (!added.length && !lost.length && !unSold) return;
+    // A revert runs in BOTH directions and the first build only caught one of them
+    // (Rodney 2026-07-29: two Air Force 1s he'd raised to 2 pairs were quietly back at 1 —
+    // an ADDITION that vanished, which the growth-only check would have missed entirely).
+    //   cameBack  = a size he REMOVED in the last 48h is back   → the classic revert
+    //   wentAway  = an amount he ADDED in the last 48h is gone  → his work being undone
+    // Both are proven from the audit's own history, so neither is a guess. A plain sale
+    // (stock he never recently added going down) still says nothing.
+    const cutoff = Date.now() - REVERT_LOOKBACK_MS;
+    const cameBack = [], wentAway = [];
+    for (const row of state.shoeAudit) {
+      if (row === entry || row.id !== entry.id) continue;
+      if (new Date(row.at).getTime() < cutoff) break;   // audit is newest-first
+      const bC = countSizes(row.beforeSizes), aC = countSizes(row.afterSizes);
+      for (const s of added) if ((aC[s] || 0) < (bC[s] || 0) && !cameBack.includes(s)) cameBack.push(s);
+      for (const s of lost)  if ((aC[s] || 0) > (bC[s] || 0) && !wentAway.includes(s)) wentAway.push(s);
+    }
+    // 💰 A SALE IS NOT AN UNDO (Rodney 2026-08-15). He hand-added a Cave Stone 8.5 that had
+    // never been entered, then recorded the sale of it — and got "YOUR EDIT WAS UNDONE ❌ Size
+    // 8.5 you added has DISAPPEARED" for his trouble. Nothing was undone: he added it, it
+    // sold, the stock is right. But `wentAway` only asks "was this size added in the last 48h
+    // and is it now gone?", which is exactly what a sell-through of a fresh restock looks
+    // like. applySaleToStock already stamps the audit row `via:'sale'`, so the alarm just has
+    // to read it. Selling a pair can never resurrect a size or un-sell a shoe, so cameBack and
+    // unSold are untouched — only the "your edit vanished" half is silenced.
+    // False alarms are worse than none: he stops trusting the one message that matters.
+    if (entry.via === 'sale' && wentAway.length) wentAway.length = 0;
+    if (!cameBack.length && !wentAway.length && !unSold) return;   // genuine restock or sale — stay quiet
+    const last = revertAlertAt.get(entry.id) || 0;
+    if (Date.now() - last < REVERT_ALERT_GAP_MS) return;
+    revertAlertAt.set(entry.id, Date.now());
+    const label = shoeLabel(entry.id);
+    const what = [];
+    if (cameBack.length) what.push('↩️ Size ' + cameBack.join(', ') + ' came BACK after you removed it');
+    if (wentAway.length) what.push('❌ Size ' + wentAway.join(', ') + ' you added has DISAPPEARED');
+    if (unSold) what.push('↩️ This shoe was marked SOLD and is now un-sold');
+    const lines = [
+      '🔁 *YOUR EDIT WAS UNDONE*',
+      '👟 *' + label + '*  (' + entry.id + ')',
+      what.join('\n'),
+      '📋 Was: ' + JSON.stringify(entry.beforeSizes) + '\n   Now: ' + JSON.stringify(entry.afterSizes),
+      '📱 From: ' + ((entry.src && entry.src.ip) || 'unknown') + ((entry.src && entry.src.ua) ? ' · ' + entry.src.ua.slice(0, 40) : ''),
+      '🕒 ' + new Date(entry.at).toLocaleString('en-US', { timeZone: 'America/Nassau' }),
+      '',
+      'Check it: /shop/audit?key=…&id=' + entry.id,
+    ];
+    const text = lines.join('\n');
+    const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
+    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text, 'Manager').catch(() => {});
+    sendPush('🔁 Your edit was undone', label + ' — ' + (cameBack.length ? 'size ' + cameBack.join(', ') + ' came back' : wentAway.length ? 'size ' + wentAway.join(', ') + ' disappeared' : 'un-sold'), '/').catch(() => {});
+    console.log('[shop] 🔁 REVERT ALERT', entry.id, label, 'back:', cameBack.join(',') || '-', 'gone:', wentAway.join(',') || '-');
+  } catch (e) { console.error('[shop] revert alert failed:', e.message); }
+}
+
+// ── revert GUARD (Rodney 2026-08-02) ─────────────────────────────────────────
+// maybeAlertRevert above only ever SHOUTED after the fact — it could prove a size had
+// been undone, but nothing stopped the undo from landing in the first place. The hole:
+// "newest wins" trusts whatever timestamp a push carries, and a stale device that's been
+// sitting open all day stamps Date.now() (NOW) at push time regardless of how old its
+// DATA actually is — so a genuinely stale push always looks "newest" and sails straight
+// through the one branch (`state.shoes[i] = sh`) that has zero content checks. Proven
+// live: size 12 on an Air Max 95 sold at 12:02 AM, and by 5:35 PM it was back in stock —
+// some device's stale copy pushed with a fresher clock than the sale itself.
+// This runs BEFORE that trust is extended: for a push that's about to look "newest", any
+// size that was deliberately REMOVED from this exact shoe within the lookback window and
+// is now trying to reappear gets stripped back out — same signal maybeAlertRevert already
+// proved reliable, just enforced instead of only reported.
+function stripRevertedSizes(id, beforeShoe, incomingShoe) {
+  if (!beforeShoe || !incomingShoe || !Array.isArray(incomingShoe.sizes)) return { shoe: incomingShoe, blocked: [] };
+  const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[s] = (m[s] || 0) + 1, m), {});
+  const beforeC = count(beforeShoe.sizes), inC = count(incomingShoe.sizes);
+  const grown = Object.keys(inC).filter(s => inC[s] > (beforeC[s] || 0));
+  if (!grown.length) return { shoe: incomingShoe, blocked: [] };
+  const cutoff = Date.now() - REVERT_LOOKBACK_MS;
+  const cameBack = [];
+  for (const row of state.shoeAudit) {
+    if (row.id !== id) continue;
+    if (new Date(row.at).getTime() < cutoff) break; // audit is newest-first
+    const bC = count(row.beforeSizes), aC = count(row.afterSizes);
+    for (const s of grown) if ((aC[s] || 0) < (bC[s] || 0) && !cameBack.includes(s)) cameBack.push(s);
+  }
+  if (!cameBack.length) return { shoe: incomingShoe, blocked: [] };
+  // Clamp just the reverting sizes back to what's actually stored right now — every other
+  // legitimate change in the push (other sizes, price, name edits) still goes through.
+  const sizes = incomingShoe.sizes.slice();
+  for (const s of cameBack) {
+    let allow = beforeC[s] || 0, have = 0;
+    for (let k = sizes.length - 1; k >= 0; k--) {
+      if (String(sizes[k]) === String(s)) { have++; if (have > allow) sizes.splice(k, 1); }
+    }
+  }
+  return { shoe: Object.assign({}, incomingShoe, { sizes }), blocked: cameBack };
+}
+// 🧱 A STALE PHONE MUST NOT ERASE A RESTOCK YOU JUST TYPED IN (Rodney 2026-08-05).
+// stripRevertedSizes above guards one direction — a sold size trying to come BACK. This
+// guards the other, and it is the one that was still costing him stock. Proven from the
+// audit: he manually added a size 8 to the Air Max 95 Black/Yellow and to p44; hours later
+// a device running an OLD cached copy of the app pushed its own smaller list and the
+// `shrink-from-stale-app` branch below accepted it, because a shrink is normally a sale
+// being marked on a phone with no timestamp. His own app then alerted him that his edit had
+// been undone. That branch has to stay — a real sale must never be dropped — but a size a
+// human DELIBERATELY ADDED through the edit form is not a sale, and a device that never saw
+// the restock has no business deleting it. So: any size the audit shows was added by a
+// `manual-edit` inside the lookback window is held at its stored count, and the rest of the
+// shrink still goes through untouched.
+function keepManualRestock(id, beforeShoe, incomingShoe) {
+  if (!beforeShoe || !incomingShoe || !Array.isArray(incomingShoe.sizes)) return { sizes: incomingShoe && incomingShoe.sizes, kept: [] };
+  const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[String(s)] = (m[String(s)] || 0) + 1, m), {});
+  const beforeC = count(beforeShoe.sizes), inC = count(incomingShoe.sizes);
+  const shrank = Object.keys(beforeC).filter(s => (inC[s] || 0) < beforeC[s]);
+  if (!shrank.length) return { sizes: incomingShoe.sizes, kept: [] };
+  const cutoff = Date.now() - REVERT_LOOKBACK_MS;
+  const rows = state.shoeAudit.filter(r => r.id === String(id) && new Date(r.at).getTime() >= cutoff);
+  // ⚠️ THE HAND-EDIT LABEL LANDS ON THE WRONG ROW (found 2026-08-19, why the VaporMax died).
+  // The website pushes a hand edit TWICE, about a millisecond apart: once plain — that push
+  // does the actual growth — and once carrying `_manualEdit`, by which time the sizes already
+  // match so nothing changes. The audit therefore records:
+  //     21:03:20.849  grew 4 → 21 pairs   via: undefined
+  //     21:03:20.850  21 → 21 (no-op)     via: 'manual-edit'
+  // The old code demanded ONE row be both tagged AND growing. No row ever is. So Rodney's
+  // 17-pair restock was left undefended and a stale push deleted 9.5, 10, 11 and 12.
+  // Fix: treat the tag as covering the whole burst — any row within TWIN_MS of a tagged row
+  // is the same human action. Fixing the client's double-push too, but this has to hold even
+  // when a phone is running an old copy of the page, which is the entire problem.
+  const TWIN_MS = 3000;
+  const tagStamps = rows
+    .filter(r => r.via === 'manual-edit' || r.via === 'kiki-restock')
+    .map(r => new Date(r.at).getTime());
+  const manuallyAdded = new Set();
+  for (const row of rows) {
+    // A staff member restocking through Kiki is deliberately adding stock, exactly like a
+    // hand edit on the website — so it earns the same protection from a stale phone's shrink
+    // (Rodney 2026-08-14). The audit still records WHERE it came from ('kiki-restock' vs
+    // 'manual-edit'); this only decides whether it is defended.
+    const at = new Date(row.at).getTime();
+    const human = row.via === 'manual-edit' || row.via === 'kiki-restock'
+      || tagStamps.some(ts => Math.abs(ts - at) <= TWIN_MS);
+    if (!human) continue;
+    const bC = count(row.beforeSizes), aC = count(row.afterSizes);
+    for (const s of shrank) if ((aC[s] || 0) > (bC[s] || 0)) manuallyAdded.add(s);
+  }
+  if (!manuallyAdded.size) return { sizes: incomingShoe.sizes, kept: [] };
+  // Put the manually-added pairs back to exactly what is stored; leave every other size alone.
+  const sizes = incomingShoe.sizes.slice();
+  for (const s of manuallyAdded) {
+    for (let n = (inC[s] || 0); n < beforeC[s]; n++) sizes.push(s);
+  }
+  return { sizes, kept: [...manuallyAdded] };
+}
+function alertRestockKept(id, keptSizes, req) {
+  try {
+    const last = revertAlertAt.get(id) || 0;
+    if (Date.now() - last < REVERT_ALERT_GAP_MS) return;
+    revertAlertAt.set(id, Date.now());
+    const label = shoeLabel(id);
+    const text = ['🧱 *RESTOCK PROTECTED*',
+      '👟 *' + label + '*  (' + id + ')',
+      '↩️ An old phone tried to delete size ' + keptSizes.join(', ') + ' that you added by hand — kept IN your stock.',
+      '📱 From: ' + ((reqSource(req) && reqSource(req).ip) || 'unknown'),
+      '🕒 ' + new Date().toLocaleString('en-US', { timeZone: 'America/Nassau' })].join('\n');
+    const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
+    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text, 'Manager').catch(() => {});
+    console.log('[shop] 🧱 RESTOCK PROTECTED', id, label, 'sizes:', keptSizes.join(','));
+  } catch (e) { console.error('[shop] alertRestockKept failed:', e.message); }
+}
+function alertRevertBlocked(id, blockedSizes, before, after, req) {
+  try {
+    const last = revertAlertAt.get(id) || 0;
+    if (Date.now() - last < REVERT_ALERT_GAP_MS) return;
+    revertAlertAt.set(id, Date.now());
+    const label = shoeLabel(id);
+    const lines = [
+      '🛡️ *REVERT BLOCKED*',
+      '👟 *' + label + '*  (' + id + ')',
+      '↩️ Size ' + blockedSizes.join(', ') + ' tried to come back after you sold/removed it — a stale device push, kept OUT of your live stock.',
+      '📋 Stayed at: ' + JSON.stringify(before && before.sizes),
+      '📱 From: ' + ((reqSource(req) && reqSource(req).ip) || 'unknown'),
+      '🕒 ' + new Date().toLocaleString('en-US', { timeZone: 'America/Nassau' }),
+    ];
+    const text = lines.join('\n');
+    const mgr = (state.employees && (state.employees.Manager || state.employees.manager)) || '';
+    if (mgr) waSend(String(mgr).replace(/\D/g, ''), text, 'Manager').catch(() => {});
+    sendPush('🛡️ Revert blocked', label + ' — size ' + blockedSizes.join(', ') + ' stayed sold', '/').catch(() => {});
+    console.log('[shop] 🛡️ REVERT BLOCKED', id, label, 'sizes:', blockedSizes.join(','));
+  } catch (e) { console.error('[shop] alertRevertBlocked failed:', e.message); }
+}
+
+// ── sale ↔ stock, tied atomically (Rodney 2026-08-02) ────────────────────────
+// "Sales never get dropped because they're recorded separately — why can't inventory
+// work the same way?" Because until now, recording a sale and shrinking the matching
+// shoe's stock were two INDEPENDENT client pushes that could drift apart (one lands,
+// the other doesn't, or lands and later gets overwritten). Do the stock side here too,
+// server-side, on the server's own clock, in the same request that records the sale —
+// so logging the sale IS what removes the pair. A client's own follow-up shoe push still
+// arrives normally and just confirms the same state (see stripRevertedSizes above for
+// what happens if a stale one tries to undo it instead).
+function applySaleToStock(req, sale) {
+  if (!Array.isArray(state.shoes) || sale.shoeId == null || sale.size == null) return;
+  const i = state.shoes.findIndex(x => x.id === sale.shoeId);
+  if (i < 0) return; // shoe not synced to the shop yet — nothing here to adjust
+  const before = JSON.parse(JSON.stringify(state.shoes[i]));
+  const sizes = Array.isArray(state.shoes[i].sizes) ? state.shoes[i].sizes.slice() : [];
+  const idx = sizes.findIndex(x => String(x) === String(sale.size));
+  if (idx === -1) return; // already reflects the sale — nothing to do
+  sizes.splice(idx, 1);
+  state.shoes[i] = Object.assign({}, state.shoes[i], { sizes, sold: sizes.length === 0 ? true : state.shoes[i].sold, updatedAt: Date.now() });
+  persist('shoes.json'); bump();
+  auditShoe(req, sale.shoeId, 'accepted', before, state.shoes[i], { via: 'sale' });
+}
+// Symmetric restock when a sale is voided — "that's the correct way to put a size back"
+// (see the recovery note below) now actually does it, instead of relying on the client
+// to separately push the shoe back to its pre-sale sizes.
+function applyVoidToStock(req, sale) {
+  if (!Array.isArray(state.shoes) || !sale || sale.shoeId == null || sale.size == null) return;
+  const i = state.shoes.findIndex(x => x.id === sale.shoeId);
+  if (i < 0) return;
+  const before = JSON.parse(JSON.stringify(state.shoes[i]));
+  const sizes = Array.isArray(state.shoes[i].sizes) ? state.shoes[i].sizes.slice() : [];
+  sizes.push(sale.size);
+  state.shoes[i] = Object.assign({}, state.shoes[i], { sizes, sold: false, updatedAt: Date.now() });
+  persist('shoes.json'); bump();
+  auditShoe(req, sale.shoeId, 'accepted', before, state.shoes[i], { via: 'void' });
+}
+
+// ── One-time SOLD-STATUS RECOVERY (Jul 8 2026) ───────────────────────────────
+// A stale-device bulk sync overwrote the inventory with old FULL-stock data, wiping
+// every "sold" reduction (sold shoes reappeared in stock). The SALE RECORDS survived
+// (stored separately) and pinpoint each sale, so we re-subtract each sold size from
+// its shoe — removing ONE instance per sale (so multi-pair stock stays right). Guarded
+// by a marker file on the persistent disk so restarts never double-subtract. To restock
+// a size later, VOID its sale (that's the correct way to put a size back).
+function applySoldFromSales() {
+  if (!Array.isArray(state.shoes) || !Array.isArray(state.sales) || !state.sales.length) return 0;
+  const soldBy = {}; // shoeId -> { sizeString: count }
+  for (const sale of state.sales) {
+    if (!sale || sale.shoeId == null || sale.size == null) continue;
+    const sz = String(parseFloat(sale.size)); if (sz === 'NaN') continue;
+    const m = (soldBy[String(sale.shoeId)] = soldBy[String(sale.shoeId)] || {});
+    m[sz] = (m[sz] || 0) + 1;
+  }
+  let changed = 0;
+  for (const shoe of state.shoes) {
+    if (!shoe || shoe.id == null) continue;
+    const sold = soldBy[String(shoe.id)]; if (!sold) continue;
+    const key = Array.isArray(shoe.sizes) ? 'sizes' : (Array.isArray(shoe.sizesRaw) ? 'sizesRaw' : null);
+    if (!key) continue;
+    const toRemove = Object.assign({}, sold); const remaining = [];
+    for (const x of shoe[key]) {
+      const sz = String(parseFloat(x));
+      if (toRemove[sz] > 0) { toRemove[sz]--; continue; } // drop one pair per sale
+      remaining.push(x);
+    }
+    if (remaining.length !== shoe[key].length) {
+      shoe[key] = remaining; changed++;
+      if (!remaining.length) shoe.sold = true;
+    }
+  }
+  return changed;
+}
+try {
+  const marker = path.join(DATA_DIR, 'sold_recovered_v1.flag');
+  if (!fs.existsSync(marker)) {
+    const n = applySoldFromSales();
+    console.log('[shop] one-time sold recovery: adjusted', n, 'shoes from', state.sales.length, 'sale records');
+    if (n) persist('shoes.json');
+    try { fs.writeFileSync(marker, new Date().toISOString()); } catch (_) {}
+  }
+} catch (e) { console.error('[shop] sold recovery failed:', e.message); }
+
+// ── One-time RE-RECONCILE (Rodney 2026-08-02) ────────────────────────────────
+// The revert bug was STILL landing right up until stripRevertedSizes/applySaleToStock
+// shipped above — so stock it never got a chance to guard is still wrong on disk right
+// now (an Air Max 95 Black/Blue sold size 12 at 12:02 AM, reverted back by 5:35 PM the
+// same day). Re-run the exact same sales-vs-stock reconciliation as the v1 recovery,
+// under a fresh marker so it fires once more on this deploy — it pulls EVERY shoe back
+// in line with what sales.json actually says sold, not just this one pair, since sales
+// were never the thing that went missing (see the revert-guard note above).
+try {
+  const marker2 = path.join(DATA_DIR, 'sold_recovered_v2.flag');
+  if (!fs.existsSync(marker2)) {
+    const n = applySoldFromSales();
+    console.log('[shop] re-reconcile v2 (post-revert-guard): adjusted', n, 'shoes from', state.sales.length, 'sale records');
+    if (n) persist('shoes.json');
+    try { fs.writeFileSync(marker2, new Date().toISOString()); } catch (_) {}
+  }
+} catch (e) { console.error('[shop] v2 sold re-reconcile failed:', e.message); }
+
+// ── One-time SALES BACKFILL (Jul 24 2026) ────────────────────────────────────
+// Two real sales never made it into the register: the Air Max 90 Black/Yellow size 8
+// (reported to Kiki Jul 22 ~8 AM — confirmed but the record is missing) and the
+// Air Jordan 11 Legend Blue size 12 (Jul 23 — only ever reported in chat; its stock
+// was corrected but no sale row was written). Insert them once, in the exact shape
+// recordStaffSale writes, guarded by a marker file AND a same-shoe/size/day dupe
+// check so an organic record that exists but isn't rendering can never double-count.
+// Stock is NOT touched here — it was already corrected on the storefront side.
+try {
+  const marker2 = path.join(DATA_DIR, 'sales_backfill_v1.flag');
+  if (!fs.existsSync(marker2)) {
+    const BACKFILL = [
+      { id: 'backfill-j11-12-20260723', shoeId: 'jordan11white001', shoeLabel: 'Air Jordan 11 Retro (Legend Blue)', size: '12',
+        price: 180, by: 'Manager', at: '2026-07-23T16:00:00.000Z', src: 'backfill', name: 'Air Jordan 11 Retro (Legend Blue)',
+        brand: '', color: '', date: '2026-07-23T16:00:00.000Z', dateStr: 'Jul 23, 2026', timeStr: '12:00 PM', soldBy: 'Manager' },
+      { id: 'backfill-am90-8-20260722', shoeId: 'airmax90bkyel001', shoeLabel: 'Air Max 90 — Black/Yellow', size: '8',
+        price: 120, by: 'Manager P', at: '2026-07-22T12:02:00.000Z', src: 'backfill', name: 'Air Max 90 — Black/Yellow',
+        brand: '', color: '', date: '2026-07-22T12:02:00.000Z', dateStr: 'Jul 22, 2026', timeStr: '08:02 AM', soldBy: 'Manager P' },
+    ];
+    if (!Array.isArray(state.sales)) state.sales = [];
+    let added = 0;
+    for (const b of BACKFILL) {
+      const dupe = state.sales.some(s => s && String(s.shoeId) === b.shoeId
+        && String(parseFloat(s.size)) === String(parseFloat(b.size))
+        && (s.dateStr === b.dateStr || String(s.date || s.at || '').slice(0, 10) === b.date.slice(0, 10)));
+      if (!dupe) { state.sales.unshift(b); added++; }
+    }
+    if (added) { persist('sales.json'); bump(); }
+    console.log('[shop] one-time sales backfill: added', added, 'of', BACKFILL.length);
+    try { fs.writeFileSync(marker2, new Date().toISOString()); } catch (_) {}
+  }
+} catch (e) { console.error('[shop] sales backfill failed:', e.message); }
+
+// Correction (Jul 24 2026): the backfilled J11 sale was labelled Legend Blue, but Rodney
+// confirmed the sold pair was the CONCORD (Black/White, an app-added shoe). Rewrite the
+// row in place — runs every boot but the condition self-limits to a single rewrite, and
+// resolves the Concord's real id from live inventory when it can.
+try {
+  const bf = (state.sales || []).find(s => s && s.id === 'backfill-j11-12-20260723');
+  if (bf && /legend blue/i.test(String(bf.shoeLabel || ''))) {
+    const cc = (state.shoes || []).find(s => s && /concord/i.test(String(s.nickname || '') + ' ' + String(s.name || '')));
+    bf.shoeLabel = 'Air Jordan 11 Retro (Concord)'; bf.name = 'Air Jordan 11 Retro (Concord)';
+    if (cc && cc.id != null) bf.shoeId = cc.id;
+    persist('sales.json'); bump();
+    console.log('[shop] backfill J11 sale relabelled to Concord', cc ? '(id ' + cc.id + ')' : '(id unresolved)');
+  }
+} catch (e) { console.error('[shop] backfill relabel failed:', e.message); }
+
+// Shared ACTIVITY LOG entry, in the exact shape the website's audit log uses
+// ({id, action, detail, category, shoeId, user, time}) so Kiki's actions show up
+// on every device's Log tab (Rodney 2026-07-14: "no sales being logged, what a joke").
+function addLogEntry(action, detail, category, shoeId, user) {
+  const e = { id: Date.now() + Math.random(), action, detail: detail || '', category: category || 'general',
+    shoeId: shoeId || null, user: user || 'Kiki 🤖', time: new Date().toISOString() };
+  state.log.unshift(e);
+  if (state.log.length > MAX_LOG) state.log.length = MAX_LOG;
+  persist('log.json'); bump();
+  return e;
+}
+
+// Per-size counts, the way staff think ("10.5 x2, 11 x1 — 22 pairs total").
+function sizeSummary(sizes) {
+  const counts = {};
+  for (const x of sizes || []) { const k = String(parseFloat(x)); if (k !== 'NaN') counts[k] = (counts[k] || 0) + 1; }
+  const parts = Object.keys(counts).sort((a, b) => parseFloat(a) - parseFloat(b)).map(k => `${k} x${counts[k]}`);
+  return parts.length ? `${parts.join(', ')} — ${(sizes || []).length} pairs total` : 'NONE — sold out';
+}
+
+// Kiki-reported sale (staff WhatsApps "sold the pink Air Max in a 10" and confirms
+// the photo): remove ONE pair of that size from the live shoe entry, append a real
+// sale record (same shape the website writes, so voiding works the same way), stamp
+// updatedAt so no stale phone can resurrect the pair, and bump rev so every phone
+// syncs. baseSizes = the shoe's current live sizes from the caller's liveShoeMap,
+// used when the shoe has no live override entry yet.
+function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
+  const sz = String(parseFloat(size));
+  if (sz === 'NaN') return { error: 'bad size' };
+  if (!Array.isArray(state.shoes)) state.shoes = [];
+  let shoe = state.shoes.find(x => x && String(x.id) === String(shoeId));
+  if (!shoe) {
+    shoe = { id: shoeId, _catalog: true, sizes: (baseSizes || []).slice(), sold: false };
+    state.shoes.push(shoe);
+  }
+  if (!Array.isArray(shoe.sizes)) shoe.sizes = (baseSizes || []).slice();
+  const idx = shoe.sizes.findIndex(x => String(parseFloat(x)) === sz);
+  if (idx === -1) return { error: 'size ' + size + ' is not in stock for this shoe', sizes: shoe.sizes.slice() };
+  const _beforeS = { sizes: (shoe.sizes || []).slice(), sold: !!shoe.sold };
+  shoe.sizes.splice(idx, 1);
+  if (!shoe.sizes.length) shoe.sold = true;
+  shoe.updatedAt = Date.now();
+  // Same reason as the restock above — a sale rung up through Kiki must leave the same
+  // trail as one rung up on the website, or "when did this change?" has a blind spot
+  // exactly where staff do most of their work.
+  try { auditShoe({ headers: {}, body: { by: by || 'staff' } }, shoeId, 'accepted',
+    _beforeS, { sizes: shoe.sizes, sold: shoe.sold }, { via: 'kiki-sale', by: by || 'staff', size: sz }); } catch (_) {}
+  const uid = 'jess-' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  // Write BOTH dialects: the bot's fields (at/shoeLabel/by) AND the website sales
+  // page's native fields (date/dateStr/timeStr/name/soldBy, Bahamas clock) so a
+  // Kiki-reported sale counts in TODAY'S REGISTER immediately (2026-07-16).
+  const bah = new Date(Date.now() - 4 * 3600 * 1000);
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dateStr = MONTHS[bah.getUTCMonth()] + ' ' + bah.getUTCDate() + ', ' + bah.getUTCFullYear();
+  let hr = bah.getUTCHours(); const ampm = hr >= 12 ? 'PM' : 'AM'; hr = hr % 12 || 12;
+  const timeStr = String(hr).padStart(2, '0') + ':' + String(bah.getUTCMinutes()).padStart(2, '0') + ' ' + ampm;
+  state.sales.unshift({ id: uid, shoeId: shoeId, shoeLabel: label || String(shoeId), size: sz,
+    price: price != null ? price : null, by: by || 'staff', at: new Date().toISOString(), src: 'jess-staff',
+    name: label || String(shoeId), brand: '', color: '',
+    date: new Date().toISOString(), dateStr: dateStr, timeStr: timeStr, soldBy: by || 'staff' });
+  if (state.sales.length > MAX_SALES) state.sales.length = MAX_SALES;
+  persist('shoes.json'); persist('sales.json'); bump();
+  addAlert('🧾 SALE — ' + (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : '') + ' (reported by ' + (by || 'staff') + ' via Kiki)', by || 'Kiki 🤖');
+  addLogEntry('Sale (via Kiki)', (label || shoeId) + ' — size ' + sz + (price != null ? ' — $' + price : ''), 'sales', shoeId, by || 'staff');
+  return { ok: true, saleId: uid, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes), sold_out: !!shoe.sold };
+}
+
+// Pin a payment-proof screenshot to an existing sale (Rodney 2026-07-18: after a sale,
+// staff send the customer's money-confirmation pic). The bytes live in a SEPARATE proofs
+// map so the frequently-polled /shop/state payload stays small; the sale just gets a tiny
+// hasProof=true flag so the website can show a 📎. Served on demand via /shop/proof/:id.
+function attachSaleProof(saleId, img, by) {
+  if (!saleId || !img || !img.data) return { error: 'no image' };
+  const sale = state.sales.find(x => x && String(x.id) === String(saleId));
+  if (!sale) return { error: 'unknown sale ' + saleId + ' — proof not saved' };
+  state.proofs[String(saleId)] = { media_type: img.media_type || 'image/jpeg', data: img.data, by: by || sale.by || '', at: new Date().toISOString() };
+  sale.hasProof = true;
+  persist('proofs.json'); persist('sales.json'); bump();
+  addLogEntry('Payment proof pinned', (sale.shoeLabel || sale.name || sale.shoeId) + ' — size ' + sale.size, 'sales', sale.shoeId, by || 'staff');
+  return { ok: true, saleId: String(saleId), shoe: sale.shoeLabel || sale.name || sale.shoeId };
+}
+function getProof(saleId) { return state.proofs[String(saleId)] || null; }
+
+// Staff restock via Kiki — the inverse of recordStaffSale: add pairs of a size.
+// No sale record (nothing sold); a task note + rev bump so every phone syncs.
+function recordStaffRestock(shoeId, size, count, by, label, baseSizes) {
+  const sz = String(parseFloat(size));
+  if (sz === 'NaN') return { error: 'bad size' };
+  const n = Math.max(1, Math.min(20, parseInt(count) || 1));
+  if (!Array.isArray(state.shoes)) state.shoes = [];
+  let shoe = state.shoes.find(x => x && String(x.id) === String(shoeId));
+  if (!shoe) {
+    shoe = { id: shoeId, _catalog: true, sizes: (baseSizes || []).slice(), sold: false };
+    state.shoes.push(shoe);
+  }
+  if (!Array.isArray(shoe.sizes)) shoe.sizes = (baseSizes || []).slice();
+  const _beforeR = JSON.parse(JSON.stringify({ sizes: (shoe.sizes || []).slice(), sold: !!shoe.sold }));
+  for (let i = 0; i < n; i++) shoe.sizes.push(sz);
+  shoe.sold = false;
+  shoe.updatedAt = Date.now();
+  persist('shoes.json'); bump();
+  // 🔍 Write it to the shoe audit like every other stock change (Rodney 2026-08-14, asking
+  // whether staff editing through Kiki is safer than the website). It IS safer in one way —
+  // this writes straight to the server with a fresh updatedAt, so an older phone loses the
+  // newest-wins check. But it used to leave NO audit row, and that had two costs:
+  //   1. keepManualRestock protects a hand-added size from a stale phone's shrink by looking
+  //      it up IN THE AUDIT — a size added through Kiki was invisible to it, so the one
+  //      protection built for exactly this could never fire for a Kiki restock;
+  //   2. "when did this revert and why?" was unanswerable for anything done through the bot.
+  try { auditShoe({ headers: {}, body: { by: by || 'staff' } }, shoeId, 'accepted',
+    _beforeR, { sizes: shoe.sizes, sold: shoe.sold }, { via: 'kiki-restock', by: by || 'staff', size: sz, count: n }); } catch (_) {}
+  addAlert('📦 RESTOCK — ' + (label || shoeId) + ' — size ' + sz + ' x' + n + ' added (by ' + (by || 'staff') + ' via Kiki)', by || 'Kiki 🤖');
+  addLogEntry('Restock (via Kiki)', (label || shoeId) + ' — size ' + sz + ' x' + n, 'inventory', shoeId, by || 'staff');
+  return { ok: true, added: n, remaining_sizes: shoe.sizes.slice(), remaining_summary: sizeSummary(shoe.sizes) };
+}
+
+// Add a note to the shared board programmatically (e.g. a delivery-ready alert
+// from the bot), so it shows on the website's Tasks for whoever's on duty.
+// Does NOT fire the employee WhatsApp blast — the caller handles any messaging.
+function addAlert(text, by, meta) {
+  const uid = Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
+  const note = {
+    id: uid, text: String(text || '').trim(), kind: 'task',
+    shoeId: null, shoeLabel: null, by: by || 'Kiki 🤖',
+    done: false, doneBy: null, doneAt: null, createdAt: new Date().toISOString(),
+  };
+  // Optional link back to the customer's chat (delivery/order alerts pass this) so the
+  // Inbox's Today's Orders can open the exact in-site conversation + show a pic.
+  if (meta && typeof meta === 'object') {
+    if (meta.sub) note.sub = String(meta.sub);
+    if (meta.account) note.account = String(meta.account);
+    if (meta.img) note.img = String(meta.img);
+  }
+  if (!note.text) return null;
+  state.notes.unshift(note);
+  if (state.notes.length > 500) state.notes.length = 500;
+  persist('notes.json'); bump();
+  // Push to installed staff phones even if the app is closed (best effort).
+  // If this alert carries a customer's WhatsApp number (delivery alerts include a
+  // wa.me link), make the push TAPPABLE → it opens the customer's WhatsApp so staff
+  // can message them the instant they tap the notification.
+  let pushUrl = '/';
+  const _m = note.text.match(/wa\.me\/(\d{7,})/i);
+  if (_m && _m[1]) pushUrl = 'https://wa.me/' + _m[1];
+  // 🔔 AN ALERT CAN NAME ITSELF (Rodney 2026-08-19: "I don't get the notification unless I'm
+  // in the app... then I hear I need agent, need agent, need agent"). EVERY push used to be
+  // titled "New delivery / task", so even when one did land it never said a customer was
+  // waiting — it read like another stock chore. Callers can now pass their own title/body.
+  const _pt = (meta && meta.pushTitle) || 'New delivery / task';
+  const _pb = (meta && meta.pushBody) || note.text;
+  sendPush(_pt, _pb, pushUrl).catch(() => {});
+  return note;
+}
+
+// ── WhatsApp send via ManyChat (find subscriber by phone, then send text) ────
+// 🔑 TOKEN FALLBACK (Rodney 2026-08-05). This only ever read MANYCHAT_TOKEN from the
+// environment, and that env var is NOT set on Railway — so EVERY staff text alert that
+// goes through here has been failing silently: the task-board blast, the revert alerts,
+// float requests, and the customer's delivery-tracking link. Found it when a "post these
+// 7 shoes" blast came back {Manager:false, Deashinique:false, Owner:false} while the photo
+// sends (which use a different path) went out fine. The server already holds live ManyChat
+// tokens learned from inbound webhooks — server.js hands one over via setFallbackToken, so
+// these sends now work with or without the env var.
+let _fallbackToken = null;
+function setFallbackToken(t) { if (t) _fallbackToken = t; }
+// 📇 A WHATSAPP SUBSCRIBER'S NUMBER IS NOT IN ManyChat's `phone` FIELD (Rodney 2026-08-05).
+// The lookup below asked findBySystemField for `phone=+1242…` and got nothing back, because
+// for a WhatsApp contact ManyChat leaves `phone` NULL and puts the number in
+// `whatsapp_phone` — you can see it plainly in any raw webhook body we log. That single
+// wrong field name is why every staff text alert reported failure. Try both.
+async function findSub(token, phoneDigits) {
+  for (const field of ['whatsapp_phone', 'phone']) {
+    try {
+      const f = await fetch('https://api.manychat.com/fb/subscriber/findBySystemField?' + field + '=' +
+        encodeURIComponent('+' + phoneDigits), { headers: { Authorization: `Bearer ${token}` } });
+      const fj = await f.json();
+      const d = fj && fj.data;
+      const sub = d && (d.id || (Array.isArray(d) && d[0] && d[0].id));
+      if (sub) return sub;
+    } catch (_) { /* try the next field */ }
+  }
+  return null;
+}
+// 🎯 SEND STAFF ALERTS THROUGH THE PATH THAT ACTUALLY WORKS (Rodney 2026-08-05).
+// Even with the right token and the right subscriber, ManyChat 400s these raw sends —
+// it's the same ghost "Subscriber does not exist" lie that was duplicating customer
+// photos, plus this file has no idea which of the two store tokens belongs to a given
+// subscriber. server.js's sendChunk already solves both: it rotates across every known
+// token and treats the ghost 400 as delivered. It is the exact call the photo sends make,
+// and those land 7/7 every time. So for anyone we know, hand the send to it.
+let _staffSender = null;
+function setStaffSender(fn) { _staffSender = fn; }
+async function waSendDetailed(phoneDigits, text, name) {
+  if (name && _staffSender) {
+    try {
+      const r = await _staffSender(name, text);
+      if (r && r.ok) return { ok: true, via: 'known-sub' };
+      if (r && r.why) return { ok: false, why: r.why };
+    } catch (_) { /* fall through to the phone lookup */ }
+  }
+  const token = process.env.MANYCHAT_TOKEN || _fallbackToken;
+  if (!token) return { ok: false, why: 'no ManyChat token available' };
+  if (!phoneDigits) return { ok: false, why: 'no number' };
+  let via = '';
+  const sub = await findSub(token, phoneDigits);
+  if (sub) via = 'phone-lookup';
+  if (!sub) return { ok: false, why: 'no ManyChat subscriber found for that number (they may never have messaged us)' };
+  try {
+    const r = await fetch('https://api.manychat.com/fb/sending/sendContent', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriber_id: sub, data: { version: 'v2', content: { type: 'whatsapp', messages: [{ type: 'text', text }] } } }),
+    });
+    if (r.ok) return { ok: true, via };
+    return { ok: false, via, why: 'ManyChat refused the send (' + r.status + ')' };
+  } catch (e) { return { ok: false, via, why: 'send threw: ' + String(e).slice(0, 80) }; }
+}
+// Kept boolean — several call sites treat the result as truthy/falsy, and an object
+// would always read as success.
+async function waSend(phoneDigits, text, name) {
+  return (await waSendDetailed(phoneDigits, text, name)).ok;
+}
+
+// ── 🛵 WHO IS ACTUALLY ON THE FLOOR RIGHT NOW ────────────────────────────────
+// Rodney 2026-08-14: "Can I stop Deashinique from getting delivery messages when she's
+// not at work? Each employee that's on duty at the time should get delivery messages —
+// when she's at work only." The call site had said "every on-duty staff number" since it
+// was written, but blastEmployees never looked at the rota, so every delivery pinged
+// everyone around the clock. Now it reads the shared schedule (see dayRoster / state.shifts).
+const NASSAU_OFFSET_H = -4;   // Bahamas summer time (EDT). Winter is -5 — same note as server.js.
+function nassauNow() { return new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000); }
+function currentSlot(d) {
+  const h = d.getUTCHours();                 // shifted above, so this IS the Nassau hour
+  if (h >= 8 && h < 15) return 'morning';    // 8am–3pm
+  if (h >= 15 && h < 22) return 'evening';   // 3pm–10pm
+  return null;                               // shop shut
+}
+// The names to ring right now. Same rule as the website and the shift reminder: whoever is
+// rostered on this slot; nobody rostered = the Manager covers it. Outside opening hours it
+// is the Manager's problem, NOT a staff member's phone at 2am — which is the whole point of
+// this change.
+function onDutyNames(at) {
+  const n = at || nassauNow();
+  const slot = currentSlot(n);
+  if (!slot) return ['Manager'];
+  const date = n.toISOString().slice(0, 10);
+  const on = getShifts().filter(s => s && s.date === date && s.type === slot).map(s => s.employee);
+  return on.length ? [...new Set(on)] : ['Manager'];
+}
+
+// Like blastEmployees, but only the people actually working this slot. Never silently
+// reaches nobody: if the rostered person has no WhatsApp number stored we fall back to the
+// Manager, and only if even that is missing do we fall back to the whole team — losing a
+// delivery alert is far worse than one extra buzz.
+// 👑 THE OWNER IS ALWAYS COPIED (Rodney 2026-08-21, asked and answered: "yes copy").
+//
+// The rota gate below is the 14 Aug feature he asked for — an off-duty phone should not buzz
+// at 2am. But it cut him out too, and on 20 Aug that cost him a whole morning: the roster had
+// Deashinique on mornings and nobody on evenings, so deliveries #1-#4 (two of them Official
+// Sneaker Crew) rang HER phone only. He found out a day later, and read it as "Official Sneaker
+// Crew never sent a delivery message" — the shop was fine, he was simply never in the loop.
+//
+// So the rota still decides which STAFF member is rung; it no longer decides whether the owner
+// hears about his own business. Deliberately a union, not a replacement: whoever is on duty
+// still gets it, and the Set stops him being messaged twice when he IS the rostered one.
+const ALWAYS_COPY = ['Manager'];
+
+// ── 🔕 WHAT AN EMPLOYEE IS ALLOWED TO BE SENT (Rodney, 5 Sep 2026) ────────────
+// His words: Deashinique (4684477) should receive exactly TWO things and nothing else —
+// her work schedule, and the shoes to post. Everything else on the alert list (order
+// alerts, delivery chases, "a customer needs you", end-of-day checks, NOBODY PICKED UP)
+// is Rodney's business, not hers, and she had been getting all of it.
+//
+// Matched on the PHONE NUMBER, not the name — a name is a label on the Schedule page and
+// gets retyped; the number is the person.
+//
+// DENY BY DEFAULT, on purpose. A restricted person is only sent a message that explicitly
+// names an allowed topic, so any alert added later — by me or by anyone — does NOT reach
+// her unless somebody deliberately says it should. The failure mode of the opposite design
+// is that she quietly starts getting the next new alert and nobody notices for weeks.
+const RESTRICTED_STAFF_TAILS = ['4684477'];
+// 'task-board' added 5 Sep 2026 (Rodney, asked and answered): a one-off task he TYPES for
+// her on the board should reach her. His ban was on the shop's own automated noise — order
+// alerts, delivery chases — not on him assigning her work. Everything untagged stays denied.
+const STAFF_TOPICS_ALLOWED = ['schedule', 'post-list', 'task-board'];
+function isRestrictedStaff(num) {
+  const d = String(num || '').replace(/[^0-9]/g, '');
+  return !!d && RESTRICTED_STAFF_TAILS.some(t => d.endsWith(t));
+}
+/* May we send this person a message about `topic`? Unrestricted staff: always.
+   Restricted staff: only the topics above. */
+function mayReceive(num, topic) {
+  return !isRestrictedStaff(num) || STAFF_TOPICS_ALLOWED.indexOf(String(topic || '')) !== -1;
+}
+/* Drop restricted staff from a target list, and say who was dropped and why so the
+   decision shows up in the log instead of looking like a send that failed. */
+function filterTopic(names, nums, topic) {
+  const kept = [], held = [];
+  names.forEach(n => (mayReceive(nums[n], topic) ? kept : held).push(n));
+  if (held.length) console.log('[shop] topic gate:', held.join(', '), 'not sent "' + (topic || 'untagged') + '" — restricted to', STAFF_TOPICS_ALLOWED.join(' + '));
+  return { kept, held };
+}
+
+async function blastOnDuty(text, exceptName, topic) {
+  const nums = state.employees || {};
+  const duty = onDutyNames().filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase());
+  let targets = duty.filter(n => nums[n]);
+  let scope = 'on-duty';
+  const copied = ALWAYS_COPY.filter(n => nums[n]
+    && (!exceptName || n.toLowerCase() !== String(exceptName).toLowerCase())
+    && targets.indexOf(n) === -1);
+  if (targets.length && copied.length) { targets = [...new Set([...targets, ...copied])]; scope = 'on-duty + owner copy'; }
+  if (!targets.length && nums.Manager) { targets = ['Manager']; scope = 'manager-fallback (nobody rostered has a number)'; }
+  if (!targets.length) { targets = Object.keys(nums).filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase()); scope = 'everyone-fallback (no numbers for the rota)'; }
+  // 🔕 The topic gate (see above). Applied LAST, after every fallback has run, so it can
+  // only ever remove a person — it can never be the reason an alert reaches nobody.
+  const gate = filterTopic(targets, nums, topic);
+  targets = gate.kept;
+  // ...and if the gate just emptied the list, the alert still has to land on somebody.
+  // Losing a delivery alert is far worse than one extra buzz — the same rule the rota
+  // fallbacks above follow. Only reachable if the restricted person was the ONLY target.
+  if (!targets.length && gate.held.length && nums.Manager) {
+    targets = ['Manager'];
+    scope = 'manager-fallback (only restricted staff matched this topic)';
+  }
+  const results = [];
+  for (const name of targets) {
+    const digits = String(nums[name] || '').replace(/[^0-9]/g, '');
+    const r = await waSendDetailed(digits, text, name);
+    results.push({ name, ok: r.ok, via: r.via || undefined, why: r.why, onDuty: true });
+  }
+  gate.held.forEach(n => results.push({ name: n, ok: false, why: 'restricted staff — "' + (topic || 'untagged') + '" is not one of: ' + STAFF_TOPICS_ALLOWED.join(', ') }));
+  const skipped = Object.keys(nums).filter(n => targets.indexOf(n) === -1);
+  console.log('[shop] on-duty alert →', targets.join(', ') || '(nobody)', '| scope:', scope, '| not rung (off duty):', skipped.join(', ') || 'none');
+  results.scope = scope; results.skipped = skipped;
+  return results;
+}
+
+/* `who` (optional): send to ONE person — matched on name (any case, partial) or on the
+   tail of their number. Without it this reaches every employee on file. */
+function matchesStaff(name, num, who) {
+  const w = String(who || '').trim().toLowerCase();
+  if (!w) return true;
+  if (String(name).toLowerCase().includes(w)) return true;
+  const d = w.replace(/[^0-9]/g, '');
+  return !!d && String(num || '').replace(/[^0-9]/g, '').endsWith(d);
+}
+async function blastEmployees(text, exceptName, topic, who) {
+  const nums = state.employees || {};
+  const results = [];
+  for (const name of Object.keys(nums)) {
+    if (exceptName && name.toLowerCase() === String(exceptName).toLowerCase()) continue;
+    if (!matchesStaff(name, nums[name], who)) continue;
+    if (!mayReceive(nums[name], topic)) {                       // 🔕 topic gate — see blastOnDuty
+      results.push({ name, ok: false, why: 'restricted staff — "' + (topic || 'untagged') + '" is not one of: ' + STAFF_TOPICS_ALLOWED.join(', ') });
+      continue;
+    }
+    const digits = String(nums[name] || '').replace(/[^0-9]/g, '');
+    const r = await waSendDetailed(digits, text, name);
+    results.push({ name, ok: r.ok, via: r.via || undefined, why: r.why });
+  }
+  return results;
+}
+
+// Send a web-push notification to every subscribed staff device. Best-effort:
+// dead/expired subscriptions (HTTP 404/410) are pruned so the list stays clean.
+let lastPushFail = null;   // last non-expiry refusal from the push service — evidence, not a guess
+async function sendPush(title, body, url, tag) {
+  if (!webpush || !Array.isArray(state.subs) || !state.subs.length) return 0;
+  // `tag` (2026-08-21): a shared tag REPLACES the previous notification. That is right for
+  // stock chores and wrong for people — two customers replying would silently overwrite each
+  // other and he would only ever see the last one. Callers that are about a specific person
+  // pass their own tag; everything else keeps the old shared one.
+  const payload = JSON.stringify({ title: title || 'THE PLUG 242', body: body || 'New delivery / task', url: url || '/', tag: tag || 'plug242-task' });
+  let sent = 0; const dead = [];
+  await Promise.all(state.subs.map(async (s) => {
+    try { await webpush.sendNotification(s, payload, PUSH_OPTS); sent++; }
+    catch (e) {
+      if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint);
+      // Anything else was being thrown away, so a rejected send looked identical to a
+      // delivered one from the outside. Keep the last one so /shop/push/status can say it.
+      else { try { lastPushFail = { at: new Date().toISOString(), tail: String(s.endpoint || '').slice(-8),
+                                    code: e && e.statusCode, why: String((e && e.body) || (e && e.message) || e).slice(0, 160) }; } catch (_) {} }
+    }
+  }));
+  if (dead.length) {
+    state.subs = state.subs.filter((s) => dead.indexOf(s.endpoint) === -1);
+    persist('subs.json');
+  }
+  return sent;
+}
+
+// ── routes ───────────────────────────────────────────────────────────────────
+// 🚚 One delivery job = one link. Called from the alert path in server.js, which owns
+// the wording of the alert; this side only owns the record and the page.
+let onJobClosed = null;
+function setJobClosedHook(fn) { onJobClosed = fn; }
+function addJob(title, text) {
+  try {
+    // The id rides inside a WhatsApp group message, so it has to be long enough that
+    // nobody can walk the list by guessing — it is the only thing guarding the page.
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    const job = { id, title: String(title || 'Delivery').slice(0, 90),
+                  text: String(text || '').slice(0, 1200),
+                  at: new Date().toISOString(), state: 'open' };
+    state.jobs = [job].concat(Array.isArray(state.jobs) ? state.jobs : []).slice(0, 400);
+    persist('jobs.json');
+    return job;
+  } catch (e) { return null; }
+}
+
+function mount(app) {
+  // ── 🤖 A LINK PREVIEWER MUST NEVER TOUCH STOCK (Rodney 2026-08-19) ───────────
+  // The "stock keeps reverting" saga, finally pinned down. On 16 Aug at 04:13:27–30Z,
+  // 396 shoe pushes arrived in about three seconds from 173.252.95.49 with the user-agent
+  // `facebookexternalhit/1.1` — Facebook's link-preview crawler. Every guard downstream of
+  // here (stripRevertedSizes, keepManualRestock, the newest-wins lock) blocked 385 of them,
+  // which is why this went unnoticed for so long: it looked like the system was coping. The
+  // 11 that slipped through deleted 21 pairs and invented 5 that were never on the shelf.
+  //
+  // WHY A ROBOT CAN WRITE AT ALL: the shop's write key is printed inside storefront.html,
+  // so anything that loads the page holds it — and Facebook RUNS the page's JavaScript when
+  // it builds a preview card. The app boots there with a blank local copy and pushes it up
+  // exactly like a staff phone would. It is stale by definition: that "device" has never
+  // seen a sale or a restock in its life.
+  //
+  // Every previous fix tried to RECOGNISE a bad write after it arrived. A guard can always
+  // be fooled by data that looks legitimate. This removes the ability instead: reads stay
+  // open (a preview card still renders, the ads still work), writes from a crawler are
+  // refused outright. Not pattern-matched — refused.
+  //
+  // ⚠️ Deliberately does NOT block bare `node` — count.js, the only sanctioned way to write
+  // a physical count, posts with that user-agent.
+  const BOT_UA = /facebookexternalhit|meta-externalagent|facebookcatalog|Twitterbot|Slackbot|LinkedInBot|TelegramBot|Discordbot|Pinterest|Googlebot|bingbot|Applebot|YandexBot|DuckDuckBot|PetalBot|Bytespider|AhrefsBot|SemrushBot|MJ12bot|Scrapy|HeadlessChrome|Chrome-Lighthouse|\bbot\b|crawler|spider/i;
+  const botBlocks = { count: 0, last: null };
+  app.use('/shop', (req, res, next) => {
+    // Reading is harmless and link previews need it — only writes are refused.
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+    const ua = String(req.headers['user-agent'] || '');
+    if (!BOT_UA.test(ua)) return next();
+    botBlocks.count++;
+    botBlocks.last = { at: new Date().toISOString(), path: req.path, src: reqSource(req) };
+    console.log('[shop] 🤖 BOT WRITE BLOCKED', req.method, req.path, JSON.stringify(reqSource(req)));
+    return res.status(403).json({ error: 'robots cannot write stock', blocked: 'bot' });
+  });
+  mount.botBlocks = botBlocks;
+
+  function auth(req, res) {
+    const key = req.query.key || req.get('x-shop-key') || (req.body && req.body.key);
+    if (key !== SHOP_KEY) { res.status(401).json({ error: 'bad key' }); return false; }
+    return true;
+  }
+  const uid = () => Date.now().toString(36) + Math.floor(performance.now() % 1000).toString(36);
+
+  // Full snapshot (website pulls this on load + when rev changes)
+  app.get('/shop/state', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({
+      rev: state.rev.n,
+      persistent: PERSISTENT, // false = data lost on redeploy (attach a Railway volume at /data)
+      notes: state.notes,
+      sales: state.sales,
+      log: state.log,
+      shoes: state.shoes,
+      deleted: state.deleted,
+      employees: state.employees,
+      accounts: state.accounts,
+      roles: state.roles,
+      deletedStaff: state.deletedStaff,
+      shifts: getShifts(),
+    });
+  });
+
+  /* 🟢 PUBLIC, READ-ONLY STOCK — the shopper's feed. NO KEY, AND NO WRITE TWIN.
+   *
+   * Rodney, 2026-08-20: "what if I stop all edits and website just view as customer?"
+   * Right the instinct, and this is the half that makes it possible.
+   *
+   * Until now there was exactly ONE way to read stock — /shop/state — and it is gated on
+   * the same key that WRITES stock. That is the only reason the write key had to be printed
+   * inside storefront.html at all: a customer's browser needed it just to see which sizes
+   * were left. Every visitor, every crawler and every stale phone therefore held a key that
+   * could rewrite the shelf. That is the door behind the whole "reverting stock" saga.
+   *
+   * This endpoint breaks that dependency. It returns the four fields a shopper needs and
+   * nothing else — no sales, no takings, no notes, no staff names, and crucially NO
+   * `accounts`, which /shop/state hands over and which contains staff login PINs.
+   *
+   * There is deliberately no POST counterpart. A page holding only this address cannot
+   * write, no matter who loads it or what they call themselves.
+   */
+  app.get('/shop/stock', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    /* ⚠️ SEND THE SHOE OBJECTS WHOLE — do NOT trim them (Rodney 2026-08-20, 8:21am,
+     * a live regression I caused hours earlier).
+     *
+     * The first version of this returned only {id,sizes,sold,price,updatedAt}. It looked
+     * tidy and it broke the shop: every card on 242plug.com read "UNDEFINED / undefined"
+     * and search returned "No shoes in stock" for af1, air force, everything.
+     *
+     * Why: applyServerShoes() in storefront.html branches on `imp._catalog`. A catalog shoe
+     * gets its sizes/sold/price UPDATED field by field. Anything else falls to the else
+     * branch, which does `shoes[idx] = imp` — it REPLACES THE WHOLE OBJECT. Dropping
+     * `_catalog` sent all 357 shoes down that path, so each one was replaced by my
+     * five-field version and lost its name, brand, colour and image.
+     *
+     * There is nothing secret in a shoe object — the storefront prints all of it. The
+     * things that must never appear here are `accounts` (staff login PINs), `sales`,
+     * `notes` and `employees`, and none of them are below. Trim those, never the shoes.
+     */
+    res.json({
+      rev: state.rev.n,
+      shoes: state.shoes || [],
+      deleted: state.deleted || [],
+    });
+  });
+
+  /* 🔑 THE WRITE KEY IS HANDED OUT AT LOGIN, NOT PRINTED IN THE PAGE.
+   *
+   * Staff sign in with the same name + PIN they already use; the difference is that the
+   * check now happens HERE rather than in the browser, and the key comes back only on a
+   * correct answer. A phone that never signs in never holds a key and cannot write.
+   *
+   * Deliberately says the same thing for a wrong name and a wrong PIN — telling a stranger
+   * which staff names exist is free information they should not get.
+   */
+  app.post('/shop/staff-login', (req, res) => {
+    const b = req.body || {};
+    const name = String(b.name || '').trim();
+    const pass = String(b.pass == null ? '' : b.pass);
+    const known = state.accounts || {};
+    // Case-insensitive on the NAME only — Rodney's staff type "manager" and "Manager".
+    const realName = Object.keys(known).find(n => n.toLowerCase() === name.toLowerCase());
+    const expected = realName ? String(known[realName] == null ? '' : known[realName]) : null;
+    const ok = !!realName && expected !== '' && pass === expected;
+    try {
+      state.log.unshift({ at: new Date().toISOString(), what: ok ? 'staff signed in' : 'failed sign-in', who: realName || name || '(blank)', kind: 'auth' });
+      if (state.log.length > 500) state.log.length = 500;
+    } catch (_) {}
+    if (!ok) return res.status(401).json({ ok: false, error: 'Name or PIN is wrong.' });
+    res.json({ ok: true, name: realName, key: SHOP_KEY });
+
+  // 🔐 ADMIN LINKS — hand the console/inbox URL to a LOGGED-IN staff member only.
+  // Rodney 22 Aug: a customer on his phone could see the staff nav, and the Jess + Chats
+  // buttons carried the CONSOLE KEY inline in the page HTML. Hiding a button with CSS does
+  // NOT remove it from the source — the key was readable by anyone who viewed source on
+  // 242plug.com, and it opens /console AND /inbox (every customer chat, phone number and
+  // address). The page now ships no key at all; staff fetch the link with the key they got
+  // when they logged in.
+  app.get('/shop/admin-link', (req, res) => {
+    if (!auth(req, res)) return;
+    const tool = String(req.query.tool || '').toLowerCase() === 'inbox' ? 'inbox' : 'console';
+    const ck = process.env.CONSOLE_KEY || 'sp242-jess-b297063c5dd791125b5dc9e53ad8f706';
+    res.json({ ok: true, url: 'https://sneakerplug242-api-production.up.railway.app/' + tool + '?key=' + encodeURIComponent(ck) });
+  });
+  });
+
+  // ---- 📅 Work schedule ----
+  app.get('/shop/shifts', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({ shifts: getShifts() });
+  });
+
+  // Did my upload actually reach the server, and what did it say? A row here means it
+  // arrived (read `error`); no row means it never left the phone.
+  app.get('/shop/shifts/uploads', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({ attempts: state.uploadLog || [] });
+  });
+
+  // Add / overwrite ONE shift slot (the manual "+ Add Shift" form on the website).
+  app.post('/shop/shift', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const date = String(b.date || '').trim();
+    const employee = String(b.employee || '').trim();
+    const type = String(b.type || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+    if (!employee) return res.status(400).json({ error: 'employee required' });
+    if (SHIFT_TYPES.indexOf(type) === -1) return res.status(400).json({ error: 'type must be morning or evening' });
+    // one person per slot — assigning someone replaces whoever held it
+    const rest = getShifts().filter(s => !(s.date === date && s.type === type));
+    rest.push({ id: date + '|' + employee + '|' + type, date, employee, type });
+    setShifts(rest);
+    res.json({ ok: true, shifts: getShifts().length });
+  });
+
+  app.post('/shop/shift/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = String((req.body || {}).id || '');
+    if (!id) return res.status(400).json({ error: 'id required' });
+    const before = getShifts().length;
+    setShifts(getShifts().filter(s => String(s.id) !== id));
+    res.json({ ok: true, removed: before - getShifts().length });
+  });
+
+  // Lay a parsed batch into the schedule. Replaces those people's shifts INSIDE the
+  // imported date window only — importing Deashinique's Aug–Oct sheet never touches July,
+  // and never touches anybody else's rows.
+  function applyImport(rows, errors, from, to) {
+    const clean = [], bad = (errors || []).slice();
+    for (const r of rows) {
+      const date = String((r && r.date) || '').trim();
+      const employee = String((r && r.employee) || (r && r.staff) || '').trim();
+      const type = String((r && r.type) || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { bad.push('bad date: ' + JSON.stringify(r && r.date)); continue; }
+      if (!employee) { bad.push('missing employee for ' + date); continue; }
+      if (SHIFT_TYPES.indexOf(type) === -1) { bad.push('bad shift for ' + date + ': ' + JSON.stringify(r && r.type)); continue; }
+      clean.push({ id: date + '|' + employee + '|' + type, date, employee, type });
+    }
+    if (!clean.length) {
+      return { error: 'nothing importable', detail: bad.slice(0, 5).join('; ') || 'the file had no work shifts in it' };
+    }
+
+    const staff = new Set(clean.map(s => s.employee));
+    const dates = clean.map(s => s.date).sort();
+    const winFrom = from || dates[0];
+    const winTo = to || dates[dates.length - 1];
+
+    const kept = getShifts().filter(s => !(staff.has(s.employee) && s.date >= winFrom && s.date <= winTo));
+    const replaced = getShifts().length - kept.length;
+    setShifts(kept.concat(clean));
+
+    return {
+      ok: true,
+      imported: clean.length,
+      replaced,
+      skipped: bad.length,
+      skippedDetail: bad.slice(0, 5),
+      staff: Array.from(staff),
+      from: winFrom, to: winTo,
+      total: getShifts().length,
+    };
+  }
+
+  // Structured import (already-parsed rows).
+  app.post('/shop/shifts/import', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    if (!Array.isArray(b.shifts)) return res.status(400).json({ error: 'shifts must be an array' });
+    const out = applyImport(b.shifts, [], normDate(b.period_start), normDate(b.period_end));
+    if (out.error) return res.status(400).json(out);
+    res.json(out);
+  });
+
+  // 📤 FILE upload — the manager picks a .json / .csv / .pdf on their phone and it lands here.
+  // Parsing happens on the server so there is one parser, and so a PDF the phone can't read
+  // still imports. ALWAYS answers with either a count or a reason — never silence.
+  app.post('/shop/shifts/upload', async (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const name = String(b.filename || '').trim();
+    const ext = (name.match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+
+    // Log the attempt whatever happens, so "I uploaded it and nothing happened" is always
+    // answerable: either there is a row here (it arrived — read the reason) or there is
+    // not (it never left the phone).
+    const attempt = {
+      at: new Date().toISOString(),
+      filename: name || '(no name)',
+      ext: ext || '(none)',
+      bytes: 0,
+      by: String(b.by || '').slice(0, 40),
+      ua: String(req.headers['user-agent'] || '').slice(0, 90),
+      result: 'started',
+    };
+    function finish(status, payload) {
+      attempt.result = status === 200 ? 'imported' : 'rejected';
+      attempt.http = status;
+      if (status === 200) { attempt.imported = payload.imported; attempt.staff = payload.staff; attempt.from = payload.from; attempt.to = payload.to; }
+      else { attempt.error = payload.error; attempt.detail = String(payload.detail || '').slice(0, 200); }
+      state.uploadLog.unshift(attempt);
+      if (state.uploadLog.length > 30) state.uploadLog.length = 30;
+      persist('uploadLog.json');
+      console.log('[shop] schedule upload', attempt.filename, '→', attempt.result, attempt.error || ('+' + attempt.imported));
+      return res.status(status).json(payload);
+    }
+
+    if (!b.data) return finish(400, { error: 'no file came through — try picking it again' });
+
+    let buf;
+    try { buf = Buffer.from(String(b.data), 'base64'); }
+    catch (_) { return finish(400, { error: 'the file could not be read off the phone' }); }
+    attempt.bytes = buf.length;
+    if (!buf.length) return finish(400, { error: 'that file is empty (0 bytes)' });
+
+    let parsed;
+    try {
+      if (ext === 'json') {
+        parsed = parseScheduleJson(buf.toString('utf8'));
+      } else if (ext === 'pdf' || buf.slice(0, 4).toString() === '%PDF') {
+        let text = '';
+        try {
+          const { PDFParse } = require('pdf-parse');
+          const p = new PDFParse({ data: new Uint8Array(buf) });
+          const r = await p.getText();
+          text = (r && r.text) || '';
+          try { await p.destroy(); } catch (_) {}
+        } catch (e) {
+          return finish(422, {
+            error: 'could not open that PDF',
+            detail: e.message + ' — save the schedule as JSON or CSV instead and upload that.',
+          });
+        }
+        if (!text.trim()) {
+          return finish(422, {
+            error: 'that PDF has no readable text in it',
+            detail: 'It is probably a scan or a picture of a schedule. Upload the JSON or CSV version instead.',
+          });
+        }
+        parsed = parseScheduleLines(text, b.staff);
+      } else if (ext === 'csv' || ext === 'txt' || ext === 'tsv') {
+        parsed = parseScheduleLines(buf.toString('utf8'), b.staff);
+      } else {
+        return finish(415, {
+          error: 'that file type is not supported' + (ext ? ' (.' + ext + ')' : ''),
+          detail: 'Upload a .json, .csv or .pdf schedule.',
+        });
+      }
+    } catch (e) {
+      return finish(422, { error: 'could not read that schedule file', detail: e.message });
+    }
+
+    if (!parsed.rows.length) {
+      return finish(422, {
+        error: 'no work shifts found in that file',
+        detail: (parsed.errors && parsed.errors.length)
+          ? parsed.errors.slice(0, 3).join('; ')
+          : 'Expected rows of: Employee | Day | Date | Start | End | Shift — e.g. "Deashinique  Sunday  Aug 09, 2026  3:00pm  10:00pm  Night".',
+      });
+    }
+
+    const out = applyImport(parsed.rows, parsed.errors, parsed.from, parsed.to);
+    if (out.error) return finish(422, out);
+    out.filename = name;
+    return finish(200, out);
+  });
+
+  // Cheap change check for polling
+  app.get('/shop/rev', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({ rev: state.rev.n });
+  });
+
+  // 🔍 Read the shoe audit — the record of what actually changed each shoe.
+  //   /shop/audit?key=…              → most recent writes across all shoes
+  //   /shop/audit?key=…&id=c0446     → just that shoe's history
+  //   /shop/audit?key=…&grew=1       → ONLY the reverts (stock went up / un-sold)
+  //   &limit=N                        → how many (default 100, max 1000)
+  //   &offset=N                       → skip the newest N first, so the WHOLE trail is readable
+  //
+  // ⚠️ offset exists because of 2026-08-19: the audit held 4153 rows, limit capped at 1000 and
+  // there was no way to page past them — so an investigation could only ever see the last few
+  // days and had to say "earlier damage cannot be ruled out". It can now: page with
+  // offset=0,1000,2000… until `returned` comes back 0.
+  app.get('/shop/audit', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = req.query.id ? String(req.query.id) : '';
+    const onlyGrew = req.query.grew === '1' || req.query.grew === 'true';
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 1000);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const ua = req.query.ua ? String(req.query.ua).toLowerCase() : '';
+    let rows = state.shoeAudit || [];
+    if (id) rows = rows.filter(r => r.id === id);
+    if (onlyGrew) rows = rows.filter(r => r.grew);
+    if (ua) rows = rows.filter(r => String((r.src && r.src.ua) || '').toLowerCase().includes(ua));
+    const page = rows.slice(offset, offset + limit);
+    res.json({
+      total: (state.shoeAudit || []).length,
+      grewTotal: (state.shoeAudit || []).filter(r => r.grew).length,
+      matched: rows.length,
+      offset,
+      returned: page.length,
+      botWritesBlocked: (mount.botBlocks && mount.botBlocks.count) || 0,
+      lastBotWriteBlocked: (mount.botBlocks && mount.botBlocks.last) || null,
+      rows: page,
+    });
+  });
+
+  // ---- Notes / tasks ----
+  app.get('/shop/notes', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({ notes: state.notes });
+  });
+
+  let noteTimes = [];
+  /* ── TIKTOK CLIPS LIVE HERE, NOT ON CLOUDINARY ──────────────────────────
+   * Her photos go to Cloudinary and always have. Video cannot: the free plan
+   * caps ONE ASSET at 10 MB and a phone clip is 20-60 MB. Chunking does not help
+   * — the limit is on the finished asset, and the API says so outright ("Your
+   * file exceeds the Free plan upload limit"). The preset was a second, separate
+   * problem (sp242xx forces webp, which video uploads reject).
+   *
+   * So clips are stored on our own disk under DATA_DIR/clips/<date>/, which has
+   * no such ceiling, and served back with Range support so they scrub properly
+   * in a browser. Kept 21 days — long enough to post them, short enough that the
+   * volume never fills. The global body parsers step aside for this path (see
+   * server.js) so the upload reaches the route as a plain stream.
+   */
+  const CLIP_DIR = path.join(DATA_DIR, 'clips');
+  const CLIP_KEEP_DAYS = 21;
+  const CLIP_TYPES = { mp4:'video/mp4', mov:'video/quicktime', m4v:'video/x-m4v',
+                       webm:'video/webm', '3gp':'video/3gpp' };
+
+  function sweepClips() {
+    try {
+      const cutoff = Date.now() - CLIP_KEEP_DAYS * 86400000;
+      for (const day of fs.readdirSync(CLIP_DIR)) {
+        const t = Date.parse(day + 'T00:00:00Z');
+        if (!isFinite(t) || t >= cutoff) continue;
+        fs.rmSync(path.join(CLIP_DIR, day), { recursive: true, force: true });
+        console.log('[clips] swept', day);
+      }
+    } catch (_) { /* nothing stored yet */ }
+  }
+  try { fs.mkdirSync(CLIP_DIR, { recursive: true }); } catch (_) {}
+  sweepClips();
+  setInterval(sweepClips, 12 * 3600 * 1000).unref();
+
+  /* STREAM IT TO DISK. Do NOT buffer.
+   * express.raw holds the whole body in memory first, and a 60 mb clip took the
+   * whole app down with it — Railway answered 502 "Application failed to respond"
+   * and the process restarted, which on this server also means Kiki's bus loses
+   * its API for a few seconds. Measured 2026-09-23: 25 mb fine, 60 mb fatal.
+   * Piping the request straight into the file keeps memory flat whatever the size.
+   */
+  const CLIP_MAX_BYTES = 120 * 1024 * 1024;
+  app.post('/shop/clip', (req, res) => {
+    if (!auth(req, res)) return;
+    const date = String(req.query.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad date' });
+    const ext = String(req.query.ext || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4);
+    if (!CLIP_TYPES[ext]) return res.status(400).json({ error: 'not a video we serve' });
+    const declared = parseInt(req.headers['content-length'] || '0', 10);
+    if (declared && declared > CLIP_MAX_BYTES) {
+      return res.status(413).json({ error: 'that clip is too big — keep it under a minute' });
+    }
+    const shoe = String(req.query.shoe || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || 'shoe';
+    const name = shoe + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
+    const dir = path.join(CLIP_DIR, date);
+    const file = path.join(dir, name);
+    try { fs.mkdirSync(dir, { recursive: true }); }
+    catch (e) { return res.status(500).json({ error: 'could not save' }); }
+
+    let written = 0, failed = false;
+    const out = fs.createWriteStream(file);
+    const abort = (code, msg) => {
+      if (failed) return;
+      failed = true;
+      try { req.unpipe(out); } catch (_) {}
+      out.destroy();
+      fs.unlink(file, () => {});
+      if (!res.headersSent) res.status(code).json({ error: msg });
+    };
+    req.on('data', (c) => {
+      written += c.length;
+      if (written > CLIP_MAX_BYTES) abort(413, 'that clip is too big — keep it under a minute');
+    });
+    req.on('aborted', () => abort(400, 'upload stopped'));
+    out.on('error', (e) => { console.error('[clips] write failed', e.message); abort(500, 'could not save'); });
+    out.on('finish', () => {
+      if (failed) return;
+      if (!written) return abort(400, 'no file');
+      console.log('[clips] saved', date + '/' + name, (written / 1048576).toFixed(1) + 'mb');
+      res.json({ ok: true, url: '/shop/clip/' + date + '/' + name, bytes: written });
+    });
+    req.pipe(out);
+  });
+
+  app.get('/shop/clip/:date/:name', (req, res) => {
+    const date = String(req.params.date), name = String(req.params.name);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[A-Za-z0-9_.-]+$/.test(name) || name.indexOf('..') > -1) {
+      return res.status(400).type('text/plain').send('no');
+    }
+    const file = path.join(CLIP_DIR, date, name);
+    let st; try { st = fs.statSync(file); } catch (_) { return res.status(404).type('text/plain').send('gone'); }
+    const type = CLIP_TYPES[(name.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
+    res.set('Content-Type', type).set('Accept-Ranges', 'bytes').set('Cache-Control', 'private, max-age=3600');
+    // Range matters: without it a phone browser will not scrub, and some will not
+    // play at all — they ask for the first bytes before committing to the file.
+    const range = req.headers.range;
+    if (range) {
+      const m = /bytes=(\d*)-(\d*)/.exec(range) || [];
+      let start = m[1] ? parseInt(m[1], 10) : 0;
+      let end = m[2] ? parseInt(m[2], 10) : st.size - 1;
+      if (isNaN(start) || start < 0) start = 0;
+      if (isNaN(end) || end >= st.size) end = st.size - 1;
+      if (start > end) return res.status(416).set('Content-Range', 'bytes */' + st.size).end();
+      res.status(206)
+        .set('Content-Range', 'bytes ' + start + '-' + end + '/' + st.size)
+        .set('Content-Length', String(end - start + 1));
+      return fs.createReadStream(file, { start, end }).pipe(res);
+    }
+    res.set('Content-Length', String(st.size));
+    fs.createReadStream(file).pipe(res);
+  });
+
+  /* ── THE DAILY SHEET ────────────────────────────────────────────────────
+   * Read and write one day's floor work. Deliberately NOT routed through
+   * /shop/note: a note fires a WhatsApp blast and a push to every on-duty
+   * phone, and this saves every few seconds while she works. She sends one
+   * note at the end, on purpose.
+   */
+  app.get('/shop/daily', (req, res) => {
+    if (!auth(req, res)) return;
+    const d = String(req.query.date || '').slice(0, 10);
+    if (d) return res.json({ day: (state.daily || {})[d] || null });
+    // no date = the whole book, newest first, for whoever is posting the media
+    const all = state.daily || {};
+    const days = Object.keys(all).sort().reverse().slice(0, 30).map(k => all[k]);
+    res.json({ days });
+  });
+
+  app.post('/shop/daily', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const d = String(b.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return res.status(400).json({ error: 'bad date' });
+    state.daily = state.daily || {};
+    const prev = state.daily[d] || {};
+    state.daily[d] = Object.assign({}, prev, b.day || {}, {
+      date: d,
+      by: b.by || prev.by || '',
+      at: new Date().toISOString()
+    });
+    // 120 days is plenty to answer "what did we shoot last month" without the
+    // file growing forever.
+    const keys = Object.keys(state.daily).sort();
+    while (keys.length > 120) delete state.daily[keys.shift()];
+    persist('daily.json');
+    res.json({ ok: true, day: state.daily[d] });
+  });
+
+  app.post('/shop/note', async (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    if (!b.text || !String(b.text).trim()) return res.status(400).json({ error: 'empty note' });
+    // spam-guard: at most 12 new notes per minute (each can fire WhatsApp messages)
+    const nowMs = Date.now();
+    noteTimes = noteTimes.filter(t => nowMs - t < 60000);
+    if (noteTimes.length >= 12) return res.status(429).json({ error: 'too many notes, slow down' });
+    noteTimes.push(nowMs);
+    const note = {
+      id: uid(),
+      text: String(b.text).trim(),
+      kind: b.kind || 'task',           // 'task' | 'shoe'
+      shoeId: b.shoeId || null,
+      shoeLabel: b.shoeLabel || null,
+      by: b.by || 'Manager',
+      done: false, doneBy: null, doneAt: null,
+      createdAt: new Date().toISOString(),
+    };
+    state.notes.unshift(note);
+    if (state.notes.length > 500) state.notes.length = 500;
+    persist('notes.json'); bump();
+
+    // WhatsApp blast to employees (best effort, don't block the response long)
+    let delivery = [];
+    // 💵 A PAYOUT note = an employee just clocked out on the pay screen. Instead of a generic
+    // "new task", message THAT employee directly with tonight's expected float so Jess is
+    // already primed and waiting for their float photo (Rodney 2026-07-17).
+    const payoutFloat = /💵 PAYOUT/.test(note.text) ? /float should now hold \$([0-9]+(?:\.[0-9]+)?)/.exec(note.text) : null;
+    if (payoutFloat) {
+      const floatShould = parseFloat(payoutFloat[1]);
+      const empDigits = String((state.employees || {})[note.by] || '').replace(/[^0-9]/g, '');
+      const floatMsg = `🌙 Nice work today, ${note.by}! 👏\n\nTonight's float should come to *$${floatShould.toFixed(2)}*. Whenever you're ready, spread it on the table and snap me a quick photo right here 📸 — I'll count it up and close you out. 💵`;
+      if (empDigits) { try { const ok = await waSend(empDigits, floatMsg); delivery = [{ name: note.by, floatRequest: true, ok }]; } catch (_) {} }
+      sendPush(`Float time, ${note.by}`, `Tonight's float should be $${floatShould.toFixed(2)} — send Kiki a photo to close out`, '/').catch(() => {});
+    } else {
+      const label = note.kind === 'shoe' && note.shoeLabel ? `\n👟 ${note.shoeLabel}` : '';
+      const msg = `📋 New task from ${note.by}:\n${note.text}${label}\n\nOpen the app to see it. ✅`;
+      // Only the staff actually rostered on this slot (Rodney 2026-08-15) — deliveries moved
+      // to the rota on 14 Aug and he asked for tasks to follow. The author is still excluded,
+      // and blastOnDuty falls back to the Manager rather than reaching nobody.
+      try { delivery = await blastOnDuty(msg, note.by, 'task-board'); } catch (_) {}   // 🔕 a task he typed IS for her — see STAFF_TOPICS_ALLOWED
+      // Web push to installed staff phones (works when the app is closed).
+      const pushBody = note.kind === 'shoe' && note.shoeLabel ? `${note.text} — ${note.shoeLabel}` : note.text;
+      sendPush(`New task from ${note.by}`, pushBody, '/').catch(() => {});
+    }
+    res.json({ note, delivery });
+  });
+
+  // Register a device for web push (called by the website after a staff member
+  // allows notifications). Dedupes by endpoint so re-subscribing is harmless.
+  app.post('/shop/push/subscribe', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const sub = b.sub || b.subscription;
+    if (!sub || !sub.endpoint) return res.status(400).json({ error: 'no subscription' });
+    sub.by = b.by || 'staff';
+    sub.at = new Date().toISOString();
+    // 📱 WHAT KIND OF PHONE IS THIS? Eight devices were registered and every push came back
+    // "accepted" while Rodney saw nothing, and there was no way to tell from here whether any
+    // of them was even his handset. An iPhone's push address lives on push.apple.com and an
+    // Android or desktop Chrome's on fcm.googleapis.com, so the host is already a hint — this
+    // records the rest, once, at sign-up. Trimmed hard: it is a label, not a tracking record.
+    try { sub.ua = String(req.get('user-agent') || '').slice(0, 180); } catch (_) {}
+    state.subs = (state.subs || []).filter((s) => s.endpoint !== sub.endpoint);
+    state.subs.push(sub);
+    if (state.subs.length > 200) state.subs = state.subs.slice(-200);
+    persist('subs.json');
+    res.json({ ok: true, count: state.subs.length, pushEnabled: !!webpush });
+  });
+
+  // 👀 WHO WOULD BE RUNG RIGHT NOW? (Rodney 2026-08-21)
+  //
+  // The 20 Aug morning was lost to a question nobody could answer from outside: the rota had
+  // Deashinique on mornings and nobody on evenings, so four delivery alerts rang her phone and
+  // not his, and he only found out a day later. blastOnDuty's decision was written to the
+  // Railway console — and this project has no ssh, so the console is unreadable in practice.
+  //
+  // This makes the same decision readable without sending anything at all. Read-only, gated
+  // on DEBUG_KEY, no WhatsApp goes out. Pass ?at=2026-08-21T14:00:00Z to ask about any moment.
+  app.get('/shop/who-on-duty', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    let at = null;
+    if (req.query.at) { const d = new Date(req.query.at); if (!isNaN(d)) at = new Date(d.getTime() + NASSAU_OFFSET_H * 3600 * 1000); }
+    const n = at || nassauNow();
+    const nums = state.employees || {};
+    const rostered = onDutyNames(n);
+    let targets = rostered.filter(x => nums[x]);
+    let scope = 'on-duty';
+    const copied = ALWAYS_COPY.filter(x => nums[x] && targets.indexOf(x) === -1);
+    if (targets.length && copied.length) { targets = [...new Set([...targets, ...copied])]; scope = 'on-duty + owner copy'; }
+    if (!targets.length && nums.Manager) { targets = ['Manager']; scope = 'manager-fallback (nobody rostered has a number)'; }
+    if (!targets.length) { targets = Object.keys(nums); scope = 'everyone-fallback (no numbers for the rota)'; }
+    res.json({
+      nassauTime: n.toISOString().replace('T', ' ').slice(0, 16) + ' (Nassau)',
+      slot: currentSlot(n) || '(shop shut)',
+      rostered,
+      alwaysCopied: ALWAYS_COPY,
+      wouldRing: targets,
+      scope,
+      notRung: Object.keys(nums).filter(x => targets.indexOf(x) === -1),
+      hasNumber: Object.fromEntries(Object.keys(nums).map(x => [x, !!nums[x]])),
+    });
+  });
+
+  // 🔎 IS ANY PHONE ACTUALLY SUBSCRIBED? (Rodney 2026-08-19)
+  // He says agent alerts never reach his phone — he only hears them once he opens the app.
+  // The push wiring was all present (addAlert → sendPush, web-push installed, VAPID keys
+  // hardcoded so they work even with no Railway env vars), which left exactly one thing
+  // unknown and completely invisible: whether his device had ever registered. sendPush
+  // returns 0 and says nothing when the list is empty, so a silent phone and a broken
+  // server looked identical from outside. This makes the answer readable in one call.
+  // Read-only and deliberately shows NO subscription secrets — the auth keys and the p256dh
+  // are never returned, just enough to recognise a device. Gated on DEBUG_KEY like /last.
+  app.get('/shop/push/status', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    res.json({
+      pushEnabled: !!webpush,
+      count: subs.length,
+      devices: subs.map((s) => {
+        let host = '';
+        try { host = new URL(s.endpoint).host; } catch (_) {}
+        return {
+          by: s.by || 'staff',
+          at: s.at || null,
+          host,                                    // fcm/apple/mozilla — tells us the phone type
+          tail: String(s.endpoint || '').slice(-8), // enough to tell two devices apart
+          ua: s.ua || null,                        // only on sign-ups from 09 Sep on
+          // Has anything this device drew ever been reported back? sw.js posts to
+          // /shop/push/seen the moment a notification exists on screen, so this is the
+          // difference between "Google accepted it" and "a human could have seen it".
+          everDrew: (Array.isArray(state.pushSeen) ? state.pushSeen : [])
+            .some((r) => r.tail && String(s.endpoint || '').endsWith(r.tail)),
+        };
+      }),
+      // Sending options in force. Recorded here because "why did nothing arrive" was answered
+      // for two nights by reading the sending side and finding it healthy — the setting that
+      // was actually wrong (normal urgency, which Android parks while the phone dozes) was
+      // never visible anywhere. Now it is.
+      urgency: PUSH_OPTS.urgency,
+      ttlSeconds: PUSH_OPTS.TTL,
+      // The push service's own last refusal. Nothing else in here is evidence: a live
+      // subscription and an "accepted" both stay true while the phone shows nothing.
+      lastPushFail,
+    });
+  });
+
+  // 🔔 FIRE ONE REAL PUSH ON DEMAND (Rodney 2026-08-20: "the notification that I agreed to
+  // for the website... but still no notification. Probably only when I open Google because
+  // I didn't download the app.")
+  //
+  // Every part of the chain reads healthy — web-push installed, VAPID set, sw.js served
+  // since 19 Aug, seven live subscriptions — and a healthy chain that nobody has fired is
+  // indistinguishable from a broken one. `/shop/push/status` answers "is a phone
+  // registered". This answers the only question left: "does one actually ring." It reports
+  // per-device what the push service said, so a phone that has quietly gone dead shows up
+  // as a 404/410 instead of as silence.
+  //
+  // Worth knowing, because it is the thing he assumed: on Android you do NOT have to install
+  // the app for this to work. A plain Chrome tab is enough once notifications are allowed.
+  // ✅ PROOF A NOTIFICATION REACHED A SCREEN. sw.js posts here straight after
+  // showNotification, so unlike "accepted by Google" this cannot be true while Rodney sees
+  // nothing. It is the only honest signal in the chain and it needs no key: it carries no
+  // data worth faking and the worst a stranger can do is make us think alerts are working,
+  // which is why `tail` is checked against the phones we already know about.
+  app.post('/shop/push/seen', (req, res) => {
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const tail = String(b.tail || '').slice(-24);
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    const known = tail.length >= 12 && subs.some(x => String(x.endpoint || '').endsWith(tail));
+    const row = { at: new Date().toISOString(), tail: tail || null, known,
+                  title: String(b.title || '').slice(0, 80), tag: String(b.tag || '').slice(0, 40) };
+    state.pushSeen = [row].concat(Array.isArray(state.pushSeen) ? state.pushSeen : []).slice(0, 100);
+    // Persisted deliberately: the question this answers is "has ANY alert ever been drawn on
+    // a real screen", and an answer that resets on every deploy could never say "never".
+    persist('pushSeen.json');
+    res.json({ ok: true });
+  });
+  app.get('/shop/push/seen', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    const seen = Array.isArray(state.pushSeen) ? state.pushSeen : [];
+    const tails = {};
+    for (const r of seen) if (r.tail) tails[r.tail] = (tails[r.tail] || 0) + 1;
+    // `everSeen` counts ONLY reports from a device the server knows about. A stranger posting
+    // here must not be able to make the alert channel look healthy — that is the exact lie
+    // this endpoint exists to catch.
+    const real = seen.filter((r) => r.known);
+    res.json({ ok: true, everSeen: real.length > 0, count: real.length, unknownReports: seen.length - real.length,
+               newest: real[0] || null, byDevice: tails, recent: seen.slice(0, 25) });
+  });
+
+  // ❓ IS THIS EXACT PHONE ON THE LIST THE SERVER SENDS TO? The failure we could not see was
+  // a phone signed up against one address while the server holds another — the send is then
+  // "accepted" forever and nothing ever appears. Only the phone itself knows its own address,
+  // so it has to be the one to ask. Takes the last chunk of that address, which is already a
+  // long random token, and answers yes/no. No key: it reveals nothing you did not already have.
+  // ═══ 🚚 THE CONFIRM LINK ════════════════════════════════════════════════════
+  // Every order alert now lands in the drivers' group, so five people read the same
+  // job. Without this, two drivers run the same delivery and a third assumes someone
+  // else has it. The link at the bottom of each alert opens this page: two buttons,
+  // first tap wins, and the outcome goes straight back to the group so the rest of
+  // them stop. It is deliberately keyless — the id is a long random string that only
+  // arrives inside the alert, and the page can do nothing except close its own job.
+  app.get('/j/:id', (req, res) => {
+    const j = (Array.isArray(state.jobs) ? state.jobs : []).find(x => x.id === String(req.params.id));
+    if (!j) return res.status(404).type('text/html').send(jobPage(null));
+    res.set('Cache-Control', 'no-store').type('text/html').send(jobPage(j));
+  });
+
+  app.post('/j/:id/close', (req, res) => {
+    const jobs = Array.isArray(state.jobs) ? state.jobs : [];
+    const j = jobs.find(x => x.id === String(req.params.id));
+    if (!j) return res.json({ ok: false, why: 'that job is gone' });
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const want = String(b.outcome || '').toLowerCase() === 'sold' ? 'sold' : 'failed';
+    const who = String(b.by || '').trim().slice(0, 40) || 'someone';
+    const note = String(b.note || '').trim().slice(0, 200);
+
+    // FIRST TAP WINS. If it is already closed, say who closed it rather than
+    // overwriting — two drivers tapping opposite buttons must not silently fight.
+    if (j.state && j.state !== 'open') {
+      return res.json({ ok: false, already: true, state: j.state, by: j.by || 'someone',
+                        why: 'Already marked ' + j.state.toUpperCase() + ' by ' + (j.by || 'someone') });
+    }
+    j.state = want; j.by = who; j.atDone = new Date().toISOString(); if (note) j.note = note;
+    persist('jobs.json');
+
+    // Tell the group. This is the half that stops the other four drivers.
+    try {
+      const head = want === 'sold' ? '✅ SOLD' : '❌ DIDN’T SELL';
+      const line = head + ' — ' + (j.title || 'job') + '\nBy ' + who + (note ? '\n"' + note + '"' : '')
+                 + '\nNobody else needs to run this one.';
+      if (typeof onJobClosed === 'function') onJobClosed(line, j, want);
+    } catch (_) {}
+    res.json({ ok: true, state: want, by: who });
+  });
+
+  function jobPage(j) {
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    if (!j) return '<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">'
+      + '<body style="background:#111;color:#eee;font:17px/1.5 system-ui;padding:28px">'
+      + '<h2>That job is gone</h2><p>The link is old, or the job was cleared. '
+      + 'Open the shop and check the board.</p>';
+    const closed = j.state && j.state !== 'open';
+    return '<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">'
+      + '<title>' + esc(j.title || 'Delivery') + '</title>'
+      + '<body style="background:#111;color:#eee;font:17px/1.55 system-ui;margin:0;padding:22px 18px 60px">'
+      + '<div style="max-width:520px;margin:0 auto">'
+      + '<div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8b8b8b">Delivery job</div>'
+      + '<h1 style="font-size:24px;margin:6px 0 14px">' + esc(j.title || 'Delivery') + '</h1>'
+      + '<pre style="white-space:pre-wrap;word-wrap:break-word;background:#1c1c1c;border-radius:12px;'
+      + 'padding:14px;font:15px/1.5 system-ui;margin:0 0 20px">' + esc(j.text || '') + '</pre>'
+      + '<div id=box>' + (closed
+          ? '<div style="background:#1f3a1f;border-radius:12px;padding:16px;font-size:18px">'
+            + (j.state === 'sold' ? '✅ Marked SOLD' : '❌ Marked DIDN’T SELL')
+            + ' by ' + esc(j.by || 'someone') + '</div>'
+          : '<input id=who placeholder="Your name" autocomplete=name '
+            + 'style="width:100%;box-sizing:border-box;padding:14px;border-radius:12px;border:1px solid #3a3a3a;'
+            + 'background:#1c1c1c;color:#eee;font-size:17px;margin-bottom:10px">'
+            + '<input id=note placeholder="Anything to add? (optional)" '
+            + 'style="width:100%;box-sizing:border-box;padding:14px;border-radius:12px;border:1px solid #3a3a3a;'
+            + 'background:#1c1c1c;color:#eee;font-size:17px;margin-bottom:16px">'
+            + '<button onclick="go(\'sold\')" style="width:100%;padding:20px;font-size:20px;font-weight:600;'
+            + 'border:0;border-radius:14px;background:#1d7f3a;color:#fff;margin-bottom:12px">✅ SOLD IT</button>'
+            + '<button onclick="go(\'failed\')" style="width:100%;padding:20px;font-size:20px;font-weight:600;'
+            + 'border:0;border-radius:14px;background:#8a2222;color:#fff">❌ DIDN’T SELL</button>') + '</div>'
+      + '<p style="color:#8b8b8b;font-size:14px;margin-top:22px">Whoever taps first closes this for everyone. '
+      + 'The group gets told straight away so nobody doubles up.</p></div>'
+      + '<script>function go(o){var b=document.getElementById("box");'
+      + 'var who=(document.getElementById("who")||{}).value||"";'
+      + 'var note=(document.getElementById("note")||{}).value||"";'
+      + 'if(!who.trim()){alert("Put your name in first so the group knows who has it.");return;}'
+      + 'b.innerHTML=\'<div style="padding:16px;font-size:18px">Sending\\u2026</div>\';'
+      + 'fetch(location.pathname+"/close",{method:"POST",headers:{"Content-Type":"application/json"},'
+      + 'body:JSON.stringify({outcome:o,by:who,note:note})}).then(function(r){return r.json();})'
+      + '.then(function(j){b.innerHTML=\'<div style="background:\'+(j.ok?"#1f3a1f":"#3a2a1f")+\';border-radius:12px;padding:16px;font-size:18px">\'+'
+      + '(j.ok?(o==="sold"?"\\u2705 Marked SOLD. The group has been told.":"\\u274c Marked did not sell. The group has been told."):'
+      + '(j.why||"Could not save that \\u2014 tap again."))+\'</div>\';})'
+      + '.catch(function(){b.innerHTML=\'<div style="background:#3a2a1f;border-radius:12px;padding:16px">No signal. Tap again when you have bars.</div>\';});}<\/script>';
+  }
+
+  app.get('/shop/push/known', (req, res) => {
+    const tail = String(req.query.tail || '');
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    const known = tail.length >= 12 && subs.some(s => String(s.endpoint || '').endsWith(tail));
+    res.json({ ok: true, known, total: subs.length });
+  });
+
+  // 📱 RING THIS EXACT PHONE — no key needed, and safe without one: it will only push to a
+  // subscription the server ALREADY holds, and the endpoint string is a long unguessable
+  // token the caller must already possess. Used by /push-check so Rodney can prove the last
+  // step from his own hand. "Accepted by Google" was true for weeks while nothing rang, so a
+  // server-side success is worth nothing here — only he can see whether it appears.
+  app.post('/shop/push/selftest', async (req, res) => {
+    if (!webpush) return res.json({ ok: false, why: 'web-push not installed' });
+    const ep = String((req.body && req.body.endpoint) || '');
+    const sub = (Array.isArray(state.subs) ? state.subs : []).find(s => s.endpoint === ep);
+    if (!sub) return res.json({ ok: false, why: 'this phone is not linked to the shop yet' });
+    const payload = JSON.stringify({ title: '🔔 It works', body: 'Notifications can reach this phone. This is what an order alert will look like.', url: '/', tag: 'plug242-selftest' });
+    try { await webpush.sendNotification(sub, payload, PUSH_OPTS); res.json({ ok: true }); }
+    catch (e) { res.json({ ok: false, why: String((e && e.body) || (e && e.message) || e).slice(0, 160), code: e && e.statusCode }); }
+  });
+
+  // 🩺 WHAT DID HIS PHONE ACTUALLY REPORT? The whole reason this went undetected is that every
+  // signal the server had said success. This lets the check page post its findings back, so a
+  // session can read the client-side truth (permission state, worker, subscription) instead of
+  // asking him to read a screen out. Kept in memory only — it is a diagnostic, not a record.
+  const _diags = [];
+  app.post('/shop/push/diag', (req, res) => {
+    const r = (req.body && typeof req.body === 'object') ? req.body : {};
+    _diags.unshift({ at: new Date().toISOString(), ...r });
+    if (_diags.length > 20) _diags.length = 20;
+    res.json({ ok: true });
+  });
+  app.get('/shop/push/diag', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    res.json({ ok: true, count: _diags.length, diags: _diags });
+  });
+
+  app.get('/shop/push/test', async (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    if (!webpush) return res.json({ ok: false, why: 'web-push not installed' });
+    // ?by=Manager rings only Rodney's own phones. Without it this wakes every registered
+    // device, and the answer to "does MY phone ring" is not worth waking the staff at 3am
+    // to get. Substring match, case-insensitive, so ?by=mana works.
+    const _who = String(req.query.by || '').trim().toLowerCase();
+    let subs = Array.isArray(state.subs) ? state.subs : [];
+    if (_who) subs = subs.filter(s => String(s.by || '').toLowerCase().includes(_who));
+    const _tail = String(req.query.tail || '').trim();
+    if (_tail) subs = subs.filter(s => String(s.endpoint || '').endsWith(_tail));
+    const payload = JSON.stringify({
+      title: req.query.title || '🔔 Test from Kiki',
+      body: req.query.body || 'If you can read this, notifications are working on this phone.',
+      url: '/', tag: 'plug242-test',
+    });
+    const out = [];
+    for (const s of subs) {
+      let host = ''; try { host = new URL(s.endpoint).host; } catch (_) {}
+      const tail = String(s.endpoint || '').slice(-8);
+      try { await webpush.sendNotification(s, payload, PUSH_OPTS); out.push({ by: s.by || 'staff', host, tail, ok: true }); }
+      catch (e) { out.push({ by: s.by || 'staff', host, tail, ok: false, code: e && e.statusCode, why: String((e && e.body) || (e && e.message) || e).slice(0, 120) }); }
+    }
+    res.json({ ok: true, filteredBy: _who || null, tried: out.length, accepted: out.filter(x => x.ok).length, devices: out });
+  });
+
+  // Re-seed a note that already exists on a device but is missing on the server
+  // (e.g. after a restart). Idempotent, and does NOT fire WhatsApp again.
+  app.post('/shop/note/restore', (req, res) => {
+    if (!auth(req, res)) return;
+    const n = (req.body && req.body.note) || null;
+    if (!n || !n.id) return res.status(400).json({ error: 'bad note' });
+    if (!state.notes.some(x => x.id === n.id)) {
+      state.notes.unshift(n);
+      state.notes.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      if (state.notes.length > 500) state.notes.length = 500;
+      persist('notes.json'); bump();
+    }
+    res.json({ ok: true });
+  });
+
+  app.post('/shop/note/done', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const n = state.notes.find(x => x.id === b.id);
+    if (!n) return res.status(404).json({ error: 'not found' });
+    n.done = !!(b.done == null ? true : b.done);
+    n.doneBy = n.done ? (b.by || 'Employee') : null;
+    n.doneAt = n.done ? new Date().toISOString() : null;
+    persist('notes.json'); bump();
+    res.json({ note: n });
+  });
+
+  app.post('/shop/note/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const before = state.notes.length;
+    state.notes = state.notes.filter(x => x.id !== b.id);
+    if (state.notes.length !== before) { persist('notes.json'); bump(); }
+    res.json({ ok: true });
+  });
+
+  // ---- Date tasks (queued into a SPECIFIC evening's WhatsApp shift reminder,
+  // alongside the 7 rotating social-media shoes — NOT an instant alert) ----
+  app.get('/shop/date-tasks', (req, res) => {
+    if (!auth(req, res)) return;
+    const date = String(req.query.date || '').slice(0, 10);
+    res.json({ ok: true, tasks: date ? getDateTasks(date) : (state.dateTasks || {}) });
+  });
+  app.post('/shop/date-task', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const date = String(b.date || '').slice(0, 10);
+    const text = String(b.text || '').trim();
+    if (!date || !text) return res.status(400).json({ error: 'date and text required' });
+    const task = addDateTask(date, text, b.by);
+    res.json({ ok: true, task });
+  });
+  app.post('/shop/date-task/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const ok = deleteDateTask(String(b.date || '').slice(0, 10), b.id);
+    res.json({ ok });
+  });
+
+  // ---- Employees (so the server knows who to WhatsApp) ----
+  app.post('/shop/employees', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    if (b.numbers && typeof b.numbers === 'object') {
+      // merge: union of names, a non-empty incoming number replaces a blank one
+      Object.keys(b.numbers).forEach(function (n) {
+        if (state.deletedStaff.includes(n)) return; // never re-add a removed staffer
+        if (b.numbers[n] || !state.employees[n]) state.employees[n] = b.numbers[n];
+      });
+      persist('employees.json'); bump();
+    }
+    res.json({ employees: state.employees });
+  });
+
+  // ---- Login accounts + roles (so a staffer added on one phone appears on all) ----
+  // Merge, never clobber: union of names; a non-empty value wins over a blank.
+  app.post('/shop/accounts', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    function mergeInto(target, src) {
+      if (!src || typeof src !== 'object') return;
+      Object.keys(src).forEach(function (k) {
+        if (state.deletedStaff.includes(k)) return; // never re-add a removed staffer
+        if (src[k] || !target[k]) target[k] = src[k];
+      });
+    }
+    mergeInto(state.accounts, b.accounts);
+    mergeInto(state.roles, b.roles);
+    mergeInto(state.employees, b.numbers);
+    persist('accounts.json'); persist('roles.json'); persist('employees.json'); bump();
+    res.json({ accounts: state.accounts, roles: state.roles, employees: state.employees });
+  });
+
+  // ── 🔐 SERVER-VERIFIED STAFF LOGIN ────────────────────────────────────────────
+  // The website used to keep the login pattern ONLY in the browser's localStorage, so it
+  // asked "set your pattern (first time)" on every new device/address and ANYONE could set
+  // one and walk in. Now the pattern is verified HERE (hashed + salted, never plaintext) so
+  // it's the same on every device and can't be reset by opening a fresh browser.
+  function hashPattern(pattern, salt) {
+    return crypto.createHash('sha256').update(String(salt) + '|' + String(pattern)).digest('hex');
+  }
+  const loginFails = new Map(); // name -> { n, until } — simple brute-force throttle
+  const MASTER_PIN = process.env.STAFF_MASTER_PIN || ''; // optional owner recovery pattern (set in Railway)
+  app.post('/shop/login', (req, res) => {
+    const b = req.body || {};
+    const name = String(b.name || '').trim();
+    const pattern = String(b.pattern || '');
+    if (!name || !pattern) return res.json({ ok: false, error: 'name and pattern required' });
+    // throttle: 6 wrong tries → locked 60s
+    const f = loginFails.get(name);
+    if (f && f.until > Date.now()) return res.json({ ok: false, locked: true, error: 'Too many tries — wait a minute.' });
+    // owner recovery: a master PIN set in Railway always works (and never gets stored/created here)
+    // 🔑 Every success hands back the write key — it is no longer printed in storefront.html,
+    // so this is how a staff phone comes to hold one (Rodney 2026-08-20).
+    if (MASTER_PIN && pattern === MASTER_PIN) { loginFails.delete(name); return res.json({ ok: true, master: true, key: SHOP_KEY }); }
+    const rec = state.logins[name];
+    if (!rec || !rec.hash) {
+      // No pattern on file for this name yet.
+      if (b.set === true) {
+        const salt = crypto.randomBytes(8).toString('hex');
+        state.logins[name] = { hash: hashPattern(pattern, salt), salt, setAt: new Date().toISOString() };
+        persist('logins.json');
+        loginFails.delete(name);
+        return res.json({ ok: true, firstTime: true, key: SHOP_KEY });
+      }
+      return res.json({ ok: false, needSetup: true }); // tell the site to run its "draw twice" setup
+    }
+    const good = hashPattern(pattern, rec.salt) === rec.hash;
+    if (good) { loginFails.delete(name); return res.json({ ok: true, key: SHOP_KEY }); }
+    const n = ((f && f.n) || 0) + 1;
+    loginFails.set(name, { n, until: n >= 6 ? Date.now() + 60000 : 0 });
+    return res.json({ ok: false });
+  });
+  // Manager reset: clear a staffer's pattern so they can set a fresh one (needs the shop key).
+  app.post('/shop/login/clear', (req, res) => {
+    if (!auth(req, res)) return;
+    const name = String((req.body && req.body.name) || '').trim();
+    if (name && state.logins[name]) { delete state.logins[name]; persist('logins.json'); }
+    loginFails.delete(name);
+    res.json({ ok: true });
+  });
+
+  // ---- Remove a staff member entirely (name → gone from accounts/roles/employees) ----
+  // The add endpoints only merge, so there was no way to delete a staffer (e.g. old test
+  // accounts). Accepts { name } or { names: [...] } and wipes each from all three maps.
+  app.post('/shop/staff/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const names = Array.isArray(b.names) ? b.names : (b.name ? [b.name] : []);
+    names.forEach(function (n) {
+      n = String(n);
+      delete state.accounts[n];
+      delete state.roles[n];
+      delete state.employees[n];
+      if (!state.deletedStaff.includes(n)) state.deletedStaff.push(n); // tombstone so no device re-adds it
+    });
+    if (names.length) { persist('accounts.json'); persist('roles.json'); persist('employees.json'); persist('deletedStaff.json'); bump(); }
+    res.json({ ok: true, removed: names, deletedStaff: state.deletedStaff, accounts: state.accounts, roles: state.roles, employees: state.employees });
+  });
+
+  // ---- Sales (append; deviceId+id dedupe) ----
+  app.post('/shop/sale', (req, res) => {
+    if (!auth(req, res)) return;
+    const s = (req.body && req.body.sale) || null;
+    if (!s || s.id == null) return res.status(400).json({ error: 'bad sale' });
+    if (!state.sales.some(x => x.id === s.id)) {
+      state.sales.unshift(s);
+      if (state.sales.length > MAX_SALES) state.sales.length = MAX_SALES;
+      persist('sales.json'); bump();
+      // Shrink the matching shoe's stock right here, server-side — see applySaleToStock.
+      try { applySaleToStock(req, s); } catch (e) { console.error('[shop] applySaleToStock failed:', e.message); }
+    }
+    res.json({ ok: true, count: state.sales.length });
+  });
+
+  // Void/reverse a sale — remove it from the shared register by id.
+  app.post('/shop/sale/void', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = req.body && req.body.id;
+    if (id == null) return res.status(400).json({ error: 'no id' });
+    const before = state.sales.length;
+    const voided = state.sales.find(x => String(x.id) === String(id));
+    state.sales = state.sales.filter(x => String(x.id) !== String(id));
+    // Drop any pinned payment proof for a voided sale so it doesn't orphan on disk.
+    if (state.proofs && state.proofs[String(id)]) { delete state.proofs[String(id)]; persist('proofs.json'); }
+    if (state.sales.length !== before) {
+      persist('sales.json'); bump();
+      // Put the size back — see applyVoidToStock. This is now the ACTUAL restock, not
+      // just a note saying voiding is "the correct way" while nothing enforced it.
+      if (voided) { try { applyVoidToStock(req, voided); } catch (e) { console.error('[shop] applyVoidToStock failed:', e.message); } }
+    }
+    res.json({ ok: true, removed: before - state.sales.length, count: state.sales.length });
+  });
+
+  // Serve a sale's pinned payment-proof screenshot. Auth is via ?key= so a plain
+  // <img> tag on the website can load it. Returns the raw image bytes, or 404 if none.
+  app.get('/shop/proof/:saleId', (req, res) => {
+    if (!auth(req, res)) return;
+    const p = state.proofs[String(req.params.saleId)];
+    if (!p || !p.data) return res.status(404).json({ error: 'no proof for this sale' });
+    try {
+      const buf = Buffer.from(p.data, 'base64');
+      res.set('Content-Type', p.media_type || 'image/jpeg');
+      res.set('Cache-Control', 'private, max-age=86400');
+      res.send(buf);
+    } catch (e) { res.status(500).json({ error: 'decode failed' }); }
+  });
+
+  // ---- Activity log (append; id dedupe) ----
+  app.post('/shop/log', (req, res) => {
+    if (!auth(req, res)) return;
+    const e = (req.body && req.body.entry) || null;
+    if (!e || e.id == null) return res.status(400).json({ error: 'bad entry' });
+    if (!state.log.some(x => x.id === e.id)) {
+      state.log.unshift(e);
+      if (state.log.length > MAX_LOG) state.log.length = MAX_LOG;
+      persist('log.json'); bump();
+    }
+    res.json({ ok: true });
+  });
+
+  // Remove one or more log entries by id (cleanup of bad/duplicate activity rows).
+  app.post('/shop/log/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    let ids = (req.body && req.body.ids) || (req.body && req.body.id != null ? [req.body.id] : []);
+    if (!Array.isArray(ids)) ids = [ids];
+    const set = {}; ids.forEach(i => { set[String(i)] = true; });
+    const before = state.log.length;
+    state.log = state.log.filter(x => !set[String(x.id)]);
+    if (state.log.length !== before) { persist('log.json'); bump(); }
+    res.json({ ok: true, removed: before - state.log.length });
+  });
+
+  // ---- Inventory (upsert by id; delete) ----
+  app.post('/shop/shoe', (req, res) => {
+    if (!auth(req, res)) return;
+    const sh = (req.body && req.body.shoe) || null;
+    if (!sh || sh.id == null) return res.status(400).json({ error: 'bad shoe' });
+    // NEVER resurrect a deleted shoe: if it's tombstoned, reject the push. This is
+    // the key guard — a device with stale data can otherwise re-add a deleted shoe.
+    // 🧹 DON'T LET REFUSED-DELETED PUSHES DROWN THE AUDIT (Rodney 2026-08-15). Old cached
+    // apps re-push tombstoned shoes on every sync; blocking them is right, but writing an
+    // audit row each time cost 963 of the last 1000 rows and cut the usable write history
+    // to about 3 days — so when a shoe genuinely went wrong, the evidence had already rolled
+    // off. Record the FIRST one per shoe per hour (enough to spot a device stuck on old data)
+    // and drop the repeats. The storefront now filters the graveyard out of its push too, so
+    // this only has to cover phones still running an old cached copy of the app.
+    if (state.deleted.includes(sh.id)) {
+      const lastAt = deletedPushAudited.get(sh.id) || 0;
+      if (Date.now() - lastAt > DELETED_AUDIT_GAP_MS) {
+        deletedPushAudited.set(sh.id, Date.now());
+        auditShoe(req, sh.id, 'skipped-deleted', null, sh);
+      }
+      return res.json({ ok: true, skipped: 'deleted' });
+    }
+    if (!Array.isArray(state.shoes)) state.shoes = [];
+    const i = state.shoes.findIndex(x => x.id === sh.id);
+    const _before = i > -1 ? JSON.parse(JSON.stringify(state.shoes[i])) : null;
+    if (i > -1) {
+      // NEWEST-WINS: refuse a push that is OLDER than what we already store. This is the
+      // hard lock that stops a stale device from reverting prices/stock on the server —
+      // the exact thing that reverted the whole inventory.
+      // ALSO refuse a TIMELESS push (no updatedAt at all) from overwriting a shoe we already
+      // hold. A timeless push comes from an OLD cached copy of the app; it used to tie
+      // (0 === 0) against a timeless stored shoe and clobber a real edit. Now it can only ADD
+      // brand-new shoes, never overwrite an existing one. This closes the last revert hole.
+      const exT = (state.shoes[i].updatedAt || state.shoes[i].createdAt || 0);
+      const inT = (sh.updatedAt || sh.createdAt || 0);
+
+      // 🧭 THE ROOT CURE (Rodney 2026-08-15): stop trusting the pushing device's clock.
+      //
+      // Every guard above this line is a patch on one symptom, and they exist because the
+      // staleness test itself was unreliable: a phone that has been sitting open all day
+      // still stamps Date.now() at push time, so its ANCIENT data arrives wearing a fresh
+      // timestamp and walks straight through "newest wins". The device is the only witness
+      // to its own freshness, and it is not a reliable one.
+      //
+      // The server already hands every client a revision number with /shop/state, and the
+      // app already remembers it. So ask for it back. A client that last synced at rev 400
+      // and is pushing while the server is on 412 is provably eleven revisions behind, no
+      // matter what its clock says. That is a staleness signal the stale device cannot fake.
+      //
+      // Backwards compatible on purpose: old cached copies of the app send no baseRev and
+      // keep the old behaviour — they are the very devices causing this, and they cannot be
+      // made to send anything. This closes the hole for every client from here on, and the
+      // existing guards still cover the ones that never update.
+      // ⚠️ PER-SHOE, NOT GLOBAL (corrected the same day it shipped). The first cut of this
+      // compared the client's global revision against the server's, which is far too coarse:
+      // the revision bumps on ANY write — a sale on another shoe, a note, a log line. So a
+      // manager editing shoe A would be refused because Kiki had just sold shoe B. Rodney
+      // already sees "did NOT save" from time to time; that version would have made it
+      // constant, and a refusal people learn to ignore is worse than no refusal at all.
+      //
+      // The real question is narrower: has THIS shoe moved under this device since it last
+      // saw it? The client sends the updatedAt it last received for this exact shoe, and if
+      // what we hold is newer, its copy is out of date — regardless of clocks, and regardless
+      // of what happened to any other shoe.
+      const baseUpd = Number(req.body && req.body.baseUpdatedAt);
+      const revStale = Number.isFinite(baseUpd) && baseUpd > 0 && exT > baseUpd;
+
+      if (inT === 0 || inT < exT || revStale) {
+        // A HAND EDIT FROM A STALE APP IS REFUSED OUTRIGHT, NOT HALF-APPLIED. Someone typed
+        // this into the edit form on a device showing old data — so their "correct" list is
+        // built on stock that has since moved. Quietly taking the shrink would delete whatever
+        // changed in between; quietly dropping it would be the silent revert we are trying to
+        // kill. The app already knows what to do with skipped:'stale' — it shouts at the user
+        // to refresh and redo, which is the only honest outcome.
+        if (revStale && sh._manualEdit) {
+          delete sh._manualEdit;
+          auditShoe(req, sh.id, 'skipped-stale', _before, sh,
+                    { why: 'hand edit against a stale copy of this shoe — device last saw ' + new Date(baseUpd).toISOString() + ', stored is ' + new Date(exT).toISOString() });
+          return res.json({ ok: true, skipped: 'stale' });
+        }
+        // A SALE MUST NEVER BE DROPPED (2026-07-14, the Foamposite revert): a timeless/older
+        // push that only SHRINKS stock — same-or-fewer sizes and/or flips sold ON — is a human
+        // marking a sale on a phone running an old cached app. Silently skipping it meant the
+        // sale "reverted" and the bot kept offering a sold shoe. Accept JUST the shrink (sizes /
+        // sold flag), keep everything else (price, name edits) from the newer stored copy, and
+        // stamp it with server time. GROWTH (sizes reappearing, un-solding, price changes) from
+        // a stale push stays blocked — that's the classic resurrection bug this lock exists for.
+        const ex = state.shoes[i];
+        const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[s] = (m[s] || 0) + 1, m), {});
+        const inC = count(sh.sizes), exC = count(ex.sizes);
+        const subset = Object.keys(inC).every(s => inC[s] <= (exC[s] || 0));
+        const fewer = (Array.isArray(sh.sizes) ? sh.sizes.length : 0) < (Array.isArray(ex.sizes) ? ex.sizes.length : 0);
+        const soldFlip = !!sh.sold && !ex.sold;
+        if (subset && (fewer || soldFlip)) {
+          // …but never let it delete a size a human added by hand — see keepManualRestock.
+          const { sizes: safeSizes, kept } = keepManualRestock(sh.id, ex, sh);
+          state.shoes[i] = Object.assign({}, ex, { sizes: safeSizes, sold: (!!sh.sold || !!ex.sold) && !kept.length, updatedAt: Date.now() });
+          persist('shoes.json'); bump();
+          auditShoe(req, sh.id, 'shrink-from-stale-app', _before, state.shoes[i], kept.length ? { restockKept: kept } : undefined);
+          if (kept.length) alertRestockKept(sh.id, kept, req);
+          return res.json({ ok: true, accepted: 'shrink-from-stale-app', restock_kept: kept.length ? kept : undefined });
+        }
+        auditShoe(req, sh.id, 'skipped-stale', _before, sh, { why: inT === 0 ? 'no timestamp on the push' : 'push older than stored' });
+        return res.json({ ok: true, skipped: 'stale' });
+      }
+      // Even a push that LOOKS newest can carry stale content (see stripRevertedSizes) —
+      // strip out any size trying to reappear after it was deliberately removed before
+      // trusting the rest of this "newer" push. EXCEPTION: a push flagged _manualEdit came
+      // from a human who just typed this exact size list into the edit form and hit Save —
+      // that's a deliberate restock, not a stale device, so it skips the strip entirely
+      // (Rodney 2026-08-02: the guard was silently stripping a real restock of a size that
+      // happened to have sold recently — indistinguishable from a revert by pattern alone,
+      // so a genuine manual edit has to say so explicitly instead of being pattern-matched).
+      // The flag itself never gets stored — it only ever applies to THIS one push.
+      const isManualEdit = !!sh._manualEdit;
+      if (sh._manualEdit != null) delete sh._manualEdit;
+      const { shoe: safeShoe, blocked } = isManualEdit
+        ? { shoe: sh, blocked: [] }
+        : stripRevertedSizes(sh.id, state.shoes[i], sh);
+      state.shoes[i] = safeShoe;
+      auditShoe(req, sh.id, 'accepted', _before, safeShoe, blocked.length ? { revertBlocked: blocked } : (isManualEdit ? { via: 'manual-edit' } : undefined));
+      if (blocked.length) alertRevertBlocked(sh.id, blocked, _before, safeShoe, req);
+    } else {
+      // FIRST-EVER PUSH FOR THIS ID — nothing to compare it against, so a stale device's
+      // "everything looks fine" local copy would otherwise be accepted with zero checks
+      // (2026-07-24: sold-out catalog items reappearing in stock). For a CATALOG shoe, refuse
+      // a first push that claims MORE stock than the catalog's own immutable baseline — a
+      // genuinely full-stock item never needed pushing in the first place, so this only ever
+      // blocks a resurrection, never a real sale/edit (which always SHRINKS or matches stock).
+      const base = sh._catalog ? CATALOG_BASE[sh.id] : null;
+      if (base && Array.isArray(base.sizes)) {
+        const count = (arr) => (Array.isArray(arr) ? arr : []).reduce((m, s) => (m[s] = (m[s] || 0) + 1, m), {});
+        const baseC = count(base.sizes), inC = count(sh.sizes);
+        const overStock = Object.keys(inC).some(s => inC[s] > (baseC[s] || 0));
+        if (overStock) { auditShoe(req, sh.id, 'resurrection-guard', { sizes: base.sizes, sold: false }, sh, { why: 'first push claims more stock than the catalog baseline' }); return res.json({ ok: true, skipped: 'resurrection-guard' }); }
+      }
+      state.shoes.push(sh);
+      auditShoe(req, sh.id, 'added', null, sh);
+    }
+    persist('shoes.json'); bump();
+    res.json({ ok: true });
+  });
+
+  // 🔥 Put a shoe ON SALE (or take it off). Rodney wanted customers to SEE that a price is a
+  // sale price rather than just a lower number (2026-07-29). Deliberately a flag + the old
+  // price, NOT free text in the price box — the price must stay a real number or the sales
+  // reports, totals and price searches all break.
+  //   POST /shop/shoe/sale  { id, sale: true, price: 60, wasPrice: 120 }
+  //   POST /shop/shoe/sale  { id, sale: false }          → back to a normal price
+  // price/wasPrice are optional: leave wasPrice out and it remembers what the shoe costs now.
+  app.post('/shop/shoe/sale', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    if (b.id == null) return res.status(400).json({ error: 'bad id' });
+    if (!Array.isArray(state.shoes)) state.shoes = [];
+    const i = state.shoes.findIndex(x => String(x.id) === String(b.id));
+    if (i < 0) return res.status(404).json({ error: 'shoe not found in shop state' });
+    const cur = state.shoes[i];
+    const on = b.sale !== false && b.sale !== 'false' && b.sale !== 0;
+    const before = JSON.parse(JSON.stringify(cur));
+    if (on) {
+      // Remember what it USED to cost so the label can show it struck through.
+      const oldPrice = (b.wasPrice != null) ? Number(b.wasPrice)
+                     : (cur.wasPrice != null ? cur.wasPrice : cur.price);
+      cur.sale = true;
+      if (oldPrice != null && !isNaN(oldPrice)) cur.wasPrice = oldPrice;
+      if (b.price != null && !isNaN(Number(b.price))) cur.price = Number(b.price);
+    } else {
+      cur.sale = false;
+      // Coming OFF sale restores the pre-sale price unless a new one was given.
+      if (b.price != null && !isNaN(Number(b.price))) cur.price = Number(b.price);
+      else if (cur.wasPrice != null) cur.price = cur.wasPrice;
+      delete cur.wasPrice;
+    }
+    cur.updatedAt = Date.now();
+    persist('shoes.json'); bump();
+    auditShoe(req, cur.id, 'accepted', before, cur, { via: on ? 'sale-on' : 'sale-off' });
+    res.json({ ok: true, id: cur.id, sale: !!cur.sale, price: cur.price, wasPrice: cur.wasPrice || null });
+  });
+
+  // Replace the whole inventory at once (used for first upload / bulk sync)
+  app.post('/shop/shoes', (req, res) => {
+    if (!auth(req, res)) return;
+    const arr = (req.body && req.body.shoes) || null;
+    if (!Array.isArray(arr)) return res.status(400).json({ error: 'bad shoes' });
+    // SAFETY BACKUP before overwriting the whole inventory. A stale-device bulk push has
+    // wiped everything before, so keep timestamped snapshots we can always restore from.
+    try {
+      if (Array.isArray(state.shoes) && state.shoes.length) {
+        const bdir = path.join(DATA_DIR, 'backups'); fs.mkdirSync(bdir, { recursive: true });
+        fs.writeFileSync(path.join(bdir, 'shoes-' + Date.now() + '.json'), JSON.stringify(state.shoes));
+        const olds = fs.readdirSync(bdir).filter(f => f.startsWith('shoes-')).sort();
+        for (const f of olds.slice(0, -40)) { try { fs.unlinkSync(path.join(bdir, f)); } catch (_) {} }
+      }
+    } catch (e) { console.error('[shop] pre-bulk backup failed:', e.message); }
+    const incoming = arr.filter(s => s && !state.deleted.includes(s.id));
+    const before = Array.isArray(state.shoes) ? state.shoes.length : 0;
+    // NEWEST-WINS MERGE (was a blind full replace — a stale device's bulk push could wipe or
+    // revert everything). Start from what's already stored, then apply each incoming shoe ONLY
+    // if it isn't older than the stored copy. Never drop a stored shoe here: real deletions go
+    // through /shop/shoe/delete + the deleted graveyard, so a stale bulk can't erase live stock.
+    const byId = {};
+    (Array.isArray(state.shoes) ? state.shoes : []).forEach(s => {
+      if (s && s.id != null && !state.deleted.includes(s.id)) byId[s.id] = s;
+    });
+    let applied = 0, keptNewer = 0;
+    incoming.forEach(s => {
+      const ex = byId[s.id];
+      const exT = ex ? (ex.updatedAt || ex.createdAt || 0) : -1;
+      const inT = (s.updatedAt || s.createdAt || 0);
+      // Brand-new shoe (not stored yet) → add it. An EXISTING shoe is only overwritten by a
+      // push that carries a REAL timestamp and isn't older (inT > 0 && inT >= exT). A TIMELESS
+      // bulk push — an OLD cached copy of the app dumping the whole catalog — can no longer
+      // clobber a stored shoe. That timeless tie was the last hole that reverted live edits.
+      if (!ex) { byId[s.id] = s; applied++; auditShoe(req, s.id, 'added', null, s, { via: 'bulk' }); }
+      else if (inT > 0 && inT >= exT) {
+        // Same stale-but-fresh-looking-timestamp risk as the single-shoe path: strip any
+        // size trying to come back from a recent removal before trusting this "newer" row.
+        const { shoe: safeShoe, blocked } = stripRevertedSizes(s.id, ex, s);
+        // Only log a bulk overwrite that actually CHANGES stock — a full catalog dump would
+        // otherwise write hundreds of no-op rows and bury the signal.
+        const changed = JSON.stringify(ex.sizes) !== JSON.stringify(safeShoe.sizes) || !!ex.sold !== !!safeShoe.sold;
+        byId[s.id] = safeShoe; applied++;
+        if (changed) auditShoe(req, s.id, 'bulk', ex, safeShoe, blocked.length ? { revertBlocked: blocked } : undefined);
+        if (blocked.length) alertRevertBlocked(s.id, blocked, ex, safeShoe, req);
+      }
+      else { keptNewer++; if (JSON.stringify(ex.sizes) !== JSON.stringify(s.sizes)) auditShoe(req, s.id, 'skipped-stale', ex, s, { via: 'bulk', why: inT === 0 ? 'no timestamp on the push' : 'push older than stored' }); }
+    });
+    const next = Object.keys(byId).map(k => byId[k]);
+    console.log('[shop] /shop/shoes MERGE:', before, '→', next.length, 'shoes (applied ' + applied + ', kept-newer ' + keptNewer + ')');
+    state.shoes = next;
+    persist('shoes.json'); bump();
+    res.json({ ok: true, count: state.shoes.length });
+  });
+
+  // 🗑️ DELETE — the most destructive path in the whole shop, and until 15 Aug 2026 it was
+  // the least defended: no staleness check and no audit row. The app pushes a delete
+  // whenever a shoe disappears from its local list, so one confused device could take a
+  // pair out of the shop and leave nothing behind explaining why.
+  //
+  // Two changes. First, the same per-shoe staleness test the edit path uses: if what we
+  // hold is newer than what this device last saw, it does not know enough about this shoe
+  // to be deleting it. Second, always write an audit row — deleting used to keep only the
+  // bare id, which is why /shop/deleted-detail has to go digging through older rows to
+  // work out what a tombstone even refers to.
+  app.post('/shop/shoe/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = req.body && req.body.id;
+    if (id == null) return res.status(400).json({ error: 'bad id' });
+    const i = Array.isArray(state.shoes) ? state.shoes.findIndex(x => x.id === id) : -1;
+    const _before = i > -1 ? JSON.parse(JSON.stringify(state.shoes[i])) : null;
+
+    if (i > -1) {
+      const exT = (state.shoes[i].updatedAt || state.shoes[i].createdAt || 0);
+      const baseUpd = Number(req.body.baseUpdatedAt);
+      if (Number.isFinite(baseUpd) && baseUpd > 0 && exT > baseUpd) {
+        auditShoe(req, id, 'skipped-stale', _before, null,
+                  { why: 'delete from a device that had not seen this shoe change — it saw '
+                         + new Date(baseUpd).toISOString() + ', stored is ' + new Date(exT).toISOString() });
+        return res.json({ ok: true, skipped: 'stale' });
+      }
+    }
+
+    if (Array.isArray(state.shoes)) state.shoes = state.shoes.filter(x => x.id !== id);
+    if (!state.deleted.includes(id)) state.deleted.push(id);
+    auditShoe(req, id, 'deleted', _before, null);
+    persist('shoes.json'); persist('deleted.json'); bump();
+    res.json({ ok: true });
+  });
+
+  // List what's currently tombstoned, with a label where we can figure one out (the
+  // catalog baseline, or the shoe's audit history) — deleting only ever kept the bare
+  // id, so this is how staff can even tell WHICH shoe an id refers to before deciding
+  // whether to undelete it (Rodney 2026-08-02 — there was previously no way back at all
+  // from an accidental delete, e.g. two real pairs mistaken for one duplicate listing).
+  app.get('/shop/deleted-detail', (req, res) => {
+    if (!auth(req, res)) return;
+    const rows = (state.deleted || []).map(id => {
+      const base = CATALOG_BASE[id] || null;
+      let lastAudit = null;
+      for (const row of state.shoeAudit) { if (row.id === id) { lastAudit = row; break; } } // newest-first
+      return {
+        id,
+        label: base ? shoeLabel(id) : (lastAudit ? shoeLabel(id) : String(id)),
+        recoverable: !!base, // only a catalog shoe has a baseline we can rebuild from
+        lastSeenSizes: lastAudit ? lastAudit.beforeSizes : null,
+        lastChangeAt: lastAudit ? lastAudit.at : null,
+      };
+    });
+    res.json({ total: rows.length, rows });
+  });
+
+  // Undo an accidental delete. A catalog shoe (the vast majority) has an immutable
+  // baseline in catalog.json we can rebuild from — sizes/price won't reflect whatever
+  // was actually in stock the moment it got deleted (that data is gone, deleting never
+  // kept a copy), but the listing itself comes back so staff can correct the count by
+  // hand instead of re-creating the shoe from scratch. A non-catalog custom shoe has no
+  // baseline to rebuild from — undeleting it only clears the tombstone so a device that
+  // still has it cached locally can re-push it.
+  app.post('/shop/shoe/undelete', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = req.body && req.body.id;
+    if (id == null) return res.status(400).json({ error: 'bad id' });
+    const wasDeleted = state.deleted.includes(id);
+    state.deleted = state.deleted.filter(x => x !== id);
+    persist('deleted.json');
+    let restored = false;
+    if (!Array.isArray(state.shoes)) state.shoes = [];
+    const already = state.shoes.some(x => x.id === id);
+    const base = CATALOG_BASE[id];
+    if (!already && base) {
+      const shoe = Object.assign({}, base, { updatedAt: Date.now(), createdAt: Date.now(), sold: false });
+      state.shoes.push(shoe);
+      restored = true;
+      auditShoe(req, id, 'added', null, shoe, { via: 'undelete' });
+      persist('shoes.json');
+    }
+    bump();
+    res.json({ ok: true, wasDeleted, restored, hasBaseline: !!base, alreadyPresent: already });
+  });
+
+  // Bulk-assert a device's deletion graveyard. The website re-pushes its local
+  // deleted ids here on every load, so a deletion made anywhere is re-learned by
+  // the server even after a restart that lost runtime data — deletes can never
+  // come back. MERGES (never shrinks) and also drops those shoes from inventory.
+  app.post('/shop/deleted', (req, res) => {
+    if (!auth(req, res)) return;
+    const ids = (req.body && req.body.ids) || [];
+    if (!Array.isArray(ids)) return res.status(400).json({ error: 'bad ids' });
+    let changed = false;
+    for (const id of ids) {
+      if (id == null) continue;
+      if (!state.deleted.includes(id)) { state.deleted.push(id); changed = true; }
+    }
+    if (Array.isArray(state.shoes)) {
+      const before = state.shoes.length;
+      state.shoes = state.shoes.filter(x => !state.deleted.includes(x.id));
+      if (state.shoes.length !== before) changed = true;
+    }
+    if (changed) { persist('shoes.json'); persist('deleted.json'); bump(); }
+    res.json({ ok: true, deleted: state.deleted.length });
+  });
+
+  console.log('[shop] mounted: /shop/state /shop/note(s) /shop/sale /shop/log /shop/shoe(s) — key set:', SHOP_KEY !== 'plug242' ? 'custom' : 'default');
+}
+
+// Live inventory accessors so the bot's shoe search can respect what the website
+// has marked sold / deleted (the website pushes catalog shoe updates to /shop/shoe
+// as {id, sizes, sold, price}). Returns whatever the in-memory state currently has.
+function getShoes() { return Array.isArray(state.shoes) ? state.shoes : []; }
+function getDeleted() { return Array.isArray(state.deleted) ? state.deleted : []; }
+
+// Tasks queued for a SPECIFIC date's evening reminder (Rodney 2026-07-27) — added from
+// the website's Tasks page, merged into that day's WhatsApp shift reminder alongside the
+// 7 rotating shoes, instead of instantly alerting everyone like the notes above do.
+function getDateTasks(dateKey) { return (state.dateTasks && state.dateTasks[dateKey]) || []; }
+function addDateTask(dateKey, text, by) {
+  if (!state.dateTasks || typeof state.dateTasks !== 'object') state.dateTasks = {};
+  if (!Array.isArray(state.dateTasks[dateKey])) state.dateTasks[dateKey] = [];
+  const task = { id: Date.now() + Math.random(), text: String(text).slice(0, 300), by: by || 'Manager', at: new Date().toISOString() };
+  state.dateTasks[dateKey].push(task);
+  persist('dateTasks.json'); bump();
+  return task;
+}
+function deleteDateTask(dateKey, id) {
+  if (!state.dateTasks || !Array.isArray(state.dateTasks[dateKey])) return false;
+  const before = state.dateTasks[dateKey].length;
+  state.dateTasks[dateKey] = state.dateTasks[dateKey].filter(t => String(t.id) !== String(id));
+  persist('dateTasks.json'); bump();
+  return state.dateTasks[dateKey].length !== before;
+}
+
+// 📱 HOW MANY PHONES WOULD A PUSH ACTUALLY GO TO? Read-only, no send. server.js asks this
+// before telling Rodney an alert "did not reach you" — since 08 Sep, WhatsApp is no longer the
+// only route to his phone, and claiming an alert was lost when the board push delivered it is
+// how a warning stops being believed.
+function pushCount() { return (webpush && Array.isArray(state.subs)) ? state.subs.length : 0; }
+
+// 🆕 A NEW SHOE MUST LAND ON THE SHELF, NOT JUST IN THE CATALOGUE.
+// Rodney 2026-09-22: "so why would you only add it to the catalogue and not the shop list?
+// thats pretty stupid. were running a business you know we need it done."
+//
+// He is right. The split itself is sound - the catalogue is the menu, the shelf is the
+// truth, and Kiki sells only from the shelf because the site once advertised 33 pairs that
+// were already gone. But nothing ever connected the two, so a shoe added to the catalogue
+// was live on the website and invisible to Kiki for ever. It cost him three batches in three
+// days: five Vomero 5s, six Air Max Plus and a brown 95, every one of them in stock and
+// unsellable, while customers were told we did not carry them.
+//
+// SAFE BECAUSE IT ONLY EVER TOUCHES A SHOE THE SHELF HAS NEVER HEARD OF. A shoe that sold
+// out has a row - empty sizes, or sold:true - and is left strictly alone, so this can never
+// resurrect stock that is gone, which is the exact failure the shelf rule exists to prevent.
+// A brand-new shoe has no row at all, and its catalogue sizes are what somebody typed when
+// they added it minutes ago. That is the best information in the building, so use it.
+function seedNewShoes(catalogue, note) {
+  if (!Array.isArray(catalogue) || !catalogue.length) return 0;
+  if (!Array.isArray(state.shoes)) state.shoes = [];
+  const known = new Set(state.shoes.map(s => String(s.id)));
+  const gone = new Set((state.deleted || []).map(String));
+  let added = 0;
+  for (const c of catalogue) {
+    const id = c && c.id != null ? String(c.id) : '';
+    if (!id || known.has(id) || gone.has(id)) continue;
+    const sizes = (c.sizesRaw || c.sizes || []).map(String).filter(Boolean);
+    if (!sizes.length) continue;                       // nothing to put on the shelf
+    state.shoes.push({ id, sizes, price: c.price, sold: false,
+                       updatedAt: Date.now(), seededFromCatalogue: true });
+    added++;
+    if (note) note('shelf: seeded ' + id + ' (' + sizes.length + ' pairs) - it was in the catalogue with no shop row');
+  }
+  if (added) { persist('shoes.json'); bump(); }
+  return added;
+}
+
+module.exports = { pushCount, seedNewShoes, mount, addJob, setJobClosedHook, getJobs: () => (Array.isArray(state.jobs) ? state.jobs : []), setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };

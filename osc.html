@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Official Sneaker Crew — Nassau</title>
+<meta name="description" content="Authentic sneakers, delivered across Nassau. Try two sizes before you buy."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&display=swap" rel="stylesheet">
+<style>
+/* Official Sneaker Crew.
+   Deliberately the opposite of 242plug: paper instead of black, a serif instead of
+   condensed caps, ink blue instead of acid green, and a staggered editorial run
+   instead of an even grid of small tiles. Two shops, not one shop twice. */
+:root{
+  --paper:#E9E7E1; --card:#FFFFFF; --ink:#131417; --mute:#6C6862; --hair:#D3CFC6;
+  --acc:#1B3FE0; --accs:#E7EAFB; --sale:#A8271E; --ok:#1F6B45;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --serif:'Fraunces',Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+button,input{font-family:inherit;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+a{color:inherit}
+.wrap{max-width:1100px;margin:0 auto;padding:0 18px}
+
+/* ---------- masthead ---------- */
+header{border-bottom:1px solid var(--hair);background:var(--paper);position:sticky;top:0;z-index:50}
+.mast{display:flex;align-items:center;gap:14px;padding:14px 0}
+.logo{font-family:var(--serif);font-weight:900;font-size:23px;letter-spacing:-.02em;line-height:1;flex:1}
+.logo em{font-style:italic;font-weight:400;color:var(--acc)}
+.mastwa{font-size:12px;font-weight:600;letter-spacing:.02em;text-decoration:none;
+  border:1px solid var(--ink);padding:8px 13px;border-radius:999px;white-space:nowrap}
+.mastwa:active{background:var(--ink);color:var(--paper)}
+
+/* ---------- opening statement (not a hero image) ---------- */
+.state{padding:34px 0 26px;border-bottom:1px solid var(--hair)}
+.state h1{font-family:var(--serif);font-weight:400;font-size:clamp(27px,7.4vw,46px);
+  line-height:1.12;letter-spacing:-.02em;text-wrap:balance;max-width:16ch}
+.state h1 b{font-weight:900;font-style:italic}
+.state p{margin-top:13px;color:var(--mute);font-size:14.5px;max-width:44ch}
+.marks{display:flex;flex-wrap:wrap;gap:7px;margin-top:17px}
+.mark{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  border:1px solid var(--hair);background:var(--card);padding:6px 10px;border-radius:3px}
+.mark.b{border-color:var(--acc);color:var(--acc);background:var(--accs)}
+
+/* ---------- brand rail: text links, not chips ---------- */
+nav.brands{border-bottom:1px solid var(--hair);position:sticky;top:57px;z-index:40;background:var(--paper)}
+.brow{display:flex;gap:20px;overflow-x:auto;scrollbar-width:none;padding:12px 0}
+.brow::-webkit-scrollbar{display:none}
+.bl{flex:0 0 auto;background:none;border:0;padding:0 0 3px;cursor:pointer;color:var(--mute);
+  font-size:13px;font-weight:600;letter-spacing:.01em;border-bottom:2px solid transparent}
+.bl[aria-pressed="true"]{color:var(--ink);border-bottom-color:var(--acc)}
+.bl span{font-variant-numeric:tabular-nums;font-weight:400;opacity:.55;margin-left:4px}
+
+/* ---------- the run: staggered, not a uniform grid ---------- */
+main{padding:20px 0 90px}
+.count{font-size:12px;color:var(--mute);letter-spacing:.04em;text-transform:uppercase;
+  padding-bottom:14px;font-variant-numeric:tabular-nums}
+.run{display:grid;grid-template-columns:1fr 1fr;gap:15px 13px}
+@media(min-width:700px){.run{grid-template-columns:repeat(3,1fr);gap:26px 20px}}
+@media(min-width:960px){.run{grid-template-columns:repeat(4,1fr)}}
+/* every 7th shoe runs full width with the text beside it — breaks the grid rhythm */
+.sh.wide{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:15px;align-items:center}
+@media(min-width:700px){.sh.wide{grid-template-columns:1fr 1.15fr;gap:26px}}
+.sh{background:var(--card);border:1px solid var(--hair);display:flex;flex-direction:column;overflow:hidden}
+.sh.wide{background:transparent;border:0}
+.shot{background:#fff;aspect-ratio:1/1;position:relative;overflow:hidden}
+.sh.wide .shot{border:1px solid var(--hair)}
+.shot img{width:100%;height:100%;object-fit:cover;display:block}
+.shot img.pend{opacity:0;transition:opacity .35s}
+.shot img.in{opacity:1}
+.body{padding:11px 12px 13px;display:flex;flex-direction:column;gap:5px;flex:1}
+.sh.wide .body{padding:0}
+.br{font-size:10.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--mute)}
+.nm{font-family:var(--serif);font-weight:600;font-size:15px;line-height:1.25;letter-spacing:-.01em}
+.sh.wide .nm{font-size:clamp(20px,5vw,30px);font-weight:900}
+.nk{font-size:12.5px;color:var(--mute);line-height:1.35}
+.pr{font-family:var(--serif);font-weight:900;font-size:17px;font-variant-numeric:tabular-nums;margin-top:auto;padding-top:6px}
+.sh.wide .pr{font-size:24px}
+.sz{font-size:11.5px;color:var(--mute);line-height:1.5;min-height:17px;font-variant-numeric:tabular-nums}
+.sz.wait{color:#9A958C;font-style:italic}
+.sz.fail{color:var(--sale)}
+.sz b{color:var(--ink);font-weight:600}
+.ask{margin-top:9px;border:1px solid var(--ink);background:var(--card);color:var(--ink);
+  font-size:12.5px;font-weight:600;padding:10px;cursor:pointer;width:100%;text-align:center;
+  text-decoration:none;display:block;border-radius:2px}
+.ask:active{background:var(--ink);color:var(--card)}
+.sh.wide .ask{max-width:230px}
+
+.empty{padding:60px 0;text-align:center;color:var(--mute);font-size:14px}
+footer{border-top:1px solid var(--hair);padding:28px 0 40px;font-size:12.5px;color:var(--mute)}
+footer .fl{font-family:var(--serif);font-weight:900;font-size:17px;color:var(--ink);margin-bottom:7px}
+footer a{color:var(--acc);font-weight:600}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--card);border-top:1px solid var(--hair);
+  padding:11px 18px calc(11px + env(safe-area-inset-bottom))}
+.bar a{display:block;background:var(--acc);color:#fff;text-align:center;text-decoration:none;
+  font-size:14px;font-weight:700;padding:13px;border-radius:3px;letter-spacing:.01em}
+@media(min-width:700px){.bar{display:none}}
+main{padding-bottom:110px}
+@media(min-width:700px){main{padding-bottom:60px}}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header><div class="wrap mast">
+  <div class="logo">Official Sneaker <em>Crew</em></div>
+  <a class="mastwa" id="waTop" href="#">WhatsApp</a>
+</div></header>
+
+<div class="wrap state">
+  <h1>Real pairs, <b>brought to your door</b> in Nassau.</h1>
+  <p>Message us, tell us your size, and we bring it to you. Not sure of the fit? The driver carries two sizes so you try before you pay.</p>
+  <div class="marks">
+    <span class="mark b">Try two sizes</span>
+    <span class="mark">Free Nassau delivery</span>
+    <span class="mark">Cash, card, bank or SunCash</span>
+  </div>
+</div>
+
+<nav class="brands"><div class="wrap brow" id="brow"></div></nav>
+
+<main class="wrap">
+  <div class="count" id="count">Loading the shelf…</div>
+  <div class="run" id="run"></div>
+  <div class="empty" id="empty" hidden>Nothing in that brand right now — try another.</div>
+</main>
+
+<footer><div class="wrap">
+  <div class="fl">Official Sneaker Crew</div>
+  <div>Nassau, The Bahamas · Delivery across the islands</div>
+  <div style="margin-top:9px"><a id="waFoot" href="#">Message us on WhatsApp</a></div>
+</div></footer>
+
+<div class="bar"><a id="waBar" href="#">Message us — tell us your size</a></div>
+
+<script>
+var WA  = '__OSC_WA__';
+var CAT = '__OSC_CATALOG__';
+
+var waLink = 'https://wa.me/' + WA + '?text=' + encodeURIComponent('Hi! I saw a pair on your site 👟');
+['waTop','waFoot','waBar'].forEach(function(id){ document.getElementById(id).href = waLink; });
+
+var run = document.getElementById('run'), brow = document.getElementById('brow');
+var countEl = document.getElementById('count'), emptyEl = document.getElementById('empty');
+var filter = 'all', nodes = [];
+
+/* ASICS and Asics are the same brand in the data — treat them as one. */
+function tidyBrand(b){ b = (b||'').trim(); return /^asics$/i.test(b) ? 'ASICS' : b; }
+
+function el(t, c, txt){ var e = document.createElement(t); if(c) e.className = c;
+  if(txt != null) e.textContent = txt; return e; }
+
+function draw(){
+  run.textContent = '';
+  nodes = [];
+  var list = CAT.filter(function(s){ return filter === 'all' || tidyBrand(s.brand) === filter; });
+  var n = 0;
+  list.forEach(function(s, i){
+    var wide = (i % 7 === 6);
+    var card = el('article', 'sh' + (wide ? ' wide' : ''));
+
+    var shot = el('div','shot');
+    var img = el('img'); img.className = 'pend'; img.loading = 'lazy'; img.decoding = 'async';
+    img.alt = s.name + (s.nickname ? ' — ' + s.nickname : '');
+    img.onload = function(){ img.className = 'in'; };
+    img.onerror = function(){ shot.style.background = '#F2F0EB'; };
+    img.src = s.image;
+    shot.appendChild(img);
+
+    var body = el('div','body');
+    body.appendChild(el('div','br', tidyBrand(s.brand)));
+    body.appendChild(el('div','nm', s.name));
+    if (s.nickname && s.nickname !== s.name) body.appendChild(el('div','nk', s.nickname));
+    body.appendChild(el('div','pr', '$' + s.price));
+
+    /* Sizes stay a placeholder until the server answers. The page must never
+       invent a size from its own list — that sold 33 pairs that were gone. */
+    var sz = el('div','sz wait','checking sizes…');
+    body.appendChild(sz);
+
+    var ask = el('a','ask','Ask about this pair');
+    ask.href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(
+      'Hi! Is this one available? 👟\n' + s.name + (s.nickname ? ' — ' + s.nickname : '') +
+      '\n$' + s.price + '\nCode: ' + s.id);
+    body.appendChild(ask);
+
+    card.appendChild(shot); card.appendChild(body);
+    run.appendChild(card);
+    nodes.push({ id: s.id, sz: sz, card: card });
+    n++;
+  });
+  emptyEl.hidden = n > 0;
+  countEl.textContent = n + (n === 1 ? ' pair' : ' pairs') + (filter === 'all' ? ' in stock' : ' — ' + filter);
+}
+
+function buildBrands(){
+  var tally = {};
+  CAT.forEach(function(s){ var b = tidyBrand(s.brand); tally[b] = (tally[b]||0) + 1; });
+  var names = Object.keys(tally).sort(function(a,b){ return tally[b] - tally[a]; });
+  function add(label, val, count){
+    var b = el('button','bl'); b.textContent = label;
+    if (count != null){ var sp = el('span', null, count); b.appendChild(sp); }
+    b.setAttribute('aria-pressed', val === filter ? 'true' : 'false');
+    b.onclick = function(){
+      filter = val;
+      [].forEach.call(brow.children, function(x){ x.setAttribute('aria-pressed','false'); });
+      b.setAttribute('aria-pressed','true');
+      draw(); paintSizes();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    brow.appendChild(b);
+  }
+  add('Everything','all', CAT.length);
+  names.forEach(function(b){ add(b, b, tally[b]); });
+}
+
+/* ---- the shelf ---- */
+var STOCK = null, stockFailed = false;
+
+function paintSizes(){
+  nodes.forEach(function(n){
+    if (stockFailed){ n.sz.className = 'sz fail'; n.sz.textContent = 'message us to check sizes'; return; }
+    if (!STOCK){ n.sz.className = 'sz wait'; n.sz.textContent = 'checking sizes…'; return; }
+    var rec = STOCK[n.id];
+    if (!rec || !rec.sizes || !rec.sizes.length){
+      n.sz.className = 'sz fail'; n.sz.textContent = 'message us to check sizes'; return;
+    }
+    var uniq = [];
+    rec.sizes.slice().sort(function(a,b){ return parseFloat(a) - parseFloat(b); })
+      .forEach(function(s){ if (uniq.indexOf(s) < 0) uniq.push(s); });
+    n.sz.className = 'sz';
+    n.sz.innerHTML = '';
+    n.sz.appendChild(document.createTextNode('Sizes '));
+    var b = document.createElement('b'); b.textContent = uniq.join(', ');
+    n.sz.appendChild(b);
+  });
+}
+
+fetch('/shop/stock', { cache: 'no-store' })
+  .then(function(r){ if (!r.ok) throw 0; return r.json(); })
+  .then(function(d){
+    var gone = {};
+    (d.deleted || []).forEach(function(x){ gone[typeof x === 'string' ? x : x.id] = 1; });
+    var live = {};
+    (d.shoes || []).forEach(function(s){
+      if (gone[s.id]) return;                      // deliberately deleted — never sell it
+      if (s.sold) return;                          // sold out — Rodney chose to hide these
+      if (!s.sizes || !s.sizes.length) return;     // nothing on the shelf
+      live[s.id] = s;
+    });
+    STOCK = live;
+    /* Hide anything the shelf does not confirm. This is the only source of truth. */
+    CAT = CAT.filter(function(s){ return !!live[s.id]; });
+    buildBrands(); draw(); paintSizes();
+  })
+  .catch(function(){
+    stockFailed = true;
+    buildBrands(); draw(); paintSizes();
+    countEl.textContent = 'Showing the full range — message us to check sizes';
+  });
+</script>
+</body>
+</html>
