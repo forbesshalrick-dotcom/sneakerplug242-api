@@ -1056,6 +1056,51 @@ app.get('/debug-tokens', (req, res) => {
 // line and returns ManyChat's RAW answer to each — the only way to tell "ManyChat refused
 // it" from "ManyChat accepted it and never delivered it".
 //   /debug-send-test?key=…&who=Manager
+// 🔎 WHICH PAYLOAD SHAPE WILL MANYCHAT ACCEPT TODAY?
+// Rodney 2026-09-30: every Trendy Kicks send started coming back 400 "Validation error" - text
+// and photo, to his own line, with the 24h window open and funds topped up. The same test
+// returned success the day before and our payload has not changed, so ManyChat changed under
+// us (Meta's new paid-messaging rules landed the same week). Guessing at the shape one deploy
+// at a time wastes his morning, so this asks the API directly and reports what it says.
+app.get('/debug-send-shapes', async (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const who = String(req.query.who || 'Manager').trim().toLowerCase();
+  let known = null;
+  for (const [nm, v] of Object.entries(staffSubs || {})) {
+    if (String(nm).trim().toLowerCase() === who && v && v.sub) { known = v; break; }
+  }
+  if (!known) return res.json({ error: 'no staff line on file for ' + who });
+  const tk = (known.store && storeTokens.get(known.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+  if (!tk) return res.json({ error: 'no token' });
+  const sub = String(known.sub);
+  const msg = [{ type: 'text', text: 'shape test - ignore' }];
+  const shapes = {
+    'A current (content.type + messages)': { subscriber_id: sub, data: { version: 'v2', content: { type: 'whatsapp', messages: msg } } },
+    'B no content.type':                   { subscriber_id: sub, data: { version: 'v2', content: { messages: msg } } },
+    'C + empty actions/quick_replies':     { subscriber_id: sub, data: { version: 'v2', content: { type: 'whatsapp', messages: msg, actions: [], quick_replies: [] } } },
+    'D + message_tag ACCOUNT_UPDATE':      { subscriber_id: sub, message_tag: 'ACCOUNT_UPDATE', data: { version: 'v2', content: { type: 'whatsapp', messages: msg, actions: [], quick_replies: [] } } },
+    'E message_tag inside content':        { subscriber_id: sub, data: { version: 'v2', content: { type: 'whatsapp', message_tag: 'ACCOUNT_UPDATE', messages: msg, actions: [], quick_replies: [] } } },
+  };
+  const out = {};
+  for (const [label, body] of Object.entries(shapes)) {
+    try {
+      const r = await fetch(MC_API, { method: 'POST',
+        headers: { Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) });
+      out[label] = { status: r.status, body: (await r.text()).slice(0, 300) };
+    } catch (e) { out[label] = { status: 0, body: String(e).slice(0, 160) }; }
+    await new Promise(r => setTimeout(r, 700));
+  }
+  // And ask ManyChat what it thinks of this subscriber at all - a dead/closed contact
+  // produces the same bare "Validation error" as a bad payload.
+  try {
+    const g = await fetch('https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=' + encodeURIComponent(sub),
+      { headers: { Authorization: 'Bearer ' + tk } });
+    out['subscriber getInfo'] = { status: g.status, body: (await g.text()).slice(0, 400) };
+  } catch (e) { out['subscriber getInfo'] = { status: 0, body: String(e).slice(0, 160) }; }
+  res.json({ sub, store: known.store, results: out });
+});
+
 app.get('/debug-send-test', async (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   const who = String(req.query.who || 'Manager').trim().toLowerCase();
