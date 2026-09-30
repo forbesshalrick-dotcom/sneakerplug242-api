@@ -4375,6 +4375,9 @@ const pinAsked = new Map();
 const pinProbablyArrived = new Map();
 // What WE have already told this customer about a driver. If any of it is in the recent
 // transcript, the driver exists as far as they are concerned.
+// 🚗 CLAIMING WHERE A DRIVER IS. She has no driver, no van and no map - there is no signal
+// anywhere in this system that tells her how far anybody is. Every one of these is invented.
+const DRIVER_STATUS_RE = /\b\d{1,2}\s*(?:-|to)?\s*\d{0,2}\s*min(?:ute)?s?\s*(?:away|out)\b|\b(?:he|she|they|driver)['’]?s?\b[^.!?]{0,30}\b(?:on (?:the|his|her) way|almost there|nearly there|close by|round the corner|pulling up|stuck in traffic|in traffic|be there (?:shortly|soon|in)|heading (?:out|over|to you)|left already|on his way)\b|\bdriver is\b[^.!?]{0,24}\b(?:away|coming|close|near|leaving)\b|\bteam (?:is )?calling you (?:right )?now\b|\bcalling you right now\b/i;
 const DRIVER_CLAIMED_RE = /\bdriver\b[^.!?]{0,40}\b(?:on (?:the|his) way|heading|coming|getting|ready|close|near)\b|\bon (?:the|his) way\b|\bheading (?:out|over|to you)\b|\bgetting the shoes ready\b/i;
 function recentTurnsText(hist) {
   try {
@@ -7469,6 +7472,7 @@ and it must NEVER be answered with a question back.`;
   let pretendBlocks = 0;
   let confusedBlocks = 0;
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
+  let driverStatusClaims = 0;  // inventing where a driver is - she cannot possibly know
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let cardLinkMisses = 0;      // they said card and the reply had no link in it
   let colourListed = 0;        // answering "what colours" with words instead of pictures
@@ -7738,6 +7742,31 @@ and it must NEVER be answered with a question back.`;
         forceSearchNext = true;
         continue;
       }
+    }
+    // 🚗 SHE CANNOT KNOW WHERE A DRIVER IS, SO SHE MUST NOT SAY.
+    // Rodney 2026-09-30, on a sale he lost: "woman canceled". Tatiana asked for a 9 and a 9.5,
+    // said she was heading to Faithway Christian Academy, and asked how far the driver was. She
+    // was told "He's about 5 minutes away 🚗 Keep your phone nearby" at 4:04, and at 4:11,
+    // "driver's still on the way, just stuck in traffic. He'll be there shortly."
+    // Nobody was driving anywhere. She waited, left, and wrote "lol yall ain't serious here",
+    // "I ain't want it anymore", "Yall business is terrible."
+    // There is no driver feed in this system. No ETA, no position, no map - so EVERY sentence
+    // about how far away somebody is, is made up, and a made-up ETA is the one lie a customer
+    // finds out about while standing in a car park. His own instruction, 2026-09-27: "All she
+    // have to do is say, let me check the driver, see how far he is."
+    if (turnText && !staffName && DRIVER_STATUS_RE.test(turnText) && driverStatusClaims < 1) {
+      driverStatusClaims++;
+      record(req, { endpoint: 'driver-status-invented', sub, store: ctx.store || '', text: turnText.slice(0, 180) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+        + 'just told this customer where a driver is or how long he will be. You CANNOT know that. '
+        + 'Nothing in this system tells you where anybody is - no ETA, no position, no map - so '
+        + 'every minute you quote is invented, and they find out by standing there waiting. That '
+        + 'is how we lose people for good. Write the reply again WITHOUT any time, distance or '
+        + 'progress: say you are checking with Ron on how far he is and will come straight back, '
+        + 'warmly, in one line. Never say a number of minutes, never say traffic, never say almost '
+        + 'there or on the way. Then call take_message so a human actually picks it up. Do not '
+        + 'mention this note.)' });
+      continue;                       // one clean retry
     }
     // 🚗 NEVER TAKE THE DRIVER BACK. Rodney 2026-09-27: "she said we're on the way. All she
     // have to do is say, let me check the driver, see how far he is. Come on."
