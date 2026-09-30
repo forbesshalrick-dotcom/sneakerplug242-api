@@ -3825,7 +3825,12 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // minutes is not sent again. If they genuinely ask to see one again they will say so, and
   // five minutes later it is allowed anyway.
   const _justSent = recentPhotoIds.get(String(sub)) || new Map();
-  const _freshCut = Date.now() - 5 * 60 * 1000;
+  // ⏱️ NINETY SECONDS, NOT FIVE MINUTES. The overlap this exists to stop happens within the
+  // same few seconds - two albums firing at once. Five minutes was wide enough to swallow
+  // something far more important: a deliberate RE-SEND after ManyChat has answered 200 and
+  // delivered nothing, which is a failure mode we have proven on this system. Blocking that
+  // retry would make a silent failure permanent.
+  const _freshCut = Date.now() - 90 * 1000;
   for (const [id, ts] of _justSent) if (ts < _freshCut) _justSent.delete(id);
   const dedupe = (idList, seen) => {
     const s = seen || new Set();
