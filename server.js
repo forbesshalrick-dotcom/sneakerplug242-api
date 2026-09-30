@@ -3514,6 +3514,12 @@ const sendAbort = new Set();
 // Now it carries the time it started and anything older than ALBUM_LOCK_MAX is treated as
 // dead. A stale lock cannot outlive one album; the double-tap it was built for is 156ms.
 const albumInFlight = new Map();   // sub -> when this album started
+const recentPhotoIds = new Map();  // sub -> Map(shoeId -> when it landed) - see the dedupe note
+const lastPhotoLandedAt = new Map(); // sub -> when a photo last actually reached them
+function photosLandedRecently(sub) {
+  const t = lastPhotoLandedAt.get(String(sub));
+  return !!(t && Date.now() - t < 3 * 60 * 1000);
+}
 const ALBUM_LOCK_MAX = 10 * 60 * 1000;
 
 // ── PER-SHOP CARDS ──────────────────────────────────────────────────────────────
@@ -3807,9 +3813,24 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // dedupe against a shared `seen` set so the SAME shoe never goes out twice —
   // not within one list, and not across size groups (a shoe in both size 7 and
   // size 8 is sent once, with its label still showing every size it comes in).
+  // 🔁 DO NOT SEND THE SAME SHOE TWICE IN THE SAME BREATH.
+  // Rodney 2026-09-30: an album went out with the Forest Green 1000 twice and the Black/Silver
+  // 1000 twice, and was then followed by "Ugh, the photos aren't sending on my end right now"
+  // - underneath five photos that had plainly just arrived.
+  // Both come from the same cause: TWO albums running for one customer at the same time. The
+  // dedupe below only holds inside a single call, so the second send happily repeated shoes the
+  // first had already delivered, and then reported sent === 0 (it had nothing new left that
+  // worked) which fired the failure line on top of a successful album.
+  // A cross-call memory fixes the repeats: anything this customer received in the last five
+  // minutes is not sent again. If they genuinely ask to see one again they will say so, and
+  // five minutes later it is allowed anyway.
+  const _justSent = recentPhotoIds.get(String(sub)) || new Map();
+  const _freshCut = Date.now() - 5 * 60 * 1000;
+  for (const [id, ts] of _justSent) if (ts < _freshCut) _justSent.delete(id);
   const dedupe = (idList, seen) => {
     const s = seen || new Set();
     return (idList || []).filter(id => !s.has(id) && s.add(id))
+      .filter(id => !_justSent.has(String(id)))   // they already have this one, moments ago
       .map(id => live[id]).filter(x => x && x.image);
   };
   let sent = 0, requested = 0;
@@ -4008,6 +4029,8 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       if (delivered) {
         sent += 1; lastShoeSent = s; consecFail = 0;
         try { shownShoes.push(s); } catch (_) {}
+        try { _justSent.set(String(s.id), Date.now()); recentPhotoIds.set(String(sub), _justSent);
+              lastPhotoLandedAt.set(String(sub), Date.now()); } catch (_) {}
         // 🔬 PROOF OF WHAT ManyChat ACTUALLY SAID (Rodney 2026-08-05). An album reported 34
         // pairs delivered and the customer received ZERO — with not one line in the log,
         // because only FAILURES were ever recorded and every one of these came back
@@ -4116,7 +4139,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       // pre-approved line here instead so there's nothing left to invent.
       if (sent > 0 && !isStaff) {
         sendChunk(sub, [{ type: 'text', text: "That's what came through so far 👟 a few more didn't send — gimme one sec and I'll get them to you 🙏" }], token).catch(() => {});
-      } else if (sent === 0 && !isStaff) {
+      } else if (sent === 0 && !isStaff && !photosLandedRecently(sub)) {
         sendChunk(sub, [{ type: 'text', text: "Ugh, the photos aren't sending on my end right now 😩 You can browse everything at *242plug.com* in the meantime — I'm on it and will follow up the second it's fixed 🙏" }], token).catch(() => {});
       }
       const label = (lastShoeSent && displayName(lastShoeSent)) || '';
@@ -4130,7 +4153,13 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // completely never trips it — and never told the customer OR Rodney anything either. A
   // "Catalog" customer got exactly this: 0 photos, then Kiki filled the silence herself with
   // a banned "trouble loading" excuse. Cover the gap here so code always answers, not a guess.
-  if (!brokeOnFailures && sent === 0 && requested > 0 && !manualStopped && !interrupted && !isStaff) {
+  // ⛔ AND NEVER SAY IT OVER A SUCCESSFUL ALBUM. Rodney 2026-09-30: this line went out
+  // directly beneath five photos the customer had just received, because a SECOND overlapping
+  // send found nothing left to deliver and reported zero. From his side it reads as us not
+  // knowing what we just did. If a photo actually landed in this chat in the last three
+  // minutes, the photos are demonstrably sending, whatever this particular call managed.
+  if (!brokeOnFailures && sent === 0 && requested > 0 && !manualStopped && !interrupted && !isStaff
+      && !photosLandedRecently(sub)) {
     try {
       sendChunk(sub, [{ type: 'text', text: "Ugh, the photos aren't sending on my end right now 😩 You can browse everything at *242plug.com* in the meantime — I'm on it and will follow up the second it's fixed 🙏" }], token).catch(() => {});
       waSendManager('📷 *PHOTOS FAILED TO SEND* — 0 of ' + requested + ' got through (below the 3-in-a-row breaker).\n👤 Customer: ' + sub + '\n⚠️ Check ManyChat / image URLs — the customer got a website link instead.', token).catch(() => {});
@@ -8372,6 +8401,22 @@ and it must NEVER be answered with a question back.`;
         // in ALL BLACK in size 11 rite now" - over a Black/Green, a Black/Pink and a
         // Red/Black/Grey. He asked for black; "all black" is our own words, and it is a promise
         // about every picture underneath it. Say "in black" unless every one of them really is.
+        // 📏 NEVER PRINT THE MEN'S NUMBER AT A WOMAN WHO ASKED FOR HER OWN SIZE.
+        // Rodney's size table, dictated 2026-09-25: "Never say the men's number - call it back
+        // by the size they asked for." Stock is men's, so a women's 8 is searched as a men's 7 -
+        // correct - but on 2026-09-30 the header that went out over the album read "This is what
+        // we have in New Balance size 7 rite now" to a customer who had told us she wears an 8.
+        // She reads that as us sending her the wrong size and stops trusting the rest.
+        // The search keeps the converted number; the sentence uses hers.
+        try {
+          if (knownSize && /^[0-9.]+$/.test(String(knownSize))) {
+            const _sz = leadIn.match(/\bsize\s+([0-9]{1,2}(?:\.5)?)\b/i);
+            if (_sz && _sz[1] !== String(knownSize)) {
+              leadIn = leadIn.replace(_sz[0], 'size ' + knownSize);
+              record(req, { endpoint: 'leadin-size-corrected', sub, said: knownSize, printed: _sz[1] });
+            }
+          }
+        } catch (_) {}
         try {
           const _m = leadIn.match(/\ball\s+(black|white|grey|gray|red|blue|green|pink|purple|orange|yellow|brown|cream|navy)\b/i);
           if (_m) {
