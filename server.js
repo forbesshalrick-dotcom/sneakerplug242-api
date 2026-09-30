@@ -3608,6 +3608,18 @@ const sendAbort = new Set();
 const albumInFlight = new Map();   // sub -> when this album started
 const recentPhotoIds = new Map();  // sub -> Map(shoeId -> when it landed) - see the dedupe note
 const lastPhotoLandedAt = new Map(); // sub -> when a photo last actually reached them
+// 🚗 THE DRIVER IS ACTUALLY OUT. Rodney 2026-09-30, after losing Tatiana: he wants a button
+// in the brain panel that tells Kiki a driver has genuinely been dispatched, because until
+// somebody presses it there is NO signal anywhere that anyone is moving.
+// His reason is specific and it is about MEET-UPS: "for a meetup you can't just say the
+// driver's on the way, because that person is driving to meet the driver, and if the driver is
+// not aware until he checks the message it can be 10 to 20 minutes afterwards... by the time we
+// contact the client, the client's like, man, you told me you were on the way 20 minutes ago."
+const driverDispatchedAt = new Map();   // sub -> when a human pressed Driver dispatched
+function driverIsOut(sub) {
+  const t = driverDispatchedAt.get(String(sub));
+  return !!(t && Date.now() - t < 4 * 60 * 60 * 1000);
+}
 function photosLandedRecently(sub) {
   const t = lastPhotoLandedAt.get(String(sub));
   return !!(t && Date.now() - t < 3 * 60 * 1000);
@@ -7411,6 +7423,22 @@ and it must NEVER be answered with a question back.`;
   // 👟 AND THE SHOE THEY ARE ALREADY ON - see rememberShoe. Same idea as the size above:
   // a customer who has been shown one specific pair and given its price has not come back an
   // hour later to start from nothing.
+  // 🚗 IS A DRIVER ACTUALLY OUT? Only a human pressing the button makes this true.
+  try {
+    if (driverIsOut(sub)) {
+      sizeCtx += `\n\n[🚗 A DRIVER HAS BEEN DISPATCHED to this customer - a person pressed the `
+        + `button, so it is true and you may say he is on his way. You still do NOT know WHERE he `
+        + `is: never give minutes, never say traffic, never say almost there. If they ask how far, `
+        + `say you are checking with Ron and come straight back.]`;
+    } else {
+      sizeCtx += `\n\n[🚗 NO DRIVER IS OUT for this customer. Nobody has been dispatched, so `
+        + `do NOT say anyone is on the way, coming, close, leaving or getting shoes ready - none `
+        + `of it is happening yet. If this is a MEET-UP, be especially careful: they are driving `
+        + `to meet somebody, and telling them a driver is moving when he has not even read the `
+        + `message leaves them standing somewhere for twenty minutes. Say you are getting it `
+        + `sorted with Ron and come straight back.]`;
+    }
+  } catch (_) {}
   try {
     const shoeMem = custShoe.get(String(sub));
     if (shoeMem && shoeMem.name && (Date.now() - (shoeMem.ts || 0)) < 72 * 60 * 60 * 1000) {
@@ -7754,7 +7782,11 @@ and it must NEVER be answered with a question back.`;
     // about how far away somebody is, is made up, and a made-up ETA is the one lie a customer
     // finds out about while standing in a car park. His own instruction, 2026-09-27: "All she
     // have to do is say, let me check the driver, see how far he is."
-    if (turnText && !staffName && DRIVER_STATUS_RE.test(turnText) && driverStatusClaims < 1) {
+    // Once a human has pressed "Driver dispatched", saying he is on his way is TRUE - so let
+    // that through. The minutes are still hers to not know, and DRIVER_ETA_RE keeps those out.
+    const _eta = /\b\d{1,2}\s*(?:-|to)?\s*\d{0,2}\s*min(?:ute)?s?\s*(?:away|out)\b|\bstuck in traffic\b|\bin traffic\b|\balmost there\b|\bnearly there\b|\bround the corner\b|\bpulling up\b|\bbe there (?:shortly|soon|in)\b/i;
+    const _claimsMore = driverIsOut(sub) ? _eta.test(turnText) : DRIVER_STATUS_RE.test(turnText);
+    if (turnText && !staffName && _claimsMore && driverStatusClaims < 1) {
       driverStatusClaims++;
       record(req, { endpoint: 'driver-status-invented', sub, store: ctx.store || '', text: turnText.slice(0, 180) });
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
@@ -11226,6 +11258,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     <p>Tell Kiki the truth of this chat so she stops re-asking — the shoe &amp; size they want, that they already paid, delivery details, whatever she keeps getting wrong. The customer never sees this; Kiki uses it as fact on her next reply.</p>
     <textarea id="briefText" placeholder="e.g. Customer wants the Red Thunder Jordan 4 in a 10, already paid via SunCash, just needs delivery to Carmichael Rd."></textarea>
     <button class="briefmic" id="briefDictate" title="Speak your note — you'll see it typed out here before you send">🎤 Speak your note</button>
+    <button class="briefmic" id="dispatchBtn" style="margin-top:10px" title="Tell Kiki a driver is genuinely on the way to this customer">🚗 Driver dispatched</button>
     <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle"> Label my replies with 🧑Agent: so customers know it's a human</label>
     <div class="btns"><button class="cancel" id="briefCancel">Cancel</button><button class="save" id="briefSave">Send to Kiki</button></div>
   </div>
@@ -12376,6 +12409,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     }).catch(function(){ btn.textContent=was; btn.disabled=false; toast('Could not transcribe — network error'); });
   };
   $('replyX').onclick=clearQuote;
+  // 🚗 Driver dispatched - the only thing in the system that makes "he's on the way" true.
+  $('dispatchBtn').onclick=function(){
+    if(!cur) return; var b=$('dispatchBtn'); b.disabled=true;
+    post('/inbox/dispatch', {sub:cur.sub}).then(function(d){
+      b.disabled=false;
+      if(d && d.ok){ closeBrief(); toast('🚗 Kiki knows the driver is out'); }
+      else toast((d&&d.error)||'Could not set that');
+    }).catch(function(){ b.disabled=false; toast('Could not set that — network'); });
+  };
   $('brief').onclick=openBrief;
   $('briefCancel').onclick=closeBrief;
   if($('briefDictate')) $('briefDictate').onclick=briefDictate;
@@ -13140,6 +13182,26 @@ app.get('/quote-wanted', (req, res) => {
   // Only the last two minutes: older than that and the customer has moved on, and opening
   // their chat would be a pointless interruption.
   res.json({ ok: true, wanted: quoteWanted.filter(q => now - q.at < 120000) });
+});
+
+app.post('/inbox/dispatch', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  const off = b.off === true;
+  if (off) driverDispatchedAt.delete(sub); else driverDispatchedAt.set(sub, Date.now());
+  if (driverDispatchedAt.size > 500) { const f = driverDispatchedAt.keys().next().value; driverDispatchedAt.delete(f); }
+  // Tell Kiki in her own words so the very next reply can use it.
+  try {
+    const note = off
+      ? '(SYSTEM NOTE - the customer cannot see this: the driver is NO LONGER on the way to this customer. Do not say anyone is coming or how far they are.)'
+      : '(SYSTEM NOTE - the customer cannot see this: a driver has NOW genuinely been dispatched to this customer - a human pressed the button, so this one is true. You may say the driver is on his way. You still do NOT know where he is, so never give a number of minutes, never say traffic and never say almost there. If they ask how far, say you are checking with Ron and come straight back.)';
+    const cur = ownerNotes.get(sub) || [];
+    cur.push(note); ownerNotes.set(sub, cur.slice(-4));
+  } catch (_) {}
+  record(req, { endpoint: 'driver-dispatched', sub, off });
+  res.json({ ok: true, dispatched: !off });
 });
 
 app.post('/inbox/note', (req, res) => {
