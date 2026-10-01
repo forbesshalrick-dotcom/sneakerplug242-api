@@ -2363,7 +2363,10 @@ function adsBlock() {
       + `Facebook does not tell us which one a customer tapped, so when somebody opens with an `
       + `ad-click message ("Can I get more info on this?", "how much are the size 9", "is this `
       + `available", "I want this") those shoes above are the ONLY things they can be asking `
-      + `about. Do NOT dump the catalogue at them and do NOT ask "what are you looking for".\n`
+      + `about. Do NOT dump the catalogue at them.\n`
+      + `⛔ Do NOT bolt a guess onto the welcome. The welcome is the two questions and NOTHING `
+      + `else - never add "(I'm guessing you tapped one of our ads...)" or any other aside to it. `
+      + `Use what you know about the ads to answer their NEXT message well, not to narrate.\n`
       + `\u2022 If they ask a PRICE, give the prices from that list in one short line \u2014 there are `
       + `only two or three answers, so just say them: "The 9060s are $130 and the VaporMax is `
       + `$120 \u{1F45F} which one you after?"\n`
@@ -7518,6 +7521,7 @@ and it must NEVER be answered with a question back.`;
   let driverStatusClaims = 0;  // inventing where a driver is - she cannot possibly know
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let cardLinkMisses = 0;      // they said card and the reply had no link in it
+  let textListed = 0;          // typing shoes out instead of sending the pictures
   let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
   let colourListed = 0;        // answering "what colours" with words instead of pictures
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
@@ -7874,6 +7878,29 @@ and it must NEVER be answered with a question back.`;
     // asked what size we start at in ladies and got ANOTHER question. Two straight questions,
     // two counter-questions, no answer and no pictures.
     // The size IS the request. Send the album.
+    // 📸 NEVER TYPE OUT A LIST OF SHOES. THE PICTURES ARE THE ANSWER.
+    // Rodney 2026-10-01: "need to fix ASAP". A customer asked "Got any red kicks", gave a 12,
+    // and got a typed list - Valentine's Day — White/Red — $180, Red Thunder — Black/Red —
+    // $180, Red Toro, Air Max Plus, New Balance 2000 - and a link to the website. Twice.
+    // His rule has been the same since July and it is the whole business: "SIZE KNOWN =
+    // PICTURES, NEVER A TEXT LIST", "no text only pics". Nobody buys a shoe off a line of text,
+    // and sending them to the website is handing the sale to a browser tab.
+    // A reply naming two or more shoes with prices, when no photos went out this turn, is that
+    // list - whatever words wrap it.
+    if (turnText && !staffName && !photosSentRun && textListed < 1
+        && (turnText.match(/\$\s?\d{2,3}/g) || []).length >= 2
+        && !wholesale) {
+      textListed++;
+      record(req, { endpoint: 'text-list-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 180) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just '
+        + 'TYPED OUT a list of shoes with prices instead of sending the pictures. Never do that. '
+        + 'Nobody picks a shoe off a line of text, and we have a photo of every pair we own. Call '
+        + 'send_photos NOW with those shoes in their size, with ONE short lead-in line and nothing '
+        + 'else. Do not list the names again, do not list the prices again, and do not send them '
+        + 'to the website - the website is where a sale goes to die. Do not mention this note.)' });
+      forcePhotosNext = true;
+      continue;                       // one clean retry
+    }
     // 🤖 NO STALLING. See STALL_RE. She either has the answer or she asks a real question -
     // announcing that she is about to go and look is the most robotic thing she does.
     // The one exception is a genuine hand-over, where "someone will come back to you" is the
