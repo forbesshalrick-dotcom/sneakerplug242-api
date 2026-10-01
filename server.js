@@ -2410,7 +2410,13 @@ function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
 
   // Greeting is decided in CODE (only the customer's very FIRST message), not left to Kiki —
   // that's what stops the double / triple "Welcome!" when someone fires "yo", "hello", "sup".
-  const siteGreetLine = SITE_LIVE ? `\n\nOr shop the full lineup anytime on our site 👉 ${WEBSITE}` : '';
+  // 🌐 THE WEBSITE IS OUT OF THE WELCOME. Rodney 2026-10-01: "can we remove the website link
+  // from the welcome message for now". It was the third thing in the very first message, and a
+  // link is an easy way for somebody to leave the chat instead of answering it. Set
+  // WELCOME_SITE_LINK=1 on Railway to put it back without a code change - the website is still
+  // used everywhere else (the price-list reply, "browse everything", the pay page).
+  const siteGreetLine = (SITE_LIVE && process.env.WELCOME_SITE_LINK === '1')
+    ? `\n\nOr shop the full lineup anytime on our site 👉 ${WEBSITE}` : '';
   const welcomeRule = greet
     ? `- WELCOME (their first message — greet ONCE, keep it SHORT). Send it in EXACTLY this layout, with a BLANK LINE between each part so every question sits on its OWN line — customers here get confused when it's all jumbled together, so the spacing matters. Keep the *asterisks* exactly (in WhatsApp, *asterisks* make that part show up BOLD). Send exactly this, line breaks and blank lines included:
 
