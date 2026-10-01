@@ -2039,6 +2039,12 @@ const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s
 // driver was already almost on top of. One missing word, same shape as "dis" and "gray".
 // A customer telling us how they mean to pay - a statement, not a question. See card-link-missing.
 const CARD_INTENT_RE = /\b(?:pay(?:ing|ment)?|paid)\b[^.?!]{0,30}\b(?:card|visa|mastercard|debit|credit)\b|\b(?:card|visa|mastercard|debit|credit)\b[^.?!]{0,30}\bpay\b|\bno (?:cash|money) on me\b|\bdon'?t have (?:any )?cash\b|\byou (?:take|accept|got) card\b|\bhow (?:do|can) i pay\b|\bpayment (?:link|options?|method)\b/i;
+// 🤖 TALK THAT SOUNDS LIKE A MACHINE THINKING. Rodney 2026-10-01: "I don't like the text she
+// says - oh, I'm doing something now, I'm trying to figure this out now, or hold on, give me one
+// sec... them things kinda piss me off... those messages sound more like robots."
+// A shop assistant does not announce that she is about to look something up. She looks, then
+// speaks. Every one of these is dead air that tells the customer nobody is really there.
+const STALL_RE = /\b(?:one|1)\s*sec\b|\bhold on\b|\bhang on\b|\bgive me a (?:sec|second|minute|min)\b|\blet me (?:check|look|see|pull|figure|find out|get)\b|\bi'?m (?:checking|looking|figuring|working on|trying to figure)\b|\bbear with me\b|\bjust a (?:sec|moment|minute)\b|\bgetting a better look\b|\bmy end (?:is )?running slow\b|\bcoming right (?:back|up)\b|\blet me come (?:right )?back\b/i;
 // A customer asking what ELSE a shoe comes in. See colour-list-blocked - the answer is photos.
 const COLOUR_ASK_RE = /\bwhat\s+(?:other\s+)?colou?rs?\b|\bwhich\s+colou?rs?\b|\bcome[sz]?\s+in\s+(?:what|any\s+other|other)\b|\bany\s+other\s+colou?rs?\b|\bbesides?\s+(?:the\s+)?(?:white|black|red|blue|green|grey|gray|pink|purple)\b|\bwhat\s+else\s+(?:you\s+)?(?:got|have)\b.{0,20}\bcolou?rs?\b/i;
 // Asking a customer to narrow by brand or model. See brand-question-blocked.
@@ -7373,7 +7379,7 @@ and it must NEVER be answered with a question back.`;
   // as that exact shoe rather than trying to identify it from scratch.
   let photoNote = `(The customer sent a PHOTO. FIRST look at WHAT it actually shows before doing anything:
 • If it's a SHOE / sneaker → identify it and you MUST call search_inventory then send_photos (never just ask "what size?").
-• 👕 If it's CLOTHING — a jersey, shirt, dress, jacket, hoodie, hat, uniform, trousers, ANY garment — they are MATCHING AN OUTFIT. That is the most common non-shoe photo we get and it is a sale, not a mistake. READ THE COLOURS OFF THE GARMENT yourself and call search_inventory on those colours in their size, then send_photos. Say what you see so they know you looked: "Love it — black, navy and white 👟 here's what we got to match in your 7". ⛔ NEVER say "that's a shirt, not a sneaker", never ask which shoe they mean, and never ask for a clearer picture — they are not naming a shoe, they are showing you the colours to match. If the garment has a team or a logo, the COLOURS are still the answer.
+• 👕 If it's CLOTHING — a jersey, shirt, dress, jacket, hoodie, hat, uniform, trousers, ANY garment — they are MATCHING AN OUTFIT. That is the most common non-shoe photo we get and it is a sale, not a mistake. READ THE COLOURS OFF THE GARMENT yourself and say what you see, so they know you actually looked. Then it depends on whether you know their size. ✅ IF YOU ALREADY KNOW THEIR SIZE: search those colours in that size and send_photos — "Love it — black, navy and white 👟 here's what we got to match in your 7". ✋ IF YOU DO NOT KNOW THEIR SIZE: do NOT fire an album at a garment. ASK, warmly and in one line, exactly as Rodney put it on 2026-10-01: "would you like a pair of shoes to match this?" — e.g. "Love that 🔥 black, navy and white. Want me to find you a pair to match? What size you wear? 👟". A photo of clothing is not the same as somebody asking for shoes, so check they want shoes at all before you send twenty. ⛔ NEVER say "that's a shirt, not a sneaker", never ask which shoe they mean, and never ask for a clearer picture — they are not naming a shoe, they are showing you the colours to match. If the garment has a team or a logo, the COLOURS are still the answer.
 • 🎽 STAFF EXCEPTION — CHECK THIS FIRST: if the prompt has a "STAFF CHAT" section (i.e. this person is one of OUR staff, recognized by their number) AND the photo is CASH / banknotes / a pile of money, it is their END-OF-SHIFT FLOAT COUNT — go STRAIGHT to the float-count flow: keep the photo as their proof, ASK THEM what they counted it to (you do NOT count the cash yourself — you can't read a pile of bills reliably), then call record_float_count with THEIR total per the staff rules. Do NOT call it a "banknote sent by accident", do NOT say "not a shoe", and NEVER pitch sneakers or ask a staff member their size (2026-07-17: a staff float photo on OSC got "that's cash, want to see what we've got? tell me your size" — staff were detected but Kiki still ran the customer script). The rest of THIS rule is for CUSTOMERS only.
 • If it's a RECEIPT, a payment / bank-transfer / SunCash screenshot, a cash photo, a shipping ticket, an ID, or ANY document or thing that is NOT a shoe → do NOT search inventory and do NOT send shoe photos. ⚠️ FIRST check whether a shoe and size ALREADY appear anywhere earlier in this conversation — that is what decides which of the next two branches you are in, and mixing them is the actual bug this replaced (2026-08-31, real customer "Jocelyn": a receipt arrived with no order in the chat, and Kiki said "payment confirmed — we'll get it sent right out!" in the SAME breath as "I'm not seeing an order in our chat yet" — confirming a payment for an order she had just said did not exist).
   — IF a shoe + size DO appear earlier: it is almost certainly PROOF OF PAYMENT for that order — warmly confirm you got it, e.g. "Got your receipt 🙏 payment confirmed — we'll get it sent right out!", AND on the SAME turn CALL notify_manager with everything already in this conversation (shoe + size, island/destination, payment = "PAID — receipt received [method]") so the team starts the order immediately (Rodney's rule 2026-07-13). Do NOT re-ask the shoe, size, or destination — re-confirming an order they already placed and PAID for reads like we lost it. Never ask for a phone number — the system attaches it automatically.
@@ -7512,6 +7518,7 @@ and it must NEVER be answered with a question back.`;
   let driverStatusClaims = 0;  // inventing where a driver is - she cannot possibly know
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let cardLinkMisses = 0;      // they said card and the reply had no link in it
+  let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
   let colourListed = 0;        // answering "what colours" with words instead of pictures
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
@@ -7867,6 +7874,23 @@ and it must NEVER be answered with a question back.`;
     // asked what size we start at in ladies and got ANOTHER question. Two straight questions,
     // two counter-questions, no answer and no pictures.
     // The size IS the request. Send the album.
+    // 🤖 NO STALLING. See STALL_RE. She either has the answer or she asks a real question -
+    // announcing that she is about to go and look is the most robotic thing she does.
+    // The one exception is a genuine hand-over, where "someone will come back to you" is the
+    // whole message and not a placeholder for one she never sends.
+    if (turnText && !staffName && STALL_RE.test(turnText) && stallLines < 1
+        && !/\b(?:someone|the team|the driver)\b[^.!?]{0,30}\b(?:call|come back|get back|reach)\b/i.test(turnText)) {
+      stallLines++;
+      record(req, { endpoint: 'stall-line-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just '
+        + 'told them to hold on, or that you are checking or figuring something out. Never do that. '
+        + 'A person in a shop does not announce that they are about to go and look - they look, then '
+        + 'they speak. Use your tools SILENTLY and reply once with the actual answer. If you truly '
+        + 'cannot answer, ask them a real question instead, or say plainly that someone will come '
+        + 'back to them - but never send a holding message with nothing in it. Write the reply '
+        + 'again with the answer in it. Do not mention this note.)' });
+      continue;                       // one clean retry
+    }
     // 🎨 "WHAT COLOURS DOES IT COME IN" IS ANSWERED WITH PICTURES.
     // Rodney 2026-09-29: "why not send the fucking pics". A customer asked "The new balance
     // comes in what color besides white?" and got a TYPED LIST - "Black/White, Pink/White,
