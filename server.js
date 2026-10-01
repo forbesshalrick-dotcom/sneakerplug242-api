@@ -2473,6 +2473,19 @@ How to chat:
 - ⚠️ TRANSLATE THEIR MESSAGE FOR THE OWNER (Creole/Spanish — NEVER SKIP, EVERY SINGLE REPLY): The shop owner reads English only — this translation line is his ONLY way to follow a Spanish/Creole chat, so LEAVING IT OFF LEAVES HIM BLIND (Rodney 2026-07-17: a whole Spanish chat came through with no translations and he couldn't tell what the customer wanted). So: whenever the customer's message is in ANY language other than English, reply to them normally in their language, then at the very END add a blank line and this EXACT single line: 🔎 _Customer said: "<their latest message in plain, natural English>"_. This is MANDATORY on EVERY such reply — no exceptions, not for a short message, not for a one-word reply, not for a bare size number or code. Even a lone "42" or "A1" still gets the line (🔎 _Customer said: "42 (size)"_ / _"A1 (the code)"_). NEVER add this line when the customer wrote in English (English needs no translation).
 ${welcomeRule}${adsBlock()}
 
+✅ "YES" MEANS THE PICTURES ARE ALREADY COMING (Rodney 2026-10-01, and he calls it the motto):
+"Send the pictures if you have it. He shouldn't even have to ask you to send a picture."
+When somebody asks DO YOU HAVE something - red kicks, Jordans, a 9060, anything - and we do,
+you do not announce it and wait. Saying yes IS the promise to show them.
+• Say it small: "Yes, we have a few 👟" - and NEVER "tons of options", "tons of", "loads of",
+  "a whole heap". Rodney's words: "Can you not say got tons of options? Instead you can say,
+  yes, we have a few. That's it."
+• Then SEND THEM, on the same turn, with send_photos. They should never have to ask twice.
+• ⛔ NEVER list the colours or the names in text instead. "Jordan 4 Valentine's Day - White/Red
+  - $180" typed out is not an answer, it is a menu, and his instruction is flat: "when you start
+  to list the colors without sending the pictures, don't never let that happen again."
+• The ONLY thing that delays the pictures is not knowing their size - ask for it once, then send.
+
 👤 WHEN IT IS NOT ABOUT SHOES — BE A PERSON FIRST (Rodney 2026-09-30, and this one matters
 more than any stock rule). A real customer sent photographs of her house after a FIRE burned
 it down, asking whether we could help her on a price. She was answered: "That's a burnt house,
@@ -7521,6 +7534,7 @@ and it must NEVER be answered with a question back.`;
   let driverStatusClaims = 0;  // inventing where a driver is - she cannot possibly know
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let cardLinkMisses = 0;      // they said card and the reply had no link in it
+  let soldSizeClaims = 0;      // confirming a shoe in a size that is not on the shelf
   let textListed = 0;          // typing shoes out instead of sending the pictures
   let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
   let colourListed = 0;        // answering "what colours" with words instead of pictures
@@ -7878,6 +7892,76 @@ and it must NEVER be answered with a question back.`;
     // asked what size we start at in ladies and got ANOTHER question. Two straight questions,
     // two counter-questions, no answer and no pictures.
     // The size IS the request. Send the album.
+    // ⛔ NEVER CONFIRM A SHOE IN A SIZE WE DO NOT HAVE.
+    // Rodney 2026-10-01: "that shoe is sold but kiki ask for location". A customer forwarded the
+    // Yellow/Black Air Max Plus, was told "Got you - Air Max Plus Yellow/Black in a 12 - $120,
+    // free delivery", sent a pin from Baggiers Beach, and the order was filed. That shoe exists
+    // in a 9.5 and a 10. There is no 12 and there never was.
+    // Third time in two days: an Air Force 1 in a 10.5, an all-white 95 in a 7, now this. The
+    // prompt rule - "a colourway is its own shoe, never promise a size the tool did not list for
+    // that exact one" - has not held once, because stitching a shoe and a size together is the
+    // easiest sentence in the language to write and nothing was checking it.
+    // So check it. Take the shoe she just named and the size she just named, and ask the shelf.
+    try {
+      const m = turnText && turnText.match(/\bin (?:a |an )?(\d{1,2}(?:\.5)?)\b/i);
+      if (m && !staffName && soldSizeClaims < 1) {
+        const wantSz = String(parseFloat(m[1]));
+        // Strip the PRICE first - "$120" becomes the token "120" and matches nothing useful -
+        // and keep MODEL NUMBERS. Dropping every short token threw away the "95" in "Air Max 95
+        // White", which left it matching the whole Air Max family and finding a 7 in the
+        // Black/White sibling. The model number is the most important word in the sentence.
+        const said = turnText.slice(0, m.index).toLowerCase().replace(/\$\s?\d[\d,.]*/g, ' ');
+        const words = said.replace(/[^a-z0-9/ ]/g, ' ').replace(/\//g, ' ').split(/\s+/)
+          .filter(w => w.length > 2 || /^\d{2}$/.test(w))
+          .filter(w => !/^(got|you|the|and|for|our|its|that|this|here|have|your|all|one|now|was|are|only|just|with|from|they|them|were|what|when|size|free|delivery)$/.test(w));
+        if (words.length) {
+          // Match the EXACT colourway, not the family. "Air Max Plus Yellow/Black" scores 3 and
+          // plain "Air Max Plus All Black" scores 2, so taking only the BEST-scoring shoes keeps
+          // us on the shoe she actually named - the first version matched the whole Air Max Plus
+          // line, found a 12 somewhere in it, and waved the Yellow/Black straight through.
+          const lm = liveShoeMap();
+          const scored = Object.values(lm).map(sh => {
+            const hay = `${sh.brand || ''} ${sh.name || ''} ${sh.color || ''} ${sh.nickname || ''}`
+              .toLowerCase().replace(/\//g, ' ');
+            return { sh, hits: words.filter(w => hay.includes(w)).length };
+          }).filter(x => x.hits >= 2);
+          const best = scored.reduce((m, x) => Math.max(m, x.hits), 0);
+          let named = scored.filter(x => x.hits === best).map(x => x.sh);
+          // An EXACT colourway beats a near one. "Air Max 95 White" also half-matches
+          // "Black/White", and that sibling having a 7 is what let the all-white 95 get sold in
+          // a size it has never come in. If the colour words in her sentence ARE a shoe's whole
+          // colour, that is the shoe she means.
+          try {
+            const COLW = /^(black|white|grey|gray|red|blue|green|pink|purple|orange|yellow|brown|cream|navy|gold|silver|tan|teal|aqua|mint|burgundy|beige|sail)$/;
+            const saidCols = words.filter(w => COLW.test(w)).sort().join(' ');
+            if (saidCols) {
+              const exact = named.filter(sh => String(sh.color || '').toLowerCase()
+                .replace(/\//g, ' ').split(/\s+/).filter(Boolean).sort().join(' ') === saidCols);
+              if (exact.length) named = exact;
+            }
+          } catch (_) {}
+          if (named.length) {
+            const anyHas = named.some(sh => (sh.sizes || []).map(x => String(parseFloat(x))).includes(wantSz));
+            if (!anyHas) {
+              soldSizeClaims++;
+              const real = [...new Set(named.flatMap(sh => (sh.sizes || []).map(x => String(parseFloat(x)))))]
+                .sort((a, b) => a - b).join(', ');
+              record(req, { endpoint: 'sold-size-blocked', sub, store: ctx.store || '',
+                            wanted: wantSz, shoe: displayName(named[0]), has: real, text: turnText.slice(0, 140) });
+              history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+                + 'just confirmed ' + displayName(named[0]) + ' in a ' + wantSz + ' and WE DO NOT HAVE '
+                + 'THAT SIZE. That shoe comes in ' + (real || 'no sizes we can see') + ' only. Never '
+                + 'promise a size the shelf does not list for that exact colourway - a customer sends '
+                + 'a pin, a driver goes out, and we arrive with nothing. Write the reply again: tell '
+                + 'them plainly that one is not in their size, say which sizes it DOES come in, and '
+                + 'offer what we genuinely have in theirs. Do NOT ask for a location. Do not mention '
+                + 'this note.)' });
+              continue;                       // one clean retry
+            }
+          }
+        }
+      }
+    } catch (_) {}
     // 📸 NEVER TYPE OUT A LIST OF SHOES. THE PICTURES ARE THE ANSWER.
     // Rodney 2026-10-01: "need to fix ASAP". A customer asked "Got any red kicks", gave a 12,
     // and got a typed list - Valentine's Day — White/Red — $180, Red Thunder — Black/Red —
