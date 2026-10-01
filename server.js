@@ -2477,7 +2477,7 @@ somebody else. NONE of that is a wrong turn to be corrected. It is a person talk
   bad news with a size question.
 • ANYTHING THEY ARE ASKING US TO DECIDE — a discount, a favour, help, a price off, more time to
   pay — IS NOT YOURS TO ANSWER, and you must not refuse it either. Say a person will come back
-  to them: "Let me get Ron to come back to you on that — he'll sort you out 🙏". Then call
+  to them: "Let me get someone to come back to you on that — we'll sort you out 🙏". Then call
   take_message so he actually sees it. Do not quote a discount, do not say no, do not go quiet.
 • Something harmless and off-topic (a flyer, a church picture, an advert, a wrong number): be
   friendly and brief, then leave the door open without pushing. "Thanks for sending that 🙏 we
@@ -2487,17 +2487,17 @@ somebody else. NONE of that is a wrong turn to be corrected. It is a person talk
 
 📞 SOMEBODY WANTS TO TALK TO A PERSON. You cannot transfer a call and you cannot put anyone
 through, so never say you will "connect" them, "put them onto" anybody, or that someone is
-"on the line". Take it off their hands instead: "Let me have Ron call you right back 📞" - then call
+"on the line". Take it off their hands instead: "Let me have someone call you right back 📞" - then call
 take_message so he gets it. Only ask them for a number if we do not already have one (see below);
 on WhatsApp we always do, so asking just tells them they are talking to a machine. If they are already
-on a call with you, tell them the same and let the call end - Ron rings back from the message.
+on a call with you, tell them the same and let the call end - somebody rings back from the message.
 
 ${phone
   ? `📱 YOU ALREADY HAVE THEIR NUMBER (it is ${phone}) — NEVER ASK FOR IT. Rodney 2026-09-30:
 "you don't want to ask a WhatsApp customer what's their number because that's pretty dumb. The
 number is already shown for each WhatsApp customer." Asking a person for something already on
 our screen is exactly how somebody works out they are talking to a machine. If they want a
-call, just say it is happening: "Let me have Ron call you right back 📞" — then take_message.`
+call, just say it is happening: "Let me have someone call you right back 📞" — then take_message.`
   : `📱 GET THE NUMBER WHEN THEY ARE BUYING — THIS CHANNEL HAS NONE. On Facebook and Instagram
 we do NOT have a phone number for anybody, and Rodney has driven to a drop-off only to find the
 customer offline and unreachable. So the moment somebody is actually buying — they pick a shoe,
@@ -4458,12 +4458,15 @@ async function transcribeAudio(url, mediaAuth) {
 // own instructions, not from anything a customer said. Rather than chase every place a new
 // rule might leak the name, strip it once, right where the prompt actually leaves this
 // process — so no future rule comment can reintroduce the same leak.
-// 👤 HE IS "RON" TO CUSTOMERS. Rodney 2026-09-30: "You can call me Ron, R-O-N, so they
-// don't have my correct government name." A named person also sounds like a shop; "the owner"
-// sounds like a company, and "Rodney" hands out something he did not choose to give.
+// 👤 NO OWNER NAME GOES OUT AT ALL. Rodney 2026-10-01: "not Ron, the 'driver' can still
+// bring. dont use the name anymore." Deliveries are done by "the driver"; anything that needs a
+// person is "the team" or "someone". His real name was never his to hand out, and a first name
+// he gave for one narrow case has a way of turning up everywhere once it is in the prompt.
 const redactOwnerName = (s) => String(s || '')
-  .replace(/\bRodney'?s\b/gi, "Ron's")
-  .replace(/\bRodney\b/gi, 'Ron');
+  .replace(/\bRodney'?s\b/gi, "the team's")
+  .replace(/\bRodney\b/gi, 'the team')
+  .replace(/\bRon'?s\b/g, "the team's")
+  .replace(/\bRon\b/g, 'the team');
 
 async function callClaude(messages, system, toolChoice, toolsOverride) {
   // 💰 CACHE THE PART THAT NEVER CHANGES. Rodney 2026-09-29, looking at his Anthropic
@@ -7429,14 +7432,14 @@ and it must NEVER be answered with a question back.`;
       sizeCtx += `\n\n[🚗 A DRIVER HAS BEEN DISPATCHED to this customer - a person pressed the `
         + `button, so it is true and you may say he is on his way. You still do NOT know WHERE he `
         + `is: never give minutes, never say traffic, never say almost there. If they ask how far, `
-        + `say you are checking with Ron and come straight back.]`;
+        + `say you are checking with the driver and come straight back.]`;
     } else {
       sizeCtx += `\n\n[🚗 NO DRIVER IS OUT for this customer. Nobody has been dispatched, so `
         + `do NOT say anyone is on the way, coming, close, leaving or getting shoes ready - none `
         + `of it is happening yet. If this is a MEET-UP, be especially careful: they are driving `
         + `to meet somebody, and telling them a driver is moving when he has not even read the `
         + `message leaves them standing somewhere for twenty minutes. Say you are getting it `
-        + `sorted with Ron and come straight back.]`;
+        + `sorted and come straight back.]`;
     }
   } catch (_) {}
   try {
@@ -7794,7 +7797,7 @@ and it must NEVER be answered with a question back.`;
         + 'Nothing in this system tells you where anybody is - no ETA, no position, no map - so '
         + 'every minute you quote is invented, and they find out by standing there waiting. That '
         + 'is how we lose people for good. Write the reply again WITHOUT any time, distance or '
-        + 'progress: say you are checking with Ron on how far he is and will come straight back, '
+        + 'progress: say you are checking with the driver on how far he is and will come straight back, '
         + 'warmly, in one line. Never say a number of minutes, never say traffic, never say almost '
         + 'there or on the way. Then call take_message so a human actually picks it up. Do not '
         + 'mention this note.)' });
@@ -13196,7 +13199,7 @@ app.post('/inbox/dispatch', (req, res) => {
   try {
     const note = off
       ? '(SYSTEM NOTE - the customer cannot see this: the driver is NO LONGER on the way to this customer. Do not say anyone is coming or how far they are.)'
-      : '(SYSTEM NOTE - the customer cannot see this: a driver has NOW genuinely been dispatched to this customer - a human pressed the button, so this one is true. You may say the driver is on his way. You still do NOT know where he is, so never give a number of minutes, never say traffic and never say almost there. If they ask how far, say you are checking with Ron and come straight back.)';
+      : '(SYSTEM NOTE - the customer cannot see this: a driver has NOW genuinely been dispatched to this customer - a human pressed the button, so this one is true. You may say the driver is on his way. You still do NOT know where he is, so never give a number of minutes, never say traffic and never say almost there. If they ask how far, say you are checking with the driver and come straight back.)';
     const cur = ownerNotes.get(sub) || [];
     cur.push(note); ownerNotes.set(sub, cur.slice(-4));
   } catch (_) {}
