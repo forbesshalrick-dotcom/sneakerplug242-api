@@ -32,6 +32,13 @@ const VOICE_KEY = process.env.VOICE_KEY || 'sp242-voice-4f9c21ab77e0';
 const VOICE_LINES = {
   '12428033126': 'Official Sneaker Crew',
   '12428256405': 'Trendy Kicks',
+  // 📞 THE NUMBER THAT ACTUALLY TAKES THE CALLS. Rodney 2026-10-01: "for my direct calls,
+  // I've been missing all the calls I had for weeks. I haven't seen any come through to my
+  // message app. So I don't even know who's been calling me."
+  // Measured against Retell: 38 phone calls since 5 September, every single one dialled to
+  // +1 (904) 906-8851 - which was in neither this map nor the call log. Kiki answered all of
+  // them and he never saw one.
+  '19049068851': 'Shop line',
 };
 
 const digits = v => String(v == null ? '' : v).replace(/\D/g, '');
@@ -351,6 +358,49 @@ function addCall(rec) {
   saveCallLog();
   return entry;
 }
+// 📥 PULL THE CALLS FROM RETELL OURSELVES.
+// Every phone call already exists in Retell - with the caller's number, the length, a summary
+// and a recording - and 38 of them never reached this log. Rather than depend on a webhook
+// being configured correctly in a dashboard nobody can see from here, we ASK. Polling cannot
+// silently stop working the way a missing webhook did, it backfills the history we already
+// lost, and addCall only fills blanks so a later webhook post can still add to the same row.
+let lastCallPull = 0;
+async function pullRetellCalls(limit = 60, note = () => {}) {
+  const key = (process.env.RETELL_API_KEY || '').trim();
+  if (!key) return { ok: false, why: 'RETELL_API_KEY not set' };
+  try {
+    const r = await fetch('https://api.retellai.com/v2/list-calls', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit: Math.max(1, Math.min(500, limit)) }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!r.ok) return { ok: false, status: r.status, why: (await r.text()).slice(0, 160) };
+    const data = await r.json();
+    const rows = Array.isArray(data) ? data : (data.calls || []);
+    let added = 0;
+    for (const c of rows) {
+      if (!c || c.call_type !== 'phone_call') continue;   // web calls are logged by the bridge
+      const an = c.call_analysis || {};
+      const to = String(c.to_number || '').replace(/\D/g, '');
+      addCall({
+        call_id: c.call_id,
+        epoch: Number(c.start_timestamp) || Date.now(),
+        line: VOICE_LINES[to] || 'Shop line',
+        phone: c.from_number || '',
+        seconds: Math.round((Number(c.duration_ms) || 0) / 1000),
+        ended_because: c.disconnection_reason || '',
+        summary: an.call_summary || '',
+        recording: c.recording_url || an.recording_url || '',
+        transcript: typeof c.transcript === 'string' ? c.transcript : '',
+      });
+      added++;
+    }
+    lastCallPull = Date.now();
+    return { ok: true, seen: rows.length, phoneCalls: added };
+  } catch (e) { return { ok: false, why: String(e).slice(0, 160) }; }
+}
+
 function getCallLog(limit) {
   const n = Math.max(1, Math.min(CALL_LOG_MAX, parseInt(limit, 10) || 100));
   return callLog.slice(0, n);
@@ -394,6 +444,19 @@ function mountVoice(app, deps) {
     try { record(req, { endpoint: 'voice-call-log', callsIn: saved.length }); } catch (_) {}
     res.json({ ok: true, saved: saved.length, total: callLog.length, rev: callRev });
   });
+  // Pull on boot (backfills what the missing webhook lost) and every two minutes after.
+  // First run is delayed so it never competes with start-up.
+  setTimeout(() => { pullRetellCalls(200).then(r => {
+    try { console.log('[calls] backfill from Retell:', JSON.stringify(r)); } catch (_) {}
+  }); }, 12000);
+  setInterval(() => { pullRetellCalls(60).catch(() => {}); }, 2 * 60 * 1000);
+
+  // Manual kick, for checking it by hand.
+  app.get('/voice/pull-calls', async (req, res) => {
+    if (!auth(req, res)) return;
+    res.json(await pullRetellCalls(parseInt(req.query.limit, 10) || 200));
+  });
+
   app.get('/voice/call-log', (req, res) => {
     if (!auth(req, res)) return;
     res.json({ count: callLog.length, rev: callRev, calls: getCallLog(req.query.limit) });
@@ -1103,5 +1166,5 @@ module.exports = {
   mountVoice, VOICE_PROMPT, VOICE_KEY, VOICE_LINES,
   VOICE_AGENT_CONFIG, TOOL_FILLERS, FILLERS_WHILE_LISTENING,
   spokenPrice, spokenSizes, toMens, prettyPhone,
-  addCall, getCallLog, getCallRev, callTag,
+  addCall, getCallLog, getCallRev, callTag, pullRetellCalls,
 };
