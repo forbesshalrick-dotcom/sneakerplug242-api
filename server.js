@@ -7979,10 +7979,18 @@ and it must NEVER be answered with a question back.`;
             }
           } catch (_) {}
           if (named.length) {
-            const anyHas = named.some(sh => (sh.sizes || []).map(x => String(parseFloat(x))).includes(wantSz));
+            // ⚠️ sizesRaw, NEVER sizes. liveShoeMap() overlays the shop's LIVE stock onto
+            // `sizesRaw` only — `sizes` stays the frozen snapshot baked into catalog.json at
+            // deploy time. searchInventory and sizesOf() both read sizesRaw; this guard was
+            // reading the stale one, so it judged Kiki against a shelf from months ago.
+            // 2026-10-02: Sid asked for a white Air Force 1 in an 8.5. Kiki found it, SENT the
+            // 8.5 photos, he said "Ok need one" — and this guard made her take it back, three
+            // times, because the stale list had only 9.5 and 10. The shelf had 8.5 all along.
+            // He left. Rodney: "kiki losing many sales with wrong stock info".
+            const anyHas = named.some(sh => (sh.sizesRaw || []).map(x => String(parseFloat(x))).includes(wantSz));
             if (!anyHas) {
               soldSizeClaims++;
-              const real = [...new Set(named.flatMap(sh => (sh.sizes || []).map(x => String(parseFloat(x)))))]
+              const real = [...new Set(named.flatMap(sh => (sh.sizesRaw || []).map(x => String(parseFloat(x)))))]
                 .sort((a, b) => a - b).join(', ');
               record(req, { endpoint: 'sold-size-blocked', sub, store: ctx.store || '',
                             wanted: wantSz, shoe: displayName(named[0]), has: real, text: turnText.slice(0, 140) });
