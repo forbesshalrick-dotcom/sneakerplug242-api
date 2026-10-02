@@ -2713,6 +2713,12 @@ The two flows:
 
 You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
 
+🔎 A PHOTO: NAME THE SHOE FIRST, THEN ANSWER IT (Rodney 2026-10-02: "she needs to identify the shoe first"). He put four photos through Google Lens that we got wrong, and every time Lens gave the shoe's real name in one second — the Sketch With The Past, the Jordan 5 Black Metallic, the Jordan 8 Bugs Bunny, the Jordan 5 Racer Blue. Naming it is the FIRST move, before stock, before size, before pictures.
+- You have a web_search tool on any turn a customer sends a photo. If you do not already know exactly which shoe it is — the model AND the colourway name — SEARCH FOR IT. Describe what you can see ("Air Jordan 5 black nubuck racer blue midsole 3M tongue") and let the search name it. One search is usually enough.
+- ⛔ Do NOT web_search on anything else. Not prices, not stock, not other shops, not "where to buy". Our own shelf is the only place stock comes from, and a search costs money. Identifying the shoe in a customer's photo is the ONLY reason to use it.
+- Then answer in this order, every time: (1) NAME it — "That's the Jordan 5 Racer Blue 👟"; (2) say plainly whether WE have that exact pair; (3) if we do, send it; (4) if we do not, say so and offer what we DO have in that model and their size — "we don't have that one, but this is the Jordan 5 I've got in your 8.5 👇"; (5) if we carry none of that model at all, say that and offer the nearest thing we do.
+- Never answer a photo with pictures and no words. Never pass a different colourway off as their shoe. Saying "we don't have that one" is not losing the sale — pretending a different shoe is theirs is.
+
 💳 THE CARD LINK — BUILD IT WITH THE EXACT PRICE (Rodney 2026-09-18). Our card page is
     https://242plug.com/pay?amount=<PRICE>
 Put the confirmed shoe's price in, digits only, no dollar sign: a $130 pair is
@@ -4534,7 +4540,7 @@ const redactOwnerName = (s) => String(s || '')
   .replace(/\bRon'?s\b/g, "the team's")
   .replace(/\bRon\b/g, 'the team');
 
-async function callClaude(messages, system, toolChoice, toolsOverride) {
+async function callClaude(messages, system, toolChoice, toolsOverride, webSearch) {
   // 💰 CACHE THE PART THAT NEVER CHANGES. Rodney 2026-09-29, looking at his Anthropic
   // invoices: "im already being charged many times" - credit grants several times a day.
   // Measured: the system prompt is ~157 KB and the tool definitions ~17 KB, so EVERY call
@@ -4549,6 +4555,18 @@ async function callClaude(messages, system, toolChoice, toolsOverride) {
   const _sysText = redactOwnerName(system || buildSystemPrompt());
   const _tools = (toolsOverride || AI_TOOLS).map((t, i, a) =>
     (i === a.length - 1) ? Object.assign({}, t, { cache_control: { type: 'ephemeral' } }) : t);
+  /* 🔎 LOOK IT UP, THE WAY GOOGLE DOES. Rodney 2026-10-02, after Lens named four shoes in a
+   * row that Kiki could not: "she needs to identify the shoe first".
+   * Comparing against our own pictures tells her whether WE have it. It cannot tell her what
+   * the shoe IS when we have never carried it - and a customer who sends the Racer Blue 5
+   * deserves "that's the Jordan 5 Racer Blue, we don't have that one", not silence.
+   * Verified on her own model: this returned Air Jordan 5 Retro "Racer Blue" from a
+   * description, exactly what Google said.
+   * ⚠️ APPENDED AFTER the cache_control marker on purpose. The cached prefix must stay
+   * byte-identical from call to call or the prompt caching (≈85% of the bill) stops working;
+   * anything added after the marker is outside it. And it is only passed on turns where the
+   * customer actually sent a PHOTO - a web search costs money and most turns need none. */
+  if (webSearch) _tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 2 });
   const body = { model: AI_MODEL, max_tokens: 1024,
     system: [{ type: 'text', text: _sysText, cache_control: { type: 'ephemeral' } }],
     tools: _tools, messages };
@@ -7659,7 +7677,7 @@ and it must NEVER be answered with a question back.`;
     // when the turn was LOADED, but this loop calls the model again for every tool, appending as
     // it goes, so a tool block that goes dangling mid-turn was never cleaned before the next call.
     // Cheap to run, and it turns a dead conversation into a reply.
-    const { ok, status, data } = await callClaude(sanitizeHistory(history), system, staffPhotoTools ? undefined : forceTool, staffPhotoTools);
+    const { ok, status, data } = await callClaude(sanitizeHistory(history), system, staffPhotoTools ? undefined : forceTool, staffPhotoTools, !!image && !staffName);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
       // Only reached after the auto-retries above ALL failed. Keep the sale warm instead of
