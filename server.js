@@ -7565,6 +7565,7 @@ and it must NEVER be answered with a question back.`;
   let lastSearchIds = [];    // the ids that search matched — see the completeness top-up in send_photos
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
+  let photoLeadInMisses = 0;    // sending pictures at a customer's photo with nothing said
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
   let pretendBlocks = 0;
@@ -8761,6 +8762,40 @@ and it must NEVER be answered with a question back.`;
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+
+        /* 🗣️ A PICTURE ANSWERED WITH A PICTURE AND NO WORDS IS A SWAP, NOT AN ANSWER.
+         * Rodney 2026-10-02 sent the Jordan 5 "Racer Blue". She searched "Jordan 5 black blue" -
+         * she SAW the colour - compared three of our pictures, and then sent our White/Black 5
+         * with no lead-in at all. All the customer sees is their shoe, then a different shoe, and
+         * the stock caption "Those are the size 8.5 options". It reads as "here is your shoe".
+         * We do not own the Racer Blue (our c0647 is the pale UNC-blue one), and saying so costs
+         * nothing - it is the silence that burns the trust.
+         * The generic header is no better than silence here: "This is what we have in 8.5 rite
+         * now" answers a SIZE question, and they did not ask one, they showed us a shoe.
+         * So on a turn where the customer sent a photo, she has to say something of her own
+         * about THAT shoe before the pictures go. One retry, then we let it through - a guard
+         * must never be the reason a customer gets nothing. */
+        try {
+          if (image && !staffName && photoLeadInMisses < 1) {
+            const _li = String(leadIn || '').trim();
+            const _generic = !_li || /^this is what we have in .{0,40}rite now/i.test(_li)
+                                 || /^those are the (size .{0,12}options|ones we got)/i.test(_li);
+            if (_generic) {
+              photoLeadInMisses++;
+              record(req, { endpoint: 'photo-leadin-missing', sub, store: ctx.store || '', had: _li.slice(0, 60) });
+              toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
+                sent: 0, blocked: 'say what their shoe is first',
+                note: 'STOP - nothing was sent. The customer showed you a PHOTO of a shoe and you were '
+                    + 'about to answer it with pictures and no words of your own, which reads as "here is '
+                    + 'the shoe you asked for" even when it is a different pair. Call send_photos again '
+                    + 'with a real lead_in that does these in order: (1) NAME the shoe in THEIR photo, '
+                    + 'even if we do not stock it; (2) say plainly whether we have that exact pair; '
+                    + '(3) if we do not, say what you ARE sending and why - "we don\'t have that one, but '
+                    + 'this is the only Jordan 5 I got in your 8.5". Never the stock header on a photo.' }) });
+              continue;
+            }
+          }
+        } catch (_) {}
         // 🏷️ DO NOT CALL IT "ALL BLACK" UNLESS IT IS. Rodney 2026-09-28: the customer typed
         // "Black size 11" and the header that went out over the album read "This is what we have
         // in ALL BLACK in size 11 rite now" - over a Black/Green, a Black/Pink and a
