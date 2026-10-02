@@ -4566,7 +4566,18 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
    * byte-identical from call to call or the prompt caching (≈85% of the bill) stops working;
    * anything added after the marker is outside it. And it is only passed on turns where the
    * customer actually sent a PHOTO - a web search costs money and most turns need none. */
-  if (webSearch) _tools.push({ type: 'web_search_20250305', name: 'web_search', max_uses: 2 });
+  /* 📚 THE SAME DIRECTORIES GOOGLE USES. Rodney asked Lens outright what it reads, and it
+   * answered: Nike/SNKRS and brand launch pages for the official colourway name and style
+   * code; Sneaker News, Sole Retriever, Sneaker Bar Detroit and Nice Kicks for documentation;
+   * StockX, GOAT, Flight Club and eBay for the live market. He sent the list over, so she reads
+   * the same shelf of sources. Measured: with these, "all grey Jordan 4 SE, speckled cement box,
+   * July 2024 Paris Olympics" came back Air Jordan 4 Retro SE "Paris Olympics" Wet Cement
+   * FQ7928-001 - the identical answer, style code and all, that Google gave him. */
+  if (webSearch) _tools.push({
+    type: 'web_search_20250305', name: 'web_search', max_uses: 2,
+    allowed_domains: ['nike.com', 'sneakernews.com', 'soleretriever.com', 'sneakerbardetroit.com',
+                      'nicekicks.com', 'stockx.com', 'goat.com', 'flightclub.com', 'ebay.com',
+                      'hypebeast.com', 'kicksonfire.com', 'complex.com'] });
   const body = { model: AI_MODEL, max_tokens: 1024,
     system: [{ type: 'text', text: _sysText, cache_control: { type: 'ephemeral' } }],
     tools: _tools, messages };
