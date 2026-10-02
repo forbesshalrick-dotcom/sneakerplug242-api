@@ -8204,8 +8204,20 @@ and it must NEVER be answered with a question back.`;
       // searching (Rodney's rule 2026-07-13 — tan Jordan 4 got chat, no pictures). Unless her
       // reply shows it's a RECEIPT/payment/document (those must never get shoe photos), loop
       // once more and FORCE search_inventory → the existing chain then forces send_photos.
-      if (image && !didSearch && !photosSentRun && step === 0
-          && !/receipt|payment|paid|pay|transfer|suncash|deposit|slip|confirm|order|deliver/i.test(turnText || '')) {
+      // ⚠️ THIS EXCLUSION USED TO MATCH HER OWN SALES PATTER AND SWITCH THE GUARD OFF.
+      // It was a bare /…|order|deliver/ — and "free delivery" is in nearly every line she
+      // writes ("$130, free delivery", "we provide free delivery 👟"). So on most shoe photos
+      // this guard quietly disabled itself and she answered the picture from memory.
+      // Rodney 2026-10-02 sent a Jordan 8 "Bugs Bunny"; NO search ran at all and she tried to
+      // close him on the Jordan 5 from the turn before. We hold that Bugs Bunny (p41, in 5.5,
+      // 6.5 and 7). Google named it in one second.
+      // So the test now looks for a photo that is genuinely NOT a shoe — a payment receipt or a
+      // location pin — in words she would only use ABOUT such a photo. "Send the location" and
+      // "free delivery" are selling lines and must never count.
+      const _notAShoePhoto =
+            /\b(receipt|proof of payment|bank transfer|suncash|deposit|payment (?:received|confirmed|went through))\b/i.test(turnText || '')
+         || /\b(got|see|read|that'?s)\b[^.!?]{0,24}\b(?:your\s+)?(?:location|pin|address)\b/i.test(turnText || '');
+      if (image && !didSearch && !photosSentRun && step === 0 && !_notAShoePhoto) {
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: that photo was a SHOE, so you MUST now search our stock for it (search BROAD — brand + line) and send the closest matching pair(s) with an honest lead-in. Never leave a shoe photo with words only.)' });
         forceSearchNext = true;
         continue;
@@ -9470,27 +9482,63 @@ and it must NEVER be answered with a question back.`;
     if (image && !photoCompareSent && lastSearchIds.length) {
       try {
         const lm = liveShoeMap();
-        const picks = lastSearchIds.slice(0, 6).map(id => lm[id]).filter(sh => sh && sh.image);
+        const picks = lastSearchIds.slice(0, 5).map(id => lm[id]).filter(sh => sh && sh.image);
+        /* 🏷️ SHOW HER THE SOLD-OUT ONES TOO — SO SHE CAN NAME WHAT SHE CANNOT SELL.
+         * Rodney 2026-10-02 sent the Jordan 5 "Black Metallic Reimagined" as a test. Google named
+         * it instantly. Kiki sent back our White/Black 5 with NOT ONE WORD — a silent swap.
+         * She was not being stupid: liveShoeMap() drops anything with no sizes left, and we DO own
+         * that shoe (p51, "Air Jordan 5 — Metallic") with ZERO stock. So the one picture that would
+         * have let her say "that's the Metallic 5" was the one picture she was never shown.
+         * Rodney's words: "Even if she identified it and said, yes, that's the Metallic 5, but we
+         * don't have that in stock right now. What size do you need?"
+         * So a few same-model shoes we are OUT of come too, labelled SOLD OUT. Naming only —
+         * they must never be offered, and the note below says so twice. */
+        let gone = [];
+        try {
+          const modelKey = sh => String(sh.name || '').toLowerCase()
+            .replace(/\b(retro|og|sp|low|high|mid)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+          const keys = new Set(picks.map(modelKey).filter(Boolean));
+          const live = new Set(Object.values(lm).map(sh => String(sh.id)));
+          if (keys.size) gone = catalog.filter(sh => sh && sh.image && !live.has(String(sh.id))
+                                               && keys.has(modelKey(sh))).slice(0, 3);
+        } catch (_) {}
         if (picks.length) {
           const shots = await Promise.all(picks.map(sh => fetchImageBase64(sh.image).catch(() => null)));
+          const goneShots = await Promise.all(gone.map(sh => fetchImageBase64(sh.image).catch(() => null)));
           const blocks = [];
           picks.forEach((sh, i) => {
             if (!shots[i]) return;
-            blocks.push({ type: 'text', text: `${i + 1}. ${displayName(sh)} — $${sh.price} — sizes ${sizesOf(sh)}` });
+            blocks.push({ type: 'text', text: `${i + 1}. ${displayName(sh)} — $${sh.price} — sizes ${sizesOf(sh)}  [IN STOCK]` });
             blocks.push({ type: 'image', source: { type: 'base64', media_type: shots[i].media_type, data: shots[i].data } });
+          });
+          gone.forEach((sh, i) => {
+            if (!goneShots[i]) return;
+            blocks.push({ type: 'text', text: `${displayName(sh)} — ⛔ SOLD OUT, WE HAVE NONE. For NAMING ONLY — never offer or send this one.` });
+            blocks.push({ type: 'image', source: { type: 'base64', media_type: goneShots[i].media_type, data: goneShots[i].data } });
           });
           if (blocks.length) {
             photoCompareSent = true;
             record(req, { endpoint: 'photo-compare', sub, store: ctx.store || '', shown: blocks.length / 2 });
             toolResults.push({ type: 'text', text:
-              '(SYSTEM NOTE — the customer cannot see this. Below are OUR OWN photos of the closest '
-              + 'shoes on the shelf, numbered. LOOK at them next to the photo the customer sent at the '
-              + 'top of this conversation and decide which one IS the same shoe — same silhouette, same '
-              + 'panels, same markings, same colours. Trust your eyes over the words: a shoe\'s written '
-              + 'colour can be as thin as "Black/White" when the pair is covered in sketch markings, so a '
-              + 'name that looks plain can still be the exact shoe they sent. If one of these IS it, say so '
-              + 'and send that one. If NONE of them is it, say we do not have that exact pair and offer '
-              + 'what we do have in their size — but never say we do not have it without looking here first.)' });
+              '(SYSTEM NOTE — the customer cannot see this. Below are OUR OWN photos, numbered. LOOK at '
+              + 'them next to the photo the customer sent and decide which one IS the same shoe — same '
+              + 'silhouette, same panels, same markings, same colours. Trust your eyes over the words: a '
+              + 'shoe\'s written colour can be as thin as "Black/White" when the pair is covered in sketch '
+              + 'markings, so a plain-looking name can still be the exact shoe they sent.\n'
+              + '⛔ NEVER SEND A DIFFERENT SHOE IN SILENCE. Sending a near-miss with no words reads as '
+              + '"here is the shoe you asked for" and it is not. Your reply MUST say, in words, which of '
+              + 'these it is — or that we do not have it — BEFORE or WITH any picture.\n'
+              + 'Do it in this order:\n'
+              + '1. NAME IT. Say what the shoe in their photo is, even if we do not stock it. Entries marked '
+              + 'SOLD OUT are there so you CAN name it — "that\'s the Jordan 5 Metallic" — but we have '
+              + 'none, so never offer or send those.\n'
+              + '2. If one of the IN STOCK pictures IS that shoe — say so and send that one.\n'
+              + '3. If none is — say plainly we do not have that exact pair right now, ask their size if you '
+              + 'do not have it, and offer what we DO have in the SAME model ("we got other Jordan 5s in '
+              + 'your 8.5, want to see them?").\n'
+              + '4. If we have none of that model at all — say that too, and offer the nearest thing we do '
+              + 'carry ("no Jordan 5s right now, but we got other Jordans").\n'
+              + 'Never say we do not have it without looking at these pictures first.)' });
             toolResults.push(...blocks);
           }
         }
