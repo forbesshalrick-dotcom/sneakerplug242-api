@@ -7564,6 +7564,7 @@ and it must NEVER be answered with a question back.`;
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let lastSearchIds = [];    // the ids that search matched — see the completeness top-up in send_photos
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
+  let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
   let pretendBlocks = 0;
@@ -9443,6 +9444,59 @@ and it must NEVER be answered with a question back.`;
       else result = { error: 'unknown_tool' };
       toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
     }
+
+    /* 👁️ LET HER COMPARE PICTURE TO PICTURE — THE WAY GOOGLE DOES IT.
+     *
+     * Rodney 2026-10-02: "Now back to Kiki recognizing the pictures like Google. That's what I
+     * need. Professional recognition. She's half, she's wrong half of the time."
+     *
+     * She was never bad at seeing. She was being asked to do something nobody could do. The
+     * customer's PHOTO arrives and she genuinely looks at it — that is how she gets "Air Max 95"
+     * right. But what comes back from the shelf is a line of TEXT:
+     *     👟 Air Max 95 — Black/White   💰 $130   📏 Sizes: 7, 11
+     * From those three words she has to decide whether a marker-sketch SP is that shoe. It is not
+     * recognition, it is guessing, and on 10-02 it cost a sale: a customer sent the Future
+     * Movement "Sketch With The Past" and was told "Don't have that exact one right now 🙈" while
+     * the pair sat on the shelf in his size. Google named it from the same photo in one second —
+     * because Google compares the photo to PHOTOS, not to a description.
+     *
+     * We own a picture of every pair we sell. So when the customer sends one, hand her ours
+     * alongside theirs and let her look. No Lens, no image-search API, nothing billed per
+     * lookup — these are our own files.
+     *
+     * Only on a turn where they actually sent a photo AND a search ran, and only once, capped at
+     * SIX: every picture costs tokens on a live chat, and six is enough to tell a sketch 95 from
+     * a plain one. */
+    if (image && !photoCompareSent && lastSearchIds.length) {
+      try {
+        const lm = liveShoeMap();
+        const picks = lastSearchIds.slice(0, 6).map(id => lm[id]).filter(sh => sh && sh.image);
+        if (picks.length) {
+          const shots = await Promise.all(picks.map(sh => fetchImageBase64(sh.image).catch(() => null)));
+          const blocks = [];
+          picks.forEach((sh, i) => {
+            if (!shots[i]) return;
+            blocks.push({ type: 'text', text: `${i + 1}. ${displayName(sh)} — $${sh.price} — sizes ${sizesOf(sh)}` });
+            blocks.push({ type: 'image', source: { type: 'base64', media_type: shots[i].media_type, data: shots[i].data } });
+          });
+          if (blocks.length) {
+            photoCompareSent = true;
+            record(req, { endpoint: 'photo-compare', sub, store: ctx.store || '', shown: blocks.length / 2 });
+            toolResults.push({ type: 'text', text:
+              '(SYSTEM NOTE — the customer cannot see this. Below are OUR OWN photos of the closest '
+              + 'shoes on the shelf, numbered. LOOK at them next to the photo the customer sent at the '
+              + 'top of this conversation and decide which one IS the same shoe — same silhouette, same '
+              + 'panels, same markings, same colours. Trust your eyes over the words: a shoe\'s written '
+              + 'colour can be as thin as "Black/White" when the pair is covered in sketch markings, so a '
+              + 'name that looks plain can still be the exact shoe they sent. If one of these IS it, say so '
+              + 'and send that one. If NONE of them is it, say we do not have that exact pair and offer '
+              + 'what we do have in their size — but never say we do not have it without looking here first.)' });
+            toolResults.push(...blocks);
+          }
+        }
+      } catch (_) { /* never let the comparison break a live reply */ }
+    }
+
     history.push({ role: 'user', content: toolResults });
     // Photos (and the auto closing message) are out — stop here so the model can't
     // append a trailing lead-in AFTER the photos on the next turn.
