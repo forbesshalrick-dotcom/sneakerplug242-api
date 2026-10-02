@@ -8309,8 +8309,26 @@ and it must NEVER be answered with a question back.`;
             /\b(receipt|proof of payment|bank transfer|suncash|deposit|payment (?:received|confirmed|went through))\b/i.test(turnText || '')
          || /\b(got|see|read|that'?s)\b[^.!?]{0,24}\b(?:your\s+)?(?:location|pin|address)\b/i.test(turnText || '');
       if (image && !didSearch && !photosSentRun && step === 0 && !_notAShoePhoto) {
-        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: that photo was a SHOE, so you MUST now search our stock for it (search BROAD — brand + line) and send the closest matching pair(s) with an honest lead-in. Never leave a shoe photo with words only.)' });
-        forceSearchNext = true;
+        /* 🥦 LOOK AT THE PICTURE BEFORE YOU DECIDE IT IS A SHOE.
+         * This note used to ASSERT "that photo was a SHOE, so you MUST now search", and it set
+         * forceSearchNext — which then forces send_photos as soon as the search returns anything.
+         * So a photo that is not a shoe had no way out: search forced, album forced.
+         * 2026-10-02: a customer sent a tub of WEED. She answered "That's the Jordan 5 Black
+         * University Blue! 🔥 Here's what we got 👇" and sent TWELVE Jordan 5s. Rodney: "kiki act
+         * dumb for other pics, she should know... why cant kiki understand all pics and not just
+         * send pics at random". Earlier the same day I widened when this guard fires, which made
+         * it more likely, not less.
+         * So: no forcing. She has eyes — the note asks her to use them, and to send nothing when
+         * the picture is not a shoe. The "a shoe photo must always get pictures" rule still
+         * stands in the prompt; it just no longer applies to pictures of lunch. */
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'sent a PHOTO and you replied with words only. FIRST work out what is actually IN it.\n'
+          + '• If it IS a shoe — search our stock (BROAD: brand + line) and send the closest '
+          + 'matching pair(s) with an honest lead-in. Never leave a shoe photo with words only.\n'
+          + '• If it is NOT a shoe — food, a person, a screenshot, a plant, a car, anything else — '
+          + 'do NOT search and do NOT send a single shoe picture. Say one short human thing about '
+          + 'what it actually is, then ask what they are after. Forcing a shoe onto a picture that '
+          + 'is not one makes us look like a machine, and dumping an album on it is worse.)' });
         continue;
       }
       // STOCK QUESTION answered FROM MEMORY (2026-07-14: "do you have navy blue NB in 10?"
