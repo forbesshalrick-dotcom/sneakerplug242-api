@@ -8085,8 +8085,32 @@ and it must NEVER be answered with a question back.`;
     // and sending them to the website is handing the sale to a browser tab.
     // A reply naming two or more shoes with prices, when no photos went out this turn, is that
     // list - whatever words wrap it.
+    /* 🎨 A LIST OF COLOURWAYS IS A TEXT LIST TOO — EVEN AT ONE PRICE.
+     * Rodney 2026-10-02: "why was there text instead of pictures?" A customer asked for Asics
+     * in a women's 9 and got, in words:
+     *   "We got these Asics in a women's 9 — all $130. Green/White/Silver, White/Black, Green
+     *    Cream, All Black, Cream/Green, White/Blue, and Black/Pink/Silver. You can see all the
+     *    pics at 242plug.com. Which one you like?"
+     * Seven shoes typed out and a link to the website, which is handing the sale to a browser
+     * tab. It walked between BOTH guards: the price guard needs two "$NN" and this had one
+     * ("all $130"), and the colour guard only arms when the CUSTOMER asked about colours — he
+     * asked for a size. So count the colourways themselves: three or more comma/and-separated
+     * chunks made only of colour words is that list, whatever the price count says. */
+    const _colourListish = (() => {
+      try {
+        const COL = /^(black|white|grey|gray|red|blue|green|pink|purple|orange|yellow|brown|cream|navy|gold|silver|tan|teal|aqua|mint|burgundy|beige|sail|volt|maize|infrared|bred)$/i;
+        const FILLER = /^(all|light|dark|and)$/i;
+        let hits = 0;
+        for (const c of String(turnText).split(/,|\band\b/i)) {
+          const parts = c.replace(/[\/]/g, ' ').trim().split(/\s+/).filter(Boolean);
+          if (parts.length && parts.length <= 4 && parts.some(w => COL.test(w))
+              && parts.every(w => COL.test(w) || FILLER.test(w))) hits++;
+        }
+        return hits >= 3;
+      } catch (_) { return false; }
+    })();
     if (turnText && !staffName && !photosSentRun && textListed < 1
-        && (turnText.match(/\$\s?\d{2,3}/g) || []).length >= 2
+        && ((turnText.match(/\$\s?\d{2,3}/g) || []).length >= 2 || _colourListish)
         && !wholesale) {
       textListed++;
       record(req, { endpoint: 'text-list-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 180) });
