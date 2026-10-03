@@ -10173,6 +10173,7 @@ function handleChat(req, res) {
   // LATER is almost always a non-text message. Flag it so Kiki can treat it as
   // "their pin/attachment probably just arrived" instead of answering stale words.
   let nonTextReplay = false;
+  let _openOrderReplay = false;  // declared OUT here on purpose — it is read far below this block
   /* 📸 WE ACTUALLY GOT THE PICTURE — DO NOT THEN SAY WE DID NOT.
    * Rodney 2026-10-03, on a 2:35 AM chat where it happened THREE TIMES in a row: Kiki named
    * the shoe correctly and then, in the very next bubble, asked for it again —
@@ -10238,9 +10239,9 @@ function handleChat(req, res) {
     // The signature is a BURST, not a repeat: his two "Ok"s landed 13:47:09 and 13:47:10, one
     // second apart. A person does not do that; ManyChat replaying does. Requiring the duplicate
     // to be within five minutes keeps an ordinary "Ok" today and "Ok" tomorrow from nudging him.
-    const _openOrderReplay = prevTxt && prevTxt === nowTxt && !_pinWindow
+    _openOrderReplay = !!(prevTxt && prevTxt === nowTxt && !_pinWindow
       && prevAt && (Date.now() - prevAt) < 5 * 60 * 1000
-      && (Date.now() - (pinAsked.get(sub) || 0)) < 36 * 60 * 60 * 1000;
+      && (Date.now() - (pinAsked.get(sub) || 0)) < 36 * 60 * 60 * 1000);
     if (prevTxt && prevTxt === nowTxt && !_sawPictureRecently && (_pinWindow || (withinReplayWindow && !POINTER_REPEAT.test(nowTxt)))) {
       nonTextReplay = true; lastReplayAt.set(sub, Date.now());
       if (_pinWindow) record(req, { endpoint: 'replay-while-waiting-on-pin', sub, q: nowTxt.slice(0, 30) });
