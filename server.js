@@ -12077,7 +12077,18 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
                  ended_because:c.ended_because, recording:c.recording, transcript:c.transcript };
       });
       lastCallRev = (both[1]||{}).rev || 0;
-      var ts = (d.threads||[]).concat(callRows).sort(function(a,b){ return (b.lastTs||0)-(a.lastTs||0); });
+      // 📌 A PIN MUST HOLD THE TOP. Rodney 2026-10-03: "the pin contact does not go to the
+      // top, it just pins wherever it is. Sometimes it still goes to the bottom even though
+      // it's pinned."
+      // The SERVER already sorts pinned-first (/inbox/threads ends with
+      //   .sort((a,b) => (b.pinned - a.pinned) || (b.lastTs - a.lastTs))
+      // ) and it was right - checked live, the pinned chat came back first. Then this line
+      // threw that away: merging the threads with the call rows and re-sorting on lastTs
+      // ALONE, so a pinned chat sank the moment anyone else said anything. Pinning it was
+      // doing nothing at all except drawing the 📌.
+      // Calls carry no pinned flag, so they keep falling in by time among the unpinned.
+      var ts = (d.threads||[]).concat(callRows).sort(function(a,b){
+        return ((b.pinned?1:0)-(a.pinned?1:0)) || ((b.lastTs||0)-(a.lastTs||0)); });
       // No-flicker guard for the list too: only rebuild rows when the visible data changed.
       var lsig = ts.map(function(t){
         // A call's own fields go into the signature too — otherwise the no-flicker guard
