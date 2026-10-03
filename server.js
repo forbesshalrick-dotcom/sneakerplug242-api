@@ -7839,6 +7839,33 @@ and it must NEVER be answered with a question back.`;
     // ensurePassword() in sneaker-inventory.js.
     let turnText = stripThinking(data.content.filter(b => b.type === 'text' && b.text.trim())
       .map(b => b.text.trim()).join('\n'));
+    /* 🇧🇸 "CAUGHT YOUR EYE" NEVER REACHES A CUSTOMER AGAIN (Rodney 2026-10-02, 2026-10-03).
+     * "we don't say that in the Bahamas... that sounds like something foreign. I'm trying to
+     * get her to sound as local as possible. You can let them know which one would you like
+     * or which shoe do you like. Each account can say something different."
+     * The prompt has banned the phrase outright since 10-02 and NOTHING prescribes it any
+     * more (grepped: every remaining hit is a ban or a .bak). It still came out at 8:15 PM.
+     * A text ban asks the model not to slip; this makes slipping impossible. It rewrites the
+     * whole question the phrase sits in - no retry, no latency, and it cannot be "forgotten"
+     * on turn nine of a long chat the way a prompt line can. Per store, so the three accounts
+     * do not all say the identical thing. */
+    if (turnText && /\b(?:caught|catch|catches)\s+(?:your|ya|yuh|you)\s+eye\b/i.test(turnText)) {
+      const _LOCAL = { 'Trendy Kicks': 'Which one you like? 👟',
+                       'Official Sneaker Crew': 'Which shoe you like? 👟',
+                       'Foot Fetish': 'Which one you want? 👟' };
+      const _say = _LOCAL[ctx.store] || 'Which one you like? 👟';
+      const _before = turnText;
+      // Eat the whole sentence the phrase sits in, PLUS the space before it and any emoji
+      // trailing it — otherwise the rewrite lands as "Hey!Which one you like? 👟 👟".
+      const _EYE = /[ \t]*[^.?!\n]*\b(?:caught|catch|catches)\s+(?:your|ya|yuh|you)\s+eye\b[^.?!\n]*[?.!]*[ \t]*(?:[☀-➿️]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDFFF]|[ \t])*/gi;
+      turnText = turnText
+        .replace(_EYE, () => ' ' + _say + ' ')
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      record(req, { endpoint: 'caught-your-eye-rewritten', sub, store: ctx.store || '',
+                    was: _before.slice(0, 120), now: turnText.slice(0, 120) });
+    }
     if (wholesale && turnText) {
       const withPw = SI.ensurePassword(turnText, { local: SI.isBahamian(getPhone(req)) });
       if (withPw !== turnText) {
