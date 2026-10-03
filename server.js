@@ -7649,6 +7649,8 @@ and it must NEVER be answered with a question back.`;
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let lastSearchIds = [];    // the ids that search matched — see the completeness top-up in send_photos
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
+  let toldTheTeam = false;   // did notify_manager ACTUALLY run this turn? (see the claim guard)
+  let teamClaims = 0;        // claimed the team was told without filing it
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
   let photoLeadInMisses = 0;    // sending pictures at a customer's photo with nothing said
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
@@ -8168,6 +8170,35 @@ and it must NEVER be answered with a question back.`;
     // every one of them.
     // The rule "size known = pictures, never a text list" has been in the prompt for months,
     // but it is written about SIZES. A colour question walked straight past it.
+    /* 📣 SAYING "I'VE SENT THIS TO THE TEAM" WITHOUT SENDING IT IS THE WORST BUG WE HAVE.
+     * Rodney 2026-10-03: "I'm not getting all the notifications for delivery sent to me. A guy
+     * sent a location a while ago. I never got it."
+     * At 3:02 PM a customer dropped a location pin and was told "Got it 🙌 I've sent this
+     * straight to the team — they'll text or call you when the driver's close". No delivery
+     * card exists for that customer. notify_manager was never called. The customer is sitting
+     * there waiting on a driver nobody told anybody about.
+     * This is the THIRD time in two days - Marvi and Eve Lynn on 10-02 were the same thing, and
+     * both were found hours later by reading the logs, not by anyone noticing.
+     * The tool description has warned about it for months ("NEVER type 'the driver is heading
+     * out' WITHOUT calling this tool on the SAME turn"). Words are not enough: if she claims the
+     * team has been told, the tool has to have run, or the reply does not go. */
+    try {
+      const CLAIMED_TOLD = /\b(sent (?:this|it) (?:straight )?to the team|let(?:ting)? the team know|i'?ll let the team know|told the team|team (?:has been|is) (?:told|notified)|someone will be on the way|driver will [^.!?]{0,26}when (?:he|they)|they'?ll (?:text|call)[^.!?]{0,18}when)\b/i;
+      if (turnText && !staffName && !toldTheTeam && teamClaims < 1 && CLAIMED_TOLD.test(turnText)) {
+        teamClaims++;
+        record(req, { endpoint: 'told-team-without-filing', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+          + 'just told them the team has been told / someone is on the way, and you did NOT call '
+          + 'notify_manager. Nobody has been told. Nothing was filed. That customer is now waiting '
+          + 'for a driver who does not know they exist — it has cost us three orders in two days. '
+          + 'Call notify_manager NOW on this turn with stage="delivery_ready" and everything you '
+          + 'have: shoe_id, shoe, size, price, and location (if they dropped a pin you cannot see, '
+          + 'put "customer dropped a WhatsApp location pin in the chat — open the chat to see it"). '
+          + 'THEN say your line. If you genuinely do NOT have their location yet, do not claim the '
+          + 'team has been told at all — ask for the location instead.)' });
+        continue;
+      }
+    } catch (_) {}
     /* 🚗 "HOW FAR IS THE DRIVER" IS NOT A SHOPPING QUESTION.
      * Rodney 2026-10-03, on a live $370 order already out for delivery: the customer asked
      * "Any update on how far the driver is ?" and got back
@@ -9198,6 +9229,7 @@ and it must NEVER be answered with a question back.`;
         } catch (_) {}
       }
       else if (tu.name === 'notify_manager') {
+        toldTheTeam = true;
         const inp = tu.input || {};
         // Pull the customer's WhatsApp number so staff can call/message them for the
         // drop-off. Prefer what Kiki passed or the request field; else ask ManyChat.
