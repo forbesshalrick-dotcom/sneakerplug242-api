@@ -11833,6 +11833,8 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     <div class="chiprow" id="sizeChips"><span class="chipmini">Loading…</span></div>
     <div class="picklabel">Brands — tap one or more <span style="margin-left:auto;font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">none = all brands</span></div>
     <div class="chiprow" id="brandChips"><span class="chipmini">Loading…</span></div>
+    <div class="picklabel">Price — tap one <span style="margin-left:auto;font-weight:600;color:var(--dim);text-transform:none;letter-spacing:0">none = any price</span></div>
+    <div class="chiprow" id="priceChips"></div>
     <div class="picklabel">Colour (optional)</div>
     <input id="shColor" placeholder="e.g. black, pink, grey" style="width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink);border-radius:14px;padding:11px 13px;font-size:15px;font-family:inherit">
     <div class="picklabel" style="margin-top:12px">Add a message (optional)</div>
@@ -12058,7 +12060,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   function closeCtx(){ $('ctxModal').classList.remove('open'); }
   function setLabel(l){ if(!ctxTarget) return; post('/inbox/label',{sub:ctxTarget.sub,account:ctxTarget.account,text:l?l.text:'',color:l?l.color:''}).then(function(r){ if(r&&r.ok){ toast(l?('🏷️ '+l.text):'Label removed'); closeCtx(); loadThreads(); } else toast((r&&r.error)||'Could not label'); }); }
   function openPickerMulti(){ var arr=Object.keys(selected).map(function(k){return selected[k];}); if(!arr.length){ toast('Press & hold a contact to pick who to send to 📸'); return; } pickTargets=arr; resetPicker(); var tc=$('shCount'); if(tc) tc.textContent=arr.length>1?(' · '+arr.length+' contacts'):(' · '+arr[0].name); $('shoeModal').classList.add('open'); loadPickChips(); }
-  function resetPicker(){ pickSizes=[]; pickBrands=[]; pickMatch=false; $('shColor').value=''; $('shQuery').value=''; if($('shNote')) $('shNote').value=''; if($('shPicsOnly')) $('shPicsOnly').checked=false; }
+  function resetPicker(){ pickSizes=[]; pickBrands=[]; pickMatch=false; pickPrice=0; $('shColor').value=''; $('shQuery').value=''; if($('shNote')) $('shNote').value=''; if($('shPicsOnly')) $('shPicsOnly').checked=false; }
   // Send one filter to every pickTarget — but FIRST a 4-second STOP window so a mistake
   // can be aborted before anything actually goes out.
   var pickBusy=false, sendTimer=null;
@@ -12829,9 +12831,17 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   var pickMeta=null;
   // Chips SELECT (not send). You build your combo — a size, a brand, a colour, words —
   // then press Send once. Nothing goes out until you do. Tapping a chip again clears it.
-  var pickSizes=[], pickBrands=[], pickMatch=false;
+  var pickSizes=[], pickBrands=[], pickMatch=false, pickPrice=0;
+  /* 💵 PRICE BRACKETS. Rodney 2026-10-03: "when sending pictures, I need some increments for me
+   * to send pictures under $50, under $60, under $70, under $80, and so on... under $110,
+   * under $120, under $150." Customers ask in round numbers ("what you got under $100") and he
+   * was having to type a shoe name or scroll the whole size to answer it. One tap now. 90 is in
+   * there even though nothing sits under it today - he asked for it by name, because prices
+   * move. Tapping the same bracket again clears it. */
+  var PRICE_STEPS=[50,60,70,80,90,100,110,120,150];
   function paintChips(){
     Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.classList.toggle('on', pickSizes.indexOf(el.getAttribute('data-size'))>-1); });
+    Array.prototype.forEach.call(document.querySelectorAll('#priceChips .chip'), function(el){ el.classList.toggle('on', pickPrice===parseInt(el.getAttribute('data-price'),10)); });
     Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.classList.toggle('on', pickBrands.indexOf(el.getAttribute('data-brand'))>-1); });
     var mt=$('matchTog'); if(mt){ mt.classList.toggle('on', pickMatch); mt.style.display = pickSizes.length>1 ? '' : 'none'; }
   }
@@ -12842,6 +12852,11 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       sc.innerHTML = (pickMeta.sizes||[]).map(function(s){ return '<span class="chip sizechip" data-size="'+s+'">'+s+'</span>'; }).join('') || '<span class="chipmini">No sizes in stock</span>';
       bc.innerHTML = (pickMeta.brands||[]).map(function(b){ return '<span class="chip brandchip" data-brand="'+esc(b)+'">'+esc(b)+'</span>'; }).join('') || '<span class="chipmini">No brands in stock</span>';
       Array.prototype.forEach.call(document.querySelectorAll('#sizeChips .chip'), function(el){ el.onclick=function(){ var s=el.getAttribute('data-size'); var i=pickSizes.indexOf(s); if(i>-1) pickSizes.splice(i,1); else pickSizes.push(s); if(pickSizes.length<2) pickMatch=false; paintChips(); }; });
+      var pc=$('priceChips');
+      if(pc){
+        pc.innerHTML = PRICE_STEPS.map(function(v){ return '<span class="chip pricechip" data-price="'+v+'">under $'+v+'</span>'; }).join('');
+        Array.prototype.forEach.call(document.querySelectorAll('#priceChips .chip'), function(el){ el.onclick=function(){ var v=parseInt(el.getAttribute('data-price'),10); pickPrice = (pickPrice===v)?0:v; paintChips(); }; });
+      }
       Array.prototype.forEach.call(document.querySelectorAll('#brandChips .chip'), function(el){ el.onclick=function(){ var br=el.getAttribute('data-brand'); var i=pickBrands.indexOf(br); if(i>-1) pickBrands.splice(i,1); else pickBrands.push(br); paintChips(); }; });
       paintChips();
     };
@@ -12855,12 +12870,14 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     if(pickBrands.length) f.brands=pickBrands.slice();
     var col=$('shColor').value.trim(), q=$('shQuery').value.trim(), note=$('shNote')?$('shNote').value.trim():'';
     if(col) f.color=col; if(q) f.query=q; if(note) f.note=note;
+    if(pickPrice) f.max_price=pickPrice;
     if($('shPicsOnly') && $('shPicsOnly').checked) f.photos_only=true;
     // Need at least a size, brand, colour, or typed shoe — a bare message alone isn't a filter.
-    if(!(pickSizes.length||pickBrands.length||col||q)){ toast('Pick a size, brand, colour, or type a shoe first'); return; }
+    if(!(pickSizes.length||pickBrands.length||col||q||pickPrice)){ toast('Pick a size, price, brand, colour, or type a shoe first'); return; }
     var sizeLbl = pickSizes.length ? ((pickMatch?'matching ':'')+'size'+(pickSizes.length>1?'s':'')+' '+pickSizes.join(' & ')) : '';
     var brandLbl = pickBrands.length ? pickBrands.join('/') : '';
-    var lbl=[q,col,brandLbl,sizeLbl].filter(Boolean).join(' ');
+    var priceLbl = pickPrice ? ('under $'+pickPrice) : '';
+    var lbl=[q,col,brandLbl,sizeLbl,priceLbl].filter(Boolean).join(' ');
     sendToTargets(f, lbl||'that', $('shSend'));
   }
   // ── 🛍️ Orders: today's delivery orders ready, with a live count badge ──
