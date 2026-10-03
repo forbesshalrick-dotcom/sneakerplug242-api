@@ -7666,6 +7666,7 @@ and it must NEVER be answered with a question back.`;
   let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
   let colourListed = 0;        // answering "what colours" with words instead of pictures
   let etaDeflected = 0;        // answering "how far is the driver" with an offer of stock
+  let payDeflected = 0;        // answering a PAYMENT question with shoes
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
@@ -8238,6 +8239,42 @@ and it must NEVER be answered with a question back.`;
      * This stops the reflex underneath it: if they asked where the driver is, the reply may
      * not be an offer to show them stock. One retry, then it goes through — a guard must
      * never be the reason a waiting customer gets silence. */
+    /* 💳 A PAYMENT QUESTION IS NEVER A SHOE (Rodney 2026-10-03, on "12s Goku", Trendy Kicks).
+     * The customer had already agreed the all-black VaporMax in a 12. He asked
+     *   "Do u have rbc or island luck"
+     * and got "We got the Air Force 1 White and All Black in a 12 — both $120. Want to see
+     * them at 242plug.com or pick one?" - a shoe pitch at a man who had already picked his
+     * shoe and was trying to hand over money. He had to repeat himself ("No I want the vp plus
+     * plz") and the sale stalled.
+     * The prompt has forbidden exactly this since 2026-07-24 ("ISLAND LUCK?" IS A PAYMENT
+     * QUESTION, NOT A SHOE) and it still happened, so the ban goes in code.
+     * Rodney 2026-10-03 on what the answer is: "For RBC, we don't have that specific bank, but
+     * we have Scotiabank and CIBC. Island Luck stop us from using it because they only want
+     * people to gamble... Normally you can send them the PayPal link with the exact amount
+     * that they're supposed to pay, as well as letting them know the payment options." */
+    try {
+      const PAY_ASK = /\b(rbc|island ?luck|scotia(?:bank)?|cibc|sun ?cash|pay ?pal|payment option|how (?:do|can) i pay|what(?:'|’)?s the payment|wats the payment|you (?:take|accept) (?:card|cash)|bank (?:info|details|transfer))\b/i;
+      const PAY_ANSWER = /\b(card|cash|bank|transfer|scotia|cibc|sun ?cash|pay ?pal|242plug\.com\/pay|island ?luck)\b/i;
+      if (turnText && !staffName && payDeflected < 1
+          && PAY_ASK.test(String(userText || '')) && !PAY_ANSWER.test(turnText)) {
+        payDeflected++;
+        record(req, { endpoint: 'payment-question-deflected', sub, store: ctx.store || '',
+                      asked: String(userText || '').slice(0, 70), said: turnText.slice(0, 90) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'asked about PAYMENT — how to pay, or whether we take a particular bank or wallet. '
+          + 'You answered with something else (often shoes). They are trying to hand us money; '
+          + 'answer the question they asked and nothing else. The facts: we hold SCOTIABANK and '
+          + 'CIBC — we do NOT have RBC, but they can send to our Scotiabank from an RBC account, '
+          + 'it just takes about 2 days. We do NOT take ISLAND LUCK: they closed us down because '
+          + 'we only received money and never gambled, so it is not an option any more (say that '
+          + 'plainly, keep the reason to one line and only if they ask why). What we DO take: '
+          + '💳 card — send https://242plug.com/pay?amount=<the exact price of THEIR shoe>, '
+          + '💵 cash on delivery, 🏦 bank transfer (Scotiabank or CIBC), 📲 SunCash. Always put '
+          + 'the card link in with the real amount already in it. Do NOT pitch another shoe, do '
+          + 'NOT re-ask what they want, do NOT send photos — they have already picked.)' });
+        continue;
+      }
+    } catch (_) {}
     /* 🎙️ A VOICE NOTE CANNOT CONTAIN A PICTURE — NEVER SAY THEIRS DIDN'T COME THROUGH.
      * Rodney 2026-10-03. Rose came off an ad on Official Sneaker Crew and sent three voice
      * notes: "How much for the Jordan though, white and blue?", "Yeah you could send me the
