@@ -13933,7 +13933,17 @@ function noteQuoteWanted(sub, phone, store) {
   if (!sub && !p) return;
   // one entry per customer per minute - a customer tapping three photos is one job
   if (quoteWanted.some(q => q.sub === String(sub) && now - q.at < 60000)) return;
-  quoteWanted.unshift({ sub: String(sub || ''), phone: p, store: store || '', at: now });
+  /* 🏷️ SEND THE NAME, NOT JUST THE NUMBER (Rodney 2026-10-03: "Kiki still can't see it over
+   * ManyChat, that's why we did that" - the WhatsApp Web pages exist ONLY so she can read tags).
+   * Measured on tagwatch.log: 170 tags seen, 7 resolved. 21 of the failures are
+   *   could not open +1 (242) 470-3199 on agfw4qw: no chat called "+1 (242) 470-3199" even via search
+   * because WhatsApp lists a chat under the contact's PROFILE NAME, not their number - the same
+   * root cause that made 17 customers unreachable on the outbox. We already know the name: it is
+   * on the inbox thread. Hand it over so tagwatch can search the name first and fall back to the
+   * number, instead of only ever asking for a string the sidebar does not contain. */
+  let nm = '';
+  try { const t = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); if (t && t.name) nm = String(t.name); } catch (_) {}
+  quoteWanted.unshift({ sub: String(sub || ''), phone: p, name: nm, store: store || '', at: now });
   if (quoteWanted.length > 40) quoteWanted.length = 40;
 }
 app.get('/quote-wanted', (req, res) => {
