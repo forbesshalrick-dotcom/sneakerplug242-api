@@ -4474,6 +4474,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 // When each customer's LATEST real message arrived — sendShoePhotos checks this
 // between shoes; a STOP-worded message ("stop", "that's enough") halts the rest,
 // while questions let the album finish (they queue and get answered right after).
+const imageSeenAt = new Map();   // sub -> when a REAL picture last reached us (see nonTextReplay)
 const lastIncoming = new Map();
 // sub|shoeId -> ts of the last photo of that shoe sent to that chat. record_sale is
 // REFUSED unless the shoe was photo'd in the same chat within 2h (2026-07-16: Kiki
@@ -10089,6 +10090,18 @@ function handleChat(req, res) {
   // LATER is almost always a non-text message. Flag it so Kiki can treat it as
   // "their pin/attachment probably just arrived" instead of answering stale words.
   let nonTextReplay = false;
+  /* 📸 WE ACTUALLY GOT THE PICTURE — DO NOT THEN SAY WE DID NOT.
+   * Rodney 2026-10-03, on a 2:35 AM chat where it happened THREE TIMES in a row: Kiki named
+   * the shoe correctly and then, in the very next bubble, asked for it again —
+   *   "That's the all white Air Force 1! You already got that one coming to you this morning"
+   *   "I'm having trouble making that one out clearly 🙈 — fire it over one more time?"
+   * Each photo produced TWO replies: the real one, and a false one. The cause is the replay
+   * detector below. ManyChat re-fires the same last_input_text constantly (24 of 50 messages
+   * measured), and when the text repeats the detector infers "a photo/pin arrived that we
+   * cannot see". That inference is right when no picture reached us — and flatly wrong when
+   * one just did. So remember when a picture genuinely landed, and do not claim it is missing. */
+  try { if (imageUrl) imageSeenAt.set(sub, Date.now()); } catch (_) {}
+  const _sawPictureRecently = (Date.now() - (imageSeenAt.get(sub) || 0)) < 3 * 60 * 1000;
   if (userText.trim() && !imageUrl && !audioUrl) {
     const prevTxt = (lastIncomingText.get(sub) || '').trim().toLowerCase().replace(/\s+/g, ' ');
     const nowTxt = userText.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -10126,7 +10139,7 @@ function handleChat(req, res) {
     // delivery - so treat it as "something landed" and let the re-ask blocker stand her down.
     const _waitingOnPin = (Date.now() - (pinAsked.get(sub) || 0)) < 45 * 60 * 1000;
     const _pinWindow = _waitingOnPin && prevAt && (Date.now() - prevAt) < 60 * 60 * 1000;
-    if (prevTxt && prevTxt === nowTxt && (_pinWindow || (withinReplayWindow && !POINTER_REPEAT.test(nowTxt)))) {
+    if (prevTxt && prevTxt === nowTxt && !_sawPictureRecently && (_pinWindow || (withinReplayWindow && !POINTER_REPEAT.test(nowTxt)))) {
       nonTextReplay = true; lastReplayAt.set(sub, Date.now());
       if (_pinWindow) record(req, { endpoint: 'replay-while-waiting-on-pin', sub, q: nowTxt.slice(0, 30) });
     }
@@ -10142,6 +10155,7 @@ function handleChat(req, res) {
   try { const _n = getName(req); if (_n) subName.set(sub, _n); } catch (_) {}
   if (subName.size > 500) { const f = subName.keys().next().value; subName.delete(f); }
   if (lastIncoming.size > 500) { const f = lastIncoming.keys().next().value; lastIncoming.delete(f); lastIncomingText.delete(f); }
+  if (imageSeenAt.size > 500) { const f = imageSeenAt.keys().next().value; imageSeenAt.delete(f); }
 
   // CUSTOMER OPTED OUT ("stop"/"unsubscribe" — 2026-07-13): ManyChat swallows the literal
   // word "stop" itself (its built-in opt-out) so it never reaches us as a normal message.
