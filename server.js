@@ -10160,6 +10160,25 @@ function handleChat(req, res) {
     // delivery - so treat it as "something landed" and let the re-ask blocker stand her down.
     const _waitingOnPin = (Date.now() - (pinAsked.get(sub) || 0)) < 45 * 60 * 1000;
     const _pinWindow = _waitingOnPin && prevAt && (Date.now() - prevAt) < 60 * 60 * 1000;
+    /* 📍 AN ORDER BOOKED FOR TOMORROW GETS ITS PIN TOMORROW.
+     * Rodney 2026-10-03: "I received no notification for this." A customer agreed a Yeezy Foam
+     * Cream in a 9 at 5:02 PM and was told "just drop your location pin when you're ready".
+     * He shared a LIVE LOCATION at 1:47 PM the NEXT DAY. ManyChat had nothing to put in
+     * last_input_text so it replayed his old "Ok" — and BOTH guards above let it through:
+     * "ok" is in POINTER_REPEAT (written for somebody repeating themselves), and _waitingOnPin
+     * is 45 minutes, twenty hours short. Nothing reached him, nothing reached Rodney, and the
+     * customer sat waiting on a delivery that was agreed for that day.
+     * So: if we asked for a pin in the last 36 hours and they are STILL replaying, treat it as
+     * "something landed" FOR THE HUMAN ONLY — raise the nudge so somebody opens the thread.
+     * Deliberately NOT nonTextReplay: that tells Kiki a pin arrived, and on a day-old ask she
+     * would announce "got your pin!" and file a delivery with no location in it, which is how a
+     * driver gets sent nowhere. A person looking is cheap; an invented pin is the delivery. */
+    // The signature is a BURST, not a repeat: his two "Ok"s landed 13:47:09 and 13:47:10, one
+    // second apart. A person does not do that; ManyChat replaying does. Requiring the duplicate
+    // to be within five minutes keeps an ordinary "Ok" today and "Ok" tomorrow from nudging him.
+    const _openOrderReplay = prevTxt && prevTxt === nowTxt && !_pinWindow
+      && prevAt && (Date.now() - prevAt) < 5 * 60 * 1000
+      && (Date.now() - (pinAsked.get(sub) || 0)) < 36 * 60 * 60 * 1000;
     if (prevTxt && prevTxt === nowTxt && !_sawPictureRecently && (_pinWindow || (withinReplayWindow && !POINTER_REPEAT.test(nowTxt)))) {
       nonTextReplay = true; lastReplayAt.set(sub, Date.now());
       if (_pinWindow) record(req, { endpoint: 'replay-while-waiting-on-pin', sub, q: nowTxt.slice(0, 30) });
@@ -10218,8 +10237,8 @@ function handleChat(req, res) {
     // Exact duplicate of their previous message (past the 60s dupe window) = WhatsApp
     // re-delivering old words because a NON-TEXT message arrived (see detector above).
     // Tell Kiki so she treats it as "pin/attachment landed", not as fresh words.
-    if (nonTextReplay) {
-      record(req, { endpoint: 'non-text-replay', sub, q: text.slice(0, 40) });
+    if (nonTextReplay || _openOrderReplay) {
+      record(req, { endpoint: nonTextReplay ? 'non-text-replay' : 'open-order-replay', sub, q: text.slice(0, 40) });
       // 📎 TELL A HUMAN (Rodney 2026-08-15). A re-delivery means the customer sent a PHOTO or
       // a LOCATION PIN and ManyChat could not hand it over — so it is sitting in WhatsApp and
       // this server will never see it. Until now that was only a line in the log, so a
@@ -10238,7 +10257,7 @@ function handleChat(req, res) {
             'It IS in the WhatsApp thread — open it and look. Kiki cannot see it.', 'Kiki 🤖', { sub, account: ctx && ctx.store });
         }
       } catch (_) {}
-      text += '\n\n(SYSTEM NOTE: this text is a WhatsApp RE-DELIVERY of the customer\'s previous message — they just sent something non-text that can\'t be shown to you. WHICH thing depends entirely on context: ✅ TREAT IT AS THE PIN **ONLY IF** the customer has ALREADY CONFIRMED a specific shoe AND their size AND agreed to the meet-up — a REAL, locked-in order — and the only thing you were waiting on was their location. THEN confirm warmly ("Got your pin! 📍") and call notify_manager stage "delivery_ready". ❌ In EVERY other case it is almost certainly a PHOTO (usually a picture of the shoe they want) — and this INCLUDES these traps you MUST NOT fall for: you GUESSED a shoe from a photo but they never said "yes"; you asked for a location before they actually confirmed the shoe/size; they\'re still browsing or correcting which shoe. A shoe photo is NOT a location pin (2026-07-14 AND 2026-07-19: a customer sent a SHOE PHOTO to fix Kiki\'s wrong guess and got "Got your pin!" + "driver\'s heading out" with NO confirmed order — trust-killing). ⚠️ If no order is truly confirmed, NEVER say "Got your pin", NEVER say a driver is heading out, and NEVER call notify_manager. Instead treat it as the photo it is: never claim you can\'t see pictures (you CAN — it just didn\'t come through), say "hmm that pic didn\'t come through on my end 🙈 — fire it over one more time?" (or, if the surrounding words already say what they want, just keep helping). Do NOT answer the repeated words as if freshly typed, and do NOT re-confirm an already-confirmed order.)';
+      if (nonTextReplay) text += '\n\n(SYSTEM NOTE: this text is a WhatsApp RE-DELIVERY of the customer\'s previous message — they just sent something non-text that can\'t be shown to you. WHICH thing depends entirely on context: ✅ TREAT IT AS THE PIN **ONLY IF** the customer has ALREADY CONFIRMED a specific shoe AND their size AND agreed to the meet-up — a REAL, locked-in order — and the only thing you were waiting on was their location. THEN confirm warmly ("Got your pin! 📍") and call notify_manager stage "delivery_ready". ❌ In EVERY other case it is almost certainly a PHOTO (usually a picture of the shoe they want) — and this INCLUDES these traps you MUST NOT fall for: you GUESSED a shoe from a photo but they never said "yes"; you asked for a location before they actually confirmed the shoe/size; they\'re still browsing or correcting which shoe. A shoe photo is NOT a location pin (2026-07-14 AND 2026-07-19: a customer sent a SHOE PHOTO to fix Kiki\'s wrong guess and got "Got your pin!" + "driver\'s heading out" with NO confirmed order — trust-killing). ⚠️ If no order is truly confirmed, NEVER say "Got your pin", NEVER say a driver is heading out, and NEVER call notify_manager. Instead treat it as the photo it is: never claim you can\'t see pictures (you CAN — it just didn\'t come through), say "hmm that pic didn\'t come through on my end 🙈 — fire it over one more time?" (or, if the surrounding words already say what they want, just keep helping). Do NOT answer the repeated words as if freshly typed, and do NOT re-confirm an already-confirmed order.)';
     }
     // 🔴 OWNER "." MESSAGE — a message that starts with "." or "-" is Rodney/staff jumping in.
     // We can't tell his messages from the customer's any other way, so this tiny mark is his
