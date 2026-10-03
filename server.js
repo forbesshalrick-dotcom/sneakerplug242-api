@@ -9291,6 +9291,7 @@ and it must NEVER be answered with a question back.`;
         // drop-off. Prefer what Kiki passed or the request field; else ask ManyChat.
         let custPhone = inp.customer_phone || getPhone(req);
         if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
+        if (!custPhone) custPhone = knownPhone(sub);
         custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
         // Two alert stages (2026-07-13): "order_confirmed" fires the moment a customer
         // commits (location may still be missing) so the owner NEVER misses a sale;
@@ -9761,6 +9762,7 @@ and it must NEVER be answered with a question back.`;
         // Grab the customer's WhatsApp number so the team member can reach them fast.
         let custPhone = getPhone(req);
         if (!custPhone) { try { custPhone = await getSubscriberPhone(sub, token); } catch (_) {} }
+        if (!custPhone) custPhone = knownPhone(sub);
         custPhone = custPhone ? ('+' + String(custPhone).replace(/[^0-9]/g, '')) : '';
         const lines = [
           '🙋 *CUSTOMER NEEDS A TEAM MEMBER* — please jump into the chat',
@@ -10757,6 +10759,23 @@ catch (e) { console.error('[singles] not mounted:', e && e.message); }
 // (captured from live chat traffic, so the right account is used automatically).
 const CONSOLE_KEY = process.env.CONSOLE_KEY || 'sp242-jess-b297063c5dd791125b5dc9e53ad8f706';
 
+/* 📞 THE NUMBER WE ALREADY HAVE (Rodney 2026-10-02: "every customer that orders, you're
+ * supposed to ask them for the number so we can have the number as well in the information.
+ * The tablet can have everything we need").
+ * The delivery card has had a 📞 line for weeks and it keeps coming out BLANK: Rose's 3:49 PM
+ * card on Official Sneaker Crew had no number on it, while the inbox thread for that exact
+ * customer was holding +12424666746 the whole time. ManyChat's `sub` is a subscriber id, not a
+ * phone, and the two live lookups both miss sometimes - getPhone(req) only works if the webhook
+ * happened to carry it, and getSubscriberPhone is a network call that can fail or come back
+ * empty. Meanwhile ensureCustomerAvatar has already backfilled the number into the thread.
+ * So read the thread we already have before giving up and printing nothing. */
+function knownPhone(sub) {
+  try {
+    const t = inboxThreads.get(inboxSubIndex.get(sub) || '');
+    if (t && t.phone) return String(t.phone);
+  } catch (_) {}
+  return '';
+}
 // Ask ManyChat for a subscriber's saved WhatsApp/phone number by their id.
 async function getSubscriberPhone(sub, token) {
   const id = String(sub || '').replace(/[^0-9]/g, '');
