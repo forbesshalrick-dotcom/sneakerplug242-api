@@ -7663,6 +7663,7 @@ and it must NEVER be answered with a question back.`;
   let textListed = 0;          // typing shoes out instead of sending the pictures
   let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
   let colourListed = 0;        // answering "what colours" with words instead of pictures
+  let etaDeflected = 0;        // answering "how far is the driver" with an offer of stock
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
@@ -8167,6 +8168,35 @@ and it must NEVER be answered with a question back.`;
     // every one of them.
     // The rule "size known = pictures, never a text list" has been in the prompt for months,
     // but it is written about SIZES. A colour question walked straight past it.
+    /* 🚗 "HOW FAR IS THE DRIVER" IS NOT A SHOPPING QUESTION.
+     * Rodney 2026-10-03, on a live $370 order already out for delivery: the customer asked
+     * "Any update on how far the driver is ?" and got back
+     *   "I got everything we have in a 12 right here 👟 What's good?"
+     * Four seconds after his message, so she really did answer him — she just answered a
+     * different question. The man has three pairs on the way and a location already given;
+     * being offered the size 12 lineup reads as nobody having any idea who he is.
+     * The prompt has said for months that a delivery-timing question is about THEIR delivery.
+     * This stops the reflex underneath it: if they asked where the driver is, the reply may
+     * not be an offer to show them stock. One retry, then it goes through — a guard must
+     * never be the reason a waiting customer gets silence. */
+    try {
+      const ETA_ASK = /\b(how far|any update|still coming|you reaching|how long|where.{0,14}driver|driver.{0,14}(where|far|coming|reach|now)|what time.{0,18}(get here|come|reach|arrive))\b/i;
+      const OFFER = /\b(what size|everything we have in|want me to send|which one you like|what(?:'|\u2019)?s good|right here)\b/i;
+      if (turnText && !staffName && etaDeflected < 1 && !photosSentRun
+          && ETA_ASK.test(String(userText || '')) && OFFER.test(turnText)) {
+        etaDeflected++;
+        record(req, { endpoint: 'eta-question-deflected', sub, store: ctx.store || '',
+                      asked: String(userText || '').slice(0, 60), said: turnText.slice(0, 90) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'asked WHERE THEIR DRIVER IS, or how long their delivery will be. They already have an '
+          + 'order with us. You answered by offering to show them shoes, which tells them nobody '
+          + 'knows who they are. Answer the question they actually asked: their order is on the '
+          + 'way and you will check how far he is — "Let me call the driver now to see how far he '
+          + 'is! 🚗 He will be right with you 👟". Do NOT offer stock, do NOT ask their size, do '
+          + 'NOT ask what they are looking for. They are past all of that.)' });
+        continue;
+      }
+    } catch (_) {}
     if (turnText && !staffName && !photosSentRun && colourListed < 1
         && COLOUR_ASK_RE.test(String(userText || ''))
         && (turnText.match(/\/|,/g) || []).length >= 2) {
