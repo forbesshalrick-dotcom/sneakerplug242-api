@@ -7666,6 +7666,7 @@ and it must NEVER be answered with a question back.`;
   let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
   let colourListed = 0;        // answering "what colours" with words instead of pictures
   let etaDeflected = 0;        // answering "how far is the driver" with an offer of stock
+  let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
@@ -8210,6 +8211,34 @@ and it must NEVER be answered with a question back.`;
      * This stops the reflex underneath it: if they asked where the driver is, the reply may
      * not be an offer to show them stock. One retry, then it goes through — a guard must
      * never be the reason a waiting customer gets silence. */
+    /* 🎙️ A VOICE NOTE CANNOT CONTAIN A PICTURE — NEVER SAY THEIRS DIDN'T COME THROUGH.
+     * Rodney 2026-10-03. Rose came off an ad on Official Sneaker Crew and sent three voice
+     * notes: "How much for the Jordan though, white and blue?", "Yeah you could send me the
+     * picture so I could let you know", and "So in the picture I want to show my husband."
+     * The transcriber mangled the last one (she said SEND the picture), and Kiki answered
+     * "The picture didn't come through on my end 🙈 — fire it over one more time?" — asking a
+     * customer to re-send a photo she never sent, while what she actually wanted was OUR
+     * pictures to show her husband. She waited 22 minutes and the sale was hand-finished.
+     * The words on this turn were SPOKEN. There is no attachment to lose. So when the reply
+     * blames a missing picture on a voice turn it is always wrong, and the real meaning is
+     * almost always the opposite: SEND them the pictures. One retry, then it goes through. */
+    try {
+      const PIC_BLAME = /\b(did(?:n'?t| not) come through|didn'?t come thru|come through on my end|trouble making (?:that|it) out|(?:send|sending|shoot|fire)(?: me)? (?:it|that|this|the|your|one)?\s*(?:pic|picture|photo|image)\b[^.!?\n]{0,14}again|fire it over one more time|re-?send (?:it|that|the (?:pic|picture|photo)))\b/i;
+      if (turnText && !staffName && voicePicLies < 1 && ctx.fromVoice && PIC_BLAME.test(turnText)) {
+        voicePicLies++;
+        record(req, { endpoint: 'voice-pic-blame-blocked', sub, store: ctx.store || '',
+                      heard: String(userText || '').slice(0, 90), said: turnText.slice(0, 90) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: '
+          + 'those words came from a VOICE NOTE they SPOKE. A voice note cannot carry a photo, '
+          + 'so nothing of theirs went missing and you must NOT say a picture did not come '
+          + 'through, or ask them to send anything again. Transcription garbles words, so read '
+          + 'it for intent: a mention of "the picture" from someone who has sent us nothing is '
+          + 'them asking for OUR pictures (often to show somebody else). If they named a shoe '
+          + 'or a colour, search it and call send_photos now. If you truly cannot tell what '
+          + 'they want, ask about the SHOE — never about their picture.)' });
+        continue;
+      }
+    } catch (_) {}
     try {
       const ETA_ASK = /\b(how far|any update|still coming|you reaching|how long|where.{0,14}driver|driver.{0,14}(where|far|coming|reach|now)|what time.{0,18}(get here|come|reach|arrive))\b/i;
       const OFFER = /\b(what size|everything we have in|want me to send|which one you like|what(?:'|\u2019)?s good|right here)\b/i;
@@ -10277,6 +10306,7 @@ function handleChat(req, res) {
     // same as photos) — blank it so the transcription branch below actually runs instead
     // of feeding a raw audio URL to Kiki as words (2026-07-13 fix, mirrors the photo path).
     if (audioUrl && text.trim() === audioUrl.trim()) text = '';
+    let _fromVoice = false;
     // Voice note with no typed text: transcribe it first, then chat as normal.
     if (!text.trim() && audioUrl) {
       const t = await transcribeAudio(audioUrl).catch(() => null);
@@ -10286,6 +10316,18 @@ function handleChat(req, res) {
         return;
       }
       text = t;
+      _fromVoice = true;
+      // 🎙️ SPOKEN WORDS, NOT TYPED — AND NEVER AN ATTACHMENT (Rodney 2026-10-03, Rose).
+      // Whisper garbles half a sentence, so a voice turn must be read for intent. The one
+      // reply that is ALWAYS wrong here is "your picture didn't come through": a voice note
+      // cannot carry a photo. Rose said "send me the picture, I want to show my husband" and
+      // was asked to re-send a photo she never sent. The guard in runChat catches the reply;
+      // this stops her forming it in the first place.
+      text += '\n\n(SYSTEM NOTE: the customer SPOKE these words in a voice note — they are a '
+        + 'transcription, so expect garbled grammar and read for INTENT. A voice note carries NO '
+        + 'photo and NO pin, so nothing of theirs is missing: never say a picture did not come '
+        + 'through and never ask them to send anything again. If they mention "the picture" they '
+        + 'are asking for OURS — search what they named and send the photos.)';
     }
     // Customer sent a PHOTO (its link arrives via Last Text Input). Pass the URL straight
     // to Kiki — Anthropic fetches + resizes the image itself, so even full-res photos work
@@ -10339,7 +10381,7 @@ function handleChat(req, res) {
     }
     let chatUrl = null;
     try { chatUrl = (req.body && typeof req.body === 'object' && req.body.live_chat_url) ? String(req.body.live_chat_url) : null; } catch (_) {}
-    return runChat(req, sub, text, token, { store, name, turnAt, chatUrl, inPhotoUrl: inboxPhotoUrl }, photo);
+    return runChat(req, sub, text, token, { store, name, turnAt, chatUrl, inPhotoUrl: inboxPhotoUrl, fromVoice: _fromVoice }, photo);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
@@ -10618,10 +10660,11 @@ async function handleWaMessage(req, value, phoneNumberId, msg) {
 
     // Voice note with no caption → transcribe it (Whisper) and treat as typed text,
     // exactly like the ManyChat path does in handleChat.
+    let _waFromVoice = false;
     if (audioUrl && !String(text).trim()) {
       const t = await transcribeAudio(audioUrl, waToken()).catch(() => null);
       record(req, { endpoint: 'wa-voice-transcribe', sub: from, transcript: t });
-      if (t && t.trim()) text = t.trim();
+      if (t && t.trim()) { text = t.trim(); _waFromVoice = true; }
     }
     /* CLICK-TO-WHATSAPP ADS. Meta attaches a referral block to the FIRST message
      * from anyone who arrived by tapping an ad - which ad, its headline, and the
@@ -10652,7 +10695,7 @@ async function handleWaMessage(req, value, phoneNumberId, msg) {
     let inPhotoUrl = '';
     if (imageObj && imageObj.data) { try { const id = stashInboxMedia(Buffer.from(imageObj.data, 'base64'), imageObj.media_type); if (id) inPhotoUrl = 'https://' + (req.get('host') || '') + '/inbox/media/' + id; } catch (_) {} }
     // Kiki thinks + replies; waChannel routing sends everything to the Graph API.
-    await runChat(shimReq, from, text, waToken(), { store, name: profileName, turnAt, chatUrl: null, wa: true, phoneNumberId, inPhotoUrl }, imageObj || null);
+    await runChat(shimReq, from, text, waToken(), { store, name: profileName, turnAt, chatUrl: null, wa: true, phoneNumberId, inPhotoUrl, fromVoice: _waFromVoice }, imageObj || null);
     waLastOutboundAt = new Date().toISOString();
   } catch (e) {
     /* ONE BAD MESSAGE MUST NOT TAKE THE LINE DOWN. It is caught here, per message,
