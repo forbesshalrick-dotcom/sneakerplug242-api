@@ -8596,6 +8596,14 @@ and it must NEVER be answered with a question back.`;
             + 'offer what the other two groups turned up ("I got plenty red in your 8 in other '
             + 'styles", "I got that one in a 7 if you want to try it on"). Never list shoes in '
             + 'words instead of pictures, and never end on a no.)' });
+          /* 🔒 AND MAKE HER SEND THEM. Measured on the replay of Million's chat: the guard found
+           * all four Air Forces in his size, handed them over, and she answered in WORDS anyway
+           * - "We got the Air Force 1 in Green/White, Green Glow, White, and All Black in your
+           * size 8, check them out on 242plug.com" - which is the exact failure Rodney was
+           * complaining about, and a website link on top of it. A note asking her to send
+           * pictures is a request; this is the tool call. Same mechanism the text-list guard
+           * has always used. */
+          forcePhotosNext = true;
           continue;
         }
       }
