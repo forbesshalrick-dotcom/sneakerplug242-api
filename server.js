@@ -4158,7 +4158,18 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // request"): a correction phrase or a different shoe/brand named mid-album halts the
   // pictures — the new message already has its own chat turn queued right behind this
   // album (chatLocks), so Kiki answers the NEW request the moment the album stops.
-  const REDIRECT = /\b(i meant|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|new balance|jordans?|jays?|j'?s|nikes?|asics|dunks?|vapor ?max(es)?|air ?max(es)?|air ?force|af1s?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|shox|mules?|yeezys?|scorpions?|balenciagas?)\b/i;
+  /* 🛑 A MODEL NAMED MID-ALBUM STOPS IT — INCLUDING ONE SAID BY ITS NUMBER.
+   * Rodney 2026-10-04: "If someone said stop, or if someone said 97s, she stopped and sent the
+   * pictures of the 97s she had in the size. If someone asked for Air Force, she stopped sending
+   * the random pictures and just sent Air Force inside the same size."
+   * Measured on +1 242 423-1770 at 12:50: he gave size 10, the album started, and he typed
+   *     "In the vapourmax and 97s"
+   * and 56 more Jordan 4s kept coming. Neither word matched: the list had `vapor ?max` but he
+   * spelled it the British way with a U, and MODEL NUMBERS were not in here at all - not 97,
+   * not 95, not 270, not 9060. Half the island names a shoe by its number.
+   * Sizes are 4-14 and these are all far outside that, so a number here cannot be misread as
+   * a size. Written with the plural optional because "97s" and "97" are the same ask. */
+  const REDIRECT = /\b(i meant|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|new balance|jordans?|jays?|j'?s|nikes?|asics|dunks?|vapou?r ?max(es)?|vm|air ?max(es)?|air ?force|af1s?|uptowns?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|shox|mules?|yeezys?|scorpions?|balenciagas?|vomeros?|terrascapes?|roshes?|blazers?|cortez|tns?|dns?|97s?|95s?|90s?|270s?|720s?|9060s?|1906s?|2000s?|990s?|991s?|530s?|550s?|574s?|327s?|2021)\b/i;
   // "that's it / that's all / i'm good / thank you" mid-album are polite Bahamian
   // wrap-ups, not browsing chatter — a customer said "ok that's it" then "thank you",
   // the album kept rolling, and they BLOCKED the account (2026-07-13). Better to halt
@@ -4467,6 +4478,24 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     if (REDIRECT.test(txt) && !STOPPISH.test(txt)) {
       redirectedMidAlbum = true;
       try { await sendChunk(sub, [{ type: 'text', text: `Say less — switching to that now 👌` }], token); } catch (e) { /* non-fatal */ }
+      /* 📏 AND SWITCH INSIDE THE SIZE WE WERE ALREADY IN (Rodney 2026-10-04: "If someone asked
+       * for Air Force, she stopped sending the random pictures that she was sending and just
+       * sent Air Force INSIDE THE SAME SIZE that she was already sending the pictures in.")
+       * Halting the album is only half of it. The next turn has to come back with the shoe they
+       * named, in the size this album was already built for - re-asking the size they gave 30
+       * seconds ago is how the interrupt still loses the sale. */
+      try {
+        const _cs = custSize.get(sub);
+        const _sz = _cs && _cs.size ? String(_cs.size) : '';
+        const _note = '(SYSTEM NOTE - the customer cannot see this: they INTERRUPTED the album to '
+          + 'name a different shoe - "' + String(txt).slice(0, 60) + '". The album is stopped. Now '
+          + 'search THAT shoe' + (_sz ? ' in size ' + _sz : ' in the size this album was already in')
+          + ' and send those pictures straight away. Do NOT ask their size again - they already '
+          + 'gave it' + (_sz ? ' (' + _sz + ')' : '') + ' and re-asking it reads as not listening. '
+          + 'Do not apologise and do not explain, just show them what they asked for.)';
+        const _cur = ownerNotes.get(sub) || [];
+        _cur.push(_note); ownerNotes.set(sub, _cur.slice(-4));
+      } catch (_) {}
     }
   }
   // The closer must reach the customer even when the album halted early (a webhook dup / glitch
