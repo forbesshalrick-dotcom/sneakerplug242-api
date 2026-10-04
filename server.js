@@ -5821,7 +5821,42 @@ let _pingState = 'ok';        // 'ok' | 'push-only' | 'down'
 // offered again, because the whole point is that a missed order alert costs a sale.
 // Capped and in-memory: this is a delivery queue for the next few minutes, not a record. The
 // board is where alerts live permanently.
-const ownerQueue = [];
+/* 💾 THE DELIVERY GROUP'S QUEUE SURVIVES A RESTART (Rodney 2026-10-04: "Delivery messages are
+ * not coming to the group anymore. I'm getting it to my personal number.")
+ * This array was memory-only. Railway restarts the process on EVERY deploy, and every restart
+ * silently threw away whatever was waiting to go to the drivers' group. On a quiet day that is
+ * invisible; today there were about ten deploys, and each one destroyed the jobs queued since
+ * the last. The server had already sent the card to his own phone, so he saw it and the group
+ * saw nothing - exactly what he is describing.
+ * A missed delivery is the most expensive failure we have, so this one does not get to live in
+ * memory. Same debounce as `recent` above: load on boot, write 2s after a change. */
+const OWNERQ_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'owner-queue.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+const ownerQueue = (() => {
+  try {
+    if (OWNERQ_FILE && require('fs').existsSync(OWNERQ_FILE)) {
+      const saved = JSON.parse(require('fs').readFileSync(OWNERQ_FILE, 'utf8'));
+      if (Array.isArray(saved)) return saved;
+    }
+  } catch (_) {}
+  return [];
+})();
+let _ownerQSaveT = null;
+function saveOwnerQueue() {
+  if (!OWNERQ_FILE) return;
+  clearTimeout(_ownerQSaveT);
+  _ownerQSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(OWNERQ_FILE, JSON.stringify(ownerQueue)); } catch (_) {}
+  }, 2000);
+  if (_ownerQSaveT.unref) _ownerQSaveT.unref();
+}
 // The group message needs a short heading so a driver scanning ten alerts on a phone
 // can tell them apart. The alert's own first line is already that heading.
 function firstLine(t) {
@@ -5945,6 +5980,7 @@ function queueForOwner(text, title, noLink) {
     ownerQueue.unshift({ id: now.toString(36) + Math.random().toString(36).slice(2, 8),
                          at: now, atISO: new Date(now).toISOString(), text: t, raw, tries: 0 });
     if (ownerQueue.length > 50) ownerQueue.length = 50;
+    saveOwnerQueue();
   } catch (_) {}
 }
 
@@ -5974,6 +6010,7 @@ app.get('/alerts/for-owner', (req, res) => {
   const isOrder = (t) => /NEW ORDER|DELIVERY READY|ORDER —|🆕|📍/i.test(String(t || ''));
   const live = ownerQueue.filter(q => now - q.at < (isOrder(q.text) ? 6 * 3600000 : 30 * 60000));
   ownerQueue.length = 0; ownerQueue.push(...live);
+  saveOwnerQueue();
   const out = live.slice().reverse().slice(0, 10);
   for (const q of out) q.tries++;
   res.json({ ok: true, count: out.length, alerts: out.map(q => ({ id: q.id, at: q.atISO, tries: q.tries, text: q.text })) });
@@ -5987,6 +6024,7 @@ app.post('/alerts/ack', (req, res) => {
   for (const id of ids) {
     const i = ownerQueue.findIndex(q => q.id === String(id));
     if (i >= 0) { ownerQueue.splice(i, 1); gone++; }
+    if (gone) saveOwnerQueue();
   }
   try { recent.unshift({ at: new Date().toISOString(), endpoint: 'owner-alert-delivered-by-bot', n: gone }); } catch (_) {}
   res.json({ ok: true, acked: gone, left: ownerQueue.length });
