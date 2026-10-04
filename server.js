@@ -4776,6 +4776,7 @@ const convos = new Map();    // subscriberId -> message history
 // said it once (history gets trimmed to 24 msgs, so a size given early can fall out — this
 // survives that). Set when Kiki searches a single size; injected back into her context.
 const custSize = new Map();   // sub -> { size, ts }
+const priceListAt = new Map(); // sub -> when we last sent them the PRICE LIST
 // 👟 THE SHOE THIS CUSTOMER IS ALREADY ON.
 // Rodney 2026-09-29: "why the fuck Kiki keep forgetting what the fuck the customer wants?"
 // sjay asked for a white Air Force 1 in a 12 at 11:23, was sent it and told the price - and at
@@ -7803,6 +7804,7 @@ and it must NEVER be answered with a question back.`;
   let hoursDeflected = 0;      // 'what time does delivery end' answered with anything but a time
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let listingPriceMisses = 0;  // quoting the shop price at someone reading a Facebook listing
+  let priceReadAsSize = 0;     // reading "$70 and $50" as a shoe size
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
@@ -8013,6 +8015,10 @@ and it must NEVER be answered with a question back.`;
       }
     }
     if (turnText) lastText = turnText; // remember it in case nothing else lands
+    /* 🧾 REMEMBER THAT WE JUST HANDED THEM A PRICE LIST. The numbers on it come straight back
+     * at us - "the 70 and the 50" - and whether those are dollars or feet is decided entirely
+     * by what we sent a minute ago. Without this, "seven and fifty" is just two numbers. */
+    try { if (turnText && /PRICE LIST/i.test(turnText)) priceListAt.set(sub, Date.now()); } catch (_) {}
     // Stay quiet while searching. On a send_photos turn, DON'T send the text here —
     // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
     // photos (👇 points at them), no matter how the model sequences its turns.
@@ -8834,6 +8840,52 @@ and it must NEVER be answered with a question back.`;
         _lastSearchWasBlank = !(p.size || (Array.isArray(p.sizes) && p.sizes.length) || p.brand
           || (Array.isArray(p.brands) && p.brands.length) || p.color || p.query
           || p.max_price || p.min_price);
+        /* 💵 FIFTY IS NOT A SHOE SIZE (Rodney 2026-10-04, on Meekz +1 242 824-4224).
+         * He had just been sent the price list. His voice note came through as
+         *     "Let me see some of these pictures which you got with this seven and fifty"
+         * - he said SEVENTY AND FIFTY, meaning the $70 Scorpion and the $50 Roshe lines he was
+         * reading. She took "seven" for a foot and sent 115 shoes in a 7.5, all $180 Jordans.
+         * A shoe size in this shop is 4 to 14. Any number above that is money. So when the
+         * customer's words carry a price-shaped number and NO size-shaped one, a search keyed
+         * on size is answering a question nobody asked - and right after the price list, those
+         * numbers are almost always the tiers on it. */
+        try {
+          if (!staffName && priceReadAsSize < 1 && (p.size || (Array.isArray(p.sizes) && p.sizes.length))) {
+            /* 🗣️ AND READ THE NUMBERS HE SPOKE, NOT JUST THE ONES HE TYPED.
+             * This is the same trap as the spoken sizes: the transcript said "seven and fifty"
+             * in WORDS, so a digits-only regex found no numbers at all and the guard never got
+             * a chance to fire. Rodney's own notes say prices are spoken "one twenty", "one
+             * eighty" - so the compounds matter as much as the plain tens. */
+            const _t = String(userText || '').toLowerCase();
+            const WORDNUM = { four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
+                              eleven:11, twelve:12, thirteen:13, fourteen:14,
+                              twenty:20, thirty:30, forty:40, fourty:40, fifty:50,
+                              sixty:60, seventy:70, eighty:80, ninety:90, hundred:100 };
+            const nums = (_t.match(/\d{1,3}(?:\.5)?/g) || []).map(parseFloat);
+            // "one twenty" / "one eighty" / "two hundred" first, so the parts are not counted twice.
+            let _rest = _t.replace(/\bone\s+(twenty|thirty|forty|fourty|fifty|sixty|seventy|eighty|ninety)\b/g,
+                                   (m, w) => { nums.push(100 + WORDNUM[w]); return ' '; })
+                          .replace(/\btwo\s+hundred\b/g, () => { nums.push(200); return ' '; })
+                          .replace(/\b(one|a)\s+hundred\b/g, () => { nums.push(100); return ' '; });
+            for (const w of (_rest.match(/[a-z]+/g) || [])) if (WORDNUM[w] != null) nums.push(WORDNUM[w]);
+            const moneyish = nums.filter(n => n >= 20 && n <= 400);
+            const sizeish = nums.filter(n => n >= 4 && n <= 14);
+            // Right after the price list, a money-shaped number settles it even when another
+            // number in the same breath could pass for a size - which is exactly the shape of
+            // "seven and fifty" (he meant seventy and fifty, off the list in front of him).
+            const _justPriced = (Date.now() - (priceListAt.get(sub) || 0)) < 15 * 60 * 1000;
+            if (moneyish.length && (!sizeish.length || _justPriced)) {
+              priceReadAsSize++;
+              record(req, { endpoint: 'price-read-as-size', sub, store: ctx.store || '',
+                            said: String(userText || '').slice(0, 70), searched: p.size || (p.sizes || []).join('/'),
+                            money: moneyish.join(',') });
+              toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
+                shoes: [], blocked: 'those numbers are DOLLARS, not a size',
+                note: 'NOT SEARCHED. They said ' + moneyish.join(' and ') + ' - our shoe sizes only run 4 to 14, so that is MONEY, and right after the price list it is the price lines they are reading. Search again with max_price/min_price for that price band and NO size, then show them what we have at that money. Their size is a separate question - ask it after, or if you already know it, use it alongside the price.' }) });
+              continue;
+            }
+          }
+        } catch (_) {}
         let found;
         if (ctx.store === SI.STORE) {
           // 10,000+ styles that change when stock lands, on another host. The
