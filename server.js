@@ -7549,7 +7549,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: they '
       + 'messaged from a Facebook listing priced at $' + ctx.listingPrice
       + (ctx.listingTitle ? ' — "' + ctx.listingTitle + '"' : '') + '. THAT is the price for '
-      + 'this shoe, and it is the number on their screen right now. Quote $' + ctx.listingPrice
+      + 'this shoe, and it is the number on their screen right now. ⚠️ Any SIZES in that title '
+      + 'are what the LISTING advertises — a menu for them to pick from, never a confirmation '
+      + 'and never this customer\'s size. A thread is about ONE pair: ask which size they wear '
+      + 'before anything else. Quote $' + ctx.listingPrice
       + ' and nothing else for it — the catalogue/shop price is NOT what they were offered and '
       + 'contradicting their own screen loses the sale. If they move on to a DIFFERENT shoe, '
       + 'this price no longer applies: price that one normally and say which is which.)';
@@ -7870,6 +7873,7 @@ and it must NEVER be answered with a question back.`;
   let listingPriceMisses = 0;  // quoting the shop price at someone reading a Facebook listing
   let priceReadAsSize = 0;     // reading "$70 and $50" as a shoe size
   let askedPermission = 0;     // "want me to send those?" instead of just sending
+  let closedWithoutSize = 0;   // "is this available?" answered with a meet-up and no size
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
@@ -8498,6 +8502,39 @@ and it must NEVER be answered with a question back.`;
             + 'make clear which price belongs to which shoe.)' });
           continue;
         }
+      }
+    } catch (_) {}
+    /* 📏 "IS THIS AVAILABLE?" IS NOT "I WANT IT" — THE SIZE COMES FIRST (2026-10-04).
+     * The first real customer through this brain from a Facebook listing. Wade, 16:27:
+     *     THEM: "Hi, is this available?"   [listing: New Balance 1906 Aqua/Grey, Sizes: 8, 8.5, 9.5]
+     *     KIKI: "Yep, we got it! 🔥 Free delivery — where should we meet you? 📍"
+     * Three sizes on that listing and she never asked which. Even if he answers, there is no
+     * order to fill - nobody knows which pair goes in the driver's hand. He has not written
+     * back. One customer proves nothing about the silence; it proves plenty about the reply.
+     * An availability question is the START of a sale, not the end of one. Rodney's close
+     * ("I want it" ends the selling) needs a shoe AND a size settled first, and on Marketplace
+     * "is this available?" is most of the volume. */
+    try {
+      const ASK_AVAILABLE = /\b(is (?:this|it|that|dis) (?:still )?available|still available|(?:you|u) (?:still )?(?:got|have) (?:this|it|that|dis)|do (?:you|u) have (?:this|it|that)|is (?:this|it) in stock|available\s*\?)/i;
+      const ASKS_SIZE = /\b(what size|which size|size (?:you|u|do you)|what(?:'|’)?s your size|size\?)/i;
+      const CLOSING = /\b(where (?:should|can|do) (?:we|i) (?:meet|bring|drop)|send (?:me )?(?:your|the) location|where (?:you|u) (?:at|located)|meet (?:you|up)|drop it|on the way)\b/i;
+      const _knowSize = !!(custSize.get(sub) && custSize.get(sub).size);
+      if (turnText && !staffName && closedWithoutSize < 1 && !_knowSize
+          && ASK_AVAILABLE.test(String(userText || '')) && !ASKS_SIZE.test(turnText)
+          && CLOSING.test(turnText)) {
+        closedWithoutSize++;
+        record(req, { endpoint: 'closed-without-size', sub, store: ctx.store || '',
+                      personal: !!ctx.personal, said: turnText.slice(0, 90) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'asked whether it is AVAILABLE and you went straight to meeting up. That is the start '
+          + 'of a sale, not the end of one — you do not know their size, so even if they answer '
+          + 'you there is no order: nobody knows which pair to hand the driver. '
+          + (ctx.listingTitle ? 'The listing says "' + ctx.listingTitle + '" — any sizes in that '
+             + 'title are what the LISTING advertises, a menu to choose from — NOT the size this '
+             + 'customer wears, and NOT a confirmation. ' : '')
+          + 'Say yes it is available, then ask the ONE question that makes it an order: what size '
+          + 'they wear. Location comes after the shoe and the size are settled, never before.)' });
+        continue;
       }
     } catch (_) {}
     /* 🙋 NEVER ASK PERMISSION TO SEND A PICTURE — JUST SEND IT (Rodney 2026-10-04, in the same
