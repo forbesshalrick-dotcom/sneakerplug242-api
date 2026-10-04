@@ -8578,7 +8578,14 @@ and it must NEVER be answered with a question back.`;
         const theirColourTheirSize = (colour && theirSize) ? S({ color: colour, size: theirSize }) : [];
         const theirShoeTheirColour = (model && colour) ? S({ query: model, color: colour }) : [];
 
-        const fmt = (r) => `${r.name}${r.color ? ' (' + r.color + ')' : ''} — ${r.sizes || ''}`;
+        /* 🔑 HAND HER THE IDS, NOT JUST THE NAMES. This is why forcing send_photos was not
+         * enough on its own: the guard runs its own searches, so she never "saw" a
+         * search_inventory result and had no ids to pass. The tool was forced and she had
+         * nothing to put in it, so she fell back to typing the names - which is the very thing
+         * the guard exists to stop. The id goes in front of every shoe now, and
+         * lastSearchIds is primed so the completeness top-up and the album receipt still line
+         * up with what actually went out. */
+        const fmt = (r) => `[id ${r.id}] ${r.name}${r.color ? ' (' + r.color + ')' : ''} — ${r.sizes || ''}`;
         const lines = [];
         if (theirShoeTheirSize.length)
           lines.push('THE SHOE THEY NAMED, IN THEIR SIZE, EVERY COLOUR — SEND THESE PICTURES: '
@@ -8592,6 +8599,7 @@ and it must NEVER be answered with a question back.`;
 
         if (lines.length) {
           deadEnds++;
+          try { lastSearchIds = theirShoeTheirSize.concat(theirColourTheirSize, theirShoeTheirColour).map(r => r.id); } catch (_) {}
           record(req, { endpoint: 'dead-end-blocked', sub, store: ctx.store || '',
                         model, colour, size: theirSize, said: turnText.slice(0, 80),
                         a: theirShoeTheirSize.length, b: theirColourTheirSize.length,
@@ -8600,8 +8608,9 @@ and it must NEVER be answered with a question back.`;
             + 'told them we do not have it and sent no pictures. We are salesmen — a no with '
             + 'nothing attached ends the sale, and words alone never sell a shoe. Here is what '
             + 'we REALLY have:\n' + lines.join('\n') + '\n'
-            + 'Do this: say the honest no in HALF a line, then CALL send_photos on the first '
-            + 'group — every colour of their shoe in their size, not the two you remember. Do '
+            + 'Do this: say the honest no in HALF a line, then CALL send_photos with the ids '
+            + 'in square brackets above from the FIRST group — every colour of their shoe in '
+            + 'their size, not the two you remember. Those ids are real and ready to send. Do '
             + 'NOT ask "want me to send those?" — just send them. Then, in one short line, '
             + 'offer what the other two groups turned up ("I got plenty red in your 8 in other '
             + 'styles", "I got that one in a 7 if you want to try it on"). Never list shoes in '
