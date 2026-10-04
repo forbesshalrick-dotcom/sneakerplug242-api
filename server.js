@@ -7735,6 +7735,8 @@ and it must NEVER be answered with a question back.`;
   let payDeflected = 0;        // answering a PAYMENT question with shoes
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let listingPriceMisses = 0;  // quoting the shop price at someone reading a Facebook listing
+  let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
+  let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
@@ -8232,14 +8234,43 @@ and it must NEVER be answered with a question back.`;
         && ((turnText.match(/\$\s?\d{2,3}/g) || []).length >= 2 || _colourListish)
         && !wholesale) {
       textListed++;
-      record(req, { endpoint: 'text-list-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 180) });
-      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just '
-        + 'TYPED OUT a list of shoes with prices instead of sending the pictures. Never do that. '
-        + 'Nobody picks a shoe off a line of text, and we have a photo of every pair we own. Call '
-        + 'send_photos NOW with those shoes in their size, with ONE short lead-in line and nothing '
-        + 'else. Do not list the names again, do not list the prices again, and do not send them '
-        + 'to the website - the website is where a sale goes to die. Do not mention this note.)' });
-      forcePhotosNext = true;
+      /* 💬 "PRICES?" OFF AN AD IS A PRICE QUESTION, NOT A REQUEST FOR THE WHOLE SHOP.
+       * Rodney 2026-10-04, on two customers the same day: "I have one ads with the black Nike
+       * Vomero, the black VaporMax, the black Air Force, and the black Air Max 97 all in one
+       * ad... two people came on those and asked the price. And Kiki sent five Jordans or six
+       * Jordans... So what's the reason for sending those Jordans anyway?"
+       * There was no reason. ManyChat hands us NO ad referral (measured on both: `user_refs:
+       * []` and nothing else), so she cannot know which ad they tapped. She started to type a
+       * price list, THIS guard blocked it and told her to send pictures "in their size" - and
+       * she had no size and no model, so the search had nothing to filter on and the first nine
+       * rows of the catalogue went out. They were Jordans by accident of ordering.
+       * Sending nine photos to someone whose size we do not know also breaks the no-size-no-pile
+       * rule. So when the whole message is "Prices?" and we know neither their size nor a model,
+       * the album is the wrong answer and the price IS the answer they asked for. */
+      const _barePriceAsk = /^\s*(?:prices?|pricing|cost|how much|how much (?:is|are|for)|what(?:'|\u2019)?s the price|wats? the price)\s*[?.!]*\s*$/i
+        .test(String(userText || '').trim());
+      const _knowSize = !!(custSize.get(sub) && custSize.get(sub).size);
+      record(req, { endpoint: 'text-list-blocked', sub, store: ctx.store || '',
+                    barePrice: _barePriceAsk, knowSize: _knowSize, text: turnText.slice(0, 180) });
+      if (_barePriceAsk && !_knowSize) {
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'asked ONLY what things cost, off an ad, and we do NOT know their size or which shoe '
+          + 'they mean — the ad they tapped is not passed to us. Do NOT send an album: a pile of '
+          + 'pictures of shoes nobody asked about is not an answer, and we never send 4+ pictures '
+          + 'before we know a size. ANSWER THE QUESTION in one short line — our prices run $120 '
+          + 'for Air Force 1s, Jordan 1s, Dunks, Air Max and VaporMax, $130 for Air Max 95, New '
+          + 'Balance and ASICS, $180 for the other Jordans, and free delivery — then ask the ONE '
+          + 'thing that moves it forward: what size they wear, or which pair from the ad they '
+          + 'like. The moment they answer, search it and send those pictures.)' });
+      } else {
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just '
+          + 'TYPED OUT a list of shoes with prices instead of sending the pictures. Never do that. '
+          + 'Nobody picks a shoe off a line of text, and we have a photo of every pair we own. Call '
+          + 'send_photos NOW with those shoes in their size, with ONE short lead-in line and nothing '
+          + 'else. Do not list the names again, do not list the prices again, and do not send them '
+          + 'to the website - the website is where a sale goes to die. Do not mention this note.)' });
+        forcePhotosNext = true;
+      }
       continue;                       // one clean retry
     }
     // 🤖 NO STALLING. See STALL_RE. She either has the answer or she asks a real question -
@@ -8712,6 +8743,14 @@ and it must NEVER be answered with a question back.`;
       let result;
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
+        /* 📏 WAS THIS A REAL SEARCH, OR THE WHOLE SHOP? (Rodney 2026-10-04.)
+         * A search with no size, no brand, no model and no colour is "give me everything" -
+         * and an album off one of those is a pile of shoes nobody asked about. Remembering it
+         * here is what lets the no-size-no-pile rule below be enforced instead of merely
+         * written down, which is all it has been. */
+        _lastSearchWasBlank = !(p.size || (Array.isArray(p.sizes) && p.sizes.length) || p.brand
+          || (Array.isArray(p.brands) && p.brands.length) || p.color || p.query
+          || p.max_price || p.min_price);
         let found;
         if (ctx.store === SI.STORE) {
           // 10,000+ styles that change when stock lands, on another host. The
@@ -8786,6 +8825,28 @@ and it must NEVER be answered with a question back.`;
       }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
+        /* 🚫 NO SIZE, NO PILE — IN CODE THIS TIME (Rodney 2026-10-04).
+         * Two customers came off an ad, asked only "Prices?", and got nine Jordans each. The
+         * ad they tapped is never passed to us by ManyChat, so the search had nothing to
+         * filter on and the first nine rows of the catalogue went out. His question was the
+         * right one: "what's the reason for sending those Jordans anyway?" There was none.
+         * The rule that a customer gets no pile before we know their size has been written in
+         * the prompt for months and has never been enforced. It is enforced here: a BLANK
+         * search (no size, brand, model or colour) plus an unknown size is the one combination
+         * that can only produce shoes nobody asked about. A named shoe still goes instantly -
+         * that search is not blank - and a known size still gets the whole lineup. */
+        if (!staffName && blankPiles < 1 && _lastSearchWasBlank
+            && !(custSize.get(sub) && custSize.get(sub).size)
+            && ((Array.isArray(inp.ids) ? inp.ids.length : 0)
+                + (Array.isArray(inp.groups) ? inp.groups.reduce((n, g) => n + ((g && g.ids) || []).length, 0) : 0)) >= 4) {
+          blankPiles++;
+          record(req, { endpoint: 'blank-pile-blocked', sub, store: ctx.store || '',
+                        asked: String(userText || '').slice(0, 60) });
+          toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
+            sent: 0, blocked: 'no size, and the search had no filter at all',
+            note: 'NOT SENT. That album came off a search with no size, no brand, no model and no colour — that is every shoe we own, and we do not know this customer\'s size. Pictures of shoes they never asked about is not an answer. Say what they want to know in ONE short line, then ask the one thing that unlocks it: what size they wear, or which pair they mean. The moment they answer, search THAT and send those pictures — no cap, the whole lineup.' }) });
+          continue;
+        }
         // 🔒 They already picked. See orderIsLocked - pictures now are us talking over them.
         if (orderIsLocked(sub) && !staffName) {
           record(req, { endpoint: 'photos-blocked-order-picked', sub, store: ctx.store || '' });
