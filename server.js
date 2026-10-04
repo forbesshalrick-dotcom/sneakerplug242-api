@@ -7869,6 +7869,7 @@ and it must NEVER be answered with a question back.`;
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let listingPriceMisses = 0;  // quoting the shop price at someone reading a Facebook listing
   let priceReadAsSize = 0;     // reading "$70 and $50" as a shoe size
+  let askedPermission = 0;     // "want me to send those?" instead of just sending
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
@@ -8491,6 +8492,36 @@ and it must NEVER be answered with a question back.`;
             + 'make clear which price belongs to which shoe.)' });
           continue;
         }
+      }
+    } catch (_) {}
+    /* 🙋 NEVER ASK PERMISSION TO SEND A PICTURE — JUST SEND IT (Rodney 2026-10-04, in the same
+     * breath as the three-category rule: "never 'want me to send those?' — just send.")
+     * Measured by the M5 FB2 session across BOTH brains on the same question: each one named a
+     * couple of colours and ended by offering to send, instead of sending. So this is not a
+     * social-line quirk, it is general, and asking is worse than it looks - it puts a second
+     * decision in front of someone who already said what they wanted, and on Messenger the
+     * pictures cost the customer nothing at all.
+     * Only fires when we actually have something to send: if there are no ids in hand the
+     * question may be the honest thing to ask, and the reply goes through untouched. */
+    try {
+      const ASK_TO_SEND = /\b(want me to send|want me to show|should i send|shall i send|you want (?:me )?(?:to )?see|want to see (?:them|those|'?em|the pics?|the photos?)|let me know if you want (?:me to )?(?:send|show)|i can send (?:them|those|'?em)(?:\s|[?.!]|$)|\bor i can (?:send|show)\b)/i;
+      if (turnText && !staffName && !photosSentRun && askedPermission < 1
+          && ASK_TO_SEND.test(turnText) && Array.isArray(lastSearchIds) && lastSearchIds.length) {
+        askedPermission++;
+        record(req, { endpoint: 'asked-permission-to-send', sub, store: ctx.store || '',
+                      personal: !!ctx.personal, said: turnText.slice(0, 90), have: lastSearchIds.length });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+          + 'offered to send pictures instead of sending them. Never ask — they already told you '
+          + 'what they want, and asking puts another decision in front of a person who is ready '
+          + 'to buy. You have ' + lastSearchIds.length + ' matching shoes in hand right now: call '
+          + 'send_photos with them on this turn. '
+          + (ctx.personal ? 'This is a Messenger/Instagram chat - the pictures do NOT download '
+             + 'into their phone or use their storage, so there is no reason at all to be careful '
+             + 'with them. ' : '')
+          + 'Keep whatever honest line you wrote, drop the question, and let the pictures do the '
+          + 'rest.)' });
+        forcePhotosNext = true;
+        continue;
       }
     } catch (_) {}
     /* 🧲 BE A SALESMAN — NEVER A FLAT NO, NEVER WORDS WITHOUT PICTURES (Rodney 2026-10-04).
