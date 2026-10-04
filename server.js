@@ -8483,69 +8483,97 @@ and it must NEVER be answered with a question back.`;
         }
       }
     } catch (_) {}
-    /* 🧲 NEVER LEAVE IT BLANK — SELL THE NEXT CLOSEST THING (Rodney 2026-10-04, driving).
-     * "Bro, you cannot just say we out of the Vomero in an eight. What do we have that's close?
-     *  Any eight and a half?... he's specifically looking for the black Vomero. Come on, man.
-     *  Give him the closest size. At least sell him something. You guys acting like we're not
-     *  salesmen. You have to be salesmen. Kiki, you have to be salesmen. Send the next closest
-     *  thing. Come on, man. Never just leave it blank."
-     * Djflexcomplex asked for "Size 8 vomero" and got "Hmm, we're out of the Vomero in an 8
-     * right now 🙏 What other kicks you looking at?" — while the ALL BLACK Vomero 5, the exact
-     * shoe he wanted, was on the shelf in an 8.5. Half a size. Hand-sent; he had the pictures
-     * three minutes later.
-     * She can already do this — at 10:30 the same morning another customer got "the Vomeros
-     * don't come in a 12 right now, we got them in an 11 though — want me to send that?" It is
-     * not knowledge she lacks, it is consistency. So this does not nag her: it goes and LOOKS,
-     * and hands her the actual shoes before she is allowed to turn a buyer away. */
+    /* 🧲 BE A SALESMAN — NEVER A FLAT NO, NEVER WORDS WITHOUT PICTURES (Rodney 2026-10-04).
+     * "if the customer brought up size 8 then she can show all the Air Force options she has in
+     *  8... she only sent the text, she can send the pictures... just like how she checked the
+     *  size 8 category she can check the red category — I don't have any Air Force in red right
+     *  now for size 8 but I have like a red Air Max in size 8, I have an Air Force in size 7, a
+     *  red Air Force... That's what a salesman would do. She'd have to think with her brain by
+     *  using ALL the stock, comparing both categories, because the customer already gave three
+     *  categories. He gave red, he gave Air Force, and he gave size 8."
+     *
+     * Measured on Million (+1 242 433-0633): he asked for a red Air Force 1 in an 8 and got
+     * "We don't have the Air Force 1 in red right now 🙏 But we got the Air Force 1 in black
+     * and white — want me to send those?" - text only, permission asked, and WRONG. We held
+     * FOUR Air Forces in his 8 (white, all black, Green/White, Green Glow - she named two and
+     * missed both greens), TEN red shoes in his 8 including an all red Jordan 4 and a black/red
+     * Air Max 95, and a red/white Air Force in a 7 - the exact "try it on" he describes.
+     *
+     * The first version of this guard read only the CURRENT message, and his was just "size 8" -
+     * the shoe and the colour were one message earlier, so it found nothing and stayed quiet.
+     * It now reads what the customer has said across the whole conversation and runs the three
+     * searches a salesman would run.
+     * ⚠️ It never invents stock: every line handed to her comes back from a real search. */
     try {
       const OUT_RE = /\b(we(?:'|’)?re out of|out of stock|sold out|don(?:'|’)?t have|dont have|don(?:'|’)?t come in|do not have|none (?:left|in)|no .{0,16} in (?:a |an )?\d)/i;
       if (turnText && !staffName && !photosSentRun && deadEnds < 1 && OUT_RE.test(turnText)) {
-        // What did they ask for? Their words minus the size, plus whatever size we know.
-        const askRaw = String(userText || '');
-        /* ⚠️ A MODEL NUMBER IS NOT A SIZE, AND IT MUST SURVIVE. "do u have the air max 95 in a
-         * 10" has two numbers: 95 is the shoe, 10 is the foot. Taking the first one asks for a
-         * size 95; stripping every number asks for a bare "air max", which is how "NB 2000"
-         * once returned 59 wrong shoes. So: only 4-14 can be a size (95 cannot), the LAST such
-         * number wins (the size is named after the model), and ONLY that one token is removed. */
-        const cands = [...askRaw.matchAll(/\b(\d{1,2}(?:\.5)?)\b/g)]
-          .filter(m => { const n = parseFloat(m[1]); return n >= 4 && n <= 14; });
-        const pick = cands.length ? cands[cands.length - 1] : null;
+        // Everything THEY have said this conversation - the shoe is often named a message or
+        // two before the size, which is exactly how the first version missed Million.
+        const saidByThem = history.filter(h => h.role === 'user')
+          .map(h => typeof h.content === 'string' ? h.content : '')
+          .join(' ').split('(SYSTEM NOTE')[0] + ' ' + String(userText || '');
+        const T = saidByThem.toLowerCase();
+
+        const COLOURS = ['black','white','red','blue','green','pink','purple','orange','yellow',
+                         'brown','cream','navy','grey','gray','gold','silver','tan','burgundy'];
+        const colour = COLOURS.find(c => new RegExp('\\b' + c + '\\b').test(T)) || '';
+
         const cs = custSize.get(sub);
-        const theirSize = pick ? parseFloat(pick[1])
-          : (cs && cs.size ? parseFloat(String(cs.size).split('/')[0]) : NaN);
-        let model = askRaw;
-        if (pick) model = model.slice(0, pick.index) + ' ' + model.slice(pick.index + pick[1].length);
-        model = model.replace(/\b(size|sizes|in|a|an|the|you|have|got|any|do|u|plz|please)\b/gi, ' ')
-          .replace(/\s+/g, ' ').trim();
-        let sameModelOtherSize = [], sameSizeOtherColour = [];
-        try {
-          if (model && !isNaN(theirSize)) {
-            const near = [theirSize + 0.5, theirSize - 0.5, theirSize + 1, theirSize - 1]
-              .filter(n => n >= 4 && n <= 14);
-            sameModelOtherSize = searchInventory({ query: model, sizes: near.map(String) }) || [];
-            sameSizeOtherColour = searchInventory({ query: model, size: String(theirSize) }) || [];
-          }
-        } catch (_) {}
+        const sizeNums = [...T.matchAll(/\b(\d{1,2}(?:\.5)?)\b/g)].map(m => parseFloat(m[1]))
+          .filter(n => n >= 4 && n <= 14);
+        const theirSize = sizeNums.length ? String(sizeNums[sizeNums.length - 1])
+          : (cs && cs.size ? String(cs.size).split('/')[0] : '');
+
+        // The model, with the colour and the size words taken out so it does not filter twice.
+        let model = T;
+        for (const c of COLOURS) model = model.replace(new RegExp('\\b' + c + '\\b', 'g'), ' ');
+        /* ⚠️ STRIP THE SIZE, KEEP THE MODEL NUMBER. "red jordan 4 in a 10" has two numbers and
+         * only one of them is a foot. Taking out every 4-14 leaves a bare "jordan", which is
+         * how "NB 2000" once matched 59 wrong shoes. Only the token we actually chose as the
+         * size comes out, and only the last occurrence of it. */
+        if (theirSize) {
+          const esc = theirSize.replace('.', '\\.');
+          model = model.replace(new RegExp('\\b' + esc + '\\b(?![\\s\\S]*\\b' + esc + '\\b)'), ' ');
+        }
+        model = model
+          .replace(/\b(size|sizes|colou?rs?|in|a|an|the|you|have|got|any|do|u|i|need|want|looking|for|one|me|is|it|yall|y'all|plz|please|hello|hi|hey|can|get|more|info|on|this)\b/g, ' ')
+          .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+        const S = (o) => { try { return searchInventory(o) || []; } catch (_) { return []; } };
+        // The three a salesman runs: their shoe in their size (every colour), their colour in
+        // their size (any shoe), and their shoe in their colour (any size, to try on).
+        const theirShoeTheirSize  = (model && theirSize) ? S({ query: model, size: theirSize }) : [];
+        const theirColourTheirSize = (colour && theirSize) ? S({ color: colour, size: theirSize }) : [];
+        const theirShoeTheirColour = (model && colour) ? S({ query: model, color: colour }) : [];
+
         const fmt = (r) => `${r.name}${r.color ? ' (' + r.color + ')' : ''} — ${r.sizes || ''}`;
-        if (sameModelOtherSize.length || sameSizeOtherColour.length) {
+        const lines = [];
+        if (theirShoeTheirSize.length)
+          lines.push('THE SHOE THEY NAMED, IN THEIR SIZE, EVERY COLOUR — SEND THESE PICTURES: '
+            + theirShoeTheirSize.slice(0, 12).map(fmt).join(' | '));
+        if (theirColourTheirSize.length)
+          lines.push('THEIR COLOUR IN THEIR SIZE, other styles: '
+            + theirColourTheirSize.slice(0, 8).map(fmt).join(' | '));
+        if (theirShoeTheirColour.length)
+          lines.push('THE EXACT SHOE+COLOUR THEY WANTED, in other sizes: '
+            + theirShoeTheirColour.slice(0, 6).map(fmt).join(' | '));
+
+        if (lines.length) {
           deadEnds++;
           record(req, { endpoint: 'dead-end-blocked', sub, store: ctx.store || '',
-                        asked: askRaw.slice(0, 60), said: turnText.slice(0, 80),
-                        nearSize: sameModelOtherSize.length, sameSize: sameSizeOtherColour.length });
-          const lines = [];
-          if (sameSizeOtherColour.length)
-            lines.push('SAME SIZE, OTHER COLOURS: ' + sameSizeOtherColour.slice(0, 6).map(fmt).join(' | '));
-          if (sameModelOtherSize.length)
-            lines.push('THE SHOE THEY NAMED, NEAREST SIZES: ' + sameModelOtherSize.slice(0, 6).map(fmt).join(' | '));
+                        model, colour, size: theirSize, said: turnText.slice(0, 80),
+                        a: theirShoeTheirSize.length, b: theirColourTheirSize.length,
+                        c: theirShoeTheirColour.length });
           history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
-            + 'just told them we do not have it and left it there. Never do that — we are '
-            + 'salesmen. We DO have these right now:\n' + lines.join('\n') + '\n'
-            + 'Say sorry in half a line, then put the closest thing in front of them and CALL '
-            + 'send_photos on it — a half size up or down on the exact shoe they named is the '
-            + 'best offer, their own size in another colour is the next best. Ask if that size '
-            + 'works for them ("you could wear a 8.5?"). Do NOT ask "what other kicks you '
-            + 'looking at" — that hands the sale back to them. Never end on a no with nothing '
-            + 'attached.)' });
+            + 'told them we do not have it and sent no pictures. We are salesmen — a no with '
+            + 'nothing attached ends the sale, and words alone never sell a shoe. Here is what '
+            + 'we REALLY have:\n' + lines.join('\n') + '\n'
+            + 'Do this: say the honest no in HALF a line, then CALL send_photos on the first '
+            + 'group — every colour of their shoe in their size, not the two you remember. Do '
+            + 'NOT ask "want me to send those?" — just send them. Then, in one short line, '
+            + 'offer what the other two groups turned up ("I got plenty red in your 8 in other '
+            + 'styles", "I got that one in a 7 if you want to try it on"). Never list shoes in '
+            + 'words instead of pictures, and never end on a no.)' });
           continue;
         }
       }
