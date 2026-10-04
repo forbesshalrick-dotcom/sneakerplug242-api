@@ -8637,23 +8637,46 @@ and it must NEVER be answered with a question back.`;
         if (lines.length) {
           deadEnds++;
           try { lastSearchIds = theirShoeTheirSize.map(r => r.id); } catch (_) {}
+          /* 📤 SEND IT HERE. Six attempts at getting HER to send this album failed in a row - a
+           * note asking, forcing send_photos, ids for all three groups (she captioned it "Air
+           * Force 1" and sent red Air Max Plus), ids for the album group only. Every time she
+           * wrote prose instead. The guard already knows exactly which shoes should go out, so
+           * the honest fix is to stop negotiating and send them, then tell her they are gone and
+           * to write one line around them. Deterministic beats persuasive. */
+          let _sentHere = 0;
+          if (theirShoeTheirSize.length) {
+            try {
+              const _lead = 'Here go the ' + (model || 'ones') + ' I got in your '
+                + (theirSize || 'size') + ' 👟';
+              const _r = await sendShoePhotos(sub, theirShoeTheirSize.map(r => r.id), token,
+                                              true, null, _lead, false, false, false, 0,
+                                              theirSize || null);
+              _sentHere = (_r && _r.sent) || 0;
+              if (_sentHere > 0) photosSentRun = true;
+            } catch (_) {}
+          }
           record(req, { endpoint: 'dead-end-blocked', sub, store: ctx.store || '',
                         model, colour, size: theirSize, said: turnText.slice(0, 80),
                         a: theirShoeTheirSize.length, b: theirColourTheirSize.length,
                         c: theirShoeTheirColour.length });
-          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
-            + 'told them we do not have it and sent no pictures. We are salesmen — a no with '
-            + 'nothing attached ends the sale, and words alone never sell a shoe. Here is what '
-            + 'we REALLY have:\n' + lines.join('\n') + '\n'
-            + 'Do this: say the honest no in HALF a line, then CALL send_photos with the ids '
-            + 'in square brackets above from the FIRST group — every colour of their shoe in '
-            + 'their size, not the two you remember. Those are the ONLY ids on this note and '
-            + 'the only thing send_photos may be given - the other two groups have no ids '
-            + 'because they are words, not an album. Do '
-            + 'NOT ask "want me to send those?" — just send them. Then, in one short line, '
-            + 'offer what the other two groups turned up ("I got plenty red in your 8 in other '
-            + 'styles", "I got that one in a 7 if you want to try it on"). Never list shoes in '
-            + 'words instead of pictures, and never end on a no.)' });
+          const _head = '(SYSTEM NOTE — the customer cannot see this: you told them we do not '
+            + 'have it and sent no pictures. We are salesmen — a no with nothing attached ends '
+            + 'the sale, and words alone never sell a shoe. Here is what we REALLY have:\n'
+            + lines.join('\n') + '\n';
+          const _tail = _sentHere > 0
+            ? 'THE PICTURES ARE ALREADY SENT — ' + _sentHere + ' of them, every colour of their '
+              + 'shoe in their size, went out just now. Do NOT call send_photos again and do NOT '
+              + 'list those shoes in words. Write ONE short line around them: the honest no in '
+              + 'half a line, then what the other two groups turned up ("I got plenty red in your '
+              + '8 in other styles", "I got that one in a 7 if you want to try it on").)'
+            : 'Say the honest no in HALF a line, then CALL send_photos with the ids in square '
+              + 'brackets above — every colour of their shoe in their size, not the two you '
+              + 'remember. Those are the only ids on this note and the only thing send_photos '
+              + 'may be given; the other two groups are words, not an album. Do NOT ask "want me '
+              + 'to send those?" — just send. Then one short line offering what the other two '
+              + 'groups turned up. Never list shoes in words instead of pictures, and never end '
+              + 'on a no.)';
+          history.push({ role: 'user', content: _head + _tail });
           /* 🔒 AND MAKE HER SEND THEM. Measured on the replay of Million's chat: the guard found
            * all four Air Forces in his size, handed them over, and she answered in WORDS anyway
            * - "We got the Air Force 1 in Green/White, Green Glow, White, and All Black in your
@@ -8661,7 +8684,7 @@ and it must NEVER be answered with a question back.`;
            * complaining about, and a website link on top of it. A note asking her to send
            * pictures is a request; this is the tool call. Same mechanism the text-list guard
            * has always used. */
-          forcePhotosNext = true;
+          if (!_sentHere) forcePhotosNext = true;
           continue;
         }
       }
