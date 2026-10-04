@@ -8519,9 +8519,17 @@ and it must NEVER be answered with a question back.`;
       const ASKS_SIZE = /\b(what size|which size|size (?:you|u|do you)|what(?:'|’)?s your size|size\?)/i;
       const CLOSING = /\b(where (?:should|can|do) (?:we|i) (?:meet|bring|drop)|send (?:me )?(?:your|the) location|where (?:you|u) (?:at|located)|meet (?:you|up)|drop it|on the way)\b/i;
       const _knowSize = !!(custSize.get(sub) && custSize.get(sub).size);
+      /* Widened 2026-10-04 after four more runs of Wade's opener: she stopped saying "where
+       * should we meet" and started saying "in your 8.5" and "you want to grab it?" instead -
+       * neither of which is a CLOSING phrase, so the guard sat out while the same mistake
+       * carried on. The rule is not "do not close early", it is "the size question comes
+       * first". So: an availability question, no size known, and no size asked = blocked,
+       * whatever else the sentence does. Stating a size as theirs is caught by the same net,
+       * because that reply does not ask. */
+      const _claimsTheirSize = /\b(?:your|ur)\s+(?:size\s+)?\d{1,2}(?:\.5)?\b|\bin an? \d{1,2}(?:\.5)?\b/i.test(turnText);
       if (turnText && !staffName && closedWithoutSize < 1 && !_knowSize
           && ASK_AVAILABLE.test(String(userText || '')) && !ASKS_SIZE.test(turnText)
-          && CLOSING.test(turnText)) {
+          && (CLOSING.test(turnText) || _claimsTheirSize || !ASKS_SIZE.test(turnText))) {
         closedWithoutSize++;
         record(req, { endpoint: 'closed-without-size', sub, store: ctx.store || '',
                       personal: !!ctx.personal, said: turnText.slice(0, 90) });
