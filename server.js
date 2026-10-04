@@ -8230,47 +8230,32 @@ and it must NEVER be answered with a question back.`;
         return hits >= 3;
       } catch (_) { return false; }
     })();
-    if (turnText && !staffName && !photosSentRun && textListed < 1
+    /* 💲 A PRICE LIST IS THE RIGHT ANSWER TO "PRICES?" — THIS GUARD MUST NOT EAT IT.
+     * Rodney 2026-10-04: "when a customer asks for prices, you think random pictures is better
+     * than sending a price list?" No. This guard was built for a DIFFERENT mistake - typing out
+     * the shoes we have, with their prices, instead of showing them - and it was catching a real
+     * price list and replacing it with nine shoes nobody asked about. Three times today.
+     * What it binned was:
+     *     👟 *TRENDY KICKS - PRICE LIST* 👟
+     *     👑 Air Force 1 - *$120*   🐐 Air Jordans - *SALE $180* 🔥
+     *     💨 Air Max / VaporMax - *$120*   🌀 Air Max 95 - *$130*   ⚡ New Balance / ASICS - *$130*
+     * which is exactly what somebody who types "Prices?" is asking for.
+     * So: a price question with no shoe named - the list goes out untouched. Name a shoe and the
+     * guard still applies, because then the answer is that shoe's PICTURE with its price. */
+    const _barePriceAsk = /^\s*(?:prices?|pricing|cost|how much|how much (?:is|are|for)|what(?:'|\u2019)?s the price|wats? the price)\s*[?.!]*\s*$/i
+      .test(String(userText || '').trim());
+    if (turnText && !staffName && !photosSentRun && textListed < 1 && !_barePriceAsk
         && ((turnText.match(/\$\s?\d{2,3}/g) || []).length >= 2 || _colourListish)
         && !wholesale) {
       textListed++;
-      /* 💬 "PRICES?" OFF AN AD IS A PRICE QUESTION, NOT A REQUEST FOR THE WHOLE SHOP.
-       * Rodney 2026-10-04, on two customers the same day: "I have one ads with the black Nike
-       * Vomero, the black VaporMax, the black Air Force, and the black Air Max 97 all in one
-       * ad... two people came on those and asked the price. And Kiki sent five Jordans or six
-       * Jordans... So what's the reason for sending those Jordans anyway?"
-       * There was no reason. ManyChat hands us NO ad referral (measured on both: `user_refs:
-       * []` and nothing else), so she cannot know which ad they tapped. She started to type a
-       * price list, THIS guard blocked it and told her to send pictures "in their size" - and
-       * she had no size and no model, so the search had nothing to filter on and the first nine
-       * rows of the catalogue went out. They were Jordans by accident of ordering.
-       * Sending nine photos to someone whose size we do not know also breaks the no-size-no-pile
-       * rule. So when the whole message is "Prices?" and we know neither their size nor a model,
-       * the album is the wrong answer and the price IS the answer they asked for. */
-      const _barePriceAsk = /^\s*(?:prices?|pricing|cost|how much|how much (?:is|are|for)|what(?:'|\u2019)?s the price|wats? the price)\s*[?.!]*\s*$/i
-        .test(String(userText || '').trim());
-      const _knowSize = !!(custSize.get(sub) && custSize.get(sub).size);
-      record(req, { endpoint: 'text-list-blocked', sub, store: ctx.store || '',
-                    barePrice: _barePriceAsk, knowSize: _knowSize, text: turnText.slice(0, 180) });
-      if (_barePriceAsk && !_knowSize) {
-        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
-          + 'asked ONLY what things cost, off an ad, and we do NOT know their size or which shoe '
-          + 'they mean — the ad they tapped is not passed to us. Do NOT send an album: a pile of '
-          + 'pictures of shoes nobody asked about is not an answer, and we never send 4+ pictures '
-          + 'before we know a size. ANSWER THE QUESTION in one short line — our prices run $120 '
-          + 'for Air Force 1s, Jordan 1s, Dunks, Air Max and VaporMax, $130 for Air Max 95, New '
-          + 'Balance and ASICS, $180 for the other Jordans, and free delivery — then ask the ONE '
-          + 'thing that moves it forward: what size they wear, or which pair from the ad they '
-          + 'like. The moment they answer, search it and send those pictures.)' });
-      } else {
-        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just '
-          + 'TYPED OUT a list of shoes with prices instead of sending the pictures. Never do that. '
-          + 'Nobody picks a shoe off a line of text, and we have a photo of every pair we own. Call '
-          + 'send_photos NOW with those shoes in their size, with ONE short lead-in line and nothing '
-          + 'else. Do not list the names again, do not list the prices again, and do not send them '
-          + 'to the website - the website is where a sale goes to die. Do not mention this note.)' });
-        forcePhotosNext = true;
-      }
+      record(req, { endpoint: 'text-list-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 180) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just '
+        + 'TYPED OUT a list of shoes with prices instead of sending the pictures. Never do that. '
+        + 'Nobody picks a shoe off a line of text, and we have a photo of every pair we own. Call '
+        + 'send_photos NOW with those shoes in their size, with ONE short lead-in line and nothing '
+        + 'else. Do not list the names again, do not list the prices again, and do not send them '
+        + 'to the website - the website is where a sale goes to die. Do not mention this note.)' });
+      forcePhotosNext = true;
       continue;                       // one clean retry
     }
     // 🤖 NO STALLING. See STALL_RE. She either has the answer or she asks a real question -
