@@ -8509,9 +8509,23 @@ and it must NEVER be answered with a question back.`;
       if (turnText && !staffName && !photosSentRun && deadEnds < 1 && OUT_RE.test(turnText)) {
         // Everything THEY have said this conversation - the shoe is often named a message or
         // two before the size, which is exactly how the first version missed Million.
+        /* ⚠️ ONLY THE CUSTOMER'S OWN WORDS. Caught on the first live test of this guard: the
+         * notes this file pushes into `history` are role:'user' strings, and some are appended
+         * onto userText itself - so joining the lot and cutting at the FIRST "(SYSTEM NOTE"
+         * left whole paragraphs of our own instructions in the blob. The model came out as
+         *   "air force 1 8 customer s 8 they told earlier chat when they ask to see other shoe
+         *    brand or model next new balance show jordans..."
+         * and the search answered that instead of the customer. Cut every message
+         * individually, drop anything that is plainly ours, and keep it short - a customer
+         * does not describe a shoe in 200 characters. */
         const saidByThem = history.filter(h => h.role === 'user')
           .map(h => typeof h.content === 'string' ? h.content : '')
-          .join(' ').split('(SYSTEM NOTE')[0] + ' ' + String(userText || '');
+          .concat([String(userText || '')])
+          .map(t => String(t).split('(SYSTEM NOTE')[0].split('🔎')[0].trim())
+          .filter(t => t && !t.startsWith('(') && !/^\s*\(?SYSTEM/i.test(t))
+          .map(t => t.slice(0, 200))
+          .slice(-8)
+          .join(' ');
         const T = saidByThem.toLowerCase();
 
         const COLOURS = ['black','white','red','blue','green','pink','purple','orange','yellow',
