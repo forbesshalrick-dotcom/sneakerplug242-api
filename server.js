@@ -8269,9 +8269,15 @@ and it must NEVER be answered with a question back.`;
     // easiest sentence in the language to write and nothing was checking it.
     // So check it. Take the shoe she just named and the size she just named, and ask the shelf.
     try {
-      const m = turnText && turnText.match(/\bin (?:a |an )?(\d{1,2}(?:\.5)?)\b/i);
+      /* ⚠️ "IN A SIZE 8" IS THE SAME SENTENCE AS "IN A 8" (2026-10-04).
+       * This matched `in a 8` and `in 8` but NOT `in a size 8` - the one extra word made the
+       * whole guard sit out. Found by the M5 FB2 session running the same question four times
+       * against a listing that says Sizes: 7: three of the four answered "Yes! We got the Air
+       * Force 1 Red/White in a size 8", a size that does not exist, on the busiest Facebook
+       * account. The shelf check below was right all along; it was never reached. */
+      const m = turnText && turnText.match(/\bin (?:a |an )?(?:size |sz )?(\d{1,2}(?:\.5)?)\b|\bsize (\d{1,2}(?:\.5)?)\b/i);
       if (m && !staffName && soldSizeClaims < 1) {
-        const wantSz = String(parseFloat(m[1]));
+        const wantSz = String(parseFloat(m[1] || m[2]));
         // Strip the PRICE first - "$120" becomes the token "120" and matches nothing useful -
         // and keep MODEL NUMBERS. Dropping every short token threw away the "95" in "Air Max 95
         // White", which left it matching the whole Air Max family and finding a 7 in the
