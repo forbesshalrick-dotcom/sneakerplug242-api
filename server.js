@@ -2593,7 +2593,7 @@ their name. Casual browsing needs no number; never ask twice.`}
 - Ask only ONE short question at a time. Never stack two questions in one message — pick the single most useful one and send just that.
 - SHOWING BEATS ASKING: if you'd otherwise be guessing WHICH shoes the customer means (e.g. which colourway, which exact model, or you're just not sure), don't keep asking — once you know their size, just send the photos of the likely matches and let them verify and pick from the pictures. A photo they can say "yes that one" to is better than another question.
 - ALWAYS REPLY — NEVER GO SILENT (IMPORTANT): Every customer message must get a reply. Never end your turn having sent them nothing. If a customer asks to SEE shoes — "show me some Jordan 1s", "what Jordans you got?", "show me the New Balance", "lemme see what you have" — immediately call search_inventory for that brand/model and then send_photos of what we have. You do NOT need their size first to show them. After you call search_inventory you MUST follow through the same conversation: either send_photos of the results, or (only if the search truly came back empty) tell them kindly we don't have that one right now and offer to show what we DO have in their size or that brand instead. Never stop after searching without showing or saying anything.
-- OUR HOURS (know this cold): we're OPEN EVERY DAY from 8 AM to 10 PM. We're mobile & delivery-only — no storefront — but the HOURS question still gets a straight answer. If anyone asks when we open/close ("what time y'all close?", "you still open?", "till when?"), answer PLAINLY first: "We're open every day 7 AM – 11 PM 👟" — never dodge it with "we come to you, what time works?" (Rodney 2026-07-13). After answering, you can add that we deliver to them.
+- OUR HOURS (know this cold): we're OPEN EVERY DAY from 7 AM to 11 PM. (⚠️ This line used to say "8 AM to 10 PM" and then quote "7 AM - 11 PM" in the very same sentence - two different sets of hours, four words apart, which is why the answer came out different every time. Every other place in these instructions, and the Spanish and Creole canned replies, say 7 AM - 11 PM, so that is the one kept. Rodney told a customer "10pm" on 2026-10-04 - if 10 PM is the real cutoff, this line and 2597 and the two canned replies all have to change together.) We're mobile & delivery-only — no storefront — but the HOURS question still gets a straight answer. If anyone asks when we open/close ("what time y'all close?", "you still open?", "till when?"), answer PLAINLY first: "We're open every day 7 AM – 11 PM 👟" — never dodge it with "we come to you, what time works?" (Rodney 2026-07-13). After answering, you can add that we deliver to them.
 - 🕚 "I'LL GET BACK TO YOU" → WARM + THE 11 PM WINDOW, THEN LEAVE IT (Rodney 2026-07-19): when a customer says they'll get back to you, let you know, think about it, or come back later, do NOT keep selling and do NOT pressure them. Reply warm and short, and give them the window so they know their deadline: we're open till 11 PM, so anytime before then works — e.g. "No rush at all! 👟 We close at 11 tonight, so just hit me anytime before then and I've got you 🙏". Then stop — the system won't chase them with follow-ups, so this ONE gracious line is the whole reply.
 - ⚠️ HOURS vs "WHEN WILL YOU GET HERE" — READ WHICH ONE THEY MEAN (Rodney 2026-07-13, a real customer got open-hours quoted at her mid-delivery): if the customer has an ORDER in motion (they've picked a shoe and you're arranging/have arranged the drop-off) and they ask "what time may u get here?", "when you coming?", "how long?", "you reaching?" — they are asking about THEIR DELIVERY, not our opening times. NEVER answer that with "we're open 7 AM – 11 PM." Say the driver's on the way and you'll check how far he is — e.g. "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". Only quote the 7 AM – 11 PM hours when someone genuinely asks when we open or close.
 - NO SPECIAL ORDERS (IMPORTANT): We do NOT take special orders. NEVER offer one — never say "special order", "we can order it in", "DM for special orders", or "we'll send the exact pair once it arrives". When we genuinely don't have what they asked for, kindly say we don't have that one right now, then IMMEDIATELY pivot to showing what we DO have that's close — their size, that brand, or a similar colour — and keep steering toward a shoe we actually have in stock.
@@ -7762,6 +7762,7 @@ and it must NEVER be answered with a question back.`;
   let colourListed = 0;        // answering "what colours" with words instead of pictures
   let etaDeflected = 0;        // answering "how far is the driver" with an offer of stock
   let payDeflected = 0;        // answering a PAYMENT question with shoes
+  let hoursDeflected = 0;      // 'what time does delivery end' answered with anything but a time
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let listingPriceMisses = 0;  // quoting the shop price at someone reading a Facebook listing
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
@@ -8449,6 +8450,36 @@ and it must NEVER be answered with a question back.`;
             + 'attached.)' });
           continue;
         }
+      }
+    } catch (_) {}
+    /* 🕚 "WHAT TIME DOES DELIVERY END" IS A CLOCK QUESTION — GIVE IT A CLOCK ANSWER.
+     * Rodney 2026-10-04, on Popeye (+1 242 428-1447, OSC): "Kiki never answered the customer. He
+     * asked, what time does delivery stop? So I answered 10 p.m. and she came in underneath with
+     * 'hmm, I didn't understand the picture.'"
+     * Measured: at 13:02:42 he asked "What time / Does delivery ends" and got "Soon as you send
+     * me the location 📍 I can get this straight out to you" - a pin push, not an answer. The
+     * question then sat unanswered, so when ManyChat REPLAYED the same text at 13:16 the replay
+     * detector read it as a lost attachment and she said the picture had not come through.
+     * One unanswered question produced both failures. The prompt has carried the rule since
+     * 2026-07-13 ("never dodge it") and the hours line contradicted itself, so neither held.
+     * Distinct from the ETA guard: that one is "where is MY driver", this is "when do you shut". */
+    try {
+      const HOURS_ASK = /\b(what time|how late|till when|until when|what hours)\b[^?]{0,30}\b(close|closing|end|ends|stop|stops|finish|open|deliver(y|ies)?)\b|\b(deliver(y|ies)?|you(?:'|’)??re?)\s+(?:end|ends|stop|stops|close|closes)\b|\bhow late\b/i;
+      // "We close at 11 tonight" is a complete answer and carries no am/pm, so a bare hour
+      // counts too - blocking a reply that already answered is worse than not guarding at all.
+      const HAS_CLOCK = /\b(\d{1,2}\s?(?::\d{2})?\s?(?:am|pm)|\d{1,2}\s?o'?clock|midnight|noon|24\/7|all night)\b|\b(?:close|closes|closing|open|opens|till|until|up to|to)\b[^.!?\n]{0,14}\b(1[0-2]|[1-9])\b/i;
+      if (turnText && !staffName && hoursDeflected < 1
+          && HOURS_ASK.test(String(userText || '')) && !HAS_CLOCK.test(turnText)) {
+        hoursDeflected++;
+        record(req, { endpoint: 'hours-question-deflected', sub, store: ctx.store || '',
+                      asked: String(userText || '').slice(0, 60), said: turnText.slice(0, 90) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'asked WHAT TIME we close or how late delivery runs, and your reply had no time in '
+          + 'it. That is a question with a number for an answer and they cannot plan around '
+          + '"send me your location". Give them the hours straight — we run 7 AM to 11 PM every '
+          + 'day — and only then carry on with whatever you were arranging. Do not push for the '
+          + 'pin instead of answering; you can do both in one short line.)' });
+        continue;
       }
     } catch (_) {}
     /* 💳 A PAYMENT QUESTION IS NEVER A SHOE (Rodney 2026-10-03, on "12s Goku", Trendy Kicks).
