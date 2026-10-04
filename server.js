@@ -8552,7 +8552,12 @@ and it must NEVER be answered with a question back.`;
      * searches a salesman would run.
      * ⚠️ It never invents stock: every line handed to her comes back from a real search. */
     try {
-      const OUT_RE = /\b(we(?:'|’)?re out of|out of stock|sold out|don(?:'|’)?t have|dont have|don(?:'|’)?t come in|do not have|none (?:left|in)|no .{0,16} in (?:a |an )?\d)/i;
+      /* "ONLY COMES IN A 7" IS A REFUSAL TOO (2026-10-04). After the sold-size regex was
+       * fixed, all four runs of the M5 FB2 test answered correctly - "that red/white Air Force
+       * only comes in a 7 right now" - and not one of them sent an album, because that
+       * phrasing was not in this list. An honest no with no pictures attached is still the
+       * failure Rodney named; it is just a truthful one. */
+      const OUT_RE = /\b(we(?:'|’)?re out of|out of stock|sold out|don(?:'|’)?t have|dont have|don(?:'|’)?t come in|do not have|none (?:left|in)|no .{0,16} in (?:a |an )?\d|only (?:comes|come|got it|have it|got|in) in (?:a |an )?\d|only in (?:a |an )?\d)/i;
       if (turnText && !staffName && !photosSentRun && deadEnds < 1 && OUT_RE.test(turnText)) {
         // Everything THEY have said this conversation - the shoe is often named a message or
         // two before the size, which is exactly how the first version missed Million.
