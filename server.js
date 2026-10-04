@@ -3677,10 +3677,22 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     // name a colourway; a bare "black Jordan" is a hue and keeps the old ranked behaviour.
     // If nothing is purely that colour we keep the ranked list rather than tell someone we
     // have nothing - saying no to a customer we can serve is the worse mistake.
-    if (/\b(all|full|only|pure|solid|straight|triple)\b/i.test(String(color))) {
-      const pure = rows.filter(isPureColour);
-      if (pure.length) rows = pure;
-    }
+    /* ⬛ A BARE COLOUR IS THE SAME INSTRUCTION (Rodney 2026-10-04, in full: "why is all this
+     * jargon sent for a basic question? black means Black. ALL black, Triple black, Black
+     * means black").
+     * BJ asked for "Size 8 in black" and was handed Air Max Plus in Black/Blue/Red, Pink/Black,
+     * Black/Green, Black/Blue/White and Green/Black, as a typed list, with the website link.
+     * Pink/Black is not black. The hard filter above was gated on the word "all" — but the
+     * customer does not say "all"; he says black and means black. So the gate is gone: any
+     * colour ask filters to the colourways that ARE that colour.
+     * ⚠️ AND IF NOTHING IS PURELY THAT COLOUR, RETURN NOTHING. The old fallback kept the mixed
+     * list "rather than tell someone we have nothing", and that is precisely how five
+     * multicoloured shoes got presented to him as black. An empty result now reaches the
+     * three-category guard, which answers honestly and with pictures: no all black TN in an 8,
+     * here is every all black we DO have in an 8, and the all black TN in a 7 and a 12. That
+     * guard did not exist when the fallback was written. */
+    const pure = rows.filter(isPureColour);
+    rows = pure;
   }
   // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
   // foam clogs (Rodney 2026-08-04). See SLIP_ON_RE.
