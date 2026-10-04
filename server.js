@@ -8607,6 +8607,13 @@ and it must NEVER be answered with a question back.`;
          * size comes out, and only the last occurrence of it. */
         if (theirSize) {
           const esc = theirSize.replace('.', '\\.');
+          /* "size 8" FIRST, wherever it sits. Removing only the LAST bare 8 fails the moment
+           * anything after the customer's words also contains an 8 - measured 2026-10-04: the
+           * model came out "air force 1 8", group A found nothing (a=0), and the album could
+           * not send. The phrase "size 8" is never part of a shoe's name, so it goes first and
+           * every time; the bare-number strip then handles "a 8" / "in 8" and still protects
+           * model numbers by only taking the last one. */
+          model = model.replace(new RegExp('\\b(?:size|sz)\\s+' + esc + '\\b', 'g'), ' ');
           model = model.replace(new RegExp('\\b' + esc + '\\b(?![\\s\\S]*\\b' + esc + '\\b)'), ' ');
         }
         model = model
