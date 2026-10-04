@@ -4176,11 +4176,43 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // a shoe early than lose the contact forever; if they actually wanted more they'll
   // just say so. ("thanks" only counts MID-album — this regex only ever runs there.)
   const STOPPISH = /\b(stop|enough|never ?mind|nvm|don'?t send|dont send|leave it|forget it|chill|hold (on|up)|wait( a (minute|min|sec|second))?|unsubscribe|that'?s? (it|all|good|fine|plenty|okay|ok)|i'?m (good|okay|ok|fine|straight|set|done)|we('re| are)? (good|done)|all set|no thanks|no more( pic(ture)?s)?|don'?t want (to )?see|done look(ing)?|thanks|thank you|tanks|ty)\b/i;
+  /* 📏 A DIFFERENT SIZE, SHOUTED MID-ALBUM, IS A CORRECTION (Rodney 2026-10-04).
+   * Meekz was sent 115 shoes in a 7.5 he never asked for. He typed "11 10.5" WHILE they were
+   * still landing - and nothing stopped, because a bare size is deliberately NOT in REDIRECT:
+   * a customer answering "Size 10" to our own question must not halt the album we just started
+   * for them. The distinction is not "is it a size", it is "is it a DIFFERENT size from the one
+   * we are sending". That one is always a correction, and ignoring it is how he watched another
+   * eighty pictures of the wrong size arrive.
+   * Prose is excluded on purpose: "I'll take the 11" is a Jordan 11, not a size change. Only a
+   * message that is essentially just numbers counts - which is how people answer a size. */
+  const sizesSpoken = (txt) => {
+    const out = [];
+    const T = String(txt || '').toLowerCase();
+    const letters = T.replace(/[^a-z]/g, '');
+    const WORD = { four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
+                   eleven:11, twelve:12, thirteen:13, fourteen:14 };
+    for (const w of (T.match(/[a-z]+/g) || [])) if (WORD[w] != null) out.push(WORD[w]);
+    // Bare-number answers only. "and", "half", "size" are how a size is said; anything longer
+    // is a sentence, and a sentence mentioning a number is not a size correction.
+    if (letters.replace(/^(and|half|size|a|n)+$/g, '').length > 12 && !out.length) return [];
+    for (const m of T.matchAll(/\b(\d{1,2}(?:\.5)?)\b/g)) {
+      const n = parseFloat(m[1]); if (n >= 4 && n <= 14) out.push(n);
+    }
+    return out;
+  };
+  const sizeChanged = (txt) => {
+    const want = parseFloat(String(wantSize == null ? '' : wantSize));
+    if (isNaN(want)) return false;
+    const said = sizesSpoken(txt);
+    if (!said.length) return false;
+    // A half-size up is what we already send alongside, so it is not a change.
+    return !said.some(n => Math.abs(n - want) < 0.75);
+  };
   const customerSpoke = () => {
     const t = lastIncoming.get(sub);
     if (!(t && t > startedAt)) return false;
     const txt = lastIncomingText.get(sub) || '';
-    return STOPPISH.test(txt) || REDIRECT.test(txt);
+    return STOPPISH.test(txt) || REDIRECT.test(txt) || sizeChanged(txt);
   };
   // PAUSE-ANSWER-CONTINUE (Rodney 2026-07-14: a customer asked "How much" mid-album,
   // the pictures kept rolling and the question never got answered): a non-stop message
@@ -4475,6 +4507,28 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   let redirectedMidAlbum = false;
   if (interrupted && !manualStopped) {
     const txt = lastIncomingText.get(sub) || '';
+    // 📏 They corrected the SIZE mid-album. Say so, and hand the next turn the new one.
+    if (!STOPPISH.test(txt) && !REDIRECT.test(txt) && sizeChanged(txt)) {
+      const newSizes = sizesSpoken(txt);
+      redirectedMidAlbum = true;
+      try {
+        recent.unshift({ at: new Date().toISOString(), endpoint: 'album-size-corrected',
+                         sub, was: wantSize, now: newSizes.join('/') });
+        if (recent.length > 120) recent.length = 120;
+        saveRecent();
+      } catch (_) {}
+      try { await sendChunk(sub, [{ type: 'text', text: `My bad — ${newSizes.join(' and ')} 👟 one sec` }], token); } catch (e) {}
+      try {
+        const _cur = ownerNotes.get(sub) || [];
+        _cur.push('(SYSTEM NOTE - the customer cannot see this: they corrected their SIZE to '
+          + newSizes.join(' and ') + ' while the album was still sending, so it was stopped. '
+          + 'They were being shown a ' + wantSize + ' they never asked for. Search '
+          + newSizes.join(' and ') + ' NOW and send that album. Do NOT ask their size - they '
+          + 'just gave it twice - and do not apologise twice.)');
+        ownerNotes.set(sub, _cur.slice(-4));
+        custSize.set(sub, { size: newSizes.join('/'), ts: Date.now(), fromCustomer: true });
+      } catch (_) {}
+    }
     if (REDIRECT.test(txt) && !STOPPISH.test(txt)) {
       redirectedMidAlbum = true;
       try { await sendChunk(sub, [{ type: 'text', text: `Say less — switching to that now 👌` }], token); } catch (e) { /* non-fatal */ }
