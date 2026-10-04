@@ -7667,6 +7667,7 @@ and it must NEVER be answered with a question back.`;
   let colourListed = 0;        // answering "what colours" with words instead of pictures
   let etaDeflected = 0;        // answering "how far is the driver" with an offer of stock
   let payDeflected = 0;        // answering a PAYMENT question with shoes
+  let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
@@ -8239,6 +8240,73 @@ and it must NEVER be answered with a question back.`;
      * This stops the reflex underneath it: if they asked where the driver is, the reply may
      * not be an offer to show them stock. One retry, then it goes through — a guard must
      * never be the reason a waiting customer gets silence. */
+    /* 🧲 NEVER LEAVE IT BLANK — SELL THE NEXT CLOSEST THING (Rodney 2026-10-04, driving).
+     * "Bro, you cannot just say we out of the Vomero in an eight. What do we have that's close?
+     *  Any eight and a half?... he's specifically looking for the black Vomero. Come on, man.
+     *  Give him the closest size. At least sell him something. You guys acting like we're not
+     *  salesmen. You have to be salesmen. Kiki, you have to be salesmen. Send the next closest
+     *  thing. Come on, man. Never just leave it blank."
+     * Djflexcomplex asked for "Size 8 vomero" and got "Hmm, we're out of the Vomero in an 8
+     * right now 🙏 What other kicks you looking at?" — while the ALL BLACK Vomero 5, the exact
+     * shoe he wanted, was on the shelf in an 8.5. Half a size. Hand-sent; he had the pictures
+     * three minutes later.
+     * She can already do this — at 10:30 the same morning another customer got "the Vomeros
+     * don't come in a 12 right now, we got them in an 11 though — want me to send that?" It is
+     * not knowledge she lacks, it is consistency. So this does not nag her: it goes and LOOKS,
+     * and hands her the actual shoes before she is allowed to turn a buyer away. */
+    try {
+      const OUT_RE = /\b(we(?:'|’)?re out of|out of stock|sold out|don(?:'|’)?t have|dont have|don(?:'|’)?t come in|do not have|none (?:left|in)|no .{0,16} in (?:a |an )?\d)/i;
+      if (turnText && !staffName && !photosSentRun && deadEnds < 1 && OUT_RE.test(turnText)) {
+        // What did they ask for? Their words minus the size, plus whatever size we know.
+        const askRaw = String(userText || '');
+        /* ⚠️ A MODEL NUMBER IS NOT A SIZE, AND IT MUST SURVIVE. "do u have the air max 95 in a
+         * 10" has two numbers: 95 is the shoe, 10 is the foot. Taking the first one asks for a
+         * size 95; stripping every number asks for a bare "air max", which is how "NB 2000"
+         * once returned 59 wrong shoes. So: only 4-14 can be a size (95 cannot), the LAST such
+         * number wins (the size is named after the model), and ONLY that one token is removed. */
+        const cands = [...askRaw.matchAll(/\b(\d{1,2}(?:\.5)?)\b/g)]
+          .filter(m => { const n = parseFloat(m[1]); return n >= 4 && n <= 14; });
+        const pick = cands.length ? cands[cands.length - 1] : null;
+        const cs = custSize.get(sub);
+        const theirSize = pick ? parseFloat(pick[1])
+          : (cs && cs.size ? parseFloat(String(cs.size).split('/')[0]) : NaN);
+        let model = askRaw;
+        if (pick) model = model.slice(0, pick.index) + ' ' + model.slice(pick.index + pick[1].length);
+        model = model.replace(/\b(size|sizes|in|a|an|the|you|have|got|any|do|u|plz|please)\b/gi, ' ')
+          .replace(/\s+/g, ' ').trim();
+        let sameModelOtherSize = [], sameSizeOtherColour = [];
+        try {
+          if (model && !isNaN(theirSize)) {
+            const near = [theirSize + 0.5, theirSize - 0.5, theirSize + 1, theirSize - 1]
+              .filter(n => n >= 4 && n <= 14);
+            sameModelOtherSize = searchInventory({ query: model, sizes: near.map(String) }) || [];
+            sameSizeOtherColour = searchInventory({ query: model, size: String(theirSize) }) || [];
+          }
+        } catch (_) {}
+        const fmt = (r) => `${r.name}${r.color ? ' (' + r.color + ')' : ''} — ${r.sizes || ''}`;
+        if (sameModelOtherSize.length || sameSizeOtherColour.length) {
+          deadEnds++;
+          record(req, { endpoint: 'dead-end-blocked', sub, store: ctx.store || '',
+                        asked: askRaw.slice(0, 60), said: turnText.slice(0, 80),
+                        nearSize: sameModelOtherSize.length, sameSize: sameSizeOtherColour.length });
+          const lines = [];
+          if (sameSizeOtherColour.length)
+            lines.push('SAME SIZE, OTHER COLOURS: ' + sameSizeOtherColour.slice(0, 6).map(fmt).join(' | '));
+          if (sameModelOtherSize.length)
+            lines.push('THE SHOE THEY NAMED, NEAREST SIZES: ' + sameModelOtherSize.slice(0, 6).map(fmt).join(' | '));
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+            + 'just told them we do not have it and left it there. Never do that — we are '
+            + 'salesmen. We DO have these right now:\n' + lines.join('\n') + '\n'
+            + 'Say sorry in half a line, then put the closest thing in front of them and CALL '
+            + 'send_photos on it — a half size up or down on the exact shoe they named is the '
+            + 'best offer, their own size in another colour is the next best. Ask if that size '
+            + 'works for them ("you could wear a 8.5?"). Do NOT ask "what other kicks you '
+            + 'looking at" — that hands the sale back to them. Never end on a no with nothing '
+            + 'attached.)' });
+          continue;
+        }
+      }
+    } catch (_) {}
     /* 💳 A PAYMENT QUESTION IS NEVER A SHOE (Rodney 2026-10-03, on "12s Goku", Trendy Kicks).
      * The customer had already agreed the all-black VaporMax in a 12. He asked
      *   "Do u have rbc or island luck"
