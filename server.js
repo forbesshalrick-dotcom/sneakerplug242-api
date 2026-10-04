@@ -3023,7 +3023,7 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 👑 Air Force 1 — *$120*
 🐐 Air Jordans — *SALE $180* 🔥
 💨 Air Max / VaporMax — *$120*
-🌀 Air Max 95 — *$130*
+🌀 Air Max 95 / Air Max 97 — *$130*
 ⚡ New Balance / ASICS — *$130*
 👟 Nike Dunk / Air Jordan 1 — *$120*
 🐊 Crocs / Yeezy Foam — *$65*
@@ -3045,7 +3045,7 @@ Only ever mention shoes, prices and sizes that search_inventory returns — neve
 - ⛔ NEVER answer a price question with a question. Not "what size", not "what colour", not "send me a pic". The price does NOT depend on their size, so asking for one is pure delay.
 - ✅ Say the price FIRST, in that same reply, then carry on: "Air Force 1s are $120 👟 what size you wear?". Price first, question second, one message.
 - If two shoes they might mean have DIFFERENT prices, give both and let them pick: "The Air Force 1 is $120, the High is $120 too 👟 which one you after?". Never withhold the number while you work out which shoe it is.
-- You KNOW the standard prices even before a search: Jordan 1 / Air Force 1 / Dunk / Air Max / VaporMax $120, other Jordans $180, Air Max 95 / New Balance / Asics $130, Crocs & Yeezy Foam $65, Roshe $50, Dunk High $60, Scorpion $70. A price question is answerable instantly.
+- You KNOW the standard prices even before a search: Jordan 1 / Air Force 1 / Dunk / Air Max / VaporMax $120, other Jordans $180, Air Max 95 AND Air Max 97 / New Balance / Asics $130 (⚠️ the 97 is $130 like the 95 — NOT $120 with the other Air Max; Rodney 2026-10-04), Crocs & Yeezy Foam $65, Roshe $50, Dunk High $60, Scorpion $70. A price question is answerable instantly.
 
 ✨ "FLO SHINE" IS A MATERIAL, NOT A SHOE. (Rodney 2026-09-23: "flo shine is the material that shines. no we dont have the air force in flo shine." A customer asked "Do u have floshine", was told "I'm not finding a shoe called 'Floshine'", and was then asked to name the brand - twice.)
 - flo shine / floshine / shiny / shinny / patent / wet look all mean ONE thing: the SHINY finish. Our catalogue writes it "Gloss". A customer should never have to know our word for it.
@@ -4216,7 +4216,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
         // the old line survives only as the fallback when the call fails.
         let line = null;
         try {
-          const sys = 'You are Kiki, the WhatsApp assistant for a Nassau (Bahamas) sneaker shop. A photo album is MID-SEND; the customer just asked a quick question between pictures. Answer it in ONE short, warm WhatsApp line (max ~25 words, 1 emoji ok), in the customer\'s language, then let them know the pics are still coming (e.g. "📸 more pics coming 👇"). FACTS: FREE delivery to your door in Nassau, 7am–11pm, pay on arrival (cash, Scotiabank/CIBC transfer, SunCash) or card on 242plug.com. We are MOBILE, based Carmichael Road — no walk-in store, we come to you. Family Islands: boat $10 (weekly sail day) or plane $35 daily — pay first + send receipt; before 3 PM ships same day, after 3 PM next flight. PRICES: Jordan 1 / AF1 / Dunk / Air Max / VaporMax $120 · all other Jordans $180 · Air Max 95 / New Balance / ASICS $130 · Crocs & Yeezy Foam $65 · Roshe $50 · Dunk High $60 · Scorpion $70. If the question needs live stock lookup or order details you cannot see, say you\'ll sort that the second the pics finish. Reply with ONLY the line, nothing else.';
+          const sys = 'You are Kiki, the WhatsApp assistant for a Nassau (Bahamas) sneaker shop. A photo album is MID-SEND; the customer just asked a quick question between pictures. Answer it in ONE short, warm WhatsApp line (max ~25 words, 1 emoji ok), in the customer\'s language, then let them know the pics are still coming (e.g. "📸 more pics coming 👇"). FACTS: FREE delivery to your door in Nassau, 7am–11pm, pay on arrival (cash, Scotiabank/CIBC transfer, SunCash) or card on 242plug.com. We are MOBILE, based Carmichael Road — no walk-in store, we come to you. Family Islands: boat $10 (weekly sail day) or plane $35 daily — pay first + send receipt; before 3 PM ships same day, after 3 PM next flight. PRICES: Jordan 1 / AF1 / Dunk / Air Max / VaporMax $120 · all other Jordans $180 · Air Max 95 / Air Max 97 / New Balance / ASICS $130 · Crocs & Yeezy Foam $65 · Roshe $50 · Dunk High $60 · Scorpion $70. If the question needs live stock lookup or order details you cannot see, say you\'ll sort that the second the pics finish. Reply with ONLY the line, nothing else.';
           const ctx2 = (lastShoeSent ? 'The photo that JUST went out: ' + displayName(lastShoeSent) + ' ($' + lastShoeSent.price + ').\n' : '') + 'Customer question: "' + q.slice(0, 300) + '"';
           const resp = await Promise.race([
             callClaude([{ role: 'user', content: ctx2 }], sys, undefined, []),
