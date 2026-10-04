@@ -1677,8 +1677,26 @@ function splitLongText(messages) {
   }
   return out;
 }
+/* 🧠 ONE BRAIN FOR EVERY CHAT — THE COMPOSE SINK (Rodney 2026-10-04: "I want it to be on the
+ * same Kiki brain for all chats. No matter where I'm at, TikTok, anywhere.")
+ * Facebook / Instagram / TikTok are answered by a second brain on the Mac that has none of the
+ * guards in this file. The Mac cannot be given a ManyChat token - it does its own sending
+ * through the browser - so it needs this brain to COMPOSE a reply and hand it back rather than
+ * send it.
+ * Putting the sink inside sendChunk instead of at the top of runChat means every path that
+ * already produces customer-facing messages - a plain reply, a photo album, a lead-in, a
+ * follow-up - is captured with no second code path to keep in step. That is the whole point:
+ * a second path is how the brains drifted apart in the first place. */
+const composeSink = new Map();   // sub -> array collecting what WOULD have been sent
 async function sendChunk(subscriberId, messages, token, logOpts) {
   messages = splitLongText(messages);
+  const _sink = composeSink.get(String(subscriberId));
+  if (_sink) {
+    // Compose-only: collect and report success. Nothing leaves this server, and the inbox
+    // thread is NOT written - the Mac owns that conversation's record.
+    for (const m of (messages || [])) _sink.push(m);
+    return { ok: true, sent: (messages || []).length, composed: true };
+  }
   // 📥 INBOX LOG: record outbound text into the customer's thread — Kiki's auto-replies
   // AND a human's manual replies (logOpts.sender='rodney'). Only for KNOWN customer
   // threads (an inbound created one) so manager alerts / staff blasts never spawn phantom
@@ -2397,7 +2415,7 @@ function adsBlock() {
       + `\u2022 Never name a shoe that is not on that list as "the one from the ad".`;
   } catch (_) { return ''; }
 }
-function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
+function buildSystemPrompt({ store, name, greet = true, phone = null, personal = false } = {}) {
   const storeName = store || STORE_DEFAULT;
   const who = name && name.trim() ? name.trim() : '';
 
@@ -3043,7 +3061,23 @@ Only ever mention shoes, prices and sizes that search_inventory returns — neve
 - A ⚠️ note listing exactly what we just sent them, with prices, is handed to you on these turns. Use it. It is the receipt of what is on their screen.
 
 🏷️ QUOTE EACH SHOE'S OWN PRICE — DON'T LUMP THEM (Rodney 2026-07-20): NOT every Jordan is $180 — Air Jordan 1s (and Dunks) are $120, Air Max 95 is $130, etc. So NEVER say "all Jordans are $180" or blanket-price a mixed order. Price each pair by its ACTUAL price (from search_inventory, or the Jordan rule above: Jordan 1 = $120, any other Jordan = $180), and when they're buying two different shoes, add their two real prices for the total — don't assume they're the same.
-🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, refer them to a good supplier we know. Send exactly: "Here's a good supplier you can check out 👟 *sneakerinventory.com* — message them for the trade password to get in, or email *trade@sneakerinventory.com* 🙌" NEVER give out an access code or password for that site — you do not have one, and W242 is NOT it. Then stop — don't push them to buy retail or ask their size next.`;
+🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, refer them to a good supplier we know. Send exactly: "Here's a good supplier you can check out 👟 *sneakerinventory.com* — message them for the trade password to get in, or email *trade@sneakerinventory.com* 🙌" NEVER give out an access code or password for that site — you do not have one, and W242 is NOT it. Then stop — don't push them to buy retail or ask their size next.` + (personal ? `
+
+🙍 THIS IS A PERSONAL ACCOUNT — NO SHOP NAME, NO INTRODUCTION (Rodney, 7 September 2026:
+"personal accounts dont need introducing just sell"). This conversation is happening on
+somebody's own Facebook/Instagram/TikTok profile, not a business page. The person messaging
+thinks they are talking to a person who sells sneakers, and that is exactly what they are.
+⛔ NEVER say the shop's name — not "${storeName}", not any shop name, not "we're a store",
+not "welcome to". ⛔ No business greeting, no "This is ___ 👟", no website, no shop branding,
+no opening line that announces anything. ⛔ Never say "our store", "the shop", "the team" —
+say "I" and "me". It is you selling your own shoes.
+✅ Open by just answering them, like a person would: "hey 👟 what size you need?".
+✅ EVERYTHING ELSE IS THE SAME — the stock is the same stock, the prices are the same, free
+delivery in Nassau is the same, and every rule above about sending pictures, never leaving a
+customer with a flat no, naming the closest size, and never promising what we don't have
+applies here exactly as written. The only difference is whose name is on the door.
+⚠️ These instructions override ANY line above that tells you to lead with the shop name or
+introduce the business. When the two conflict, this block wins.` : '');
 }
 
 const AI_TOOLS = [
@@ -7374,7 +7408,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   // Greet ONLY on the very first message of the chat — decided here in code, not by Kiki —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
-  let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo, phone: getPhone(req) });
+  let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo, phone: getPhone(req), personal: !!ctx.personal });
   // Kiki needs the clock for the after-hours (11 PM+) morning-delivery rule.
   try {
     const bah = new Date(Date.now() - 4 * 3600 * 1000); // Nassau summer time (UTC-4)
@@ -14033,6 +14067,91 @@ function noteQuoteWanted(sub, phone, store) {
   quoteWanted.unshift({ sub: String(sub || ''), phone: p, name: nm, store: store || '', at: now });
   if (quoteWanted.length > 40) quoteWanted.length = 40;
 }
+/* 🧠 POST /social/reply — THE SAME BRAIN, FOR A CHANNEL THAT SENDS ITSELF.
+ * Rodney 2026-10-04: "I want it to be on the same Kiki brain for all chats. No matter where
+ * I'm at, TikTok, anywhere."
+ * The Facebook / Instagram / TikTok accounts are driven from the Mac, which does its own
+ * sending through the browser and has no ManyChat token. So this COMPOSES a reply with every
+ * guard in this file and hands it back; the caller sends it.
+ *
+ * REQUEST (JSON, auth: ?key=CONSOLE_KEY):
+ *   { line:"CLAUDIA", personal:true, thread:"fb:CLAUDIA:1234567890",
+ *     name:"Marcus", text:"you got 9060 in a 9?",
+ *     history:[{role:"user"|"assistant", content:"..."}],   // optional, oldest first
+ *     image:"https://...", store:"Trendy Kicks" }           // both optional
+ *   - `thread` is the conversation key. Pass the SAME string every turn for the same person;
+ *     it is what carries their size, their open order and their history between calls. Any
+ *     stable string works - it is hashed to digits here, never shown to anyone.
+ *   - `personal:true` for a personal profile (Claudia, Tami, Samentha, Aaron): no shop name,
+ *     no business introduction, every selling rule unchanged. Omit it for a shop account.
+ *
+ * RESPONSE:
+ *   { ok:true, messages:[ {type:"text",text:"..."}, {type:"image",url:"https://..."} ],
+ *     texts:["..."], images:["https://..."], composed:2 }
+ *   `messages` is in send order and is the authoritative list - send them in that order.
+ *   An empty messages array means she deliberately said nothing; do NOT invent a reply.
+ *   On failure: { ok:false, error:"..." } - fall back to the old path and keep the customer.
+ *
+ * It never sends anything itself, never writes the inbox thread (the Mac owns that record),
+ * and never touches ManyChat. */
+app.post('/social/reply', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const text = String(b.text || '').trim();
+  const threadKeyIn = String(b.thread || b.line || '').trim();
+  if (!text && !b.image) return res.status(400).json({ ok: false, error: 'need text or image' });
+  if (!threadKeyIn) return res.status(400).json({ ok: false, error: 'need a stable thread id' });
+
+  // A stable numeric sub from whatever string the caller uses as its thread id, so the
+  // per-customer memory in this file (size, open order, history) works unchanged. Prefixed so
+  // a social thread can never collide with a real ManyChat subscriber id.
+  let h = 5381;
+  for (let i = 0; i < threadKeyIn.length; i++) h = ((h * 33) ^ threadKeyIn.charCodeAt(i)) >>> 0;
+  const sub = '9' + String(h).padStart(10, '0');
+
+  const sink = [];
+  composeSink.set(sub, sink);
+  try {
+    // Seed the conversation with the history the caller holds, so she is not amnesiac on the
+    // first call. Only on a thread this server has not seen before — after that its own
+    // record is the better one, because it includes the tool results.
+    if (Array.isArray(b.history) && b.history.length && !convos.has(sub)) {
+      const seeded = b.history
+        .filter(m => m && (m.role === 'user' || m.role === 'assistant') && String(m.content || '').trim())
+        .slice(-20)
+        .map(m => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+      if (seeded.length) { convos.set(sub, seeded); }
+    }
+    const ctx = {
+      store: b.store || STORE_DEFAULT,
+      name: String(b.name || '').slice(0, 60),
+      turnAt: Date.now(),
+      chatUrl: null,
+      personal: b.personal === true,
+      social: String(b.line || '').slice(0, 40),
+      compose: true,
+    };
+    const shim = { method: 'POST', path: '/social/reply', headers: {}, query: {}, body: {}, rawBody: null };
+    await runChat(shim, sub, text, '', ctx, b.image ? String(b.image) : null);
+
+    const messages = sink.map(m => (m && m.type === 'image')
+      ? { type: 'image', url: (m.url || (m.payload && m.payload.url) || '') }
+      : { type: 'text', text: String((m && m.text) || '') })
+      .filter(m => (m.type === 'image' ? m.url : m.text));
+    record(req, { endpoint: 'social-reply', sub, line: ctx.social, personal: ctx.personal,
+                  asked: text.slice(0, 60), composed: messages.length });
+    res.json({ ok: true, messages,
+               texts: messages.filter(m => m.type === 'text').map(m => m.text),
+               images: messages.filter(m => m.type === 'image').map(m => m.url),
+               composed: messages.length, thread: threadKeyIn });
+  } catch (e) {
+    record(req, { endpoint: 'social-reply-error', sub, error: String(e).slice(0, 200) });
+    res.json({ ok: false, error: String(e).slice(0, 200) });
+  } finally {
+    composeSink.delete(sub);
+  }
+});
+
 app.get('/quote-wanted', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const now = Date.now();
