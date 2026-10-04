@@ -8646,10 +8646,22 @@ and it must NEVER be answered with a question back.`;
           lines.push('THE SHOE THEY NAMED, IN THEIR SIZE, EVERY COLOUR — SEND THESE PICTURES: '
             + theirShoeTheirSize.slice(0, 12).map(fmtId).join(' | '));
         if (theirColourTheirSize.length)
-          lines.push('THEIR COLOUR IN THEIR SIZE, other styles: '
+          /* ⚠️ NAME THE MODELS — DO NOT LET HER GENERALISE THIS GROUP INTO THEIR SHOE.
+           * Caught by the M5 FB2 session 2026-10-04: given this group she wrote "we got other
+           * red Air Forces in your size". We hold exactly ONE red Air Force, p50, in a 7 only.
+           * The ten red shoes in an 8 are Jordans and Air Maxes. That is a false stock claim
+           * wearing different clothes - not a size she can't have, a shoe we never owned - and
+           * the sold-size guard cannot see it because there is no number in the sentence. So
+           * the group is labelled for what it is and she is told to name the models. */
+          lines.push('RED/THEIR-COLOUR IN THEIR SIZE — ⚠️ THESE ARE **NOT** ' 
+            + (model || 'their shoe').toUpperCase() + '. They are different models and you MUST '
+            + 'name them as such ("I got red Jordans and red Air Max in your 8"). NEVER call '
+            + 'them ' + (model || 'their shoe') + ': '
             + theirColourTheirSize.slice(0, 8).map(fmt).join(' | '));
         if (theirShoeTheirColour.length)
-          lines.push('THE EXACT SHOE+COLOUR THEY WANTED, in other sizes: '
+          lines.push('THE EXACT SHOE+COLOUR THEY WANTED — this is the ONLY ' + (model || 'one')
+            + ' we own in ' + (colour || 'that colour') + ', and it is NOT in their size. Offer '
+            + 'it as a try-on, never as if we had it in their size: '
             + theirShoeTheirColour.slice(0, 6).map(fmt).join(' | '));
 
         if (lines.length) {
