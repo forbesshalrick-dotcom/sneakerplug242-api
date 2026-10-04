@@ -7549,10 +7549,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: they '
       + 'messaged from a Facebook listing priced at $' + ctx.listingPrice
       + (ctx.listingTitle ? ' — "' + ctx.listingTitle + '"' : '') + '. THAT is the price for '
-      + 'this shoe, and it is the number on their screen right now. ⚠️ Any SIZES in that title '
-      + 'are what the LISTING advertises — a menu for them to pick from, never a confirmation '
-      + 'and never this customer\'s size. A thread is about ONE pair: ask which size they wear '
-      + 'before anything else. Quote $' + ctx.listingPrice
+      + 'this shoe, and it is the number on their screen right now. ⚠️ NEVER read a size off '
+      + 'that title. Those sizes are what the advert says we stock, not what THIS customer '
+      + 'wears — you have not asked them yet, and telling somebody "in your 8.5" when they '
+      + 'never said 8.5 invents a fact about them. Ask. Quote $' + ctx.listingPrice
       + ' and nothing else for it — the catalogue/shop price is NOT what they were offered and '
       + 'contradicting their own screen loses the sale. If they move on to a DIFFERENT shoe, '
       + 'this price no longer applies: price that one normally and say which is which.)';
