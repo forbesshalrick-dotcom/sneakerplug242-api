@@ -8522,8 +8522,16 @@ and it must NEVER be answered with a question back.`;
           .map(h => typeof h.content === 'string' ? h.content : '')
           .concat([String(userText || '')])
           .map(t => String(t).split('(SYSTEM NOTE')[0].split('🔎')[0].trim())
-          .filter(t => t && !t.startsWith('(') && !/^\s*\(?SYSTEM/i.test(t))
-          .map(t => t.slice(0, 200))
+          /* Keep only what a CUSTOMER could plausibly have typed. Cutting at "(SYSTEM NOTE"
+           * was not enough - instruction text was still arriving by some path, byte-identical
+           * on two separate turns, and the search answered it. Rather than chase every place
+           * that can push into history, this asks the opposite question: does this read like a
+           * person asking for shoes? Our own writing always names a tool, addresses "the
+           * customer" in the third person, or runs long. Theirs never does. */
+          .filter(t => t
+            && !t.startsWith('(')
+            && t.length <= 120
+            && !/search_inventory|send_photos|notify_manager|SYSTEM|the customer|do NOT|you MUST/i.test(t))
           .slice(-8)
           .join(' ');
         const T = saidByThem.toLowerCase();
