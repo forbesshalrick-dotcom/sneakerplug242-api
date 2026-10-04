@@ -7409,6 +7409,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // Greet ONLY on the very first message of the chat — decided here in code, not by Kiki —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
   let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo, phone: getPhone(req), personal: !!ctx.personal });
+  /* 🏷️ A FACEBOOK CUSTOMER IS READING THE LISTING WHILE SHE TYPES (Rodney 2026-09-28).
+   * Every account runs its own deals, so the number in the listing title is the number the
+   * customer can see — the catalogue price is the wrong answer even when it is the "real" one.
+   * Appended to the turn, never to the cached system block, so prompt caching is untouched. */
+  if (ctx.listingPrice) {
+    userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: they '
+      + 'messaged from a Facebook listing priced at $' + ctx.listingPrice
+      + (ctx.listingTitle ? ' — "' + ctx.listingTitle + '"' : '') + '. THAT is the price for '
+      + 'this shoe, and it is the number on their screen right now. Quote $' + ctx.listingPrice
+      + ' and nothing else for it — the catalogue/shop price is NOT what they were offered and '
+      + 'contradicting their own screen loses the sale. If they move on to a DIFFERENT shoe, '
+      + 'this price no longer applies: price that one normally and say which is which.)';
+  }
   // Kiki needs the clock for the after-hours (11 PM+) morning-delivery rule.
   try {
     const bah = new Date(Date.now() - 4 * 3600 * 1000); // Nassau summer time (UTC-4)
@@ -7721,6 +7734,7 @@ and it must NEVER be answered with a question back.`;
   let etaDeflected = 0;        // answering "how far is the driver" with an offer of stock
   let payDeflected = 0;        // answering a PAYMENT question with shoes
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
+  let listingPriceMisses = 0;  // quoting the shop price at someone reading a Facebook listing
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
   let brandQuestions = 0;      // asking "which brand?" of someone who gave us a size
   let pinReAsks = 0;           // how many times this turn her reply asked for a pin we've already asked for / been sent
@@ -8293,6 +8307,38 @@ and it must NEVER be answered with a question back.`;
      * This stops the reflex underneath it: if they asked where the driver is, the reply may
      * not be an offer to show them stock. One retry, then it goes through — a guard must
      * never be the reason a waiting customer gets silence. */
+    /* 🏷️ THE LISTING PRICE WINS (Rodney 2026-09-28: "all my Facebook posts have different
+     * prices because I try to give different deals on Facebook. You still quoted the price
+     * from the shop even though the price is on the listing. That's the reason why we put
+     * everything on the listing so Kiki knows.")
+     * Flagged by the Mac session as a blocker before any Facebook line was pointed at this
+     * brain, and they were right: this brain had never needed the rule, because a ManyChat
+     * customer is not reading a listing. A Facebook customer is, while she types.
+     * Narrow on purpose: it only fires when a price was actually quoted AND the listing price
+     * is nowhere in the reply. One retry, and the note says what to do if they have genuinely
+     * moved on to a different shoe - so a legitimate second price gets through on the retry
+     * rather than being suppressed. */
+    try {
+      if (turnText && !staffName && ctx.listingPrice && listingPriceMisses < 1) {
+        const want = String(ctx.listingPrice).replace(/\.00$/, '');
+        const quoted = turnText.match(/\$\s?\d{2,4}(?:\.\d{2})?/g) || [];
+        const mentionsIt = quoted.some(q => q.replace(/[^0-9.]/g, '').replace(/\.00$/, '') === want);
+        if (quoted.length && !mentionsIt) {
+          listingPriceMisses++;
+          record(req, { endpoint: 'listing-price-missed', sub, line: ctx.social || '',
+                        listing: ctx.listingPrice, said: quoted.join(' '), text: turnText.slice(0, 90) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: '
+            + 'you quoted ' + quoted.join(' ') + ' to someone who is looking at a Facebook '
+            + 'listing that says $' + want + '. Every account runs its own deals, so the '
+            + 'listing is the price they were offered and the catalogue price is simply wrong '
+            + 'here — arguing with the number on their own screen is how the sale dies. Say $'
+            + want + ' for that shoe. The ONLY exception is if they have moved on to a '
+            + 'different pair than the one in the listing: then price that one normally and '
+            + 'make clear which price belongs to which shoe.)' });
+          continue;
+        }
+      }
+    } catch (_) {}
     /* 🧲 NEVER LEAVE IT BLANK — SELL THE NEXT CLOSEST THING (Rodney 2026-10-04, driving).
      * "Bro, you cannot just say we out of the Vomero in an eight. What do we have that's close?
      *  Any eight and a half?... he's specifically looking for the black Vomero. Come on, man.
@@ -14130,6 +14176,21 @@ app.post('/social/reply', async (req, res) => {
       personal: b.personal === true,
       social: String(b.line || '').slice(0, 40),
       compose: true,
+      /* 🏷️ THE LISTING PRICE TRAVELS WITH THE CONVERSATION (M5 FB2, 2026-10-04, flagged as a
+       * blocker before any line was moved onto this brain — rightly).
+       * Rodney 2026-09-28: "all my Facebook posts have different prices because I try to give
+       * different deals on Facebook. You still quoted the price from the shop even though the
+       * price is on the listing. That's the reason why we put everything on the listing so
+       * Kiki knows."
+       * This brain has never needed it: ManyChat customers are not reading a listing. A
+       * Facebook customer IS, while she types. The Mac reads the price off the listing title,
+       * so it is the one that knows — it sends it, and from here it outranks the catalogue. */
+      listingPrice: (function () {
+        const v = (b.listing && b.listing.price != null) ? b.listing.price : b.listing_price;
+        const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
+        return (!isNaN(n) && n > 0) ? n : null;
+      })(),
+      listingTitle: String((b.listing && b.listing.title) || b.listing_title || '').slice(0, 160),
     };
     const shim = { method: 'POST', path: '/social/reply', headers: {}, query: {}, body: {}, rawBody: null };
     await runChat(shim, sub, text, '', ctx, b.image ? String(b.image) : null);
