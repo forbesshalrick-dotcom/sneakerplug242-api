@@ -8585,11 +8585,17 @@ and it must NEVER be answered with a question back.`;
          * the guard exists to stop. The id goes in front of every shoe now, and
          * lastSearchIds is primed so the completeness top-up and the album receipt still line
          * up with what actually went out. */
-        const fmt = (r) => `[id ${r.id}] ${r.name}${r.color ? ' (' + r.color + ')' : ''} — ${r.sizes || ''}`;
+        /* 🔑 IDS ON THE ALBUM GROUP ONLY. Measured: given ids for all three groups she picked
+         * the wrong one - captioned it "Air Force 1 in your size" and sent red Air Max Plus.
+         * Group A is the album; B and C are one line of words. So only A carries ids, and
+         * there is nothing else for her to put in send_photos. Taking the choice away is the
+         * whole point - she gets it wrong under pressure, and this turn is the pressure. */
+        const fmtId = (r) => `[id ${r.id}] ${r.name}${r.color ? ' (' + r.color + ')' : ''} — ${r.sizes || ''}`;
+        const fmt   = (r) => `${r.name}${r.color ? ' (' + r.color + ')' : ''}`;
         const lines = [];
         if (theirShoeTheirSize.length)
           lines.push('THE SHOE THEY NAMED, IN THEIR SIZE, EVERY COLOUR — SEND THESE PICTURES: '
-            + theirShoeTheirSize.slice(0, 12).map(fmt).join(' | '));
+            + theirShoeTheirSize.slice(0, 12).map(fmtId).join(' | '));
         if (theirColourTheirSize.length)
           lines.push('THEIR COLOUR IN THEIR SIZE, other styles: '
             + theirColourTheirSize.slice(0, 8).map(fmt).join(' | '));
@@ -8599,7 +8605,7 @@ and it must NEVER be answered with a question back.`;
 
         if (lines.length) {
           deadEnds++;
-          try { lastSearchIds = theirShoeTheirSize.concat(theirColourTheirSize, theirShoeTheirColour).map(r => r.id); } catch (_) {}
+          try { lastSearchIds = theirShoeTheirSize.map(r => r.id); } catch (_) {}
           record(req, { endpoint: 'dead-end-blocked', sub, store: ctx.store || '',
                         model, colour, size: theirSize, said: turnText.slice(0, 80),
                         a: theirShoeTheirSize.length, b: theirColourTheirSize.length,
@@ -8610,7 +8616,9 @@ and it must NEVER be answered with a question back.`;
             + 'we REALLY have:\n' + lines.join('\n') + '\n'
             + 'Do this: say the honest no in HALF a line, then CALL send_photos with the ids '
             + 'in square brackets above from the FIRST group — every colour of their shoe in '
-            + 'their size, not the two you remember. Those ids are real and ready to send. Do '
+            + 'their size, not the two you remember. Those are the ONLY ids on this note and '
+            + 'the only thing send_photos may be given - the other two groups have no ids '
+            + 'because they are words, not an album. Do '
             + 'NOT ask "want me to send those?" — just send them. Then, in one short line, '
             + 'offer what the other two groups turned up ("I got plenty red in your 8 in other '
             + 'styles", "I got that one in a 7 if you want to try it on"). Never list shoes in '
