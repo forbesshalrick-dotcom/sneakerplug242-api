@@ -14646,7 +14646,16 @@ app.post('/social/reply', async (req, res) => {
         const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
         return (!isNaN(n) && n > 0) ? n : null;
       })(),
-      listingTitle: String((b.listing && b.listing.title) || b.listing_title || '').slice(0, 160),
+      /* ✂️ THE SIZES COME OUT OF THE TITLE BEFORE SHE EVER SEES IT (2026-10-04).
+       * The note built from this title is appended to the customer's message, so every size
+       * in it reads as something said in the conversation. Measured on Wade's opener, four
+       * runs out of four: a title ending "Sizes: 8, 8.5, 9.5" produced "in your 8.5" — she
+       * picked one off the advert and told the customer it was his. The stock was real; the
+       * claim about HIM was not. The price is the only thing we need off that title, so the
+       * sizes do not travel with it. */
+      listingTitle: String((b.listing && b.listing.title) || b.listing_title || '')
+        .replace(/\bsizes?\s*[:\-]?\s*[\d.,\s/&+]+/ig, ' ')
+        .replace(/\s{2,}/g, ' ').trim().slice(0, 160),
     };
     const shim = { method: 'POST', path: '/social/reply', headers: {}, query: {}, body: {}, rawBody: null };
     await runChat(shim, sub, text, '', ctx, b.image ? String(b.image) : null);
