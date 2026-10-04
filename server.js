@@ -3214,7 +3214,26 @@ function aliasTokens(s) {
   if (name.includes('foam')) out.push('foams', 'rnr', 'foam rnr');
   if (name.includes('crocs')) out.push('croc');
   if (name.includes('asics')) out.push('asic', 'gel');
-  if (name.includes('air force')) out.push('forces', 'force', 'af1', 'af');
+  if (name.includes('air force')) out.push('forces', 'force', 'af1', 'af', 'uptowns', 'uptown');
+  /* 🗣️ THE NUMBER, SPELLED OUT — "twelves", "fours", "elevens" (Rodney, in the phone brain's
+   * notes since before this file had any of it: "'twelves', 'elevens', 'fours' on their own -
+   * Jordan that number"). The phone agent was told this and the shop brain never was, so a
+   * customer typing "you got any fours in a 9" matched nothing here while the same words
+   * worked on a call. Found 2026-10-04 reconciling the two brains.
+   * "ones" is deliberately pushed onto BOTH the Jordan 1 and the Air Force 1 - it genuinely
+   * means either, so a search for it should return both and let her show them rather than
+   * guess. The prompt still tells her to ask which they meant. */
+  /* PLURALS ONLY, on purpose. Rodney's note says "'twelves', 'elevens', 'fours' ON THEIR OWN -
+   * Jordan that number", and the plural is what makes it a shoe name. The singulars are
+   * ordinary English - "I want one in a 9", "four of them" - and would drag Air Force 1s into
+   * searches that were never about them. A missed "a four" costs one re-ask; a false "one"
+   * costs the wrong album. */
+  const _NUMWORD = { 1:['ones'], 2:['twos'], 3:['threes'], 4:['fours'], 5:['fives'],
+                     6:['sixes'], 7:['sevens'], 8:['eights'], 9:['nines'], 10:['tens'],
+                     11:['elevens'], 12:['twelves'], 13:['thirteens'], 14:['fourteens'] };
+  const _jn = name.match(/jordan\s*(\d{1,2})\b/);
+  if (_jn && _NUMWORD[parseInt(_jn[1], 10)]) out.push(..._NUMWORD[parseInt(_jn[1], 10)]);
+  if (name.includes('air force')) out.push('ones');
   // SCORPIONS. Rodney 2026-09-23: a customer sent a photo of a cream Air Max Scorpion, was
   // told "don't think we have that exact cream one" and shown Air Max 270s instead - while we
   // held seven Scorpions, including a White and a Khaki. The plural alone missed: "scorpion"
