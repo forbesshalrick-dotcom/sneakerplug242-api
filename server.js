@@ -7994,6 +7994,7 @@ and it must NEVER be answered with a question back.`;
   // a send failed, etc.), we send a recovery line at the end instead of going silent.
   let sentToCustomer = false;
   let photosSentRun = false; // did any photos go out this turn?
+  let albumAttempted = 0;    // how many photos an album actually TRIED to send this turn
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let lastSearchIds = [];    // the ids that search matched — see the completeness top-up in send_photos
@@ -8022,6 +8023,8 @@ and it must NEVER be answered with a question back.`;
   let priceReadAsSize = 0;     // reading "$70 and $50" as a shoe size
   let askedPermission = 0;     // "want me to send those?" instead of just sending
   let closedWithoutSize = 0;   // "is this available?" answered with a meet-up and no size
+  let falsePhotoExcuse = 0;    // blaming the photos when nothing was ever sent
+  let pricedNothing = 0;       // a price question about named shoes answered with no price
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
@@ -8658,6 +8661,63 @@ and it must NEVER be answered with a question back.`;
             + 'make clear which price belongs to which shoe.)' });
           continue;
         }
+      }
+    } catch (_) {}
+    /* 📷 DO NOT BLAME THE PHOTOS WHEN NO PHOTO WAS EVER SENT (Rodney 2026-10-05: "no pic was
+     * sent", and before that "why the fuck kiki cant understand customer ask for price?").
+     * Measured in one half-hour window: album-sent-nothing fired FIVE times, every one of them
+     * with requested:0 — the guards (colour, model, size) had filtered the album down to
+     * nothing before a single send was attempted. Nothing was broken. But the customer got
+     * "Ugh, the photos aren't sending on my end right now 😩 browse everything at 242plug.com",
+     * which is a technical excuse for a filtering result, and sends a warm buyer to a website
+     * instead of answering them. One man asked the price of two shoes and got that line, then
+     * a size question, and never a price or a picture.
+     * If an album genuinely tried and failed, the line is honest and stays. If nothing was ever
+     * attempted, it is a lie and she has to say the true thing instead. */
+    try {
+      const PHOTO_EXCUSE = /\b(photos?|pics?|pictures?)\b[^.!?\n]{0,30}\b(aren'?t|are not|not|won'?t|wont|didn'?t|having trouble|trouble)\b[^.!?\n]{0,24}\b(send|sending|going|come|coming|load|loading|through)\b|\bhaving trouble (?:sending|loading|pulling)\b/i;
+      if (turnText && !staffName && falsePhotoExcuse < 1 && albumAttempted === 0
+          && PHOTO_EXCUSE.test(turnText)) {
+        falsePhotoExcuse++;
+        record(req, { endpoint: 'false-photo-excuse-blocked', sub, store: ctx.store || '',
+                      said: turnText.slice(0, 90) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+          + 'told them the pictures are not sending. NOTHING WAS EVER SENT — no album was even '
+          + 'attempted on this turn, so there is nothing broken to apologise for, and that line '
+          + 'plus a website link is how a warm customer is lost. What actually happened is that '
+          + 'the search came back with nothing matching, or everything was filtered out. So say '
+          + 'the TRUE thing: answer what they actually asked, and if you have not looked yet, '
+          + 'call search_inventory now and send what it finds. Never blame the photos, and never '
+          + 'send them to the website instead of answering.)' });
+        continue;
+      }
+    } catch (_) {}
+
+    /* 💲 A PRICE QUESTION ABOUT A NAMED SHOE GETS THAT SHOE'S PRICE (Rodney 2026-10-05).
+     * "Price on the air max 97 and 9060 please" — two shoes, both $130, one line of work. He
+     * got a photo excuse, a website link, and "what size you wear?". The prompt has had the
+     * rule since 2026-08-22 ("ONE NAMED SHOE = ONE PRICE") and it did not hold. Distinct from
+     * the bare-"Prices?" case, which gets the whole list: this one names shoes, so it gets
+     * their prices and nothing else. */
+    try {
+      const PRICE_Q = /\b(price|prices|how much|cost|wat.{0,3}s the price|what.{0,3}s the price)\b/i;
+      const NAMES_A_SHOE = /\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97s?|95s?|90s?|270s?|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|tn|tns|blazer|cortez)\b/i;
+      const HAS_PRICE = /\$\s?\d{2,4}|\b\d{2,4}\s?(?:dollars|bucks)\b/i;
+      if (turnText && !staffName && pricedNothing < 1
+          && PRICE_Q.test(String(userText || '')) && NAMES_A_SHOE.test(String(userText || ''))
+          && !HAS_PRICE.test(turnText)) {
+        pricedNothing++;
+        record(req, { endpoint: 'price-question-unanswered', sub, store: ctx.store || '',
+                      asked: String(userText || '').slice(0, 60), said: turnText.slice(0, 80) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'asked the PRICE of a shoe they named by name, and your reply has no price in it. '
+          + 'That is one line of work and you did not do it. You know these cold without looking: '
+          + 'Air Force 1, Jordan 1, Dunk, Air Max and VaporMax $120 · Air Max 95, Air Max 97, New '
+          + 'Balance and ASICS $130 · every other Jordan $180 · Crocs and Yeezy Foam $65 · Roshe '
+          + '$50 · Dunk High $60 · Scorpion $70. Give the price of what THEY named — both of them '
+          + 'if they named two — in one short line. Do not send the price list, do not ask their '
+          + 'size first, and do not send them to the website. Pictures can follow after.)' });
+        continue;
       }
     } catch (_) {}
     /* 📏 "IS THIS AVAILABLE?" IS NOT "I WANT IT" — THE SIZE COMES FIRST (2026-10-04).
@@ -10056,6 +10116,7 @@ and it must NEVER be answered with a question back.`;
         // and hand Kiki the tool result telling her to answer in WORDS rather than leave the
         // customer staring at a promise of pictures that never came.
         else if (!result.interrupted) {
+          try { albumAttempted = Number(result.requested) || 0; } catch (_) {}
           record(req, { endpoint: 'album-sent-nothing', sub, asked: outIdCount, droppedForSize: droppedWrongSize.length, leadIn: String(leadIn || '').slice(0, 100) });
           // 📸 AND IF IT IS A YCLOUD CUSTOMER, SEND THEM BY HAND INSTEAD OF APOLOGISING.
           // Rodney 2026-09-23: "whats wrong with the pictures?" - a customer on 4324406 asked
