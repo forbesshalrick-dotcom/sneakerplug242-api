@@ -8599,22 +8599,34 @@ and it must NEVER be answered with a question back.`;
      * question may be the honest thing to ask, and the reply goes through untouched. */
     try {
       const ASK_TO_SEND = /\b(want me to send|want me to show|should i send|shall i send|you want (?:me )?(?:to )?see|want to see (?:them|those|'?em|the pics?|the photos?)|let me know if you want (?:me to )?(?:send|show)|i can send (?:them|those|'?em)(?:\s|[?.!]|$)|\bor i can (?:send|show)\b)/i;
+      /* ⚠️ IT FIRES WITH OR WITHOUT IDS (Rodney 2026-10-05, "no pic sent for vapormax").
+       * Jsjsh was told "the All Black VaporMax comes in a 10 too 👟 Want me to send it?" and
+       * this guard sat out: she had answered from memory without searching, so lastSearchIds
+       * was empty. Requiring ids meant the guard only worked when she had already half done
+       * the right thing. Nothing in hand is not a reason to let the question through - it is
+       * a reason to go and look first. */
       if (turnText && !staffName && !photosSentRun && askedPermission < 1
-          && ASK_TO_SEND.test(turnText) && Array.isArray(lastSearchIds) && lastSearchIds.length) {
+          && ASK_TO_SEND.test(turnText)) {
+        const _haveIds = Array.isArray(lastSearchIds) && lastSearchIds.length;
         askedPermission++;
         record(req, { endpoint: 'asked-permission-to-send', sub, store: ctx.store || '',
                       personal: !!ctx.personal, said: turnText.slice(0, 90), have: lastSearchIds.length });
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
           + 'offered to send pictures instead of sending them. Never ask — they already told you '
           + 'what they want, and asking puts another decision in front of a person who is ready '
-          + 'to buy. You have ' + lastSearchIds.length + ' matching shoes in hand right now: call '
-          + 'send_photos with them on this turn. '
+          + 'to buy. '
+          + (_haveIds
+            ? 'You have ' + lastSearchIds.length + ' matching shoes in hand right now: call '
+              + 'send_photos with them on this turn. '
+            : 'You have not even looked yet - call search_inventory for that shoe in their size, '
+              + 'then send_photos on what it finds. Looking costs you one step; asking costs you '
+              + 'the customer. ')
           + (ctx.personal ? 'This is a Messenger/Instagram chat - the pictures do NOT download '
              + 'into their phone or use their storage, so there is no reason at all to be careful '
              + 'with them. ' : '')
           + 'Keep whatever honest line you wrote, drop the question, and let the pictures do the '
           + 'rest.)' });
-        forcePhotosNext = true;
+        if (_haveIds) forcePhotosNext = true; else forceSearchNext = true;
         continue;
       }
     } catch (_) {}
