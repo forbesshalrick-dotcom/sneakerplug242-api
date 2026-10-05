@@ -3816,6 +3816,33 @@ const lastPhotoLandedAt = new Map(); // sub -> when a photo last actually reache
 // not aware until he checks the message it can be 10 to 20 minutes afterwards... by the time we
 // contact the client, the client's like, man, you told me you were on the way 20 minutes ago."
 const driverDispatchedAt = new Map();   // sub -> when a human pressed Driver dispatched
+/* 🚦 WHERE THE DRIVER ACTUALLY IS — SET BY A BUTTON, NEVER GUESSED (Rodney 2026-10-05).
+ * "sometimes she's saying driver is on the way and I'm not even on the way as yet... I can
+ *  have a button to say driver on the way or I'm leaving out now... I can have like a button
+ *  for 30 minutes away 20 minutes away 10 minutes away and 5 minutes away... I just want us to
+ *  be on the same path."
+ * He is the only one who knows. Until he presses something she knows NOTHING about timing and
+ * must say nothing about it — that is what produced "we're still on the way" to a customer
+ * nobody had left for. Each press is the truth at that moment, and it is the ONLY thing she is
+ * allowed to repeat back. */
+const DRIVER_STEPS = {
+  taken:    'The order is taken and the driver is being put on it. Nobody has left yet.',
+  rolling:  'The driver has LEFT and is on the way now.',
+  '30':     'The driver is about 30 minutes away.',
+  '20':     'The driver is about 20 minutes away.',
+  '10':     'The driver is about 10 minutes away.',
+  '5':      'The driver is about 5 minutes away.',
+  outside:  'The driver has ARRIVED and is outside now.',
+  done:     'This delivery is finished.',
+};
+const driverState = new Map();          // sub -> { step, at }
+function driverNow(sub) {
+  const d = driverState.get(String(sub));
+  if (!d) return null;
+  // Four hours and it is stale — better she says nothing than repeats this morning's "5 minutes".
+  if (Date.now() - d.at > 4 * 3600 * 1000) return null;
+  return d;
+}
 function driverIsOut(sub) {
   const t = driverDispatchedAt.get(String(sub));
   return !!(t && Date.now() - t < 4 * 60 * 60 * 1000);
@@ -7608,6 +7635,29 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
    * Every account runs its own deals, so the number in the listing title is the number the
    * customer can see — the catalogue price is the wrong answer even when it is the "real" one.
    * Appended to the turn, never to the cached system block, so prompt caching is untouched. */
+  /* 🚦 WHAT THE DRIVER IS ACTUALLY DOING, ON EVERY TURN (Rodney 2026-10-05: "I just want us to
+   * be on the same path"). Appended to the turn, never to the cached prompt, so caching is
+   * untouched. If he has pressed nothing she is told so explicitly — that is the case that
+   * produced "we're still on the way" to a customer nobody had left for. */
+  try {
+    const _d = driverNow(sub);
+    const _mins = _d ? Math.round((Date.now() - _d.at) / 60000) : 0;
+    if (_d) {
+      userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: '
+        + 'THE OWNER PRESSED A BUTTON ' + (_mins < 1 ? 'just now' : _mins + ' minutes ago') + ' and '
+        + 'this is the truth about their delivery RIGHT NOW: ' + DRIVER_STEPS[_d.step] + ' '
+        + 'That is the ONLY thing you may say about where the driver is or how long. Say it in '
+        + 'your own short words if they ask. Do NOT add a time he did not give, do NOT guess, '
+        + 'and do NOT say anyone is closer than he said. If they ask again and nothing has '
+        + 'changed, say you are checking with the driver — never invent progress.)';
+    } else if (orderIsLocked(sub)) {
+      userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: this '
+        + 'customer HAS an order, and the owner has NOT told us where the driver is. So you do '
+        + 'not know. Never say anyone is on the way, out, close, or any number of minutes — '
+        + 'none of that is known to you and saying it is how we lose people. If they ask, tell '
+        + 'them you are checking with the driver and will come straight back.)';
+    }
+  } catch (_) {}
   if (ctx.listingPrice) {
     userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: they '
       + 'messaged from a Facebook listing priced at $' + ctx.listingPrice
@@ -12574,6 +12624,13 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .row .av::after{display:none}
   .tagline{font-family:'Inter',-apple-system,sans-serif;font-size:10px;letter-spacing:.18em;
     color:var(--dim);font-weight:600;text-shadow:none;margin:4px 0 0 2px}
+
+/* 🚦 delivery strip (Rodney 2026-10-05) */
+.dstep{font:600 12px/1 inherit;padding:7px 10px;border-radius:8px;border:1px solid rgba(128,140,160,.35);
+       background:transparent;color:inherit;cursor:pointer}
+.dstep:hover{border-color:rgba(128,140,160,.8)}
+.dstep[aria-pressed="true"]{background:#1E6BFF;border-color:#1E6BFF;color:#fff}
+.dstep:disabled{opacity:.45;cursor:default}
 </style></head><body>
 <input type="file" id="avFile" accept="image/*" style="display:none">
 <div id="stopBar" style="display:none"><span id="stopMsg"></span><button id="stopBtn">✋ STOP</button></div>
@@ -12722,7 +12779,23 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     <p>Tell Kiki the truth of this chat so she stops re-asking — the shoe &amp; size they want, that they already paid, delivery details, whatever she keeps getting wrong. The customer never sees this; Kiki uses it as fact on her next reply.</p>
     <textarea id="briefText" placeholder="e.g. Customer wants the Red Thunder Jordan 4 in a 10, already paid via SunCash, just needs delivery to Carmichael Rd."></textarea>
     <button class="briefmic" id="briefDictate" title="Speak your note — you'll see it typed out here before you send">🎤 Speak your note</button>
-    <button class="briefmic" id="dispatchBtn" style="margin-top:10px" title="Tell Kiki a driver is genuinely on the way to this customer">🚗 Driver dispatched</button>
+    <!-- 🚦 THE DELIVERY STRIP (Rodney 2026-10-05). One press = the truth at that moment, and the
+         only thing Kiki may say about where the driver is. Before any press she knows nothing
+         and says nothing about timing. -->
+    <div id="driverStrip" style="margin-top:10px">
+      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;margin-bottom:6px">Where is the driver?</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <button class="dstep" data-step="taken"   title="Order taken, nobody has left yet">📋 Got it</button>
+        <button class="dstep" data-step="rolling" title="You have left — driver is on the way">🚗 Leaving now</button>
+        <button class="dstep" data-step="30">30 min</button>
+        <button class="dstep" data-step="20">20 min</button>
+        <button class="dstep" data-step="10">10 min</button>
+        <button class="dstep" data-step="5">5 min</button>
+        <button class="dstep" data-step="outside" title="You are there">📍 Outside</button>
+        <button class="dstep" data-step="done"    title="Delivered — stop talking about the driver">✅ Done</button>
+      </div>
+      <div id="driverNow" style="font-size:12px;opacity:.75;margin-top:7px"></div>
+    </div>
     <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle"> Label my replies with 🧑Agent: so customers know it's a human</label>
     <div class="btns"><button class="cancel" id="briefCancel">Cancel</button><button class="save" id="briefSave">Send to Kiki</button></div>
   </div>
@@ -13800,7 +13873,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   }
 
   // ── Brief Kiki: privately tell her the truth of this chat so she stops re-asking ──
-  function openBrief(){ if(!cur) return; $('briefText').value=''; $('agToggle').checked=agentLabel; $('briefModal').classList.add('open'); setTimeout(function(){ $('briefText').focus(); }, 60); }
+  function openBrief(){ if(!cur) return; try{ paintDriver(cur.driverStep||null, cur.driverMins); }catch(e){} $('briefText').value=''; $('agToggle').checked=agentLabel; $('briefModal').classList.add('open'); setTimeout(function(){ $('briefText').focus(); }, 60); }
   function closeBrief(){ if(briefDictating){ try{briefRecog.stop();}catch(e){} } $('briefModal').classList.remove('open'); }
   function saveBrief(){
     if(!cur) return; agentLabel = $('agToggle').checked;
@@ -13917,15 +13990,35 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     }).catch(function(){ btn.textContent=was; btn.disabled=false; toast('Could not transcribe — network error'); });
   };
   $('replyX').onclick=clearQuote;
-  // 🚗 Driver dispatched - the only thing in the system that makes "he's on the way" true.
-  $('dispatchBtn').onclick=function(){
-    if(!cur) return; var b=$('dispatchBtn'); b.disabled=true;
-    post('/inbox/dispatch', {sub:cur.sub}).then(function(d){
-      b.disabled=false;
-      if(d && d.ok){ closeBrief(); toast('🚗 Kiki knows the driver is out'); }
-      else toast((d&&d.error)||'Could not set that');
-    }).catch(function(){ b.disabled=false; toast('Could not set that — network'); });
-  };
+  /* 🚦 THE DELIVERY STRIP. Each press tells Kiki where the driver actually is; she may repeat
+   * that and nothing else about timing. Before any press she says nothing about it at all. */
+  var DSTEP_SAYS={taken:'Order taken — nobody has left yet',rolling:'Driver is on the way',
+    '30':'About 30 minutes away','20':'About 20 minutes away','10':'About 10 minutes away',
+    '5':'About 5 minutes away',outside:'Driver is outside now',done:'Delivery finished'};
+  function paintDriver(step, mins){
+    var el=$('driverNow'); if(!el) return;
+    el.textContent = step ? ('Kiki is saying: ' + (DSTEP_SAYS[step]||step)
+      + (mins!=null ? '  ·  set ' + (mins<1?'just now':mins+' min ago') : ''))
+      : 'Nothing set — Kiki will not mention the driver or any timing.';
+    Array.prototype.forEach.call(document.querySelectorAll('.dstep'), function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-step')===step ? 'true' : 'false');
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.dstep'), function(btn){
+    btn.onclick=function(){
+      if(!cur) return;
+      var step=btn.getAttribute('data-step');
+      Array.prototype.forEach.call(document.querySelectorAll('.dstep'),function(b){b.disabled=true;});
+      post('/inbox/driver', {sub:cur.sub, step:step}).then(function(d){
+        Array.prototype.forEach.call(document.querySelectorAll('.dstep'),function(b){b.disabled=false;});
+        if(d && d.ok){ paintDriver(step, 0); toast('🚦 ' + (DSTEP_SAYS[step]||step)); }
+        else toast((d&&d.error)||'Could not set that');
+      }).catch(function(){
+        Array.prototype.forEach.call(document.querySelectorAll('.dstep'),function(b){b.disabled=false;});
+        toast('Could not set that — network');
+      });
+    };
+  });
   $('brief').onclick=openBrief;
   $('briefCancel').onclick=closeBrief;
   if($('briefDictate')) $('briefDictate').onclick=briefDictate;
@@ -14216,6 +14309,9 @@ app.get('/inbox/threads', (req, res) => {
       lastText: last ? (last.sender === 'customer' || last.sender === 'system' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + (last.loc ? '📍 Location' : (last.text || '')) : '',
       custPrev, replyPrev, replyWho,
       lastTs: t.lastTs, unread: t.unread || 0, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub),
+      // 🚦 what the delivery strip should show for this customer, so the buttons open already lit
+      driverStep: (driverNow(t.sub) || {}).step || null,
+      driverMins: driverNow(t.sub) ? Math.round((Date.now() - driverNow(t.sub).at) / 60000) : null,
       pinned: !!t.pinned, label: t.label || '',
     };
     // pinned chats float to the top no matter how old, then newest-first
@@ -14843,6 +14939,32 @@ app.get('/quote-wanted', (req, res) => {
   // Only the last two minutes: older than that and the customer has moved on, and opening
   // their chat would be a pointless interruption.
   res.json({ ok: true, wanted: quoteWanted.filter(q => now - q.at < 120000) });
+});
+
+/* 🚦 POST /inbox/driver { sub, step } — the buttons Rodney presses as he drives.
+ * step: taken | rolling | 30 | 20 | 10 | 5 | outside | done   (or clear:true to wipe it)
+ * Each press replaces the last. Kiki is told the new truth on her very next reply and may say
+ * THAT and nothing else about timing — see the note built in runChat. */
+app.post('/inbox/driver', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  if (b.clear === true) {
+    driverState.delete(sub); driverDispatchedAt.delete(sub);
+    record(req, { endpoint: 'driver-step', sub, step: 'cleared' });
+    return res.json({ ok: true, step: null });
+  }
+  const step = String(b.step || '').trim();
+  if (!DRIVER_STEPS[step]) return res.status(400).json({ ok: false, error: 'unknown step', steps: Object.keys(DRIVER_STEPS) });
+  driverState.set(sub, { step, at: Date.now() });
+  if (driverState.size > 500) { const f = driverState.keys().next().value; driverState.delete(f); }
+  // "rolling" and anything past it means a driver really is out — that is what the old
+  // dispatched flag meant, so keep it in step for everything already reading it.
+  if (step === 'taken' || step === 'done') driverDispatchedAt.delete(sub);
+  else driverDispatchedAt.set(sub, Date.now());
+  record(req, { endpoint: 'driver-step', sub, step });
+  res.json({ ok: true, step, says: DRIVER_STEPS[step] });
 });
 
 app.post('/inbox/dispatch', (req, res) => {
