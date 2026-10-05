@@ -1641,11 +1641,15 @@ function mount(app) {
     out.totalMB = +out.totalMB.toFixed(1);
     out.days.sort((a, b) => (a.date < b.date ? -1 : 1));
     try {
+      // ?mb=N so the probe can be pushed past the cliff the uploads hit. 8MB saves, 10MB does
+      // not — and the upload fails in a quarter of a second, far too fast to have transferred
+      // the body, so the question is whether the DISK refuses it or the request never arrives.
+      const mb = Math.min(200, Math.max(1, parseInt(req.query.mb || '8', 10)));
       const probe = path.join(DATA_DIR, '.diskprobe');
-      fs.writeFileSync(probe, Buffer.alloc(8 * 1024 * 1024));   // 8MB — above the observed cliff
+      fs.writeFileSync(probe, Buffer.alloc(mb * 1024 * 1024));
       fs.unlinkSync(probe);
-      out.canWrite8MB = true;
-    } catch (e) { out.canWrite8MB = false; out.writeError = String(e.code || e.message || e).slice(0, 60); }
+      out.probeMB = mb; out.canWriteProbe = true;
+    } catch (e) { out.canWriteProbe = false; out.writeError = String((e && e.code) || (e && e.message) || e).slice(0, 80); }
     res.json(out);
   });
   app.post('/shop/disk/purge', (req, res) => {
@@ -1702,7 +1706,16 @@ function mount(app) {
       if (written > CLIP_MAX_BYTES) abort(413, 'that clip is too big — keep it under a minute');
     });
     req.on('aborted', () => abort(400, 'upload stopped'));
-    out.on('error', (e) => { console.error('[clips] write failed', e.message); abort(500, 'could not save'); });
+    out.on('error', (e) => {
+      // Say WHICH failure. "could not save" sent me hunting a full disk for half an hour when
+      // the disk was fine; the code (ENOSPC / EFBIG / EACCES) answers it in one word.
+      console.error('[clips] write failed', e && e.code, e && e.message);
+      abort(500, 'could not save (' + String((e && e.code) || (e && e.message) || 'unknown').slice(0, 40) + ')');
+    });
+    req.on('error', (e) => {
+      console.error('[clips] request stream failed', e && e.code, e && e.message);
+      abort(400, 'upload cut off (' + String((e && e.code) || 'unknown').slice(0, 40) + ')');
+    });
     out.on('finish', () => {
       if (failed) return;
       if (!written) return abort(400, 'no file');
