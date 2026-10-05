@@ -5331,11 +5331,31 @@ function inboxRecord(account, sub, m) {
     const img = m.img ? String(m.img).slice(0, 1500) : '';
     const loc = m.loc ? String(m.loc).slice(0, 500) : '';
     if (!text && !img && !loc) return;
+    /* 🧹 THE INBOX IS A CONVERSATION, NOT A DECISION LOG (Rodney 2026-10-05: "I'm seeing the
+     * same message too much too many times in my custom chat").
+     * Measured: 1,968 rows reading "(not answered - hourly ceiling - 6 replies to this thread
+     * already, not composing another)" across 11 threads, and ONE thread — Job, on Tami — made
+     * of 400 messages that were the same two lines repeated 198 times each. The thread caps at
+     * 400, so the real conversation had been pushed out of it entirely. That is worse than
+     * noise: it destroys the chat he needs to read.
+     * Those lines are the Mac side telling ITSELF why it stayed quiet. They belong in its audit
+     * log, not in his inbox. And nothing that is genuinely a conversation ever repeats the same
+     * sentence twice in a row, so an exact repeat of the previous row is a re-post, not a
+     * customer saying it again. Both are dropped here rather than asking the other side to stop
+     * sending them, because the inbox is mine to protect. */
+    if (/^\s*\((?:not answered|not read|no reply|skipped|suppressed)\b/i.test(text)
+        || /\bhourly ceiling\b|\bdirection unknown\b|\bnot composing another\b/i.test(text)) return;
     const key = threadKey(account, sub);
     let t = inboxThreads.get(key);
     if (!t) { t = { account: account || '', sub: String(sub), name: m.name || '', phone: m.phone || '', msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(key, t); }
     if (m.name && !t.name) t.name = m.name;
     if (m.phone && !t.phone) t.phone = m.phone;
+    // An exact repeat of the row already at the end of the thread is a re-post, never a person.
+    try {
+      const prev = t.msgs && t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
+      if (prev && String(prev.text || '') === text && String(prev.img || '') === img
+          && (prev.sender || prev.dir) === (m.sender || m.dir)) return;
+    } catch (_) {}
     // ⏱️ An explicit `ts` is for REPLAYING history that already happened (see /voice/msg-log).
     // Live callers pass nothing and get now, exactly as before. Without this, a backfill of
     // three weeks of chat all lands stamped "this second" and every waiting-time in the list
@@ -8322,7 +8342,15 @@ and it must NEVER be answered with a question back.`;
        * against a listing that says Sizes: 7: three of the four answered "Yes! We got the Air
        * Force 1 Red/White in a size 8", a size that does not exist, on the busiest Facebook
        * account. The shelf check below was right all along; it was never reached. */
-      const m = turnText && turnText.match(/\bin (?:a |an )?(?:size |sz )?(\d{1,2}(?:\.5)?)\b|\bsize (\d{1,2}(?:\.5)?)\b/i);
+      /* ⚠️ "IN YOUR 10.5" IS THE SAME CLAIM AGAIN (Rodney 2026-10-05: "the vapor max does not
+       * come in 10 and a half. Why does Kiki give that false information?")
+       * Jsjsh was browsing a 10.5 album, so she said "The All Black one comes in your 10.5!"
+       * — two lines after correctly listing its real sizes as 5.5, 7, 8, 8.5, 9.5, 10, 11, 12,
+       * 13. No 10.5 in that list, and she contradicted her own sentence. The shelf check sat
+       * out AGAIN: it had been taught "in a 10.5" and "in size 10.5" but not "in YOUR 10.5",
+       * which is how you say it to a customer whose size you already know. Third phrasing, same
+       * guard, same silence - so possessives go in now too. */
+      const m = turnText && turnText.match(/\bin (?:a |an |your |ur |you(?:'|\u2019)?re )?(?:size |sz )?(\d{1,2}(?:\.5)?)\b|\bsize (\d{1,2}(?:\.5)?)\b/i);
       if (m && !staffName && soldSizeClaims < 1) {
         const wantSz = String(parseFloat(m[1] || m[2]));
         // Strip the PRICE first - "$120" becomes the token "120" and matches nothing useful -
