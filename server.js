@@ -3835,7 +3835,37 @@ const DRIVER_STEPS = {
   outside:  'The driver has ARRIVED and is outside now.',
   done:     'This delivery is finished.',
 };
-const driverState = new Map();          // sub -> { step, at }
+/* 💾 AND IT SURVIVES A RESTART. Railway restarted this process a dozen times today; losing the
+ * strip on each one would mean Rodney presses "10 minutes" and she is blank again a minute
+ * later — which is the silence this whole feature exists to remove. Same debounce as the
+ * owner queue: load on boot, write 2s after a change. */
+const DRIVERSTATE_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'driver-state.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+const driverState = new Map((() => {
+  try {
+    if (DRIVERSTATE_FILE && require('fs').existsSync(DRIVERSTATE_FILE)) {
+      const saved = JSON.parse(require('fs').readFileSync(DRIVERSTATE_FILE, 'utf8'));
+      if (Array.isArray(saved)) return saved;
+    }
+  } catch (_) {}
+  return [];
+})());                                  // sub -> { step, at }
+let _driverSaveT = null;
+function saveDriverState() {
+  if (!DRIVERSTATE_FILE) return;
+  clearTimeout(_driverSaveT);
+  _driverSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(DRIVERSTATE_FILE, JSON.stringify([...driverState])); } catch (_) {}
+  }, 2000);
+  if (_driverSaveT.unref) _driverSaveT.unref();
+}
 function driverNow(sub) {
   const d = driverState.get(String(sub));
   if (!d) return null;
@@ -14951,7 +14981,7 @@ app.post('/inbox/driver', (req, res) => {
   const sub = String(b.sub || '').replace(/[^0-9]/g, '');
   if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
   if (b.clear === true) {
-    driverState.delete(sub); driverDispatchedAt.delete(sub);
+    driverState.delete(sub); driverDispatchedAt.delete(sub); saveDriverState();
     record(req, { endpoint: 'driver-step', sub, step: 'cleared' });
     return res.json({ ok: true, step: null });
   }
@@ -14959,6 +14989,7 @@ app.post('/inbox/driver', (req, res) => {
   if (!DRIVER_STEPS[step]) return res.status(400).json({ ok: false, error: 'unknown step', steps: Object.keys(DRIVER_STEPS) });
   driverState.set(sub, { step, at: Date.now() });
   if (driverState.size > 500) { const f = driverState.keys().next().value; driverState.delete(f); }
+  saveDriverState();
   // "rolling" and anything past it means a driver really is out — that is what the old
   // dispatched flag meant, so keep it in step for everything already reading it.
   if (step === 'taken' || step === 'done') driverDispatchedAt.delete(sub);
