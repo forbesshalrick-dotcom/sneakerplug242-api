@@ -8025,6 +8025,7 @@ and it must NEVER be answered with a question back.`;
   let closedWithoutSize = 0;   // "is this available?" answered with a meet-up and no size
   let falsePhotoExcuse = 0;    // blaming the photos when nothing was ever sent
   let pricedNothing = 0;       // a price question about named shoes answered with no price
+  let whereAreWe = 0;          // "you Nassau?" answered with an album
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
@@ -8661,6 +8662,36 @@ and it must NEVER be answered with a question back.`;
             + 'make clear which price belongs to which shoe.)' });
           continue;
         }
+      }
+    } catch (_) {}
+    /* 🏝 "YOU NASSAU" IS A QUESTION ABOUT WHERE WE ARE (Rodney 2026-10-05).
+     * +1 242 375-9760 typed exactly that — "Are you in Nassau?" in Bahamian short — and got
+     * "This is what we have in size 11 rite now 👇" and three Jordan 4s. He asked where we are
+     * and we answered with an album. The prompt has carried the address since 2026-07-14
+     * ("never reply to a location question with only a question back") but nothing was checking
+     * that an ANSWER came out, and a bare island name does not look like a question at all —
+     * no "where", no question mark, just the word.
+     * The island names matter as much as the question words: a customer on Freeport or Exuma
+     * naming their island is asking whether we reach them, which is the Family Islands answer,
+     * not a reason to show them shoes. */
+    try {
+      const ISLANDS = /\b(nassau|nasau|nassu|new providence|freeport|grand bahama|abaco|exuma|eleuthera|bimini|andros|cat island|long island|inagua|san salvador|harbour island|spanish wells|berry islands|acklins|mayaguana|crooked island|ragged island)\b/i;
+      const WHERE_Q = /\b(where (?:you|u|r u|are you|is)|which island|what island|wha island|where.{0,10}located|where.{0,10}shop|you got a (?:store|shop)|you have a (?:store|shop)|whereabouts)\b/i;
+      const ANSWERS_IT = /\b(nassau|carmichael|mobile|deliver|delivery|we come|come to you|ship|boat|plane|family island)\b/i;
+      if (turnText && !staffName && whereAreWe < 1
+          && (ISLANDS.test(String(userText || '')) || WHERE_Q.test(String(userText || '')))
+          && !ANSWERS_IT.test(turnText)) {
+        whereAreWe++;
+        record(req, { endpoint: 'location-question-ignored', sub, store: ctx.store || '',
+                      asked: String(userText || '').slice(0, 60), said: turnText.slice(0, 80) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'asked WHERE WE ARE, or named an island. "You Nassau" means "are you in Nassau?" — '
+          + 'that is a question about us, not a request for shoes, and an album is not an answer '
+          + 'to it. Tell them: we are in Nassau on Carmichael Road, mobile and delivery only, and '
+          + 'we come to them free anywhere in Nassau. If they named a DIFFERENT island, say we '
+          + 'ship there — boat $10 on the weekly sail day, or plane $35 daily, paid first with '
+          + 'the receipt sent over. Answer it in one short line, then carry on with the shoes.)' });
+        continue;
       }
     } catch (_) {}
     /* 📷 DO NOT BLAME THE PHOTOS WHEN NO PHOTO WAS EVER SENT (Rodney 2026-10-05: "no pic was
