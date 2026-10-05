@@ -14628,6 +14628,40 @@ app.post('/inbox/label', (req, res) => {
 // does NOT touch Kiki's own conversation memory, so she still replies normally; it just
 // stops showing this customer's thread to staff. A new inbound message re-creates the
 // thread fresh (inboxRecord makes one if none exists), so deleting is safe/non-destructive.
+/* 🧹 SWEEP OUT THE ROWS THAT SHOULD NEVER HAVE BEEN WRITTEN (Rodney 2026-10-05).
+ * inboxRecord now refuses the Mac's "(not answered - hourly ceiling ...)" audit notes and
+ * exact repeats, but 1,968 of them were already stored, and the Job thread on Tami was 400
+ * messages made of the same two lines — the whole conversation gone, because a thread caps at
+ * 400. Stopping the bleeding does not clean the wound. This drops those rows and collapses a
+ * run of identical consecutive messages to ONE, keeping the customer's words.
+ * Read-only by default: call with ?apply=1 to actually write. */
+app.post('/inbox/prune', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const apply = String(req.query.apply || '') === '1';
+  const JUNK = /^\s*\((?:not answered|not read|no reply|skipped|suppressed)\b|\bhourly ceiling\b|\bdirection unknown\b|\bnot composing another\b/i;
+  let removed = 0, collapsed = 0, touched = 0;
+  for (const [key, t] of inboxThreads) {
+    if (!t || !Array.isArray(t.msgs)) continue;
+    const before = t.msgs.length;
+    const kept = [];
+    for (const m of t.msgs) {
+      const txt = String((m && m.text) || '');
+      if (JUNK.test(txt)) { removed++; continue; }
+      const prev = kept.length ? kept[kept.length - 1] : null;
+      if (prev && String(prev.text || '') === txt && String(prev.img || '') === String((m && m.img) || '')
+          && (prev.sender || prev.dir) === (m.sender || m.dir)) { collapsed++; continue; }
+      kept.push(m);
+    }
+    if (kept.length !== before) {
+      touched++;
+      if (apply) { t.msgs = kept; t.lastTs = kept.length ? (kept[kept.length - 1].ts || t.lastTs) : t.lastTs; }
+    }
+  }
+  if (apply) { inboxRev++; saveInbox(); }
+  record(req, { endpoint: 'inbox-prune', apply, removed, collapsed, threads: touched });
+  res.json({ ok: true, apply, removed, collapsed, threadsTouched: touched });
+});
+
 app.post('/inbox/delete', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = req.body || {};
