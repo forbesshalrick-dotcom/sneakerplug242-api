@@ -5732,7 +5732,12 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
     try {
       // Translated here rather than at schedule time: by now learnLang() has had
       // minutes to finish, and a cached language costs nothing.
-      const outText = await say(text, sub);
+      /* A nudge may be given as a FUNCTION so it is decided when it FIRES, not when it is
+       * scheduled. The delivery follow-up needs that: whether a driver is really rolling can
+       * change in the twenty minutes between the order and the message, and claiming movement
+       * that never happened is the one thing Rodney has banned outright. Strings still work
+       * exactly as before. */
+      const outText = await say(typeof text === 'function' ? text() : text, sub);
       await sendChunk(sub, [{ type: 'text', text: outText }], token);
       const h = convos.get(sub) || [];
       h.push({ role: 'assistant', content: outText }); // so Claude knows it asked — in the words actually sent
@@ -10219,7 +10224,23 @@ and it must NEVER be answered with a question back.`;
         // at ~20 min ("still on the way!"). Any reply from them cancels it (and Kiki
         // then offers to call the driver). Reuses the one-pending-nudge timer.
         // (Skip for the early "order_confirmed" heads-up — nobody's driving yet.)
-        if (!earlyStage) try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
+        /* 🚗 DO NOT SAY A DRIVER IS MOVING UNTIL ONE IS (Rodney 2026-10-04: "never got the
+         * notification for this").
+         * Nautnice ordered at 6:32 PM. The alert never reached Rodney — the group forwarder had
+         * been failing for ten hours — so no driver was ever sent. At 6:52 this timer fired
+         * anyway and told him "we're still on the way! 🚗 The driver will call you when he's
+         * close". Nobody was on the way. That is the one claim Rodney has banned outright, and
+         * it was being made BY A TIMER, with no model and no guard anywhere near it.
+         * driverDispatchedAt is set only when a human presses the button, so it is the only
+         * thing in this system that knows a driver is real. If it has not been pressed, the
+         * customer still gets a message — silence loses them too — but a true one. */
+        if (!earlyStage) try {
+          scheduleNudge(sub, token,
+            () => (driverDispatchedAt.get(String(sub))
+              ? L(DELIVERY_FOLLOWUP_T, sub)
+              : 'Got your order 👟 someone will call you shortly'),
+            DELIVERY_FOLLOWUP_MS);
+        } catch (_) {}
         result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
       }
       else if (tu.name === 'record_expense') {
