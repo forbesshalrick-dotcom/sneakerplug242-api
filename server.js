@@ -6112,6 +6112,32 @@ app.post('/alerts/ack', (req, res) => {
   res.json({ ok: true, acked: gone, left: ownerQueue.length });
 });
 
+/* 🚨 THE BOT ON THE MAC TELLS US WHEN IT CANNOT REACH THE DRIVERS (Rodney 2026-10-04:
+ * "messages not coming in the group").
+ * owner-alerts retries a failed group send forever, which is right — an order must never be
+ * dropped. But it was doing it in silence: 98 attempts on one order, 204 on another, and the
+ * drivers saw nothing between 09:34 and 19:59. Retrying quietly is how ten hours disappear.
+ * It now calls this on the 3rd failure and every 20th after. Deliberately a DIFFERENT road to
+ * the broken one: the task board and a web push to his phone, neither of which goes anywhere
+ * near the WhatsApp group that is refusing. Rate-limited to one every 15 minutes so a stuck
+ * queue cannot turn into the noise he learns to scroll past. */
+let _groupAlarmAt = 0;
+app.post('/alerts/raise', (req, res) => {
+  if (req.query.key !== DEBUG_KEY && (req.body || {}).key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const text = String((req.body || {}).text || '').trim().slice(0, 600);
+  if (!text) return res.status(400).json({ ok: false, error: 'no text' });
+  const now = Date.now();
+  if (now - _groupAlarmAt < 15 * 60 * 1000) return res.json({ ok: true, skipped: 'rate-limited' });
+  _groupAlarmAt = now;
+  try {
+    require('./shop').addAlert(text, 'Kiki 🤖', {
+      pushTitle: '🚨 Drivers are not getting the orders',
+      pushBody: 'The group send keeps failing — orders are queued and safe, but no driver can see them.' });
+  } catch (_) {}
+  record(req, { endpoint: 'group-send-alarm', text: text.slice(0, 120) });
+  res.json({ ok: true });
+});
+
 async function waSendManager(text, token, image) {
   let ok = false;
   try { ok = await _waSendManagerInner(text, token, image); }
