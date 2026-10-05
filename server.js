@@ -3826,6 +3826,11 @@ const driverDispatchedAt = new Map();   // sub -> when a human pressed Driver di
  * nobody had left for. Each press is the truth at that moment, and it is the ONLY thing she is
  * allowed to repeat back. */
 const DRIVER_STEPS = {
+  /* 📍 "They already sent it" — Rodney 2026-10-05: "There was no button to tell Kiki he
+   * already sent the location so she can stop asking." He watched her ask a man for a pin he
+   * had dropped nine minutes earlier. Pins arrive as attachments ManyChat often cannot hand
+   * over, so she genuinely cannot see them; this is him telling her it landed. */
+  gotloc:   'The customer HAS already sent their location — it arrived and the owner has seen it. Never ask for it again.',
   taken:    'The order is taken and the driver is being put on it. Nobody has left yet.',
   rolling:  'The driver has LEFT and is on the way now.',
   '30':     'The driver is about 30 minutes away.',
@@ -12718,6 +12723,24 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label" id="imgLabel">Photo ready to send</span><button id="imgSend" class="ipsend">Send ➤</button><span id="imgX">✕</span></div>
   <div class="imgprev voiceprev" id="audPreview" style="display:none"><button id="audPlay" class="vplay" title="Play back">▶️</button><span class="ip-label"><b id="audDur">0:00</b> · voice note ready</span><button id="audTranscribe" class="ipsend" title="Turn this into text instead of sending audio" style="background:rgba(255,255,255,.08);">📝</button><button id="audSend" class="ipsend">Send ➤</button><span id="audX" title="Delete">🗑️</span><audio id="audEl" preload="auto" style="display:none"></audio></div>
   <div class="rechud" id="recHud" style="display:none"><span class="recdot"></span><span id="recTime">0:00</span><span class="eqbars"><i></i><i></i><i></i><i></i><i></i></span><button id="recStop" class="recstop">■ Stop</button><button id="recCancel" class="reccancel">🗑️</button></div>
+  <!-- 🚦 THE DELIVERY STRIP, IN THE CHAT (Rodney 2026-10-05: "Where's the button? It's supposed
+       to be in the chat."). I first built this inside the Brief Kiki panel, two taps away and
+       invisible unless you knew it was there. He is driving when he needs it. It sits above the
+       composer now, on screen the whole time the chat is open. -->
+  <div id="driverStrip" style="padding:8px 10px 2px">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      <button class="dstep" data-step="gotloc" title="They already sent the location - stop asking">📍 Got the location</button>
+      <button class="dstep" data-step="taken"  title="Order taken, nobody has left yet">📋 Got it</button>
+      <button class="dstep" data-step="rolling" title="You have left - driver is on the way">🚗 Left now</button>
+      <button class="dstep" data-step="30">30</button>
+      <button class="dstep" data-step="20">20</button>
+      <button class="dstep" data-step="10">10</button>
+      <button class="dstep" data-step="5">5</button>
+      <button class="dstep" data-step="outside" title="You are there">🏠 Outside</button>
+      <button class="dstep" data-step="done" title="Delivered">✅ Done</button>
+    </div>
+    <div id="driverNow" style="font-size:11px;opacity:.7;margin-top:5px"></div>
+  </div>
   <div class="composer">
     <div class="compinner">
       <!-- Only the first 3 (photo, send-pics, voice note) show; swipe left for the rest. -->
@@ -12809,23 +12832,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     <p>Tell Kiki the truth of this chat so she stops re-asking — the shoe &amp; size they want, that they already paid, delivery details, whatever she keeps getting wrong. The customer never sees this; Kiki uses it as fact on her next reply.</p>
     <textarea id="briefText" placeholder="e.g. Customer wants the Red Thunder Jordan 4 in a 10, already paid via SunCash, just needs delivery to Carmichael Rd."></textarea>
     <button class="briefmic" id="briefDictate" title="Speak your note — you'll see it typed out here before you send">🎤 Speak your note</button>
-    <!-- 🚦 THE DELIVERY STRIP (Rodney 2026-10-05). One press = the truth at that moment, and the
-         only thing Kiki may say about where the driver is. Before any press she knows nothing
-         and says nothing about timing. -->
-    <div id="driverStrip" style="margin-top:10px">
-      <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;margin-bottom:6px">Where is the driver?</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        <button class="dstep" data-step="taken"   title="Order taken, nobody has left yet">📋 Got it</button>
-        <button class="dstep" data-step="rolling" title="You have left — driver is on the way">🚗 Leaving now</button>
-        <button class="dstep" data-step="30">30 min</button>
-        <button class="dstep" data-step="20">20 min</button>
-        <button class="dstep" data-step="10">10 min</button>
-        <button class="dstep" data-step="5">5 min</button>
-        <button class="dstep" data-step="outside" title="You are there">📍 Outside</button>
-        <button class="dstep" data-step="done"    title="Delivered — stop talking about the driver">✅ Done</button>
-      </div>
-      <div id="driverNow" style="font-size:12px;opacity:.75;margin-top:7px"></div>
-    </div>
+
     <label class="agtoggle" style="margin-top:12px"><input type="checkbox" id="agToggle"> Label my replies with 🧑Agent: so customers know it's a human</label>
     <div class="btns"><button class="cancel" id="briefCancel">Cancel</button><button class="save" id="briefSave">Send to Kiki</button></div>
   </div>
@@ -14022,14 +14029,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   $('replyX').onclick=clearQuote;
   /* 🚦 THE DELIVERY STRIP. Each press tells Kiki where the driver actually is; she may repeat
    * that and nothing else about timing. Before any press she says nothing about it at all. */
-  var DSTEP_SAYS={taken:'Order taken — nobody has left yet',rolling:'Driver is on the way',
+  var DSTEP_SAYS={gotloc:'Has the location — will stop asking',
+    taken:'Order taken — nobody has left yet',rolling:'Driver is on the way',
     '30':'About 30 minutes away','20':'About 20 minutes away','10':'About 10 minutes away',
     '5':'About 5 minutes away',outside:'Driver is outside now',done:'Delivery finished'};
   function paintDriver(step, mins){
     var el=$('driverNow'); if(!el) return;
     el.textContent = step ? ('Kiki is saying: ' + (DSTEP_SAYS[step]||step)
       + (mins!=null ? '  ·  set ' + (mins<1?'just now':mins+' min ago') : ''))
-      : 'Nothing set — Kiki will not mention the driver or any timing.';
+      : 'Nothing set — Kiki says nothing about the driver or any timing.';
     Array.prototype.forEach.call(document.querySelectorAll('.dstep'), function(b){
       b.setAttribute('aria-pressed', b.getAttribute('data-step')===step ? 'true' : 'false');
     });
@@ -14988,11 +14996,15 @@ app.post('/inbox/driver', (req, res) => {
   const step = String(b.step || '').trim();
   if (!DRIVER_STEPS[step]) return res.status(400).json({ ok: false, error: 'unknown step', steps: Object.keys(DRIVER_STEPS) });
   driverState.set(sub, { step, at: Date.now() });
+  // 📍 Telling her the pin landed must also stop every OTHER place that chases a location.
+  if (step === 'gotloc' || step === 'rolling' || step === 'outside') {
+    try { pinAsked.delete(String(sub)); pinProbablyArrived.set(String(sub), Date.now()); } catch (_) {}
+  }
   if (driverState.size > 500) { const f = driverState.keys().next().value; driverState.delete(f); }
   saveDriverState();
   // "rolling" and anything past it means a driver really is out — that is what the old
   // dispatched flag meant, so keep it in step for everything already reading it.
-  if (step === 'taken' || step === 'done') driverDispatchedAt.delete(sub);
+  if (step === 'taken' || step === 'done' || step === 'gotloc') driverDispatchedAt.delete(sub);
   else driverDispatchedAt.set(sub, Date.now());
   record(req, { endpoint: 'driver-step', sub, step });
   res.json({ ok: true, step, says: DRIVER_STEPS[step] });
