@@ -1654,6 +1654,25 @@ function mount(app) {
   });
   app.post('/shop/disk/purge', (req, res) => {
     if (!auth(req, res)) return;
+    /* ?prefix=NAME deletes by FILENAME on any day — for clearing test uploads without
+     * touching a real clip recorded the same afternoon. Deliberately separate from the
+     * by-age purge: age is the routine sweep, prefix is for cleaning up after yourself. */
+    const prefix = String(req.query.prefix || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+    if (prefix) {
+      let n = 0, mb = 0;
+      try {
+        for (const d of fs.readdirSync(CLIP_DIR)) {
+          const dir = path.join(CLIP_DIR, d);
+          let files = [];
+          try { files = fs.readdirSync(dir); } catch (_) { continue; }
+          for (const f of files) {
+            if (!f.startsWith(prefix)) continue;
+            try { mb += fs.statSync(path.join(dir, f)).size / 1048576; fs.unlinkSync(path.join(dir, f)); n++; } catch (_) {}
+          }
+        }
+      } catch (e) { return res.json({ ok: false, error: String(e.message || e).slice(0, 120) }); }
+      return res.json({ ok: true, prefix, removed: n, freedMB: +mb.toFixed(1) });
+    }
     const days = Math.max(0, parseInt(req.query.days || '7', 10));
     const cutoff = Date.now() - days * 86400000;
     let removed = 0, freedMB = 0, dirs = 0;
