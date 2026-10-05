@@ -12788,6 +12788,24 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       total[g]=(total[g]||0)+1;
       if(t.unread) unread[g]=(unread[g]||0)+1;
     });
+    /* 📌 THE TABS SIT STILL (Rodney 2026-10-05: "where is sneaker inventory chat the red label
+     * SI — before you brought the Facebook in it was there, when you brought the Facebook chats
+     * in it moved, please put it back").
+     * The strip was ordered by FIRST APPEARANCE in the thread list, and that list is sorted by
+     * recency — so the tabs reshuffled every time a different business got a message, and
+     * adding the Facebook accounts shoved SI along. A toolbar you have to re-find is worse than
+     * one with an extra button on it. Fixed order now: his four WhatsApp businesses in the
+     * order he reads them, SI back in third where it was, then anything new, then Other last.
+     * An account with no threads still does not appear — only the ORDER is pinned, not the
+     * membership. */
+    var FIXED=['TK','OSC','SI','SB','FF'];
+    order.sort(function(a,b){
+      var ia=FIXED.indexOf(a), ib=FIXED.indexOf(b);
+      if(a==='OTH') return 1; if(b==='OTH') return -1;
+      if(ia<0&&ib<0) return a<b?-1:a>b?1:0;
+      if(ia<0) return 1; if(ib<0) return -1;
+      return ia-ib;
+    });
     var allUnread=Object.keys(unread).length>0;
     var html='<button class="tab" role="tab" data-f="ALL" aria-selected="'+(acctFilter==='ALL')+'"'
       +(allUnread?' data-alert="1"':'')+' style="--c:var(--ink)">All <span class="n">'+(threads||[]).length+'</span></button>';
