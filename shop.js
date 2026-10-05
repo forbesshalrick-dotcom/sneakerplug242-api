@@ -1616,6 +1616,60 @@ function mount(app) {
    * Piping the request straight into the file keeps memory flat whatever the size.
    */
   const CLIP_MAX_BYTES = 120 * 1024 * 1024;
+  /* 💽 HOW FULL IS THE DISK, AND CAN WE CLEAR IT (Rodney 2026-10-05: "also the videos cant
+   * upload"). Measured from outside: a 5MB clip saves, a 10MB clip fails in under 3 seconds
+   * with "could not save" — that is the write stream erroring, not a timeout and not the size
+   * cap (120MB). The shape of it is a FULL VOLUME, and that threatens far more than clips:
+   * notes.json, shoes.json, the inbox, the owner queue and the driver state all live there.
+   * Clips are the obvious hog — 21 days of phone video. GET reports, POST ?purge=<days> drops
+   * clips older than that many days. */
+  app.get('/shop/disk', (req, res) => {
+    if (!auth(req, res)) return;
+    const out = { dataDir: DATA_DIR, persistent: PERSISTENT, clipDir: CLIP_DIR, days: [], totalMB: 0 };
+    try {
+      for (const d of fs.readdirSync(CLIP_DIR)) {
+        let bytes = 0, n = 0;
+        try {
+          for (const f of fs.readdirSync(path.join(CLIP_DIR, d))) {
+            try { bytes += fs.statSync(path.join(CLIP_DIR, d, f)).size; n++; } catch (_) {}
+          }
+        } catch (_) {}
+        out.days.push({ date: d, files: n, mb: +(bytes / 1048576).toFixed(1) });
+        out.totalMB += bytes / 1048576;
+      }
+    } catch (e) { out.clipError = String(e.message || e).slice(0, 120); }
+    out.totalMB = +out.totalMB.toFixed(1);
+    out.days.sort((a, b) => (a.date < b.date ? -1 : 1));
+    try {
+      const probe = path.join(DATA_DIR, '.diskprobe');
+      fs.writeFileSync(probe, Buffer.alloc(8 * 1024 * 1024));   // 8MB — above the observed cliff
+      fs.unlinkSync(probe);
+      out.canWrite8MB = true;
+    } catch (e) { out.canWrite8MB = false; out.writeError = String(e.code || e.message || e).slice(0, 60); }
+    res.json(out);
+  });
+  app.post('/shop/disk/purge', (req, res) => {
+    if (!auth(req, res)) return;
+    const days = Math.max(0, parseInt(req.query.days || '7', 10));
+    const cutoff = Date.now() - days * 86400000;
+    let removed = 0, freedMB = 0, dirs = 0;
+    try {
+      for (const d of fs.readdirSync(CLIP_DIR)) {
+        const when = Date.parse(d + 'T00:00:00Z');
+        if (isNaN(when) || when >= cutoff) continue;
+        const dir = path.join(CLIP_DIR, d);
+        try {
+          for (const f of fs.readdirSync(dir)) {
+            const fp = path.join(dir, f);
+            try { freedMB += fs.statSync(fp).size / 1048576; fs.unlinkSync(fp); removed++; } catch (_) {}
+          }
+          fs.rmdirSync(dir); dirs++;
+        } catch (_) {}
+      }
+    } catch (e) { return res.json({ ok: false, error: String(e.message || e).slice(0, 120) }); }
+    res.json({ ok: true, olderThanDays: days, removed, freedMB: +freedMB.toFixed(1), daysDropped: dirs });
+  });
+
   app.post('/shop/clip', (req, res) => {
     if (!auth(req, res)) return;
     const date = String(req.query.date || '').slice(0, 10);
