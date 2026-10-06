@@ -15016,7 +15016,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=true;});
       post('/inbox/driver', {sub:cur.sub, step:step}).then(function(d){
         Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=false;});
-        if(d && d.ok){ paintDriver(step, 0); toast('🚦 ' + (DSTEP_SAYS[step]||step)); }
+        if(d && d.ok){
+          paintDriver(step, 0);
+          // ✅ Done also rings the pair up so it cannot be sold twice. Say exactly what came
+          // off the shelf — and when it could not tell, say THAT, so he knows to do it himself.
+          if(step==='done' && d.sold){
+            if(d.sold.ok){ toast('✅ Sold — '+d.sold.shoe+' size '+d.sold.size+' is off the shelf'); }
+            else { toast('✅ Done — but I could NOT ring it up ('+(d.sold.why||'unsure which pair')+'). Mark it in the app.'); }
+          } else { toast('🚦 ' + (DSTEP_SAYS[step]||step)); }
+        }
         else toast((d&&d.error)||'Could not set that');
       }).catch(function(){
         Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=false;});
@@ -16000,6 +16008,66 @@ app.post('/inbox/lockshoe', (req, res) => {
   res.json({ ok: true, locked: l });
 });
 
+/* ✅ DONE MEANS SOLD (Rodney 2026-10-06: "If I mark a delivery as done, can Kiki... mark it
+ * as sold on the website and remove the size from everywhere so it doesn't have a double
+ * sale. In case it's the last one, because that was the last I sent.")
+ *
+ * He is right that this is the dangerous moment. The pair is physically gone, off a van, and
+ * until somebody rings it up the shelf still says we have it — so the next customer gets
+ * offered a shoe that is already in somebody else's hands. One write fixes it everywhere:
+ * recordStaffSale takes the size off the shop's own stock, which is what the website reads,
+ * what Kiki searches, and what the app shows.
+ *
+ * ⛔ IT NEVER GUESSES. Taking a size off wrongly is the mirror of promising stock we do not
+ * have, and he has been just as clear about that one. So it rings up ONLY when the shoe and
+ * the size are both unambiguous — the pinned shoe, or the order card we filed for this exact
+ * customer. Anything short of that and it does nothing and says so, which leaves it exactly
+ * where it is today. */
+function deliveredPair(sub) {
+  const want = String(sub || '');
+  if (!want) return null;
+  let name = '', size = '', price = '';
+  try {
+    const notes = (require('./shop').getNotes() || [])
+      .filter(n => n && String(n.sub || '') === want && /YOU(?:'|\u2019)?VE GOT AN ORDER/i.test(String(n.text || '')));
+    notes.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const txt = notes.length ? String(notes[0].text || '') : '';
+    const m = txt.match(/\u{1F45F}\s*(.+?)(?:\s+\u2014\s*size\s*([\d.]+))?\s*$/mu);
+    if (m) { name = (m[1] || '').trim(); size = (m[2] || '').trim(); }
+    const pm = txt.match(/\u{1F4B0}\s*\$?\s*([\d.]+)/u);
+    if (pm) price = pm[1];
+  } catch (_) {}
+  // The size can also have been settled on the table even when the card missed it.
+  try {
+    const row = onTheTable.get(want);
+    if (!size) for (const it of ((row && row.items) || [])) if (it.size) size = String(it.size);
+  } catch (_) {}
+  if (!size) return { error: 'no size on the order' };
+  // Which shoe? The pinned one first - he said so himself with the button.
+  const lm = liveShoeMap();
+  let sh = null;
+  try { const l = lockedShoeFor(want); if (l && lm[l.id]) sh = lm[l.id]; } catch (_) {}
+  if (!sh) {
+    try {
+      const row = onTheTable.get(want);
+      for (const it of ((row && row.items) || []).slice().reverse()) if (it.id && lm[it.id]) { sh = lm[it.id]; break; }
+    } catch (_) {}
+  }
+  if (!sh && name) {
+    try {
+      const rows = searchInventory({ query: name.replace(/\(|\)/g, ' ') }) || [];
+      if (rows.length === 1) sh = lm[rows[0].id];
+      else if (rows.length > 1) {
+        const inSize = rows.filter(r => String(r.sizes || '').split(/[,\s]+/).includes(String(size)));
+        if (inSize.length === 1) sh = lm[inSize[0].id];
+      }
+    } catch (_) {}
+  }
+  if (!sh) return { error: 'could not tell which shoe' + (name ? ' ("' + name + '")' : '') };
+  return { id: String(sh.id), name: displayName(sh), size: String(parseFloat(size)),
+           price: price || String(sh.price) };
+}
+
 app.post('/inbox/driver', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
@@ -16024,7 +16092,33 @@ app.post('/inbox/driver', (req, res) => {
   if (step === 'taken' || step === 'done' || step === 'gotloc') driverDispatchedAt.delete(sub);
   else driverDispatchedAt.set(sub, Date.now());
   record(req, { endpoint: 'driver-step', sub, step });
-  res.json({ ok: true, step, says: DRIVER_STEPS[step] });
+  // ✅ Delivered — ring it up so the pair cannot be sold twice. See deliveredPair above.
+  let sold = null;
+  if (step === 'done' && b.ring !== false) {
+    try {
+      const pair = deliveredPair(sub);
+      if (!pair || pair.error) {
+        sold = { ok: false, why: (pair && pair.error) || 'nothing to ring up' };
+        record(req, { endpoint: 'done-not-rung', sub, why: sold.why });
+      } else {
+        const r = require('./shop').recordStaffSale(pair.id, pair.size, 'Kiki 🤖',
+                    pair.price, pair.name, null);
+        if (r && r.error) {
+          sold = { ok: false, why: r.error, shoe: pair.name, size: pair.size };
+          record(req, { endpoint: 'done-sale-refused', sub, shoe: pair.name, size: pair.size, why: r.error });
+        } else {
+          sold = { ok: true, shoe: pair.name, size: pair.size, price: pair.price, saleId: (r && r.id) || null };
+          record(req, { endpoint: 'done-rang-it-up', sub, shoe: pair.name, size: pair.size, price: pair.price });
+          try { lockedShoe.delete(sub); saveLocks(); } catch (_) {}
+          try { onTheTable.delete(sub); saveTable(); } catch (_) {}
+        }
+      }
+    } catch (e) {
+      sold = { ok: false, why: String(e).slice(0, 120) };
+      record(req, { endpoint: 'done-ring-error', sub, error: String(e).slice(0, 120) });
+    }
+  }
+  res.json({ ok: true, step, says: DRIVER_STEPS[step], sold });
 });
 
 app.post('/inbox/dispatch', (req, res) => {
