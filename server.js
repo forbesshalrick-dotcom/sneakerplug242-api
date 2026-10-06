@@ -1993,6 +1993,20 @@ const INTERNAL_LEAK_RE = new RegExp([
   'i(?:\\047|\u2019)?ll never (?:break|mention|reveal|say|tell)',
   '(?:i\\047m|i am|im) (?:an? )?(?:bot|chat ?bot|ai\\b|automated|virtual assistant)',
   'as an ai', 'normal whatsapp replies',
+  // 🗣️ TALKING *ABOUT* THE CUSTOMER, TO THE CUSTOMER. Rodney 2026-10-06, Kya +1 242 421-4877:
+  // a bad guard note convinced her the customer had asked a price, and she argued back with
+  // it IN THE CHAT — "I'm reading the customer's message 'What all sizes do have this in' as
+  // a question about what sizes are available... There's no price being asked for in this
+  // message. Is there a different message you're referring to?" Four times in one chat.
+  // Not one tool name in any of it, so nothing above caught it. The tell is the grammar: she
+  // is reporting to an operator about a third party while that third party is reading it.
+  // Nobody serving a customer ever calls them "the customer" to their face.
+  'the customer(?:\\047|\u2019)?s?\\b',
+  'i(?:\\047m| am) reading (?:the|their|this|your)',
+  'is there a (?:different|another) message',
+  '(?:you(?:\\047|\u2019)?d|you would) like me to (?:review|clarify|check|look at)',
+  'in (?:that|this) exchange',
+  'no price (?:was|is being) (?:asked|requested)',
 ].join('|'), 'i');
 
 const STORE_DEFAULT = 'THE PLUG 242';
@@ -7966,6 +7980,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // this is the other door - we asked for a location, and a wordless picture came back.
   // It is not proof (they might be sending a shoe), which is why this does not file the order
   // by itself. It stops her asking twice, and it puts a human in front of the chat.
+  /* 🧾 HAND THE ORDER BACK EVERY TURN — ON THE SYSTEM TEXT, NOT THEIR WORDS.
+   * The chat history is trimmed to 24 messages and a busy turn eats four of them, so a shoe
+   * quoted three minutes ago can be gone (see onTheTable). It has to be re-handed every turn.
+   *
+   * ⛔ IT MUST NEVER TOUCH userText. I appended it there first and it poisoned the chat with
+   * Kya (+1 242 421-4877, 2026-10-06): the note carries prices, so price-question-unanswered
+   * read "$130" inside it, decided the CUSTOMER had asked a price on every single turn, and
+   * told Kiki she had ignored it. She then argued with the note out loud, to the customer —
+   * "I don't see a price question in the customer's last message. Is there a different
+   * message you'd like me to review?" Four times. Every guard in runChat inspects userText;
+   * anything written there is the customer speaking, as far as the whole file is concerned.
+   * Per-turn context belongs on `system`, which is rebuilt each turn and which no guard reads. */
+  try {
+    const _tbl = tableNote(sub);
+    if (_tbl && !staffName) system += '\n\n' + _tbl;
+  } catch (_) {}
+
   try {
     const _waitingPin = (Date.now() - (pinAsked.get(sub) || 0)) < 45 * 60 * 1000;
     if (_waitingPin && _sentUsAPicture && !String(userText || '').trim() && !staffName) {
@@ -8903,12 +8934,18 @@ and it must NEVER be answered with a question back.`;
       const PRICE_Q = /\b(price|prices|how much|cost|wat.{0,3}s the price|what.{0,3}s the price)\b/i;
       const NAMES_A_SHOE = /\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97s?|95s?|90s?|270s?|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|tn|tns|blazer|cortez)\b/i;
       const HAS_PRICE = /\$\s?\d{2,4}|\b\d{2,4}\s?(?:dollars|bucks)\b/i;
+      /* ⛔ READ THE CUSTOMER, NOT OUR OWN NOTES. Any per-turn note that mentions a shoe and a
+       * price satisfies both tests on its own, and then this guard tells her she ignored a
+       * price question nobody asked. That is exactly what happened to Kya on 2026-10-06 and
+       * she argued back with the note in the chat. Every guard that reads userText must cut
+       * at the first system note first. */
+      const _cust = String(userText || '').split('(SYSTEM NOTE')[0].split('(SYSTEM:')[0].split('\u{1F50E}')[0];
       if (turnText && !staffName && pricedNothing < 1
-          && PRICE_Q.test(String(userText || '')) && NAMES_A_SHOE.test(String(userText || ''))
+          && PRICE_Q.test(_cust) && NAMES_A_SHOE.test(_cust)
           && !HAS_PRICE.test(turnText)) {
         pricedNothing++;
         record(req, { endpoint: 'price-question-unanswered', sub, store: ctx.store || '',
-                      asked: String(userText || '').slice(0, 60), said: turnText.slice(0, 80) });
+                      asked: _cust.slice(0, 60), said: turnText.slice(0, 80) });
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
           + 'asked the PRICE of a shoe they named by name, and your reply has no price in it. '
           + 'That is one line of work and you did not do it. You know these cold without looking: '
@@ -11506,17 +11543,6 @@ function handleChat(req, res) {
       userText = note + (String(userText || '').trim() ? '\n\n' + userText : '');
       try { record(req, { endpoint: 'manychat-ad-referral', sub, headline: adHead.slice(0, 60), adId: adId || null }); } catch (_) {}
     }
-  } catch (_) {}
-
-  // 🧾 HAND THE ORDER BACK EVERY TURN. The chat history is trimmed to 24 messages and a
-  // busy turn eats four of them, so a shoe quoted three minutes ago can be gone. This note
-  // is rebuilt from the table, which nothing trims — see onTheTable above. It goes on the
-  // USER text, never the cached system prompt.
-  try {
-    const _tbl = tableNote(sub);
-    if (_tbl) userText = String(userText || '').trim()
-      ? String(userText) + '\n\n' + _tbl
-      : _tbl;
   } catch (_) {}
 
   // 🛑 OUR OWN SHOPS MUST NEVER TALK TO EACH OTHER (Rodney 2026-09-17, watching it
