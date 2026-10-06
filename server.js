@@ -8445,7 +8445,9 @@ and it must NEVER be answered with a question back.`;
             + '" AND their size, and send what it finds. Do NOT send a general size browse and '
             + 'do NOT send a different model. If we do not have that shoe in their size, say so '
             + 'plainly and show the sizes it DOES come in before you offer anything else.';
-          record(req, { endpoint: 'bare-size-kept-the-shoe', sub, model: _mdl, q: String(userText).slice(0, 10) });
+          record(req, { endpoint: 'bare-size-kept-the-shoe', sub, model: _mdl, q: String(userText).slice(0, 10),
+                        from: _theirs.replace(/\s+/g, ' ').slice(0, 110),
+                        src: lastModelNamed(_theirs) ? 'them' : 'her' });
         }
       } catch (_) {}
     }
