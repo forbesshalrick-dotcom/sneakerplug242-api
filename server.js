@@ -8421,9 +8421,16 @@ and it must NEVER be answered with a question back.`;
          * VaporMax, so the newest model in the transcript was hers, not his. Only the customer
          * gets to name the shoe; her own words are the fallback, for when she named it for him
          * ("Got it — VaporMax 👟") and he only answered with a size. */
+        /* ⛔ AND ONLY WHAT A CUSTOMER COULD PLAUSIBLY HAVE TYPED. Our own notes go into the
+         * history as role:'user' strings too, and they are full of shoe names - the drill
+         * caught "you got vapormax?" + "10" coming back as "air jordan 4 retro", read out of
+         * one of our own notes, not out of anything he said. Same filter the three-category
+         * guard uses: short, and none of the words only a note ever contains. */
         const _theirs = history.slice(-10)
           .filter(h => h && h.role === 'user' && typeof h.content === 'string')
-          .map(h => String(h.content).split('(SYSTEM NOTE')[0])
+          .map(h => String(h.content).split('(SYSTEM NOTE')[0].split('(SYSTEM:')[0].split('\u{1F50E}')[0].trim())
+          .filter(t => t && !t.startsWith('(') && t.length <= 120
+            && !/search_inventory|send_photos|notify_manager|SYSTEM|the customer|do NOT|you MUST|ALREADY ON THE TABLE/i.test(t))
           .join(' \n ');
         const _hers = history.slice(-6).map(h => typeof h.content === 'string' ? h.content
           : (Array.isArray(h.content)
