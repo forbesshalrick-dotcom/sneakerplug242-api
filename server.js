@@ -8384,6 +8384,7 @@ and it must NEVER be answered with a question back.`;
   let namedModel = '';         // the shoe they named before answering with a bare size
   let wrongShoeNamed = 0;      // she named a shoe other than the one the owner settled
   let tinySizeTaken = 0;       // a 1/2/3 taken literally when it is a dropped digit
+  let saidOutWeHave = 0;       // "we're out of it" about a shoe sitting on the shelf
   let namedFromAirs = 0;       // she named a shoe off a photo without ever looking at ours
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
@@ -8669,6 +8670,56 @@ and it must NEVER be answered with a question back.`;
                       was: _was.slice(0, 120), now: turnText.slice(0, 120) });
       }
     }
+    /* 🚫 NEVER SAY WE ARE OUT OF A SHOE THAT IS ON THE SHELF (Rodney 2026-10-06, Lisa
+     * +1 242 423-8986: "one person asked for pink and white shoes and got a bunch of
+     * bullshit").
+     *
+     * She asked for pink and white Dunks in an 8. The reply was "We're out of the pink and
+     * white Dunks right now 🙏 ... check 242plug.com". We are not out of them. We hold the
+     * Pink/White Dunk in an 11, a 12 and a 13. What is true is that we do not have HER size -
+     * and that is a completely different sentence, because it is the one she can act on. She
+     * asked "What size you have in it" straight after, which is exactly the question that
+     * answer leaves behind, and got fifty-three Jordan 4s.
+     *
+     * His rule cuts both ways and this is the expensive side: never promise stock we do not
+     * have, and never hide stock we do. "Out of" is about the SHOE. Say the sizes instead. */
+    try {
+      const OUT_CLAIM = /\b(?:we(?:'|’)?re|we are|we)\s+(?:all\s+)?out of\b|\bout of (?:stock|those|them|that|the)\b|\b(?:don'?t|dont|do not|ain'?t|aint)\s+(?:have|got|carry)\b|\bnone (?:left|in stock)\b/i;
+      const _them = history.slice(-10)
+        .filter(h => h && h.role === 'user' && typeof h.content === 'string')
+        .map(h => String(h.content).split('(SYSTEM NOTE')[0].split('(SYSTEM:')[0].trim())
+        .filter(t => t && !t.startsWith('(') && t.length <= 120
+          && !/search_inventory|send_photos|SYSTEM|the customer|do NOT|you MUST/i.test(t))
+        .concat([String(userText || '').split('(SYSTEM NOTE')[0].trim()]);
+      if (turnText && !staffName && saidOutWeHave < 1 && OUT_CLAIM.test(turnText)) {
+        const _mdl = lastModelNamed(_them.join(' \n '));
+        const _col = (colourWanted(_them.slice().reverse()) || []).join(' ');
+        if (_mdl || _col) {
+          let rows = [];
+          try {
+            rows = (searchInventory(Object.assign({}, _mdl ? { query: _mdl } : {},
+                                                   _col ? { color: _col } : {})) || []).slice(0, 6);
+          } catch (_) {}
+          if (rows.length) {
+            saidOutWeHave++;
+            const _fmt = r => r.name + ' $' + r.price + ' — sizes ' + r.sizes;
+            record(req, { endpoint: 'said-out-of-a-shoe-we-have', sub, store: ctx.store || '',
+                          model: _mdl || '', colour: _col || '', have: rows.length,
+                          said: turnText.slice(0, 90) });
+            history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+              + 'told them we are OUT of it. We are not — it is on the shelf right now:\n'
+              + rows.map(_fmt).join('\n') + '\n'
+              + 'What is true is that we may not have THEIR size, and that is a different '
+              + 'sentence: it is the one they can act on. Say we HAVE it and name the sizes it '
+              + 'comes in, in one short line — "I got the pink and white Dunk, just not in an 8 '
+              + '— it comes in an 11, 12 and 13 👟". Never say we are out of a shoe that is '
+              + 'sitting here, and do not send them to the website instead of answering.)' });
+            continue;
+          }
+        }
+      }
+    } catch (_) {}
+
     /* 🔢 "SIZE 1" IS A DROPPED DIGIT, NOT A BABY SHOE (Rodney 2026-10-06, Shaniaaaaa
      * +1 242 824-3307: "kiki confused again"). She asked for "size 1 in panda dunks" and was
      * told a 1 is too small for us, then handed a list of three shoes she never asked about.
@@ -9058,8 +9109,20 @@ and it must NEVER be answered with a question back.`;
      * which is exactly what somebody who types "Prices?" is asking for.
      * So: a price question with no shoe named - the list goes out untouched. Name a shoe and the
      * guard still applies, because then the answer is that shoe's PICTURE with its price. */
-    const _barePriceAsk = /^\s*(?:prices?|pricing|cost|how much|how much (?:is|are|for)|what(?:'|\u2019)?s the price|wats? the price)\s*[?.!]*\s*$/i
-      .test(String(userText || '').trim());
+    /* 💵 "DO YOU HAVE A PRICE LISTING FOR YOUR ITEMS PLEASE?" IS A PRICE ASK (Rodney
+     * 2026-10-06: "One guy asked for price listing and got jargon"). +1 242 829-5104 asked
+     * that in plain English and got "Would you like to see some pictures, or what we have in
+     * stock?" followed by fourteen Jordans. The old test demanded the whole message be the
+     * single word "prices" - so every polite way of asking the same thing fell through and the
+     * text-list guard then binned the one reply he actually wanted. It is the WHOLE message
+     * being about prices that matters, not which three words he chose. */
+    const _priceAskText = String(userText || '').split('(SYSTEM NOTE')[0].trim();
+    const _barePriceAsk = /^\s*(?:prices?|pricing|cost|how much|how much (?:is|are|for)|what(?:'|\u2019)?s the price|wats? the price)\s*[?.!]*\s*$/i.test(_priceAskText)
+      || (_priceAskText.length <= 90
+          && /\b(price|prices|pricing|price ?list|price ?listing|cost|costs)\b/i.test(_priceAskText)
+          && /\b(list|listing|have|got|send|share|see|what(?:'|\u2019)?s|whats|any|your|for your|items|everything|all)\b/i.test(_priceAskText)
+          // but NOT a price question about one named shoe - that gets THAT shoe's price
+          && !/\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97|95|90|270|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|huarache|shox|tn|blazer|cortez|panda)\b/i.test(_priceAskText));
     if (turnText && !staffName && !photosSentRun && textListed < 1 && !_barePriceAsk
         && ((turnText.match(/\$\s?\d{2,3}/g) || []).length >= 2 || _colourListish)
         && !wholesale) {
