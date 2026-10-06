@@ -1533,9 +1533,16 @@ function getAudioUrl(req) {
 
 // A photo URL, if the customer sent an image. We can't SEE it, but knowing one
 // arrived lets us reply ("what's the shoe + your size?") instead of going silent.
+/* 🎞️ A VIDEO IS NOT A PHOTO (Rodney 2026-10-06: "kiki acting retarded again").
+ * +1 242 823-7131 sent four pictures and an .mp4 in seven seconds. The mp4 came off the same
+ * ManyChat media host as the photos, so the catch-all below handed it over as an image, the
+ * API refused the whole request - "messages.16.content.1.image.source.base64.data" - and the
+ * turn died. The crash fallback then wrote to an OPERATOR in front of the customer. */
+const VIDEO_EXT = /\.(mp4|mov|m4v|3gp|webm|avi|mkv|qt)(\?|$)/i;
 function getImageUrl(req) {
   for (const { key, url } of collectUrls(req)) {
     if (AUDIO_FIELDS.has(key) || AUDIO_EXT.test(url)) continue; // not a voice note
+    if (VIDEO_EXT.test(url)) continue;                          // and not a video
     if (IMAGE_FIELDS.has(key) || IMAGE_EXT.test(url)) return url;
     if (MEDIA_HOST.test(url)) return url; // WhatsApp/ManyChat media link (arrives via Last Text Input) → the customer's photo
   }
@@ -5168,6 +5175,15 @@ function rememberConvo(sub, history) {
   saveConvos();
 }
 const chatLocks = new Map(); // subscriberId -> in-flight promise (serialises a customer's messages)
+/* 📸📸📸 A BURST OF MEDIA IS ONE MESSAGE, NOT FIVE (Rodney 2026-10-06: "kiki acting
+ * retarded again"). +1 242 823-7131 sent four photos and a video in SEVEN SECONDS. chatLocks
+ * correctly ran them one after another instead of all at once - and each one then wrote its
+ * own reply, so he got "That's not a shoe, bey" four times in ninety seconds, plus two more
+ * lines about not being able to see it. Nobody talks like that. While a turn waits its turn in
+ * the queue the customer is still typing, so by the time it runs there may already be a newer
+ * message behind it - and a picture with no words has nothing of its own to answer. The last
+ * one in the burst answers for all of them. */
+const lastInboundAt = new Map(); // sub -> when their newest message arrived
 const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same photo arriving twice
 const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text message arriving twice (stops double replies)
 const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Kiki stays QUIET for that chat so staff can take over without her talking over them
@@ -8541,7 +8557,16 @@ and it must NEVER be answered with a question back.`;
             const text = (again && again.ok && Array.isArray(again.data && again.data.content))
               ? again.data.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ').trim()
               : '';
-            if (text) {
+            /* 🤐 THE RETRY GOES OUT WITHOUT PASSING A SINGLE GUARD - so check the one that
+             * matters most. 2026-10-06: this path sent a customer "I'm ready to help! I can
+             * see the customer sent a photo, but I need to actually look at what's in it
+             * first... I'm waiting for you to tell me what the photo shows", with a bulleted
+             * menu of options for the operator. Every guard in runChat was bypassed because
+             * this is a second, separate call. If the rescue reply leaks, say nothing: the
+             * alert below already puts a human in front of the chat. */
+            if (text && INTERNAL_LEAK_RE.test(text)) {
+              try { recent.unshift({ at: new Date().toISOString(), endpoint: 'crash-retry-leaked-held', sub: _sub, text: text.slice(0, 160) }); } catch (_) {}
+            } else if (text) {
               await sendChunk(_sub, [{ type: 'text', text: text.slice(0, 900) }], _token).catch(() => {});
               try { recent.unshift({ at: new Date().toISOString(), endpoint: 'crash-retry-answered', sub: _sub }); } catch (_) {}
               return;
@@ -12215,6 +12240,10 @@ function handleChat(req, res) {
     return; // silent — the lastIncoming stamp above already halts any album mid-send
   }
 
+  try {
+    lastInboundAt.set(sub, turnAt);
+    if (lastInboundAt.size > 800) lastInboundAt.delete(lastInboundAt.keys().next().value);
+  } catch (_) {}
   const prev = chatLocks.get(sub) || Promise.resolve();
   const next = prev.then(async () => {
     let text = userText;
@@ -12297,6 +12326,17 @@ function handleChat(req, res) {
     }
     let chatUrl = null;
     try { chatUrl = (req.body && typeof req.body === 'object' && req.body.live_chat_url) ? String(req.body.live_chat_url) : null; } catch (_) {}
+    // 📸 Only the LAST of a burst answers. A wordless photo that already has a newer message
+    // behind it has nothing of its own to say — see lastInboundAt.
+    try {
+      const _newer = lastInboundAt.get(sub) || 0;
+      const _wordless = !String(text || '').trim() || /^https?:\/\/\S+$/i.test(String(text || '').trim());
+      if (_wordless && (imageUrl || audioUrl) && _newer > turnAt) {
+        record(req, { endpoint: 'media-burst-collapsed', sub, store,
+                      waited: Math.round((_newer - turnAt) / 1000) });
+        return;
+      }
+    } catch (_) {}
     return runChat(req, sub, text, token, { store, name, turnAt, chatUrl, inPhotoUrl: inboxPhotoUrl, fromVoice: _fromVoice }, photo);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
