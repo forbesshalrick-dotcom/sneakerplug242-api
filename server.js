@@ -5320,6 +5320,59 @@ function lastModelNamed(text) {
   }
   return best;
 }
+/* 👟 THE OWNER SAYS WHICH SHOE IT IS, AND THAT IS THE END OF IT (Rodney 2026-10-06:
+ * "add a button that I found the shoe, so she stop sending the wrong info. its losing sales").
+ * He is reading the chat on his phone and he can SEE which shoe the customer tapped — the one
+ * thing WhatsApp never passes to us. One tap pins it, and from then on Kiki answers about that
+ * pair and nothing else: no switching to a lookalike, no "which one did you mean", no album of
+ * something else. It outranks the order table, the album receipt and her own guesswork.
+ * Cleared by the same button, by filing the order, or after six hours. */
+const lockedShoe = new Map();      // sub -> {id, name, price, sizes, at, by}
+const LOCK_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'locked-shoe.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (LOCK_FILE && require('fs').existsSync(LOCK_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(LOCK_FILE, 'utf8'));
+    const cut = Date.now() - 6 * 3600 * 1000;
+    for (const [k, v] of Object.entries(saved)) if (v && v.at > cut) lockedShoe.set(k, v);
+    console.log('[lock] restored a locked shoe for', lockedShoe.size, 'chats');
+  }
+} catch (_) {}
+let lockSaveT = null;
+function saveLocks() {
+  if (!LOCK_FILE) return;
+  clearTimeout(lockSaveT);
+  lockSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(LOCK_FILE, JSON.stringify(Object.fromEntries(lockedShoe))); } catch (_) {}
+  }, 1500);
+  if (lockSaveT.unref) lockSaveT.unref();
+}
+function lockedShoeFor(sub) {
+  const l = lockedShoe.get(String(sub));
+  if (!l) return null;
+  if (Date.now() - (l.at || 0) > 6 * 3600 * 1000) { lockedShoe.delete(String(sub)); saveLocks(); return null; }
+  return l;
+}
+function lockedShoeNote(sub) {
+  const l = lockedShoeFor(sub);
+  if (!l) return '';
+  return '\n\n👟 THE SHOE IS SETTLED — ' + l.name + ' $' + l.price
+    + (l.sizes ? ' (sizes ' + l.sizes + ')' : '') + '. The owner is reading this chat and has '
+    + 'confirmed THIS is the pair the customer means. It is not a guess and it is not up for '
+    + 'discussion:\n'
+    + '• Answer every question about THIS shoe — its price, its sizes, its colour.\n'
+    + '• NEVER name, offer, price or send a different shoe, however similar. If they ask for a '
+    + 'size we do not have in it, say so plainly and give the sizes it DOES come in.\n'
+    + '• NEVER ask which shoe they mean, and never ask them to send the picture again.\n'
+    + '• Only move off it if the CUSTOMER names something else outright.';
+}
 // Every colour word our own shelf uses, built once. Used to tell a colour ask from a shoe ask.
 let _colourWords = null;
 function colourWords() {
@@ -8044,6 +8097,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
     const _tbl = tableNote(sub);
     if (_tbl && !staffName) system += '\n\n' + _tbl;
+    const _lock = lockedShoeNote(sub);
+    if (_lock && !staffName) system += _lock;
   } catch (_) {}
 
   try {
@@ -8265,6 +8320,7 @@ and it must NEVER be answered with a question back.`;
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
   let namedModel = '';         // the shoe they named before answering with a bare size
+  let wrongShoeNamed = 0;      // she named a shoe other than the one the owner settled
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
   let saidConfused = 0;        // "I didn't get that" said while we hold the receipt
@@ -9703,6 +9759,36 @@ and it must NEVER be answered with a question back.`;
             + 'must narrow it, name two or three of the ones above and let them pick. Never ask '
             + 'them to repeat themselves, never ask for a code, and never say a picture or a '
             + 'message did not come through.)' });
+          continue;
+        }
+      }
+    } catch (_) {}
+
+    /* 👟 THE SETTLED SHOE IS THE ONLY SHOE (Rodney 2026-10-06: "add a button that I found the
+     * shoe, so she stop sending the wrong info. its losing sales FUCK").
+     * Pasyans Mom pointed at the New Balance 1000 in blue, was told so correctly, and one
+     * message later was quoted "Air Jordan 4 Military Blue in a 9 - $180". He can SEE which
+     * shoe it is - that is the one thing WhatsApp never hands us - so the button lets him say
+     * it once. A note alone would not hold: the whole file is full of reasons to go and look
+     * for another shoe. So once he has settled it, naming a different model is blocked. */
+    try {
+      const _lock = lockedShoeFor(sub);
+      if (turnText && !staffName && _lock && wrongShoeNamed < 1) {
+        const _lockedKey = lastModelNamed(_lock.name);
+        const _saidKey = lastModelNamed(turnText);
+        const _custKey = lastModelNamed(String(userText || '').split('(SYSTEM NOTE')[0]);
+        // Only a shoe SHE brought up - if the customer named it themselves, that is their call.
+        if (_saidKey && _lockedKey && _saidKey !== _lockedKey && _saidKey !== _custKey) {
+          wrongShoeNamed++;
+          record(req, { endpoint: 'locked-shoe-protected', sub, store: ctx.store || '',
+                        locked: _lock.name, said: _saidKey, text: turnText.slice(0, 90) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+            + 'named the ' + _saidKey + '. That is not the shoe. The owner is reading this chat '
+            + 'and has settled it: the customer means the ' + _lock.name + ' at $' + _lock.price
+            + (_lock.sizes ? ' (sizes ' + _lock.sizes + ')' : '') + '. Write your reply again '
+            + 'about THAT pair only. If they asked a price, it is $' + _lock.price + '. If they '
+            + 'asked for a size we do not have in it, say so plainly and give the sizes it does '
+            + 'come in — never swap them onto something else.)' });
           continue;
         }
       }
@@ -13461,6 +13547,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
        composer now, on screen the whole time the chat is open. -->
   <div id="driverStrip" style="padding:8px 10px 2px">
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      <button class="dstep" id="foundShoe" title="You can see which shoe they mean - pin it so Kiki stops switching">👟 I found the shoe</button>
       <button class="dstep" data-step="gotloc" title="They already sent the location - stop asking">📍 Got the location</button>
       <button class="dstep" data-step="taken"  title="Order taken, nobody has left yet">📋 Got it</button>
       <button class="dstep" data-step="rolling" title="You have left - driver is on the way">🚗 Left now</button>
@@ -13471,6 +13558,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       <button class="dstep" data-step="outside" title="You are there">🏠 Outside</button>
       <button class="dstep" data-step="done" title="Delivered">✅ Done</button>
     </div>
+    <div id="shoePick" style="display:none;margin-top:6px">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center" id="shoePickList"></div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <input id="shoePickQ" placeholder="or type the name on the picture" style="flex:1;min-width:0;font:inherit;font-size:12px;padding:7px 9px;border-radius:8px;border:1px solid rgba(128,140,160,.35);background:transparent;color:inherit">
+        <button class="dstep" id="shoePickGo">Pin</button>
+        <button class="dstep" id="shoePickClose">✖</button>
+      </div>
+    </div>
+    <div id="shoeLocked" style="display:none;font-size:11px;margin-top:5px"></div>
     <div id="driverNow" style="font-size:11px;opacity:.7;margin-top:5px"></div>
   </div>
   <div class="composer">
@@ -14047,6 +14143,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
 
   function openThread(sub, acct, name, tag, phone){
     cur = {sub:sub, acct:acct, name:name, tag:tag, phone:phone||''};
+    try{ $('shoePick').style.display='none'; paintLock(null); loadLock(); }catch(e){}
     $('tName').innerHTML = custNameHTML(name, tag);   // name — number sits inline beside it
     // The number is the REAL phone only (never the ManyChat subscriber id). Shown as a WhatsApp
     // call link; empty until loadThread confirms/ backfills the real number, so no fake number flashes.
@@ -14759,6 +14856,61 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     }).catch(function(){ btn.textContent=was; btn.disabled=false; toast('Could not transcribe — network error'); });
   };
   $('replyX').onclick=clearQuote;
+  /* 👟 "I FOUND THE SHOE". He is reading the chat and can SEE which pair the customer tapped -
+   * the one thing WhatsApp never passes through to us. One tap pins it and Kiki answers about
+   * that pair and nothing else until he lets it go. The choices are the shoes we have actually
+   * shown or named this customer, so it is usually one tap, with a name box as the fallback. */
+  function paintLock(l){
+    var box=$('shoeLocked');
+    if(!l){ box.style.display='none'; box.innerHTML=''; $('foundShoe').setAttribute('aria-pressed','false'); return; }
+    box.style.display='block';
+    box.innerHTML='👟 <b>'+esc(l.name)+'</b> — $'+esc(String(l.price))+' · Kiki is pinned to this shoe '
+      + '<a href="#" id="shoeUnlock" style="margin-left:6px">unpin</a>';
+    $('foundShoe').setAttribute('aria-pressed','true');
+    $('shoeUnlock').onclick=function(e){ e.preventDefault();
+      post('/inbox/lockshoe',{sub:cur.sub,clear:true}).then(function(){ paintLock(null); toast('Unpinned'); });
+    };
+  }
+  function loadLock(){
+    if(!cur){ paintLock(null); return; }
+    api('/inbox/shoe-options?sub='+encodeURIComponent(cur.sub)).then(function(r){
+      if(r&&r.ok) paintLock(r.locked||null);
+    }).catch(function(){});
+  }
+  function pinShoe(body){
+    post('/inbox/lockshoe',Object.assign({sub:cur.sub},body)).then(function(r){
+      if(r&&r.ok&&r.locked){ paintLock(r.locked); $('shoePick').style.display='none'; $('shoePickQ').value='';
+        toast('👟 Pinned — Kiki will stay on the '+r.locked.name); }
+      else toast((r&&r.error)||'Could not pin that shoe');
+    }).catch(function(){ toast('Could not pin that shoe'); });
+  }
+  $('foundShoe').onclick=function(){
+    if(!cur){ toast('Open a chat first'); return; }
+    var box=$('shoePick');
+    if(box.style.display!=='none'){ box.style.display='none'; return; }
+    var list=$('shoePickList'); list.innerHTML='<span style="font-size:11px;opacity:.7">Loading…</span>';
+    box.style.display='block';
+    api('/inbox/shoe-options?sub='+encodeURIComponent(cur.sub)).then(function(r){
+      list.innerHTML='';
+      var opts=(r&&r.options)||[];
+      if(!opts.length){ list.innerHTML='<span style="font-size:11px;opacity:.7">Nothing shown to this customer yet — type the name below.</span>'; }
+      opts.forEach(function(o){
+        var b=document.createElement('button'); b.className='dstep';
+        b.textContent=o.name+' · $'+o.price;
+        b.title='sizes '+(o.sizes||'');
+        b.onclick=function(){ pinShoe({id:o.id}); };
+        list.appendChild(b);
+      });
+      if(r&&r.locked) paintLock(r.locked);
+    }).catch(function(){ list.innerHTML='<span style="font-size:11px;opacity:.7">Could not load — type the name below.</span>'; });
+  };
+  $('shoePickGo').onclick=function(){
+    var q=$('shoePickQ').value.trim();
+    if(!q){ toast('Type the shoe name'); return; }
+    pinShoe({query:q});
+  };
+  $('shoePickQ').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); $('shoePickGo').click(); } });
+  $('shoePickClose').onclick=function(){ $('shoePick').style.display='none'; };
   /* 🚦 THE DELIVERY STRIP. Each press tells Kiki where the driver actually is; she may repeat
    * that and nothing else about timing. Before any press she says nothing about it at all. */
   var DSTEP_SAYS={gotloc:'Has the location — will stop asking',
@@ -14770,21 +14922,21 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     el.textContent = step ? ('Kiki is saying: ' + (DSTEP_SAYS[step]||step)
       + (mins!=null ? '  ·  set ' + (mins<1?'just now':mins+' min ago') : ''))
       : 'Nothing set — Kiki says nothing about the driver or any timing.';
-    Array.prototype.forEach.call(document.querySelectorAll('.dstep'), function(b){
+    Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'), function(b){
       b.setAttribute('aria-pressed', b.getAttribute('data-step')===step ? 'true' : 'false');
     });
   }
-  Array.prototype.forEach.call(document.querySelectorAll('.dstep'), function(btn){
+  Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'), function(btn){
     btn.onclick=function(){
       if(!cur) return;
       var step=btn.getAttribute('data-step');
-      Array.prototype.forEach.call(document.querySelectorAll('.dstep'),function(b){b.disabled=true;});
+      Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=true;});
       post('/inbox/driver', {sub:cur.sub, step:step}).then(function(d){
-        Array.prototype.forEach.call(document.querySelectorAll('.dstep'),function(b){b.disabled=false;});
+        Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=false;});
         if(d && d.ok){ paintDriver(step, 0); toast('🚦 ' + (DSTEP_SAYS[step]||step)); }
         else toast((d&&d.error)||'Could not set that');
       }).catch(function(){
-        Array.prototype.forEach.call(document.querySelectorAll('.dstep'),function(b){b.disabled=false;});
+        Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=false;});
         toast('Could not set that — network');
       });
     };
@@ -15715,6 +15867,56 @@ app.get('/quote-wanted', (req, res) => {
  * step: taken | rolling | 30 | 20 | 10 | 5 | outside | done   (or clear:true to wipe it)
  * Each press replaces the last. Kiki is told the new truth on her very next reply and may say
  * THAT and nothing else about timing — see the note built in runChat. */
+/* 👟 "I FOUND THE SHOE" — the owner pins it from the chat he is already reading.
+ * GET  /inbox/shoe-options?sub=…   what we have shown or named this customer, to choose from
+ * POST /inbox/lockshoe {sub,id}    pin it      {sub,query} pin by name     {sub,clear:true} let go */
+app.get('/inbox/shoe-options', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const sub = String(req.query.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  const out = [], seen = new Set();
+  const lm = liveShoeMap();
+  const push = (sh) => {
+    if (!sh || seen.has(String(sh.id))) return;
+    seen.add(String(sh.id));
+    out.push({ id: String(sh.id), name: displayName(sh), price: sh.price, sizes: sizesOf(sh) });
+  };
+  try { for (const it of ((onTheTable.get(sub) || {}).items || [])) if (it.id && lm[it.id]) push(lm[it.id]); } catch (_) {}
+  try {
+    const a = albumShown.get(sub);
+    if (a) for (const sh of (a.shoes || [])) if (sh.id && lm[sh.id]) push(lm[sh.id]);
+  } catch (_) {}
+  const cur = lockedShoeFor(sub);
+  res.json({ ok: true, locked: cur || null, options: out.slice(0, 24) });
+});
+
+app.post('/inbox/lockshoe', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  if (b.clear) {
+    lockedShoe.delete(sub); saveLocks();
+    record(req, { endpoint: 'shoe-unlocked', sub });
+    return res.json({ ok: true, locked: null });
+  }
+  const lm = liveShoeMap();
+  let sh = b.id ? lm[String(b.id)] : null;
+  if (!sh && String(b.query || '').trim()) {
+    const rows = searchInventory({ query: String(b.query).trim() }) || [];
+    if (rows.length) sh = lm[rows[0].id];
+  }
+  if (!sh) return res.json({ ok: false, error: 'Could not find that shoe — try the name as it reads on the picture.' });
+  const l = { id: String(sh.id), name: displayName(sh), price: String(sh.price),
+              sizes: sizesOf(sh), at: Date.now(), by: 'owner' };
+  lockedShoe.set(sub, l); saveLocks();
+  // The settled shoe is also the order's subject — put it on the table so a later turn that
+  // adds up what they are buying counts it.
+  try { tableAdd(sub, { name: l.name, id: l.id, price: l.price }); } catch (_) {}
+  record(req, { endpoint: 'shoe-locked', sub, shoe: l.name });
+  res.json({ ok: true, locked: l });
+});
+
 app.post('/inbox/driver', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
