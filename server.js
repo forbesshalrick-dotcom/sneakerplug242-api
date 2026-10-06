@@ -8432,10 +8432,20 @@ and it must NEVER be answered with a question back.`;
           .filter(t => t && !t.startsWith('(') && t.length <= 120
             && !/search_inventory|send_photos|notify_manager|SYSTEM|the customer|do NOT|you MUST|ALREADY ON THE TABLE/i.test(t))
           .join(' \n ');
-        const _hers = history.slice(-6).map(h => typeof h.content === 'string' ? h.content
-          : (Array.isArray(h.content)
-             ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))
-          .join(' \n ');
+        /* 🪤 AND THE FALLBACK TO HER OWN WORDS IS A TRAP UNLESS IT IS TIGHT. It exists for one
+         * shape only - she named the shoe FOR him and asked for a size ("Got it — VaporMax 👟
+         * what size you wear?") and he answered with nothing but a number. The drill caught the
+         * loose version handing back "air jordan 4 retro", read out of an album caption three
+         * messages earlier. So: her LAST message only, and only if that message is the one
+         * asking for the size. An album caption never qualifies. */
+        let _hers = '';
+        try {
+          const _lastHers = history.slice().reverse().find(h => h && h.role === 'assistant');
+          const _ht = !_lastHers ? '' : (typeof _lastHers.content === 'string' ? _lastHers.content
+            : (Array.isArray(_lastHers.content)
+               ? _lastHers.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''));
+          if (/\bwhat size|size you (?:wear|need|looking)|your size\b/i.test(_ht)) _hers = _ht;
+        } catch (_) {}
         const _mdl = lastModelNamed(_theirs) || lastModelNamed(_hers);
         if (_mdl) {
           namedModel = _mdl;
