@@ -11516,14 +11516,41 @@ and it must NEVER be answered with a question back.`;
           if (keys.size) gone = catalog.filter(sh => sh && sh.image && !live.has(String(sh.id))
                                                && keys.has(modelKey(sh))).slice(0, 3);
         } catch (_) {}
+        /* 🟩 AND THE ONES WE HAVE BUT NOT IN THEIR SIZE (Rodney 2026-10-06, on a sage-green
+         * New Balance 1000: "why can't she see the fucking color?").
+         * We own that shoe — Forest Green, 5.5 to 7.5 — and she was asked for a 9. Every search
+         * that turn was filtered to a 9, so the one picture that would have let her NAME it was
+         * the one picture she was never shown, and she reached for a blue 1906 instead. The
+         * same hole as the sold-out branch above: she cannot recognise what she is not shown.
+         * Naming is not selling — these come clearly marked with the sizes they DO come in, so
+         * the honest answer is "that's the green 1000, I only have it up to a 7.5", never a
+         * swap onto something else. */
+        let offSize = [];
+        try {
+          const modelKey2 = sh => String(sh.name || '').toLowerCase()
+            .replace(/\b(retro|og|sp|low|high|mid)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+          const keys2 = new Set(picks.map(modelKey2).filter(Boolean));
+          const already = new Set(picks.map(sh => String(sh.id)).concat(gone.map(sh => String(sh.id))));
+          if (keys2.size) offSize = Object.values(lm)
+            .filter(sh => sh && sh.image && !already.has(String(sh.id)) && keys2.has(modelKey2(sh)))
+            .slice(0, 4);
+        } catch (_) {}
         if (picks.length) {
           const shots = await Promise.all(picks.map(sh => fetchImageBase64(sh.image).catch(() => null)));
           const goneShots = await Promise.all(gone.map(sh => fetchImageBase64(sh.image).catch(() => null)));
+          const offShots = await Promise.all(offSize.map(sh => fetchImageBase64(sh.image).catch(() => null)));
           const blocks = [];
           picks.forEach((sh, i) => {
             if (!shots[i]) return;
             blocks.push({ type: 'text', text: `${i + 1}. ${displayName(sh)} — $${sh.price} — sizes ${sizesOf(sh)}  [IN STOCK]` });
             blocks.push({ type: 'image', source: { type: 'base64', media_type: shots[i].media_type, data: shots[i].data } });
+          });
+          offSize.forEach((sh, i) => {
+            if (!offShots[i]) return;
+            blocks.push({ type: 'text', text: displayName(sh) + ' — $' + sh.price
+              + ' — WE HAVE THIS ONE, in sizes ' + sizesOf(sh) + '. If this is their shoe, SAY SO '
+              + 'and tell them the sizes it comes in — do not put them on a different pair.' });
+            blocks.push({ type: 'image', source: { type: 'base64', media_type: offShots[i].media_type, data: offShots[i].data } });
           });
           gone.forEach((sh, i) => {
             if (!goneShots[i]) return;
