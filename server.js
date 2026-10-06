@@ -5163,6 +5163,120 @@ function saveRecentlySent() {
   }, 2000);
   if (recentSaveT.unref) recentSaveT.unref();
 }
+
+/* 🧾 WHAT IS ON THE TABLE — AND IT MUST NEVER ROLL OFF (Rodney 2026-10-05, twice:
+ * "why ask which shoe?" then "so why ask again which shoes if the guy already picked").
+ *
+ * +1 242 805-7793 forwarded two cards, was quoted BOTH by name, said "I bay 2", and was
+ * asked which other one he meant. He had picked. She had forgotten.
+ *
+ * Her memory of a chat is the last 24 MESSAGES (trimHistory), and a message is not a
+ * message you can count on your fingers: one picture turn is a user message, a tool call,
+ * a tool result and a reply - four. In the three minutes between naming the Air Max 90 and
+ * him saying he would take two, eleven image turns went past and the Air Max 90 scrolled
+ * out of her head. The order card she filed afterwards proves it - it carries the total for
+ * BOTH pairs ($240) against the name of only the one she could still see.
+ *
+ * So the shoes a customer has actually been QUOTED or has ORDERED are kept out here, in a
+ * list that nothing trims, and handed back on every turn. Trimming old chat is right; losing
+ * the order is not. Six hours, six shoes - long enough for any one sale, short enough that
+ * tomorrow's chat starts clean. */
+const onTheTable = new Map();      // sub -> {ts, items:[{name,size,price}]}
+const TABLE_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'on-the-table.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (TABLE_FILE && require('fs').existsSync(TABLE_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(TABLE_FILE, 'utf8'));
+    const cutoff = Date.now() - 6 * 3600 * 1000;
+    for (const [k, v] of Object.entries(saved)) if (v && v.ts > cutoff) onTheTable.set(k, v);
+    console.log('[table] restored the order table for', onTheTable.size, 'customers');
+  }
+} catch (_) {}
+let tableSaveT = null;
+function saveTable() {
+  if (!TABLE_FILE) return;
+  clearTimeout(tableSaveT);
+  tableSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(TABLE_FILE, JSON.stringify(Object.fromEntries(onTheTable))); } catch (_) {}
+  }, 2000);
+  if (tableSaveT.unref) tableSaveT.unref();
+}
+// Put a shoe on the table. Same shoe twice only updates it (a size or price can arrive later).
+function tableAdd(sub, item) {
+  try {
+    const name = String((item && item.name) || '').trim().slice(0, 60);
+    if (!sub || !name) return;
+    const row = onTheTable.get(String(sub)) || { ts: Date.now(), items: [] };
+    const key = name.toLowerCase();
+    const ex = row.items.find(i => String(i.name || '').toLowerCase() === key);
+    if (ex) {
+      if (item.size && !ex.size) ex.size = String(item.size);
+      if (item.price && !ex.price) ex.price = String(item.price);
+    } else {
+      row.items.push({ name, size: item.size ? String(item.size) : '', price: item.price ? String(item.price) : '' });
+    }
+    row.ts = Date.now();
+    if (row.items.length > 6) row.items = row.items.slice(-6);
+    onTheTable.set(String(sub), row);
+    saveTable();
+  } catch (_) {}
+}
+// Everything she has quoted or booked for this customer, as one line for the turn note.
+function tableNote(sub) {
+  try {
+    const row = onTheTable.get(String(sub));
+    if (!row || !Array.isArray(row.items) || !row.items.length) return '';
+    if (Date.now() - (row.ts || 0) > 6 * 3600 * 1000) return '';
+    const bits = row.items.map(i => i.name + (i.size ? ' (size ' + i.size + ')' : '')
+                                  + (i.price ? ' $' + String(i.price).replace(/[^0-9.]/g, '') : ''));
+    return '(SYSTEM NOTE — the customer cannot see this: ALREADY ON THE TABLE in this chat, '
+      + 'whether or not you can still see it above — ' + bits.join('; ') + '. These are shoes '
+      + 'you have already quoted or booked for this person. If they say they want "2", "both" or '
+      + '"all of them", THESE are the ones — never ask them to pick again, and never drop one '
+      + 'off the order. Add them up at full price.)';
+  } catch (_) { return ''; }
+}
+// Scan a reply for shoes she named with their colourway, so the table fills itself.
+function tableLearn(sub, text) {
+  try {
+    const said = String(text || '').toLowerCase();
+    if (!sub || said.length < 8) return;
+    const szm = said.match(/\b(?:in a |in your |size |sz )(\d{1,2}(?:\.5)?)\b/);
+    const lm = liveShoeMap();
+    const flat = said.replace(/\s*\/\s*/g, '/');
+    const cand = [];
+    for (const sh of Object.values(lm)) {
+      const nm = String(sh.name || '').toLowerCase()
+        .replace(/^(nike|adidas|new balance|puma|asics|reebok|converse)\s+/, '').trim();
+      const col = String(sh.color || '').toLowerCase();
+      if (nm.length < 4 || !col) continue;
+      if (said.indexOf(nm) === -1) continue;
+      const parts = col.split(/[^a-z0-9]+/).filter(w => w.length > 2);
+      if (!parts.length || !parts.every(w => said.indexOf(w) !== -1)) continue;
+      cand.push({ sh, nm, n: parts.length, whole: flat.indexOf(col.replace(/\s*\/\s*/g, '/')) !== -1 });
+    }
+    /* 🎯 THE MOST SPECIFIC COLOURWAY WINS. "Air Max 90 Grey/Black" matches our Grey/Black 90
+     * and ALSO our plain Grey 90, because "grey" is in the sentence - and putting the wrong
+     * sibling on the order is exactly the mistake the colourway trap costs us. So per model:
+     * a colourway written out whole beats one assembled from loose words, and more colour
+     * words beat fewer. */
+    const byModel = new Map();
+    for (const c of cand) { const g = byModel.get(c.nm) || []; g.push(c); byModel.set(c.nm, g); }
+    for (const g of byModel.values()) {
+      let keep = g.some(c => c.whole) ? g.filter(c => c.whole) : g;
+      const best = Math.max.apply(null, keep.map(c => c.n));
+      keep = keep.filter(c => c.n === best);
+      for (const c of keep) tableAdd(sub, { name: displayName(c.sh), size: szm ? szm[1] : '', price: c.sh.price });
+    }
+  } catch (_) {}
+}
 const ownerNotes = new Map();      // sub -> [{text, ts}] — private ". "/"- " messages the OWNER typed to Kiki. She FOLLOWS ALONG (uses them as context) but sends NOTHING back to the customer.
 function addOwnerNote(sub, text) {
   const t = String(text || '').trim().slice(0, 900);
@@ -8868,6 +8982,18 @@ and it must NEVER be answered with a question back.`;
           .concat([String(turnText || '')]).join(' \n ').toLowerCase();
         const _named = [];
         const _seenKey = new Set();
+        // The table first — it outlives the 24-message trim that caused this bug.
+        try {
+          const _row = onTheTable.get(String(sub));
+          for (const it of ((_row && _row.items) || [])) {
+            const k = String(it.name || '').toLowerCase();
+            if (!k || _seenKey.has(k)) continue;
+            _seenKey.add(k);
+            _named.push({ name: it.name, color: '', price: it.price || '', _fromTable: true,
+                          _label: it.name + (it.size ? ' (size ' + it.size + ')' : '')
+                                  + (it.price ? ' $' + String(it.price).replace(/[^0-9.]/g, '') : '') });
+          }
+        } catch (_) {}
         try {
           const _lm = liveShoeMap();
           for (const sh of Object.values(_lm)) {
@@ -8887,9 +9013,11 @@ and it must NEVER be answered with a question back.`;
         const _want = _asked === 'all' ? _named.length : (WORDN[_asked] || 2);
         if (_named.length >= _want && _want >= 2) {
           whichShoeAsks++;
-          const _list = _named.slice(0, _want).map(sh =>
-            displayName(sh) + ' $' + sh.price + ' (sizes ' + sizesOf(sh) + ')').join(' and ');
-          const _total = _named.slice(0, _want).reduce((t, sh) => t + (Number(sh.price) || 0), 0);
+          const _list = _named.slice(0, _want).map(sh => sh._label
+            ? sh._label
+            : (displayName(sh) + ' $' + sh.price + ' (sizes ' + sizesOf(sh) + ')')).join(' and ');
+          const _total = _named.slice(0, _want).reduce((t, sh) =>
+            t + (parseFloat(String(sh.price).replace(/[^0-9.]/g, '')) || 0), 0);
           record(req, { endpoint: 'asked-which-shoe-when-both-named', sub, store: ctx.store || '',
                         said: turnText.slice(0, 90), asked: _asked, named: _named.length });
           history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
@@ -10329,6 +10457,8 @@ and it must NEVER be answered with a question back.`;
         // commits (location may still be missing) so the owner NEVER misses a sale;
         // "delivery_ready" (default) fires once the location is in hand.
         const earlyStage = inp.stage === 'order_confirmed';
+        // An order is the strongest possible claim that a shoe is on the table - keep it.
+        try { if (inp.shoe) tableAdd(sub, { name: inp.shoe, size: inp.size, price: inp.price }); } catch (_) {}
         // 📅 A FUTURE order must not SOUND like one going out now (Rodney 2026-08-16: "a lot
         // of them are false alarms… we think something's going out now"). He still wants the
         // alert — hearing it read out is how he knows the order exists — but the very first
@@ -11024,6 +11154,7 @@ and it must NEVER be answered with a question back.`;
   if (wasNewConvo && sentToCustomer && !photosSentRun) {
     scheduleWelcomeNudge(sub, token, wholesale);
   }
+  try { if (!staffName) tableLearn(sub, lastText); } catch (_) {}
   rememberConvo(sub, trimHistory(history));
 }
 
@@ -11102,6 +11233,17 @@ function handleChat(req, res) {
       userText = note + (String(userText || '').trim() ? '\n\n' + userText : '');
       try { record(req, { endpoint: 'manychat-ad-referral', sub, headline: adHead.slice(0, 60), adId: adId || null }); } catch (_) {}
     }
+  } catch (_) {}
+
+  // 🧾 HAND THE ORDER BACK EVERY TURN. The chat history is trimmed to 24 messages and a
+  // busy turn eats four of them, so a shoe quoted three minutes ago can be gone. This note
+  // is rebuilt from the table, which nothing trims — see onTheTable above. It goes on the
+  // USER text, never the cached system prompt.
+  try {
+    const _tbl = tableNote(sub);
+    if (_tbl) userText = String(userText || '').trim()
+      ? String(userText) + '\n\n' + _tbl
+      : _tbl;
   } catch (_) {}
 
   // 🛑 OUR OWN SHOPS MUST NEVER TALK TO EACH OTHER (Rodney 2026-09-17, watching it
