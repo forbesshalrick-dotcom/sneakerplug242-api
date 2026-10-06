@@ -5280,6 +5280,46 @@ function tableNote(sub) {
       + 'must never answer somebody with a shoe off this list that they did not ask about.)';
   } catch (_) { return ''; }
 }
+/* 🎯 WHICH SHOE DID THEY NAME? (Rodney 2026-10-06: "he said vapormax".)
+ * +1 242 822-7913 typed "Vape", was correctly told "Got it — VaporMax 👟 what size you wear?",
+ * answered "10" — and was sent two Jordan 4s at $180. A bare size forces a search, and that
+ * search carried the SIZE and nothing else, so the shoe he had just named was thrown away and
+ * he got the whole shelf in a 10. A named shoe is the conversation ([[kiki-named-shoe]]).
+ * This reads the models out of what has actually been said, newest first, off our own
+ * catalogue and its nicknames — so it only ever knows shoes we really sell. */
+let _modelWords = null;
+function modelVocab() {
+  if (_modelWords) return _modelWords;
+  const m = new Map();   // phrase -> the query to search with
+  try {
+    for (const sh of catalog) {
+      const nm = String(sh.name || '').toLowerCase()
+        .replace(/^(nike|adidas|new balance|puma|asics|reebok|converse)\s+/, '')
+        .replace(/\s+0\d{2,}$/, '').trim();
+      if (nm.length >= 4) m.set(nm, nm);
+      const nick = String(sh.nickname || '').toLowerCase().trim();
+      if (nick.length >= 4) m.set(nick, nick);
+      for (const a of aliasTokens(sh)) {
+        const t = String(a || '').toLowerCase().trim();
+        if (t.length >= 3 && !/^\d+$/.test(t)) m.set(t, nm || t);
+      }
+    }
+  } catch (_) {}
+  _modelWords = m;
+  return m;
+}
+// The LAST model named in this text, or ''. Longest phrase wins at the same position so
+// "air max plus" beats "air max".
+function lastModelNamed(text) {
+  const t = ' ' + String(text || '').toLowerCase().replace(/[^a-z0-9. ]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  let bestAt = -1, best = '';
+  for (const [phrase, query] of modelVocab()) {
+    const at = t.lastIndexOf(' ' + phrase + ' ');
+    if (at < 0) continue;
+    if (at > bestAt || (at === bestAt && phrase.length > best.length)) { bestAt = at; best = query; }
+  }
+  return best;
+}
 // Every colour word our own shelf uses, built once. Used to tell a colour ask from a shoe ask.
 let _colourWords = null;
 function colourWords() {
@@ -8224,6 +8264,7 @@ and it must NEVER be answered with a question back.`;
   let pricedNothing = 0;       // a price question about named shoes answered with no price
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
+  let namedModel = '';         // the shoe they named before answering with a bare size
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
   let saidConfused = 0;        // "I didn't get that" said while we hold the receipt
@@ -8248,6 +8289,28 @@ and it must NEVER be answered with a question back.`;
     if (bareSize && sizeFromCustomerWords(userText)) {
       forceSearchNext = true;
       record(req, { endpoint: 'bare-size-forced-search', sub, q: String(userText).slice(0, 20) });
+      /* 🎯 AND THE SIZE BELONGS TO THE SHOE THEY JUST NAMED (Rodney 2026-10-06: "he said
+       * vapormax"). +1 242 822-7913 typed "Vape", was told "Got it — VaporMax 👟 what size you
+       * wear?", answered "10" — and got two Jordan 4s at $180. The force above searches the
+       * SIZE and nothing else, so the shoe he had just named was dropped and he was handed the
+       * whole shelf. A size is an answer to the question we asked, not a new question. */
+      try {
+        const _recent = history.slice(-8).map(h => typeof h.content === 'string' ? h.content
+          : (Array.isArray(h.content)
+             ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))
+          .join(' \n ');
+        const _mdl = lastModelNamed(_recent);
+        if (_mdl) {
+          namedModel = _mdl;
+          system += '\n\n⚠️ THEY HAVE ALREADY NAMED THE SHOE: **' + _mdl + '**. The bare size '
+            + 'they just sent is THAT shoe\'s size — it is the answer to the question you asked, '
+            + 'not a request for the whole shelf. Call search_inventory with query "' + _mdl
+            + '" AND their size, and send what it finds. Do NOT send a general size browse and '
+            + 'do NOT send a different model. If we do not have that shoe in their size, say so '
+            + 'plainly and show the sizes it DOES come in before you offer anything else.';
+          record(req, { endpoint: 'bare-size-kept-the-shoe', sub, model: _mdl, q: String(userText).slice(0, 10) });
+        }
+      } catch (_) {}
     }
   } catch (_) {}
   let forcedPhotosOnce = false; // guard so the force above can only fire once per turn (never loops)
@@ -11416,6 +11479,29 @@ and it must NEVER be answered with a question back.`;
   // turnTopUpMerged: the rest-of-your-size was already folded into the album Kiki just sent
   // (see size-topup-merged above), so there is nothing left to append — firing here too would
   // re-send the very "and here's the rest 👇" second batch that merging exists to remove.
+  /* 🎯 THE NAMED SHOE WINS — SEND IT EVEN IF SHE SENT THE SHELF (Rodney 2026-10-06: "he said
+   * vapormax"). The system line above steers her, and a steer is not a guarantee: she has sent
+   * the whole size browse over a named shoe before. If a model was named and what went out was
+   * a size-only album anyway, the shoe he asked for goes out now, on top. Nothing is taken
+   * away from him - he keeps the browse - but he stops having to ask twice. */
+  if (!staffName && namedModel && turnGenericSizeAlbum) {
+    try {
+      const _sz = String(knownSize || '').split('/')[0].trim();
+      const _rows = searchInventory({ query: namedModel, size: _sz || undefined }) || [];
+      const _ids = _rows.slice(0, 12).map(r => r.id).filter(id => !turnSentIds.has(id));
+      if (_ids.length) {
+        const _r = await sendShoePhotos(sub, _ids, token, true, null,
+          'And here go the ' + namedModel + (_sz ? ' in your ' + _sz : '') + ' 👟',
+          false, false, false, ctx.turnAt || 0, _sz || null).catch(() => null);
+        record(req, { endpoint: 'named-shoe-sent-over-size-browse', sub, store: ctx.store || '',
+                      model: namedModel, size: _sz, sent: (_r && _r.sent) || 0, had: _ids.length });
+        if (_r && _r.sent > 0) { photosSentRun = true; sentToCustomer = true; }
+      } else {
+        record(req, { endpoint: 'named-shoe-none-in-size', sub, store: ctx.store || '',
+                      model: namedModel, size: _sz });
+      }
+    } catch (e) { record(req, { endpoint: 'named-shoe-topup-error', sub, error: String(e).slice(0, 100) }); }
+  }
   if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !customerNamedSpecific && turnSizeSearchSizes.length && !turnTopUpMerged) {
     try {
       const wantSizes = [...new Set(turnSizeSearchSizes)];
