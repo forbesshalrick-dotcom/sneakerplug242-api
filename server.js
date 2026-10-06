@@ -8026,6 +8026,8 @@ and it must NEVER be answered with a question back.`;
   let falsePhotoExcuse = 0;    // blaming the photos when nothing was ever sent
   let pricedNothing = 0;       // a price question about named shoes answered with no price
   let whereAreWe = 0;          // "you Nassau?" answered with an album
+  let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
+  let cheapBundles = 0;        // a 2-for total she invented that came in under the real price
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
   let voicePicLies = 0;        // claiming a picture failed on a turn that was a SPOKEN voice note
@@ -8832,6 +8834,108 @@ and it must NEVER be answered with a question back.`;
           + 'rest.)' });
         if (_haveIds) forcePhotosNext = true; else forceSearchNext = true;
         continue;
+      }
+    } catch (_) {}
+
+    /* 🧾 "I'LL TAKE 2" IS NOT A QUESTION — THEY ALREADY POINTED AT THEM (Rodney 2026-10-05,
+     * on +1 242 805-7793: "why ask which shoe?").
+     *
+     * He forwarded TWO of our cards — Air Max 90 Grey/Black and Air Max Plus Black/Orange —
+     * asked "How much", and was priced on both. Then he typed "I bay 2" and got back
+     * "Which other one you after?". There was no other one. He had put both on the table
+     * himself and she had just quoted both of them by name a message earlier.
+     *
+     * This is the same shape as asking permission to send a picture: a second decision put in
+     * front of somebody who already decided. The count is the answer — if he says a number and
+     * we have already named that many shoes in this chat, those are the ones. Say them back,
+     * add it up, and ask where it goes.
+     *
+     * Only fires when the shoes really are on the table: it counts shoes SHE named (model AND
+     * every word of the colourway) in her own turns, and stays out of the way when that count
+     * falls short of what they asked for - then the question is honest. */
+    try {
+      const BUY_N = /\b(?:i(?:'|’)?ll?\s+|i\s+(?:will\s+|wanna\s+|want\s+to\s+)?)?(?:buy|bay|take|takin|taking|want|get|gettin|getting|need|cop|grab|purchase|gimme|give\s+me)\s+(?:all\s+|the\s+|them\s+|dem\s+|both\s+)?(2|two|3|three|4|four|both|all)\b/i;
+      const WHICH_Q = /\bwhich\s+(?:other|second|2nd|one|ones|shoe|shoes|pair|pairs|kicks|two)\b|\bwhat(?:'|’)?s\s+the\s+(?:other|second|2nd)\b|\bwhat\s+(?:other|second)\s+(?:one|shoe|pair)\b/i;
+      const _mBuy = String(userText || '').match(BUY_N);
+      if (turnText && !staffName && whichShoeAsks < 1 && _mBuy && WHICH_Q.test(turnText)) {
+        const WORDN = { '2': 2, two: 2, both: 2, '3': 3, three: 3, '4': 4, four: 4 };
+        const _asked = String(_mBuy[1] || '').toLowerCase();
+        // What has she already named, by model AND the whole colourway, in her own turns?
+        const _ours = history.filter(h => h.role === 'assistant')
+          .map(h => typeof h.content === 'string' ? h.content
+               : (Array.isArray(h.content)
+                  ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))
+          .concat([String(turnText || '')]).join(' \n ').toLowerCase();
+        const _named = [];
+        const _seenKey = new Set();
+        try {
+          const _lm = liveShoeMap();
+          for (const sh of Object.values(_lm)) {
+            const nm = String(sh.name || '').toLowerCase()
+              .replace(/^(nike|adidas|new balance|puma|asics|reebok|converse)\s+/, '').trim();
+            const col = String(sh.color || '').toLowerCase();
+            if (nm.length < 4 || !col) continue;
+            if (_ours.indexOf(nm) === -1) continue;
+            const parts = col.split(/[^a-z0-9]+/).filter(w => w.length > 2);
+            if (!parts.length || !parts.every(w => _ours.indexOf(w) !== -1)) continue;
+            const key = nm + '|' + col;
+            if (_seenKey.has(key)) continue;
+            _seenKey.add(key);
+            _named.push(sh);
+          }
+        } catch (_) {}
+        const _want = _asked === 'all' ? _named.length : (WORDN[_asked] || 2);
+        if (_named.length >= _want && _want >= 2) {
+          whichShoeAsks++;
+          const _list = _named.slice(0, _want).map(sh =>
+            displayName(sh) + ' $' + sh.price + ' (sizes ' + sizesOf(sh) + ')').join(' and ');
+          const _total = _named.slice(0, _want).reduce((t, sh) => t + (Number(sh.price) || 0), 0);
+          record(req, { endpoint: 'asked-which-shoe-when-both-named', sub, store: ctx.store || '',
+                        said: turnText.slice(0, 90), asked: _asked, named: _named.length });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+            + 'asked WHICH shoe they mean. They already told you — they said ' + _asked + ', and '
+            + 'you have named exactly that many in this chat: ' + _list + '. Those are the ones. '
+            + 'Never ask a person who pointed at a shoe to point at it again. Say both names back, '
+            + 'give the real total of $' + _total + ' (full price each — do NOT invent a bundle '
+            + 'deal, see the haggling rule), confirm their size on each, and ask where it goes.)' });
+          continue;
+        }
+      }
+    } catch (_) {}
+
+    /* 💸 NEVER INVENT A BULK DEAL (same chat, same minute). He asked for $100 on a $120 shoe and
+     * was correctly told $120 is the price. He then said he would take two — and the reply was
+     * "you want 2 for $200", handing him the exact $100 each she had just refused, unasked.
+     * Two pairs at $120 is $240. The haggling rule is $10 off, in $5 steps, only when asked
+     * ([[kiki-haggling-rule]]) — a bundle total is just a discount with the arithmetic hidden,
+     * so it is held to the same line. */
+    try {
+      const _bundle = String(turnText || '').match(/\b(\d)\s*(?:pairs?\s*)?for\s*\$?\s*(\d{2,4})\b/i)
+                   || String(turnText || '').match(/\bboth\s+for\s*\$?\s*(\d{2,4})\b/i);
+      if (turnText && !staffName && cheapBundles < 1 && _bundle) {
+        const _n = _bundle.length > 2 ? parseInt(_bundle[1], 10) : 2;
+        const _total = parseInt(_bundle.length > 2 ? _bundle[2] : _bundle[1], 10);
+        // the unit price she last quoted in this chat
+        const _prices = (history.filter(h => h.role === 'assistant')
+          .map(h => typeof h.content === 'string' ? h.content
+               : (Array.isArray(h.content)
+                  ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))
+          .join(' ') + ' ' + turnText).match(/\$\s?(\d{2,4})\b/g) || [];
+        const _units = _prices.map(p => parseInt(String(p).replace(/[^0-9]/g, ''), 10))
+          .filter(v => v >= 40 && v <= 400 && v !== _total);
+        const _unit = _units.length ? Math.max.apply(null, _units) : 0;
+        if (_n >= 2 && _unit && _total < (_n * _unit) - 10) {
+          cheapBundles++;
+          record(req, { endpoint: 'bulk-discount-invented', sub, store: ctx.store || '',
+                        said: turnText.slice(0, 90), n: _n, total: _total, unit: _unit });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+            + 'just offered ' + _n + ' pairs for $' + _total + '. They are $' + _unit + ' each, so '
+            + _n + ' is $' + (_n * _unit) + '. Nobody asked you for a bundle price and you are not '
+            + 'allowed to invent one — $10 off is the most that ever comes off, in $5 steps, and '
+            + 'only when they ask for it. Say the real total of $' + (_n * _unit) + ', keep it '
+            + 'friendly, and move straight to their size and where it goes.)' });
+          continue;
+        }
       }
     } catch (_) {}
     /* 🧲 BE A SALESMAN — NEVER A FLAT NO, NEVER WORDS WITHOUT PICTURES (Rodney 2026-10-04).
