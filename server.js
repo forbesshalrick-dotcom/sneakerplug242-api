@@ -8413,6 +8413,7 @@ and it must NEVER be answered with a question back.`;
   let tinySizeTaken = 0;       // a 1/2/3 taken literally when it is a dropped digit
   let saidOutWeHave = 0;       // "we're out of it" about a shoe sitting on the shelf
   let priceListDodged = 0;     // a general price ask answered with anything but the list
+  let sizesMadeToChoose = 0;   // they listed several sizes and were asked to pick one
   let namedFromAirs = 0;       // she named a shoe off a photo without ever looking at ours
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
@@ -8784,6 +8785,65 @@ and it must NEVER be answered with a question back.`;
       }
     } catch (_) {}
 
+    /* 👨‍👩‍👧‍👦 EVERY SIZE THEY NAMED IS A SIZE THEY WANT (Rodney 2026-10-06, +1 242 428-7628:
+     * "The customer called all sizes they're interested in. Why would they call a size they're
+     * not interested in?").
+     *
+     * She typed out her whole family - "Me size 9 / Child 1 size 4 / Child 2 size 2 / Child 3
+     * size 12 / Child 4 size 12, 2 boy 2 girls" - and was asked "are you looking for shoes for
+     * yourself in a 9, or are you shopping for the kids?". Nobody lists a size they do not
+     * want. That is five pairs of shoes and she had already done all the work.
+     *
+     * So the question is removed and every size she named goes out, each under its own header,
+     * with the honest word on any size we do not carry. */
+    try {
+      const _saidSz = String(userText || '').split('(SYSTEM NOTE')[0];
+      // No \b before "size": she typed "Child 1size 4" and "Child 2size2", and a word boundary
+      // there loses both of them.
+      const _all = [...new Set((_saidSz.match(/(?:size|sz)\s*(\d{1,2}(?:\.5)?)/gi) || [])
+        .map(m => String(parseFloat(String(m).replace(/[^0-9.]/g, ''))))
+        .filter(n => n !== 'NaN' && parseFloat(n) >= 1 && parseFloat(n) <= 15))];
+      const CHOOSE_Q = /\b(just so i can|are you (?:looking|shopping)|for yourself|or are you|which (?:size|one|of those)|are these for|shopping for)\b/i;
+      if (turnText && !staffName && sizesMadeToChoose < 1 && _all.length >= 2
+          && /\?/.test(turnText) && CHOOSE_Q.test(turnText)) {
+        sizesMadeToChoose++;
+        const have = [], none = [];
+        for (const sz of _all) {
+          let rows = [];
+          try { rows = (searchInventory({ size: sz }) || []).slice(0, 8); } catch (_) {}
+          if (rows.length) have.push({ sz, rows }); else none.push(sz);
+        }
+        let sent = 0;
+        for (const g of have) {
+          try {
+            const _r = await sendShoePhotos(sub, g.rows.map(r => r.id), token, true, null,
+              'Size ' + g.sz + ' 👟', false, false, false, ctx.turnAt || 0, g.sz).catch(() => null);
+            const n = (_r && _r.sent) || 0;
+            sent += n;
+            if (n > 0) { photosSentRun = true; sentToCustomer = true; }
+          } catch (_) {}
+        }
+        record(req, { endpoint: 'made-them-choose-between-sizes', sub, store: ctx.store || '',
+                      sizes: _all.join(','), sent, none: none.join(',') });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+          + 'asked them to choose between sizes they had ALREADY given you. They named ' + _all.length
+          + ' sizes — ' + _all.join(', ') + ' — and nobody lists a size they do not want. That is '
+          + _all.length + ' pairs of shoes and they did the work for you.\n'
+          + (sent > 0
+             ? 'The pictures are ALREADY SENT — ' + sent + ' of them, every size they named that we '
+               + 'carry, each under its own header. Do NOT send them again and do NOT list them in '
+               + 'words. Write ONE short line around them.'
+             : 'Search each of those sizes and send what we have in them on this turn.')
+          + (none.length
+             ? ' We do NOT carry ' + (none.length > 1 ? 'sizes ' : 'a ') + none.join(' or ')
+               + ' — say that plainly in the same line, once, and do not offer a near size '
+               + 'instead.'
+             : '')
+          + ' Never ask them to pick between sizes they have already told you.)' });
+        continue;
+      }
+    } catch (_) {}
+
     /* 🔢 "SIZE 1" IS A DROPPED DIGIT, NOT A BABY SHOE (Rodney 2026-10-06, Shaniaaaaa
      * +1 242 824-3307: "kiki confused again"). She asked for "size 1 in panda dunks" and was
      * told a 1 is too small for us, then handed a list of three shoes she never asked about.
@@ -8793,7 +8853,10 @@ and it must NEVER be answered with a question back.`;
      * with their shoe in the size they probably meant already named. */
     try {
       const _said = String(userText || '').split('(SYSTEM NOTE')[0];
-      const _tiny = _said.match(/\b(?:size|sz)\s*(1|2|3)\b(?!\d)|\b(1|2|3)\s*(?:in|for)\b/i);
+      // 👶 A child really does wear a 2. Only an adult size that small is a slipped finger.
+      const _kidTalk = /\b(kid|kids|child|children|son|daughter|boy|boys|girl|girls|toddler|junior|youth|\d\s*(?:yr|year)s?\s*old)\b/i.test(_said);
+      const _tiny = _kidTalk ? null
+        : _said.match(/\b(?:size|sz)\s*(1|2|3)\b(?!\d)|\b(1|2|3)\s*(?:in|for)\b/i);
       const _tooSmall = /\b(?:too small|we start at|start(?:ing)? from|smallest(?: size)? (?:we|is)|don'?t (?:carry|go|have) (?:a |that )?(?:size )?[123]\b|only go(?:es)? down to)\b/i;
       if (turnText && !staffName && tinySizeTaken < 1 && _tiny && _tooSmall.test(turnText)) {
         const n = String(_tiny[1] || _tiny[2] || '');
