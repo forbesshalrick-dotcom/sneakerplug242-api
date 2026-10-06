@@ -5219,8 +5219,10 @@ function tableAdd(sub, item) {
     if (ex) {
       if (item.size && !ex.size) ex.size = String(item.size);
       if (item.price && !ex.price) ex.price = String(item.price);
+      if (item.id && !ex.id) ex.id = String(item.id);
     } else {
-      row.items.push({ name, size: item.size ? String(item.size) : '', price: item.price ? String(item.price) : '' });
+      row.items.push({ name, id: item.id ? String(item.id) : '',
+                       size: item.size ? String(item.size) : '', price: item.price ? String(item.price) : '' });
     }
     row.ts = Date.now();
     if (row.items.length > 6) row.items = row.items.slice(-6);
@@ -5270,10 +5272,25 @@ function tableLearn(sub, text) {
         .replace(/^(nike|adidas|new balance|puma|asics|reebok|converse)\s+/, '').trim();
       const col = String(sh.color || '').toLowerCase();
       if (nm.length < 4 || !col) continue;
-      if (said.indexOf(nm) === -1) continue;
-      const parts = col.split(/[^a-z0-9]+/).filter(w => w.length > 2);
-      if (!parts.length || !parts.every(w => said.indexOf(w) !== -1)) continue;
-      cand.push({ sh, nm, n: parts.length, whole: flat.indexOf(col.replace(/\s*\/\s*/g, '/')) !== -1 });
+      /* 🏷️ THE NICKNAME IS THE IDENTITY. "That's the Jordan 4 Cave Stone" carries no colour
+       * word at all, so a colourway test alone never put it on the table — and Ferdinand's
+       * Cave Stone was the shoe the whole conversation was about. A nickname is far more
+       * specific than a colour, so it stands on its own. */
+      const nick = String(sh.nickname || '').toLowerCase().trim();
+      const byNick = nick.length >= 4 && said.indexOf(nick) !== -1;
+      if (!byNick) {
+        /* 🏷️ NOBODY SAYS THE SKU. The catalogue calls it "Nike mind 001" and Kiki (rightly)
+         * writes "Nike Mind" — so an exact name test never matched the shoe she had just
+         * named. Only a LEADING-ZERO tail is dropped: "001" is a code, while 270, 720 and
+         * 9060 are the shoe's actual name and must survive. */
+        const nmShort = nm.replace(/\s+0\d{2,}$/, '').trim();
+        if (said.indexOf(nm) === -1 && (nmShort.length < 4 || said.indexOf(nmShort) === -1)) continue;
+        const parts = col.split(/[^a-z0-9]+/).filter(w => w.length > 2);
+        if (!parts.length || !parts.every(w => said.indexOf(w) !== -1)) continue;
+        cand.push({ sh, nm, n: parts.length, whole: flat.indexOf(col.replace(/\s*\/\s*/g, '/')) !== -1 });
+      } else {
+        cand.push({ sh, nm, n: 99, whole: true });
+      }
     }
     /* 🎯 THE MOST SPECIFIC COLOURWAY WINS. "Air Max 90 Grey/Black" matches our Grey/Black 90
      * and ALSO our plain Grey 90, because "grey" is in the sentence - and putting the wrong
@@ -5286,7 +5303,8 @@ function tableLearn(sub, text) {
       let keep = g.some(c => c.whole) ? g.filter(c => c.whole) : g;
       const best = Math.max.apply(null, keep.map(c => c.n));
       keep = keep.filter(c => c.n === best);
-      for (const c of keep) tableAdd(sub, { name: displayName(c.sh), size: szm ? szm[1] : '', price: c.sh.price });
+      for (const c of keep) tableAdd(sub, { name: displayName(c.sh), id: c.sh.id,
+                                            size: szm ? szm[1] : '', price: c.sh.price });
     }
   } catch (_) {}
 }
@@ -8155,6 +8173,7 @@ and it must NEVER be answered with a question back.`;
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
+  let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
   let cheapBundles = 0;        // a 2-for total she invented that came in under the real price
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
@@ -8807,9 +8826,16 @@ and it must NEVER be answered with a question back.`;
     try {
       const ISLANDS = /\b(nassau|nasau|nassu|new providence|freeport|grand bahama|abaco|exuma|eleuthera|bimini|andros|cat island|long island|inagua|san salvador|harbour island|spanish wells|berry islands|acklins|mayaguana|crooked island|ragged island)\b/i;
       const WHERE_Q = /\b(where (?:you|u|r u|are you|is)|which island|what island|wha island|where.{0,10}located|where.{0,10}shop|you got a (?:store|shop)|you have a (?:store|shop)|whereabouts)\b/i;
+      /* 📍 "LOCATION" ON ITS OWN IS A QUESTION ABOUT US (Rodney 2026-10-06, Ferdinand
+       * +1 242 827-2511). Eight minutes after an album he typed one word — "Location" — and
+       * got "I need to know which shoe and size first, then I'll get your location!". He asked
+       * where WE are and was told to pick a shoe before he could find out. Where we are is
+       * never something a customer has to earn, and answering it costs half a line. */
+      const BARE_LOC = /^\s*(?:your |ur |the |what(?:'|\u2019)?s the |send (?:me )?(?:your |the )?)?(?:location|loc|addy|address|whereabouts|位置)\s*[?.!]*\s*$/i;
       const ANSWERS_IT = /\b(nassau|carmichael|mobile|deliver|delivery|we come|come to you|ship|boat|plane|family island)\b/i;
       if (turnText && !staffName && whereAreWe < 1
-          && (ISLANDS.test(String(userText || '')) || WHERE_Q.test(String(userText || '')))
+          && (ISLANDS.test(String(userText || '')) || WHERE_Q.test(String(userText || ''))
+              || BARE_LOC.test(String(userText || '').split('(SYSTEM NOTE')[0].trim()))
           && !ANSWERS_IT.test(turnText)) {
         whereAreWe++;
         record(req, { endpoint: 'location-question-ignored', sub, store: ctx.store || '',
@@ -9451,6 +9477,62 @@ and it must NEVER be answered with a question back.`;
                    + ' of them went out just now. Do NOT send them again and do NOT list them in '
                    + 'words. Write ONE short line that covers BOTH shoes together.'
                  : 'Search the one you missed now and send those pictures on this turn.') + ')' });
+            continue;
+          }
+        }
+      }
+    } catch (_) {}
+
+    /* 🙅 WHEN THE CUSTOMER SAYS WE ARE OUT AND WE ARE NOT (Rodney 2026-10-06, Ferdinand
+     * +1 242 827-2511: "kiki is confused with basic Text").
+     *
+     * He typed "U don't have number 9 for that" about the Cave Stone Jordan 4. We hold TWO
+     * nines in it. The right answer was half a line - "I got it in a 9" - and instead he got
+     * "Perfect! 🙌 I've sent this straight to the team". He is now walking away from a shoe
+     * that is sitting on the shelf in his size, believing we told him so.
+     *
+     * Rodney's rule cuts both ways and this is the expensive side: never promise stock we do
+     * not have, and never hide stock we do ("we have two pairs of 11 and you're losing my
+     * sale"). A customer talking himself out of a sale has to be corrected on the spot, with
+     * the size said out loud. */
+    try {
+      const NEG_HAVE = /\b(?:do(?:n'?t| not)|dont|ain'?t|aint|no|none|nah|aint got|not got)\b[^.?!\n]{0,24}\b(?:have|got|carry|hav|in)\b|\bno\s+(?:number\s+|size\s+|sz\s+)?\d{1,2}(?:\.5)?\b|\b(?:do(?:n'?t| not)|dont|ain'?t|aint)\b[^.?!\n]{0,24}\b(?:number|size|sz)\s*\d{1,2}(?:\.5)?\b/i;
+      const _said = String(userText || '').split('(SYSTEM NOTE')[0].trim();
+      if (turnText && !staffName && theySaidWeAreOut < 1 && _said.length <= 90 && NEG_HAVE.test(_said)) {
+        const _szm = _said.match(/\b(?:number|size|sz)?\s*(\d{1,2}(?:\.5)?)\b/);
+        const want = String(parseFloat((_szm && _szm[1]) || knownSize.split('/')[0] || '') || '');
+        if (want && want !== 'NaN') {
+          // Which shoe are they talking about? The last thing put on the table is the subject.
+          const lm = liveShoeMap();
+          const row = onTheTable.get(String(sub));
+          let hits = [];
+          for (const it of ((row && row.items) || []).slice().reverse()) {
+            const sh = it.id ? lm[it.id] : null;
+            if (sh && sizesOf(sh).split(/[,\s]+/).filter(Boolean).includes(want)) hits.push(sh);
+            if (hits.length >= 2) break;
+          }
+          // Nothing on the table? Fall back to what the last search turned up.
+          if (!hits.length) {
+            for (const id of (lastSearchIds || []).slice(0, 6)) {
+              const sh = lm[id];
+              if (sh && sizesOf(sh).split(/[,\s]+/).filter(Boolean).includes(want)) { hits.push(sh); break; }
+            }
+          }
+          // Only correct them if the reply has not already said we have it.
+          const _alreadySaysYes = new RegExp('\\b(?:got|have|carry)\\b[^.?!\\n]{0,30}\\b' + want.replace('.', '\\.') + '\\b', 'i').test(turnText);
+          if (hits.length && !_alreadySaysYes) {
+            theySaidWeAreOut++;
+            const _fmt = sh => displayName(sh) + ' $' + sh.price + ' (we hold a ' + want + ')';
+            record(req, { endpoint: 'said-we-are-out-when-we-are-not', sub, store: ctx.store || '',
+                          they: _said.slice(0, 60), size: want, have: hits.map(h => h.id).join(',') });
+            history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+              + 'just told YOU we do not have a ' + want + ', and they are wrong — we do. '
+              + hits.map(_fmt).join(' and ') + '. They are talking themselves out of a shoe that is '
+              + 'on the shelf in their size. Correct them in half a line and say the size out loud '
+              + '— "I got it in a ' + want + ' 👟" — then carry straight on with the order. Do NOT '
+              + 'agree with them, do NOT thank them, and do NOT treat this as a confirmation of '
+              + 'anything: nothing here says they are buying, so file nothing and promise no '
+              + 'driver.)' });
             continue;
           }
         }
@@ -11140,6 +11222,29 @@ and it must NEVER be answered with a question back.`;
           if (blocks.length) {
             photoCompareSent = true;
             record(req, { endpoint: 'photo-compare', sub, store: ctx.store || '', shown: blocks.length / 2 });
+            /* 🖼️ OUR OWN SHOE CARD IS NOT A LOCATION PIN (Rodney 2026-10-06, on Ferdinand
+             * +1 242 827-2511: "kiki is confused with basic Text").
+             *
+             * He was asked for his pin at 13:04. Nine seconds later he forwarded one of OUR
+             * cards back - the Cave Stone Jordan 4 - and picture-while-waiting-on-pin took a
+             * wordless image in that window for the pin he had not sent. That is a good rule
+             * (a dropped pin really does arrive as a wordless little map) but it fires BEFORE
+             * anyone looks at the picture, and the flag it leaves behind stands for SIX HOURS.
+             * So when he typed "U don't have number 9 for that" a minute later, the pin re-ask
+             * was stood down as "attachment-arrived", she answered "Got your location! 📍" and
+             * filed a delivery with no location anywhere in it.
+             *
+             * We are standing in the one place that knows better: a search on his picture
+             * matched shoes of ours, so the picture was a SHOE. Take the guess back. Only a
+             * fresh guess (five minutes) is cleared, so a genuine pin from earlier survives. */
+            try {
+              const _guessAt = pinProbablyArrived.get(String(sub)) || 0;
+              if (_guessAt && Date.now() - _guessAt < 5 * 60 * 1000) {
+                pinProbablyArrived.delete(String(sub));
+                record(req, { endpoint: 'picture-was-a-shoe-not-a-pin', sub, store: ctx.store || '',
+                              matched: lastSearchIds.length });
+              }
+            } catch (_) {}
             toolResults.push({ type: 'text', text:
               '(SYSTEM NOTE — the customer cannot see this. Below are OUR OWN photos, numbered. LOOK at '
               + 'them next to the photo the customer sent and decide which one IS the same shoe — same '
