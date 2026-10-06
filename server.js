@@ -11895,9 +11895,21 @@ and it must NEVER be answered with a question back.`;
     // tried to send photos but nothing landed), send THAT — so a photo ID like "That's
     // the ASICS!" still reaches the customer instead of a blank "didn't come through".
     record(req, { endpoint: 'chat-fallback', sub, userText, hadText: !!lastText, hadImage: !!image });
+    /* 🙅 NEVER TELL SOMEBODY THEIR MESSAGE DID NOT COME THROUGH WHEN IT DID (Rodney has said
+     * this about pictures, voice notes and text: "text she GETS the text"). The drill caught
+     * this line going out after a guard had blocked a reply and the retry came back empty -
+     * his words had arrived perfectly, and the apology is both false and useless. The excuse
+     * is only honest when nothing readable reached us at all. With their words in hand, ask
+     * the one question that moves it forward instead. */
+    const _heard = String(userText || '').split('(SYSTEM NOTE')[0].split('(SYSTEM:')[0].trim();
+    const _gotWords = _heard && !/^https?:\/\/\S+$/i.test(_heard);
     const fb = lastText || (image
       ? "That's a clean pair 👀 — what size you looking for and I'll pull up what we've got 👟"
-      : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
+      : _gotWords
+        ? (knownSize
+           ? "I got you 👟 tell me the shoe and I'll pull up what we have in your " + knownSize
+           : "I got you 👟 what size you looking for?")
+        : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
     await sendChunk(sub, [{ type: 'text', text: fb }], token).catch(() => {});
     sentToCustomer = true;
   }
