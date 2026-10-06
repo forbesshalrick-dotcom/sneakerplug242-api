@@ -822,6 +822,21 @@ function sizesToSend(size, womens) {
   return womens ? [String(n - 1.5), String(n - 1), String(n)] : [String(n), String(n + 0.5)];
 }
 
+/* 🎨 "PINK AND WHITE" IS ONE COLOURWAY, NOT TWO COLOURS (Rodney 2026-10-06, Lisa
+ * +1 242 423-8986). She asked for pink and white and the guard read it as pink OR white, so a
+ * Purple/White Dunk and a plain white Air Force both qualified. Two colour words joined by
+ * "and", "/" or "&" describe ONE shoe that has both. Returns the pair when they were joined,
+ * so a caller can insist on both instead of either. */
+function colourPairJoined(said) {
+  for (const raw of (said || [])) {
+    const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
+    if (!t.trim()) continue;
+    const m = t.match(new RegExp('\\b(' + COLOUR_WORDS.join('|') + ')\\s*(?:and|&|\\/|n)\\s*(' + COLOUR_WORDS.join('|') + ')\\b'));
+    if (m && m[1] !== m[2]) return [m[1], m[2]];
+    if (COLOUR_WORDS.some(c => new RegExp('\\b' + c + '\\b').test(t))) return [];  // a colour was named, but singly
+  }
+  return [];
+}
 function colourWanted(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
@@ -8385,6 +8400,7 @@ and it must NEVER be answered with a question back.`;
   let wrongShoeNamed = 0;      // she named a shoe other than the one the owner settled
   let tinySizeTaken = 0;       // a 1/2/3 taken literally when it is a dropped digit
   let saidOutWeHave = 0;       // "we're out of it" about a shoe sitting on the shelf
+  let priceListDodged = 0;     // a general price ask answered with anything but the list
   let namedFromAirs = 0;       // she named a shoe off a photo without ever looking at ours
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
@@ -9155,6 +9171,30 @@ and it must NEVER be answered with a question back.`;
           && /\b(list|listing|have|got|send|share|see|what(?:'|\u2019)?s|whats|any|your|for your|items|everything|all)\b/i.test(_priceAskText)
           // but NOT a price question about one named shoe - that gets THAT shoe's price
           && !/\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97|95|90|270|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|huarache|shox|tn|blazer|cortez|panda)\b/i.test(_priceAskText));
+    /* 💵 A PRICE ASK GETS THE PRICE LIST, FULL STOP (Rodney 2026-10-06: "One guy asked for
+     * price listing and got jargon"). Exempting it from the text-list guard was only half of
+     * it - he still has to actually RECEIVE the list. +1 242 829-5104 asked for a price listing
+     * and got "what size you looking for?" and a size range. The list has been in her
+     * instructions since August; being told to send it is evidently not enough. */
+    try {
+      if (turnText && !staffName && _barePriceAsk && priceListDodged < 1
+          && (turnText.match(/\$\s?\d{2,3}/g) || []).length < 3) {
+        priceListDodged++;
+        record(req, { endpoint: 'price-list-dodged', sub, store: ctx.store || '',
+                      asked: _priceAskText.slice(0, 60), said: turnText.slice(0, 90) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'asked for your PRICES and you did not give them. Not a range, not a size question '
+          + 'first — the list. Send it EXACTLY as it is written in your instructions, keeping '
+          + 'the emojis and the *bold* stars:\n'
+          + '👑 Air Force 1 — *$120*\n🐐 Air Jordans — *SALE $180* 🔥\n'
+          + '💨 Air Max / VaporMax — *$120*\n🌀 Air Max 95 / Air Max 97 — *$130*\n'
+          + '⚡ New Balance / ASICS — *$130*\n👟 Nike Dunk / Air Jordan 1 — *$120*\n'
+          + '🐊 Crocs / Yeezy Foam — *$65*\n🏃 Nike Roshe — *$50*\n🔥 Nike Dunk High — *SALE $60* 🔥\n'
+          + 'Then — and only then — ask their size on the end of it. Do not send photos instead '
+          + 'and do not send them to the website.)' });
+        continue;
+      }
+    } catch (_) {}
     if (turnText && !staffName && !photosSentRun && textListed < 1 && !_barePriceAsk
         && ((turnText.match(/\$\s?\d{2,3}/g) || []).length >= 2 || _colourListish)
         && !wholesale) {
@@ -10758,6 +10798,7 @@ and it must NEVER be answered with a question back.`;
               .slice(-6).reverse().map(m => m.content)
           );
           const wanted = colourWanted(recentSaid2);
+          const _pair = colourPairJoined(recentSaid2);
           _colourWanted = wanted;
           turnColourWanted = wanted;
           if (wanted.length) {
@@ -10779,6 +10820,14 @@ and it must NEVER be answered with a question back.`;
               // drops the ones that are really another colour wearing some black.
               const _col = String(sh.color || '').toLowerCase().replace(/\bgray\b/g, 'grey').trim();
               const _lead = _col.split(/[\/,]/)[0].replace(/\ball\b/g, '').trim();
+              // 🎨 Joined colours mean ONE shoe with both — the lead is theirs, and the other
+              // has to be in there somewhere. See colourPairJoined.
+              if (_pair.length === 2) {
+                const _leadIs = _pair.some(w => _lead === w || _lead.startsWith(w + ' ') || _lead.endsWith(' ' + w));
+                const _hasBoth = _pair.every(w => new RegExp('\\b' + w + '\\b').test(_col));
+                if (_col && _leadIs && _hasBoth) return true;
+                if (_col) { droppedWrongColour.push(displayName(sh)); return false; }
+              }
               if (_col && wanted.some(w => _lead === w || _lead.startsWith(w + ' ') || _lead.endsWith(' ' + w))) return true;
               // No colour field to judge (older rows): fall back to the old loose match rather
               // than drop a shoe we simply have no colour for.
