@@ -9811,10 +9811,26 @@ and it must NEVER be answered with a question back.`;
             const rs = recentlySent.get(sub);
             if (rs && rs.ts >= (ctx.turnAt || 0)) shownNames = (rs.names || []).map(n => String(n).toLowerCase());
           } catch (_) {}
-          const covered = g => shownNames.some(n => n.indexOf(g.model) !== -1)
+          /* 📤 WHAT ACTUALLY WENT OUT IS THE ONLY RELIABLE WITNESS. The drill caught this
+           * firing in one run and sitting out in the next on the same words: it was reading
+           * recentlySent, which is not always written by the time we get here, so BOTH halves
+           * looked missing and the "at least one got through" test turned the guard off -
+           * exactly when it was needed. turnSentIds is the ids this turn really sent. */
+          const _sentModels = [];
+          try {
+            const _lm2 = liveShoeMap();
+            for (const id of turnSentIds) {
+              const sh = _lm2[id];
+              if (sh) _sentModels.push(String(displayName(sh)).toLowerCase());
+            }
+          } catch (_) {}
+          const covered = g => _sentModels.some(n => n.indexOf(g.model) !== -1)
+                            || shownNames.some(n => n.indexOf(g.model) !== -1)
                             || String(turnText).toLowerCase().indexOf(g.model) !== -1;
           const missing = distinct.filter(g => !covered(g));
-          if (missing.length && missing.length < distinct.length) {
+          // Fire whenever something they named is missing. Requiring another half to have
+          // landed first is what made it quiet on the turn it mattered.
+          if (missing.length) {
             twoModelAsks++;
             let sentNow = 0;
             const names = [];
