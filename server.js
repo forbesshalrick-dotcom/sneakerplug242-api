@@ -5327,6 +5327,16 @@ function lastModelNamed(text) {
  * pair and nothing else: no switching to a lookalike, no "which one did you mean", no album of
  * something else. It outranks the order table, the album receipt and her own guesswork.
  * Cleared by the same button, by filing the order, or after six hours. */
+/* 🎨 A NEW PHOTO WIPES THE OLD COLOUR (Rodney 2026-10-06: "the girl sent the green shoe and
+ * you saying it's fucking blue").
+ * Pasyans had been on BLUE for twenty minutes - the Midnight Blue 1000. Then she sent a photo
+ * of a sage-green 1000 and was told "That's the New Balance 1906 Navy Blue". The colour guard
+ * reads the last six things the CUSTOMER typed, and a photo's message is a URL with no colour
+ * word in it, so "blue" from six messages back still won and every green shoe we own was
+ * filtered out of the comparison before she ever saw one. The guard is right that a colour must
+ * be the last thing given up - but a picture is a brand new statement of what they want, and it
+ * outranks anything they typed before it. So the colour window starts again at the photo. */
+const colourCut = new Map();       // sub -> history length when their last photo arrived
 const lockedShoe = new Map();      // sub -> {id, name, price, sizes, at, by}
 const LOCK_FILE = (() => {
   try {
@@ -7851,6 +7861,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
   }
   const history = sanitizeHistory(convos.get(sub) || []);
+  // A photo is a fresh statement of what they want - every colour they typed before it is
+  // history. See colourCut above.
+  try { if (image) { colourCut.set(String(sub), history.length); if (colourCut.size > 500) { const f = colourCut.keys().next().value; colourCut.delete(f); } } } catch (_) {}
   // 👇 "THIS" / "THIS ONE" — GIVE THE BROWSER A MOMENT TO SAY WHAT THEY TAGGED.
   // (Rodney 2026-09-17: "so when someone says this/this 1 and she doesnt understand can kiki
   // on browser check".) A WhatsApp quote-reply reaches ManyChat as the bare word - the photo
@@ -8321,6 +8334,7 @@ and it must NEVER be answered with a question back.`;
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
   let namedModel = '';         // the shoe they named before answering with a bare size
   let wrongShoeNamed = 0;      // she named a shoe other than the one the owner settled
+  let namedFromAirs = 0;       // she named a shoe off a photo without ever looking at ours
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
   let saidConfused = 0;        // "I didn't get that" said while we hold the receipt
@@ -9794,6 +9808,41 @@ and it must NEVER be answered with a question back.`;
       }
     } catch (_) {}
 
+    /* 👁️ NEVER NAME A SHOE OFF A PHOTO YOU HAVE NOT COMPARED (Rodney 2026-10-06: "why can't
+     * she see the fucking color?").
+     *
+     * Pasyans sent a sage-green New Balance 1000 and was told, in the same breath, "That's the
+     * New Balance 1906 Navy Blue 👟 You want that one in a 9?" and "I need to see the photo to
+     * help you!". Both went out. She never searched on that turn, so photo-compare — the step
+     * that puts OUR OWN pictures beside theirs, the thing that makes this work like Google —
+     * never ran, because it only fires when a search has given it something to show. With no
+     * picture of ours to look at she named a shoe out of the conversation around her, and the
+     * conversation had been about blue for twenty minutes.
+     *
+     * So naming a shoe off a photo without having looked is blocked. She searches, our photos
+     * come back beside theirs, and THEN she says what it is. */
+    try {
+      if (turnText && !staffName && image && !didSearch && namedFromAirs < 1) {
+        const _said = lastModelNamed(turnText);
+        if (_said) {
+          namedFromAirs++;
+          record(req, { endpoint: 'named-a-shoe-without-looking', sub, store: ctx.store || '',
+                        said: _said, text: turnText.slice(0, 90) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+            + 'named the ' + _said + ' off their photo WITHOUT SEARCHING. You have not been shown '
+            + 'a single one of our own pictures this turn, so that name came out of the '
+            + 'conversation around you, not out of the photo — and the conversation has been '
+            + 'about a different shoe. That is how a green shoe gets called blue.\n'
+            + 'Call search_inventory now, BROAD — the brand and the line you can see, and the '
+            + 'COLOUR YOU CAN SEE IN THE PICTURE, not a colour from earlier in this chat. Our own '
+            + 'photos come back next to theirs. Look at both, THEN say which pair it is. Say '
+            + 'nothing about what it might be until you have.)' });
+          forceSearchNext = true;
+          continue;
+        }
+      }
+    } catch (_) {}
+
     try {
       const ETA_ASK = /\b(how far|any update|still coming|you reaching|how long|where.{0,14}driver|driver.{0,14}(where|far|coming|reach|now)|what time.{0,18}(get here|come|reach|arrive))\b/i;
       const OFFER = /\b(what size|everything we have in|want me to send|which one you like|what(?:'|\u2019)?s good|right here)\b/i;
@@ -10408,8 +10457,15 @@ and it must NEVER be answered with a question back.`;
         // shoes with NO black in them at all, not to a stripe.
         // Reads the RECENT chat, not just this turn: they say "all black" once and then "yes".
         try {
+          // 🎨 ...but only back as far as their last PHOTO. See colourCut.
+          let _cFrom = 0;
+          try {
+            const _cut = colourCut.get(String(sub));
+            if (image) _cFrom = history.length;                 // the photo IS this turn
+            else if (typeof _cut === 'number' && _cut <= history.length) _cFrom = _cut;
+          } catch (_) {}
           const recentSaid2 = [String(userText || '')].concat(
-            history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
+            history.slice(_cFrom).filter(m => m && m.role === 'user' && typeof m.content === 'string')
               .slice(-6).reverse().map(m => m.content)
           );
           const wanted = colourWanted(recentSaid2);
