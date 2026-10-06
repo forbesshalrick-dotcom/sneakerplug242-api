@@ -837,6 +837,18 @@ function colourPairJoined(said) {
   }
   return [];
 }
+/* The same rule the album guard uses, for the searches our own guards run: a joined pair must
+ * be BOTH colours, lead first. Without it "pink and white" pulls plain white shoes. */
+function wearsColour(sh, wanted, pair) {
+  const col = String((sh && (sh.color || sh.colour)) || '').toLowerCase().replace(/\bgray\b/g, 'grey').trim();
+  if (!col) return true;
+  const lead = col.split(/[\/,]/)[0].replace(/\ball\b/g, '').trim();
+  const isLead = w => lead === w || lead.startsWith(w + ' ') || lead.endsWith(' ' + w);
+  if (pair && pair.length === 2) {
+    return pair.some(isLead) && pair.every(w => new RegExp('\\b' + w + '\\b').test(col));
+  }
+  return (wanted || []).some(isLead);
+}
 function colourWanted(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
@@ -8487,6 +8499,7 @@ and it must NEVER be answered with a question back.`;
   // search means the customer wanted something specific, so we never widen those.
   const turnSentIds = new Set();        // shoe ids actually sent this turn
   let turnColourWanted = [];            // the colour they asked for, readable after the turn
+  let turnColourPair = [];              // ...and whether they joined two of them ("pink and white")
   const turnSizeSearchSizes = [];       // sizes from pure size (±brand only) searches this turn
   const turnSizeSearchBrands = [];      // the brand filter on each of those searches ('' = none)
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
@@ -8730,8 +8743,11 @@ and it must NEVER be answered with a question back.`;
             try {
               if (_col && knownSize) {
                 const _sz = String(knownSize).split('/')[0].trim();
+                const _pairAsk = colourPairJoined(_them.slice().reverse());
+                const _wantArr = colourWanted(_them.slice().reverse());
                 const _also = (searchInventory({ color: _col, size: _sz }) || [])
                   .filter(r => !rows.some(x => String(x.id) === String(r.id)))
+                  .filter(r => wearsColour(r, _wantArr, _pairAsk))
                   .slice(0, 10);
                 if (_also.length) {
                   const _r = await sendShoePhotos(sub, _also.map(r => r.id), token, true, null,
@@ -10801,6 +10817,7 @@ and it must NEVER be answered with a question back.`;
           const _pair = colourPairJoined(recentSaid2);
           _colourWanted = wanted;
           turnColourWanted = wanted;
+          turnColourPair = _pair;
           if (wanted.length) {
             const liveM = liveShoeMap();
             const keep = (id) => {
@@ -10822,11 +10839,9 @@ and it must NEVER be answered with a question back.`;
               const _lead = _col.split(/[\/,]/)[0].replace(/\ball\b/g, '').trim();
               // 🎨 Joined colours mean ONE shoe with both — the lead is theirs, and the other
               // has to be in there somewhere. See colourPairJoined.
-              if (_pair.length === 2) {
-                const _leadIs = _pair.some(w => _lead === w || _lead.startsWith(w + ' ') || _lead.endsWith(' ' + w));
-                const _hasBoth = _pair.every(w => new RegExp('\\b' + w + '\\b').test(_col));
-                if (_col && _leadIs && _hasBoth) return true;
-                if (_col) { droppedWrongColour.push(displayName(sh)); return false; }
+              if (_pair.length === 2 && _col) {
+                if (wearsColour(sh, wanted, _pair)) return true;
+                droppedWrongColour.push(displayName(sh)); return false;
               }
               if (_col && wanted.some(w => _lead === w || _lead.startsWith(w + ' ') || _lead.endsWith(' ' + w))) return true;
               // No colour field to judge (older rows): fall back to the old loose match rather
@@ -12013,7 +12028,9 @@ and it must NEVER be answered with a question back.`;
         try {
           _right = (searchInventory(Object.assign({ color: turnColourWanted.join(' ') },
                                                   _sz ? { size: _sz } : {})) || [])
-            .filter(r => !turnSentIds.has(r.id)).slice(0, 10);
+            .filter(r => !turnSentIds.has(r.id))
+            .filter(r => wearsColour(r, turnColourWanted, turnColourPair))
+            .slice(0, 10);
         } catch (_) {}
         record(req, { endpoint: 'colour-missing-from-album', sub, store: ctx.store || '',
                       wanted: turnColourWanted.join('/'), sent: turnSentIds.size, have: _right.length });
