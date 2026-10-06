@@ -8703,9 +8703,32 @@ and it must NEVER be answered with a question back.`;
           if (rows.length) {
             saidOutWeHave++;
             const _fmt = r => r.name + ' $' + r.price + ' — sizes ' + r.sizes;
+            /* 🎨 AND SEND THE COLOUR SHE CAN ACTUALLY BUY (Rodney 2026-10-06, immediately:
+             * "yes but you can send pink options DUMMY"). He is right and it is his oldest
+             * rule: a no with nothing attached ends the sale. We have no pink Dunk in her 8 -
+             * we have a pink and white Air Max 90, a pink and white Air Max Plus and a pink
+             * ASICS, all in an 8, sitting right there. The shoe she named is not available in
+             * her size; the COLOUR she wants is. Send it, do not offer to. */
+            let _pinkSent = 0, _pinkNames = [];
+            try {
+              if (_col && knownSize) {
+                const _sz = String(knownSize).split('/')[0].trim();
+                const _also = (searchInventory({ color: _col, size: _sz }) || [])
+                  .filter(r => !rows.some(x => String(x.id) === String(r.id)))
+                  .slice(0, 10);
+                if (_also.length) {
+                  const _r = await sendShoePhotos(sub, _also.map(r => r.id), token, true, null,
+                    'Here go the ' + _col + ' I got in your ' + _sz + ' 👟',
+                    false, false, false, ctx.turnAt || 0, _sz).catch(() => null);
+                  _pinkSent = (_r && _r.sent) || 0;
+                  if (_pinkSent > 0) { photosSentRun = true; sentToCustomer = true; }
+                  _pinkNames = _also.slice(0, 6).map(r => r.name);
+                }
+              }
+            } catch (_) {}
             record(req, { endpoint: 'said-out-of-a-shoe-we-have', sub, store: ctx.store || '',
                           model: _mdl || '', colour: _col || '', have: rows.length,
-                          said: turnText.slice(0, 90) });
+                          alsoSent: _pinkSent, said: turnText.slice(0, 90) });
             history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
               + 'told them we are OUT of it. We are not — it is on the shelf right now:\n'
               + rows.map(_fmt).join('\n') + '\n'
@@ -8713,7 +8736,15 @@ and it must NEVER be answered with a question back.`;
               + 'sentence: it is the one they can act on. Say we HAVE it and name the sizes it '
               + 'comes in, in one short line — "I got the pink and white Dunk, just not in an 8 '
               + '— it comes in an 11, 12 and 13 👟". Never say we are out of a shoe that is '
-              + 'sitting here, and do not send them to the website instead of answering.)' });
+              + 'sitting here, and do not send them to the website instead of answering.\n'
+              + (_pinkSent > 0
+                 ? 'AND THE PICTURES ARE ALREADY SENT — ' + _pinkSent + ' of them, everything we '
+                   + 'have in that colour in their size (' + _pinkNames.join(', ') + '), went out '
+                   + 'just now. Do NOT call send_photos again and do NOT list them in words. Put '
+                   + 'ONE short line around them: the honest no about the shoe they named, then '
+                   + 'what the colour turned up in their size.'
+                 : 'If you have anything else in that colour in their size, send those pictures '
+                   + 'on this turn — a no with nothing attached ends the sale.') + ')' });
             continue;
           }
         }
