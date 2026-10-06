@@ -8366,11 +8366,21 @@ and it must NEVER be answered with a question back.`;
        * SIZE and nothing else, so the shoe he had just named was dropped and he was handed the
        * whole shelf. A size is an answer to the question we asked, not a new question. */
       try {
-        const _recent = history.slice(-8).map(h => typeof h.content === 'string' ? h.content
+        /* 🗣️ THE SHOE THE CUSTOMER NAMED, NOT THE LAST ONE KIKI MENTIONED.
+         * Caught by the drill: "you got vapormax?" then "10" came back with "here go the Air
+         * Jordan 4 Retro in your 10". Her own album caption had named Jordans after he said
+         * VaporMax, so the newest model in the transcript was hers, not his. Only the customer
+         * gets to name the shoe; her own words are the fallback, for when she named it for him
+         * ("Got it — VaporMax 👟") and he only answered with a size. */
+        const _theirs = history.slice(-10)
+          .filter(h => h && h.role === 'user' && typeof h.content === 'string')
+          .map(h => String(h.content).split('(SYSTEM NOTE')[0])
+          .join(' \n ');
+        const _hers = history.slice(-6).map(h => typeof h.content === 'string' ? h.content
           : (Array.isArray(h.content)
              ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))
           .join(' \n ');
-        const _mdl = lastModelNamed(_recent);
+        const _mdl = lastModelNamed(_theirs) || lastModelNamed(_hers);
         if (_mdl) {
           namedModel = _mdl;
           system += '\n\n⚠️ THEY HAVE ALREADY NAMED THE SHOE: **' + _mdl + '**. The bare size '
