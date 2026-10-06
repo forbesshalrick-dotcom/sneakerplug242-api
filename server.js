@@ -4071,6 +4071,18 @@ function rememberAlbumShown(sub, shoes, forSize) {
                                                  size: String(forSize || '').trim() });
   // ONE shoe shown is a shoe CHOSEN - that is the pair the conversation is now about.
   try { if (list.length === 1) rememberShoe(sub, list[0].name, list[0].price, list[0].id); } catch (_) {}
+  /* 🧾 A SMALL ALBUM IS A SHORTLIST, AND IT GOES ON THE TABLE (Rodney 2026-10-06: "if a
+   * customer already sent two shoes or already spoke about two shoes and then says he wants
+   * two shoes, she should think he wants the two shoes that were already spoken about").
+   * Her own words are not always enough to catch the shoe - she writes "that's the Air Max 97"
+   * with no colourway, and a name-plus-colour test cannot match that. But the PICTURE she sent
+   * names it exactly. One to three pictures is somebody being shown specific shoes; a size
+   * browse of fifty is not, and must never land on the table. */
+  try {
+    if (list.length >= 1 && list.length <= 3) {
+      for (const it of list) tableAdd(sub, { name: it.name, id: it.id, size: forSize || '', price: it.price });
+    }
+  } catch (_) {}
   if (albumShown.size > 300) { const k = albumShown.keys().next().value; albumShown.delete(k); }
 }
 // The note Kiki gets when they point at one of those pictures.
@@ -8174,6 +8186,7 @@ and it must NEVER be answered with a question back.`;
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
+  let saidConfused = 0;        // "I didn't get that" said while we hold the receipt
   let cheapBundles = 0;        // a 2-for total she invented that came in under the real price
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
@@ -9535,6 +9548,53 @@ and it must NEVER be answered with a question back.`;
               + 'driver.)' });
             continue;
           }
+        }
+      }
+    } catch (_) {}
+
+    /* 🤷 "I DIDN'T GET THAT" IS NEVER AN ANSWER WHEN WE HOLD THE RECEIPT (Rodney 2026-10-06:
+     * "there's still a little confusing about customer sending TEXT messages and Kiki saying
+     * oops I never understood that... pictures I can understand because she never got the
+     * pictures. But text she GETS the text. Why the fuck won't she be able to understand it?")
+     *
+     * He is right, and the answer is that the words are not the message. A customer who taps
+     * reply on one of our photos and types "I want this one" has told us everything — except
+     * the one part WhatsApp keeps to itself. ManyChat's payload is `last_input_text` and
+     * nothing else: no quote, no id, no attachment (checked again today, every field). So she
+     * reads three words with no subject and says she does not understand.
+     *
+     * But WE know what is on their screen. We sent it. albumShown is the receipt of every
+     * picture that went out, and the order table holds everything she has priced or booked.
+     * With either of those in hand, confusion is not honest — it is a dead end dressed up as
+     * politeness, and it reads to the customer like we ignored them.
+     *
+     * So the sentence is removed. She gets the receipt and one instruction: answer the part
+     * that does NOT depend on which one. */
+    try {
+      const CONFUSED = /\b(?:not sure what you(?:'|’)?re? (?:mean|asking)|not sure what you mean|didn(?:'|’)?t (?:quite )?(?:catch|get|understand|follow)|i(?:'|’)?m not sure i (?:understand|follow)|could you clarify|can you clarify|what do you mean|you lost me|not following|say that again|come again|i don(?:'|’)?t understand|unclear)\b/i;
+      if (turnText && !staffName && saidConfused < 1 && CONFUSED.test(turnText)) {
+        const _receipt = pointedAtAlbumNote(sub);
+        const _row = onTheTable.get(String(sub));
+        const _items = ((_row && _row.items) || []).map(i => i.name
+          + (i.size ? ' (size ' + i.size + ')' : '')
+          + (i.price ? ' $' + String(i.price).replace(/[^0-9.]/g, '') : ''));
+        if (_receipt || _items.length) {
+          saidConfused++;
+          record(req, { endpoint: 'confused-with-receipt-in-hand', sub, store: ctx.store || '',
+                        said: turnText.slice(0, 90), onTable: _items.length, hadAlbum: !!_receipt });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+            + 'just told them you did not understand. Never say that. Their words reached us '
+            + 'perfectly — what is missing is only WHICH picture they tapped, and WhatsApp never '
+            + 'sends us that. It is not their fault and they must never be asked to explain '
+            + 'themselves.\n'
+            + (_items.length ? 'ALREADY ON THE TABLE in this chat: ' + _items.join('; ') + '\n' : '')
+            + (_receipt ? _receipt + '\n' : '')
+            + 'Answer the part that does NOT depend on which one — the price when they all cost '
+            + 'the same, their size, where it goes — and carry the sale forward. If you truly '
+            + 'must narrow it, name two or three of the ones above and let them pick. Never ask '
+            + 'them to repeat themselves, never ask for a code, and never say a picture or a '
+            + 'message did not come through.)' });
+          continue;
         }
       }
     } catch (_) {}
