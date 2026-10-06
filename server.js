@@ -5243,6 +5243,19 @@ function tableNote(sub) {
       + 'off the order. Add them up at full price.)';
   } catch (_) { return ''; }
 }
+// Every colour word our own shelf uses, built once. Used to tell a colour ask from a shoe ask.
+let _colourWords = null;
+function colourWords() {
+  if (_colourWords) return _colourWords;
+  const set = new Set();
+  try {
+    for (const sh of catalog) String(sh.color || '').toLowerCase().split(/[^a-z]+/)
+      .forEach(w => { if (w.length > 2) set.add(w); });
+  } catch (_) {}
+  for (const w of ['colour', 'color', 'colours', 'colors', 'dark', 'light', 'plain']) set.add(w);
+  _colourWords = set;
+  return set;
+}
 // Scan a reply for shoes she named with their colourway, so the table fills itself.
 function tableLearn(sub, text) {
   try {
@@ -8141,6 +8154,7 @@ and it must NEVER be answered with a question back.`;
   let pricedNothing = 0;       // a price question about named shoes answered with no price
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
+  let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let cheapBundles = 0;        // a 2-for total she invented that came in under the real price
   let _lastSearchWasBlank = false; // the last search had no size, brand, model or colour at all
   let blankPiles = 0;          // sending the whole shop to someone whose size we don't know
@@ -9349,6 +9363,100 @@ and it must NEVER be answered with a question back.`;
         continue;
       }
     } catch (_) {}
+
+    /* 🧩 TWO SHOES IN ONE BREATH — SEND BOTH (Rodney 2026-10-06, on +1 242 470-6465:
+     * "97 and vapormax why kiki cant understand?").
+     *
+     * He was shown four all-black pairs in a 10, asked which, and answered "97 an vapors".
+     * That is two shoes. He got the Air Max 97 and nothing else.
+     *
+     * She understood him fine - the SEARCH cannot hold two shoes at once. searchInventory
+     * requires EVERY word of the query to match (rows.filter words.every), so one query of
+     * "97 an vapors" matches nothing on the shelf: no shoe is both a 97 and a VaporMax. An
+     * empty result reads exactly like "we do not have it", so she fell back to the half of it
+     * that did work. Two shoes need two searches, and nothing ever split the sentence.
+     *
+     * So the guard splits it, searches each half, and sends what she missed itself.
+     * Deterministic beats persuasive - same lesson as the three-category album.
+     *
+     * The thing that makes this safe is the dominance test: a MODEL word ("97", "vapors")
+     * comes back as one model, while a COLOUR word ("black", "white") comes back as every
+     * model we own. So "black and white" can never be read as two shoes, and the whole shop
+     * can never go out on the back of this. Size must be known too - no size, no pile. */
+    try {
+      const _raw = String(userText || '').split('(SYSTEM NOTE')[0].split('🔎')[0].trim();
+      // NOT "plus" and NOT "with": "Air Max Plus" and "Plus 3" are shoes we actually sell, and
+      // splitting on the word would quietly turn a Plus ask into a plain Air Max one.
+      const SPLIT = /\s*(?:,|&|\+|\band\b|\ban\b|\bnd\b|\bn\b|\balso\b)\s*/i;
+      if (turnText && !staffName && twoModelAsks < 1 && knownSize
+          && _raw.length >= 5 && _raw.length <= 70 && SPLIT.test(_raw)) {
+        const segs = _raw.toLowerCase().split(SPLIT)
+          .map(x => x.replace(/[^a-z0-9. ]+/g, ' ').replace(/\s+/g, ' ').trim())
+          .filter(x => x.length >= 2 && x.length <= 28)
+          .slice(0, 3);
+        const groups = [];
+        if (segs.length >= 2) {
+          for (const sg of segs) {
+            let rows = [];
+            try { rows = searchInventory({ query: sg, size: knownSize.split('/')[0] }) || []; } catch (_) {}
+            if (!rows.length || rows.length > 25) continue;
+            /* A SHOE, OR JUST A COLOUR? "black and white" is one request, not two, and reading
+             * it as two would put the whole shop on somebody's phone. A half made only of
+             * colour words is never a shoe ask. */
+            const segWords = sg.split(/[^a-z0-9.]+/).filter(Boolean);
+            if (!segWords.length) continue;
+            if (segWords.every(w => w === 'all' || w === 'triple' || colourWords().has(w))) continue;
+            const key = r => String(r.name || '').toLowerCase()
+              .replace(/\b(all|triple)\b/g, ' ')
+              .replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
+            groups.push({ seg: sg, model: key(rows[0]), rows: rows.slice(0, 10) });
+          }
+        }
+        const distinct = [];
+        for (const g of groups) if (!distinct.some(d => d.model === g.model)) distinct.push(g);
+        if (distinct.length >= 2) {
+          // Which of them actually reached him on this turn?
+          let shownNames = [];
+          try {
+            const rs = recentlySent.get(sub);
+            if (rs && rs.ts >= (ctx.turnAt || 0)) shownNames = (rs.names || []).map(n => String(n).toLowerCase());
+          } catch (_) {}
+          const covered = g => shownNames.some(n => n.indexOf(g.model) !== -1)
+                            || String(turnText).toLowerCase().indexOf(g.model) !== -1;
+          const missing = distinct.filter(g => !covered(g));
+          if (missing.length && missing.length < distinct.length) {
+            twoModelAsks++;
+            let sentNow = 0;
+            const names = [];
+            for (const g of missing) {
+              try {
+                const _lead = 'And the ' + g.seg + ' I got in your ' + knownSize + ' 👟';
+                const _r = await sendShoePhotos(sub, g.rows.map(r => r.id), token, true, null,
+                                                _lead, false, false, false, 0, knownSize);
+                const n = (_r && _r.sent) || 0;
+                if (n > 0) { sentNow += n; photosSentRun = true; names.push(g.seg); }
+              } catch (_) {}
+            }
+            record(req, { endpoint: 'second-shoe-dropped', sub, store: ctx.store || '',
+                          asked: _raw.slice(0, 60), had: distinct.map(g => g.model).join(' + '),
+                          missed: missing.map(g => g.model).join(' + '), sent: sentNow });
+            history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: '
+              + 'they named ' + distinct.length + ' different shoes in one message — '
+              + distinct.map(g => g.seg).join(' and ') + ' — and your reply only covered '
+              + distinct.filter(covered).map(g => g.seg).join(' and ') + '. Our search can only '
+              + 'hold ONE shoe at a time: every word of a query has to match, so asking it for '
+              + 'two shoes at once finds nothing. Two shoes means two searches, every time. '
+              + (sentNow > 0
+                 ? 'The ' + names.join(' and ') + ' pictures have ALREADY been sent — ' + sentNow
+                   + ' of them went out just now. Do NOT send them again and do NOT list them in '
+                   + 'words. Write ONE short line that covers BOTH shoes together.'
+                 : 'Search the one you missed now and send those pictures on this turn.') + ')' });
+            continue;
+          }
+        }
+      }
+    } catch (_) {}
+
     try {
       const ETA_ASK = /\b(how far|any update|still coming|you reaching|how long|where.{0,14}driver|driver.{0,14}(where|far|coming|reach|now)|what time.{0,18}(get here|come|reach|arrive))\b/i;
       const OFFER = /\b(what size|everything we have in|want me to send|which one you like|what(?:'|\u2019)?s good|right here)\b/i;
