@@ -4085,18 +4085,17 @@ function rememberAlbumShown(sub, shoes, forSize) {
                                                  size: String(forSize || '').trim() });
   // ONE shoe shown is a shoe CHOSEN - that is the pair the conversation is now about.
   try { if (list.length === 1) rememberShoe(sub, list[0].name, list[0].price, list[0].id); } catch (_) {}
-  /* 🧾 A SMALL ALBUM IS A SHORTLIST, AND IT GOES ON THE TABLE (Rodney 2026-10-06: "if a
-   * customer already sent two shoes or already spoke about two shoes and then says he wants
-   * two shoes, she should think he wants the two shoes that were already spoken about").
-   * Her own words are not always enough to catch the shoe - she writes "that's the Air Max 97"
-   * with no colourway, and a name-plus-colour test cannot match that. But the PICTURE she sent
-   * names it exactly. One to three pictures is somebody being shown specific shoes; a size
-   * browse of fifty is not, and must never land on the table. */
-  try {
-    if (list.length >= 1 && list.length <= 3) {
-      for (const it of list) tableAdd(sub, { name: it.name, id: it.id, size: forSize || '', price: it.price });
-    }
-  } catch (_) {}
+  /* ⛔ AN ALBUM DOES NOT GO ON THE TABLE — I TRIED IT AND IT SWITCHED A CUSTOMER'S SHOE.
+   * 2026-10-06, Pasyans Mom +1 242 466-6746: she pointed at the New Balance 1000 in blue and
+   * was correctly told so. One message later she was offered "Air Jordan 4 Military Blue in a
+   * 9 — $180". That shoe came off the table, and it was on the table because a small album put
+   * it there: a "blue" search in a 9 picked a handful of shoes, rememberAlbumShown ran BEFORE
+   * anything was sent (those albums sent nothing at all), and a shoe she never laid eyes on
+   * became "already on the table" — which the note then handed Kiki as the subject.
+   * A few pictures out of a colour search is not a shortlist, and a shoe that was never
+   * delivered is not a conversation. The table learns only from shoes Kiki NAMES with their
+   * colourway or nickname in her own words, and from orders actually filed — both deliberate
+   * acts. Rodney's ask (two shoes already spoken about) is served by those two routes. */
   if (albumShown.size > 300) { const k = albumShown.keys().next().value; albumShown.delete(k); }
 }
 // The note Kiki gets when they point at one of those pictures.
@@ -5247,7 +5246,7 @@ function tableAdd(sub, item) {
       if (item.price && !ex.price) ex.price = String(item.price);
       if (item.id && !ex.id) ex.id = String(item.id);
     } else {
-      row.items.push({ name, id: item.id ? String(item.id) : '',
+      row.items.push({ name, id: item.id ? String(item.id) : '', at: Date.now(),
                        size: item.size ? String(item.size) : '', price: item.price ? String(item.price) : '' });
     }
     row.ts = Date.now();
@@ -5262,13 +5261,23 @@ function tableNote(sub) {
     const row = onTheTable.get(String(sub));
     if (!row || !Array.isArray(row.items) || !row.items.length) return '';
     if (Date.now() - (row.ts || 0) > 6 * 3600 * 1000) return '';
-    const bits = row.items.map(i => i.name + (i.size ? ' (size ' + i.size + ')' : '')
+    /* ⏳ EACH SHOE AGES ON ITS OWN, AND NINETY MINUTES IS THE LIMIT. A sale happens in
+     * minutes; a shoe named two hours ago is history, not the subject, and the longer a wrong
+     * entry can sit here the more chances it has to pull somebody off the shoe they want
+     * (2026-10-06: a stray Jordan 4 did exactly that). The row keeps six hours on disk so a
+     * restart does not lose a live order - only what gets HANDED to her is capped. */
+    const _fresh = row.items.filter(i => !i.at || (Date.now() - i.at) < 90 * 60 * 1000);
+    if (!_fresh.length) return '';
+    const bits = _fresh.map(i => i.name + (i.size ? ' (size ' + i.size + ')' : '')
                                   + (i.price ? ' $' + String(i.price).replace(/[^0-9.]/g, '') : ''));
     return '(SYSTEM NOTE — the customer cannot see this: ALREADY ON THE TABLE in this chat, '
       + 'whether or not you can still see it above — ' + bits.join('; ') + '. These are shoes '
       + 'you have already quoted or booked for this person. If they say they want "2", "both" or '
       + '"all of them", THESE are the ones — never ask them to pick again, and never drop one '
-      + 'off the order. Add them up at full price.)';
+      + 'off the order. Add them up at full price.\n'
+      + '\u26a0\ufe0f THIS LIST NEVER OVERRIDES WHAT THEY JUST SAID. If their last message named or '
+      + 'pointed at a shoe, THAT is the one they mean, even when it is not on this list — and you '
+      + 'must never answer somebody with a shoe off this list that they did not ask about.)';
   } catch (_) { return ''; }
 }
 // Every colour word our own shelf uses, built once. Used to tell a colour ask from a shoe ask.
