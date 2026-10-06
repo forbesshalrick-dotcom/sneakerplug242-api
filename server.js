@@ -730,12 +730,25 @@ const MODEL_RULES = [
   [/\bcrocs?\b/i,                   /crocs/i],
   [/\byeezy\b|\bfoam\b/i,         /yeezy|foam/i],
 ];
+/* 👟 ALL THE MODELS IN THAT MESSAGE, NOT THE FIRST ONE (found by the drill 2026-10-06, and
+ * it is the deep half of Rodney's "97 and vapormax why kiki cant understand?").
+ * He typed "97 an vapors". She searched BOTH correctly - VaporMax found 1, Air Max 97 found 1 -
+ * and then this guard threw the VaporMax away, because it stopped at the first rule that
+ * matched and from then on every shoe that was not a 97 looked like a mixed-in stranger. One
+ * message naming two shoes is one customer who wants two shoes; the newest message still wins
+ * over older ones, but inside it every model he named counts. */
 function modelWanted(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '');
     if (!t.trim()) continue;
     if (/\b(any(thing)?|whatever|everything|all of (it|them)|surprise me|no preference)\b/i.test(t)) return null;
-    for (const [asked, matches] of MODEL_RULES) if (asked.test(t)) return matches;
+    const hits = [];
+    for (const [asked, matches] of MODEL_RULES) if (asked.test(t)) hits.push(matches);
+    if (hits.length === 1) return hits[0];
+    if (hits.length > 1) {
+      try { return new RegExp(hits.map(r => r.source).join('|'), 'i'); }
+      catch (_) { return hits[0]; }
+    }
   }
   return null;
 }
@@ -5384,6 +5397,26 @@ function lockedShoeNote(sub) {
     + '• Only move off it if the CUSTOMER names something else outright.';
 }
 // Every colour word our own shelf uses, built once. Used to tell a colour ask from a shoe ask.
+/* 🔢 THE NUMBERS THAT ARE SHOE NAMES, not money. Found by the drill 2026-10-06: "97 an
+ * vapors" was read as ninety-seven DOLLARS, because the price-as-size guard counts any number
+ * from 20 to 400 as money when nothing in the message looks like a size. A 97 is an Air Max,
+ * a 9060 is a New Balance, and nobody in this shop has ever meant $97. Built from our own
+ * catalogue so it can never drift from what we actually sell. */
+let _modelNums = null;
+function modelNumbers() {
+  if (_modelNums) return _modelNums;
+  const set = new Set();
+  try {
+    for (const sh of catalog) {
+      for (const n of (String(sh.name || '') + ' ' + String(sh.nickname || '')).match(/\d{2,4}/g) || []) {
+        const v = parseInt(n, 10);
+        if (v >= 20 && v <= 9999) set.add(v);
+      }
+    }
+  } catch (_) {}
+  _modelNums = set;
+  return set;
+}
 let _colourWords = null;
 function colourWords() {
   if (_colourWords) return _colourWords;
@@ -10218,7 +10251,11 @@ and it must NEVER be answered with a question back.`;
                           .replace(/\btwo\s+hundred\b/g, () => { nums.push(200); return ' '; })
                           .replace(/\b(one|a)\s+hundred\b/g, () => { nums.push(100); return ' '; });
             for (const w of (_rest.match(/[a-z]+/g) || [])) if (WORDNUM[w] != null) nums.push(WORDNUM[w]);
-            const moneyish = nums.filter(n => n >= 20 && n <= 400);
+            // A number that is the NAME of a shoe we sell is not a price — unless they wrote
+            // a dollar sign or said it like money. See modelNumbers().
+            const _saidMoney = /[$]|\b(dollars?|bucks|pay|paying|give (?:you|u)|for)\b/i.test(_t);
+            const moneyish = nums.filter(n => n >= 20 && n <= 400
+                                         && (_saidMoney || !modelNumbers().has(n)));
             const sizeish = nums.filter(n => n >= 4 && n <= 14);
             // Right after the price list, a money-shaped number settles it even when another
             // number in the same breath could pass for a size - which is exactly the shape of
