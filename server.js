@@ -8414,6 +8414,7 @@ and it must NEVER be answered with a question back.`;
   let saidOutWeHave = 0;       // "we're out of it" about a shoe sitting on the shelf
   let priceListDodged = 0;     // a general price ask answered with anything but the list
   let sizesMadeToChoose = 0;   // they listed several sizes and were asked to pick one
+  let gaveARange = 0;          // "$70-$180" instead of a price, with the price on the card
   let namedFromAirs = 0;       // she named a shoe off a photo without ever looking at ours
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
@@ -8782,6 +8783,52 @@ and it must NEVER be answered with a question back.`;
             continue;
           }
         }
+      }
+    } catch (_) {}
+
+    /* 🏷️ THE PRICE IS PRINTED ON THE PICTURE (Rodney 2026-10-06, +1 242 636-9535: "also the
+     * price is on the picture").
+     *
+     * He tapped one of our cards and asked "How much". He got "Most of them are $120 👟 The
+     * Jordans and Yeezys range from $70-$180 — which one you like?". Every card we send has
+     * the price printed on it in a yellow burst, so a range is the one answer that cannot be
+     * right: he is looking at the number while he reads it. The prompt has banned vague ranges
+     * since August and it still went out.
+     *
+     * If everything we put on his screen costs the same, that is the answer, flat. If not, the
+     * price is ON the picture he is holding — say so and ask for the name on it, which is one
+     * question that actually gets somewhere. Never a span of numbers. */
+    try {
+      const RANGE = /\$\s?\d{2,3}\s*(?:-|–|—|to|–)\s*\$?\s?\d{2,3}|\brange(?:s|d)? from\b|\banywhere from \$/i;
+      if (turnText && !staffName && gaveARange < 1 && RANGE.test(turnText)) {
+        gaveARange++;
+        let prices = [], names = [];
+        try {
+          const a = albumShown.get(String(sub));
+          if (a && Date.now() - a.at < 30 * 60 * 1000) {
+            prices = [...new Set((a.shoes || []).map(x => Number(x.price)).filter(Boolean))];
+            names = (a.shoes || []).slice(0, 6).map(x => x.name);
+          }
+        } catch (_) {}
+        record(req, { endpoint: 'price-range-blocked', sub, store: ctx.store || '',
+                      said: turnText.slice(0, 90), album: prices.join('/') });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+          + 'gave them a RANGE of prices. Never do that. Every picture we send has the price '
+          + 'PRINTED ON IT — they are looking at the number while they read your message, so a '
+          + 'span of numbers tells them we do not know our own prices.\n'
+          + (prices.length === 1
+             ? 'Everything you put on their screen is $' + prices[0] + '. That is the answer — '
+               + 'say that one number and move to their size or the delivery.'
+             : prices.length > 1
+               ? 'What you sent them is not all one price (' + prices.map(x => '$' + x).join(', ')
+                 + '), so you cannot name one yet. Say the price is on the pic and ask for the '
+                 + 'NAME printed on the one they mean — one short line. You showed them: '
+                 + names.join(', ') + '.'
+               : 'Say the price is printed on the pic and ask for the name on the one they mean, '
+                 + 'in one short line.')
+          + ' Do NOT ask "which one you like" with no help attached, and do not quote a range '
+          + 'again on this turn.)' });
+        continue;
       }
     } catch (_) {}
 
