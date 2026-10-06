@@ -8334,6 +8334,7 @@ and it must NEVER be answered with a question back.`;
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
   let namedModel = '';         // the shoe they named before answering with a bare size
   let wrongShoeNamed = 0;      // she named a shoe other than the one the owner settled
+  let tinySizeTaken = 0;       // a 1/2/3 taken literally when it is a dropped digit
   let namedFromAirs = 0;       // she named a shoe off a photo without ever looking at ours
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
@@ -8581,6 +8582,44 @@ and it must NEVER be answered with a question back.`;
                       was: _was.slice(0, 120), now: turnText.slice(0, 120) });
       }
     }
+    /* 🔢 "SIZE 1" IS A DROPPED DIGIT, NOT A BABY SHOE (Rodney 2026-10-06, Shaniaaaaa
+     * +1 242 824-3307: "kiki confused again"). She asked for "size 1 in panda dunks" and was
+     * told a 1 is too small for us, then handed a list of three shoes she never asked about.
+     * We start at a 4 and have never sold a 1, 2 or 3 in our lives - so a 1 on a phone keypad
+     * is an 11 with a finger slip, and we have the panda Dunk in an 11 right now. Never take a
+     * size we do not stock at face value and close the door on it: ask the obvious question,
+     * with their shoe in the size they probably meant already named. */
+    try {
+      const _said = String(userText || '').split('(SYSTEM NOTE')[0];
+      const _tiny = _said.match(/\b(?:size|sz)\s*(1|2|3)\b(?!\d)|\b(1|2|3)\s*(?:in|for)\b/i);
+      const _tooSmall = /\b(?:too small|we start at|start(?:ing)? from|smallest(?: size)? (?:we|is)|don'?t (?:carry|go|have) (?:a |that )?(?:size )?[123]\b|only go(?:es)? down to)\b/i;
+      if (turnText && !staffName && tinySizeTaken < 1 && _tiny && _tooSmall.test(turnText)) {
+        const n = String(_tiny[1] || _tiny[2] || '');
+        const guess = '1' + n;                       // 1 -> 11, 2 -> 12, 3 -> 13
+        const model = lastModelNamed(_said) || lastModelNamed(String(turnText));
+        let have = [];
+        try {
+          have = (searchInventory(model ? { query: model, size: guess } : { size: guess }) || []).slice(0, 6);
+        } catch (_) {}
+        tinySizeTaken++;
+        record(req, { endpoint: 'tiny-size-was-a-typo', sub, store: ctx.store || '',
+                      asked: n, guess, model: model || '', found: have.length });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'typed a size ' + n + '. We have never stocked a ' + n + ' — we start at a 4 — so on '
+          + 'a phone keypad that is almost certainly a ' + guess + ' with a dropped digit. Do NOT '
+          + 'close the door on them and do NOT hand them a list of shoes they did not ask about. '
+          + (have.length
+             ? 'We DO have ' + (model ? 'the ' + model : 'shoes') + ' in a ' + guess + ': '
+               + have.map(r => r.name + ' $' + r.price).join(', ') + '. Ask the one short '
+               + 'question — "you mean a ' + guess + '? 👟" — and name what we have in it, then '
+               + 'send the pictures.'
+             : 'Ask the one short question — "you mean a ' + guess + '? 👟" — and wait for the '
+               + 'answer before anything else.')
+          + ' Keep it to one line.)' });
+        continue;
+      }
+    } catch (_) {}
+
     /* 🔒➡️🛒 "READY TO LOCK THAT IN?" IS NOT HOW ANYBODY TALKS (Rodney 2026-10-06:
      * "Don't say you're ready to lock that in. Say you want that now or you want it now.")
      * Same treatment as the opener: a text ban asks her not to slip, this makes slipping
@@ -8607,7 +8646,16 @@ and it must NEVER be answered with a question back.`;
         turnText = withPw;
       }
     }
-    if (turnText) lastText = turnText; // remember it in case nothing else lands
+    /* 🧯 THE SAFETY NET MUST NEVER RESEND WHAT A GUARD JUST BLOCKED (Rodney 2026-10-06,
+     * Shaniaaaaa +1 242 824-3307: "kiki confused again").
+     * She asked for a panda Dunk; the album came back empty and Kiki typed a LIST of three
+     * other shoes with a website link. text-list-blocked caught it exactly as designed and
+     * sent the turn back for a retry — and then the retry produced nothing, so the safety net
+     * fired and sent the blocked list anyway, word for word, because lastText had been set
+     * here BEFORE the guards ever ran. Every guard in this file could be undone the same way.
+     * lastText is now set only AFTER a reply has survived the guards, down at the send. A
+     * blocked turn leaves it empty, and the net falls back to its own honest line. */
+    // (lastText is assigned after the guards — see the send below.)
     /* 🧾 REMEMBER THAT WE JUST HANDED THEM A PRICE LIST. The numbers on it come straight back
      * at us - "the 70 and the 50" - and whether those are dollars or feet is decided entirely
      * by what we sent a minute ago. Without this, "seven and fifty" is just two numbers. */
@@ -10024,6 +10072,8 @@ and it must NEVER be answered with a question back.`;
       pinAskCount.set(sub, (pinAskCount.get(sub) || 0) + 1);
       if (pinAsked.size > 500) { const f = pinAsked.keys().next().value; pinAsked.delete(f); }
     }
+    // It has survived every guard above, so it is safe for the safety net to fall back on.
+    if (turnText) lastText = turnText;
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
