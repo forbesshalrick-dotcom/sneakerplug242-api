@@ -8563,6 +8563,43 @@ and it must NEVER be answered with a question back.`;
       record(req, { endpoint: 'caught-your-eye-rewritten', sub, store: ctx.store || '',
                     was: _before.slice(0, 120), now: turnText.slice(0, 120) });
     }
+    /* ✅ "YES, WE GOT IT" — NOT THE WHOLE SHOE READ BACK (Rodney 2026-10-06: "Instead of
+     * saying yes, we got that six and a half, just say yes, we got it. Because she asked
+     * several times because she didn't understand.")
+     * +1 242 820-6388 asked by voice note three times whether we had it, and each time got the
+     * shoe, the colour and the size recited back at her. Reading someone's own question back to
+     * them does not sound like an answer - it sounds like you are checking, so they ask again.
+     * She already knows what she asked for. Yes is the answer. The price and the delivery line
+     * after it are untouched. */
+    if (turnText && /^\s*(?:yeah|yes|yep|yup|yh)\b[^.?!\n]{0,80}?\bwe\s+(?:got|have)\b/i.test(turnText)) {
+      const _WE_GOT = /^(\s*)(yeah|yes|yep|yup|yh)\b([,!]?)\s+we\s+(got|have)\s+(?:the|that|them|those|a|an)\s+[^.?!\n]*?\bin\s+(?:a\s+|an\s+|your\s+)?(?:women'?s\s+|mens?'?s?\s+|w\s+|m\s+)?\d{1,2}(?:\.5)?\b/i;
+      if (_WE_GOT.test(turnText)) {
+        const _was = turnText;
+        turnText = turnText.replace(_WE_GOT, (m, sp, yes, punc, verb) => sp + yes + punc + ' we ' + verb + ' it')
+          .replace(/[ \t]{2,}/g, ' ').trim();
+        record(req, { endpoint: 'size-recited-back-trimmed', sub, store: ctx.store || '',
+                      was: _was.slice(0, 120), now: turnText.slice(0, 120) });
+      }
+    }
+    /* 🔒➡️🛒 "READY TO LOCK THAT IN?" IS NOT HOW ANYBODY TALKS (Rodney 2026-10-06:
+     * "Don't say you're ready to lock that in. Say you want that now or you want it now.")
+     * Same treatment as the opener: a text ban asks her not to slip, this makes slipping
+     * impossible. It swaps the closing question only — the price, the shoe and the size in
+     * front of it are untouched — and it keeps his pronoun, "that" or "it". */
+    if (turnText && /\block(?:ing|ed)?\s+(?:that|it|this|them|'?em)\s+in\b/i.test(turnText)) {
+      const _was = turnText;
+      // Only the closing question is touched - never the price, the size or the shoe in front
+      // of it. The lead-in is matched from a short list of real lead-ins, not "any text", so it
+      // cannot run backwards and swallow "$120" or "a women's 6.5".
+      const _LOCKED = /(?:\s*[,\u2014-]+\s*)?\b(?:(?:you|u|we)\s+)?(?:ready\s+to|wanna|want\s+to|want\s+me\s+to|shall\s+we|should\s+we|let'?s|ready|just)?\s*lock(?:ing|ed)?\s+(?:that|it|this|them|'?em)\s+in\b(?:\s+for\s+(?:you|ya|yuh))?\s*[?.!]*\s*/gi;
+      turnText = turnText
+        .replace(_LOCKED, (m) => (/\bit\s+in\b/i.test(m) ? ' You want it now? ' : ' You want that now? '))
+        .replace(/[ \t]{2,}/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      record(req, { endpoint: 'lock-it-in-rewritten', sub, store: ctx.store || '',
+                    was: _was.slice(0, 120), now: turnText.slice(0, 120) });
+    }
     if (wholesale && turnText) {
       const withPw = SI.ensurePassword(turnText, { local: SI.isBahamian(getPhone(req)) });
       if (withPw !== turnText) {
