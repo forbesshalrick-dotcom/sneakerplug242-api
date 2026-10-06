@@ -8470,6 +8470,7 @@ and it must NEVER be answered with a question back.`;
   // top it up with the rest. Only pure size (±brand) searches count; a colour/query/price
   // search means the customer wanted something specific, so we never widen those.
   const turnSentIds = new Set();        // shoe ids actually sent this turn
+  let turnColourWanted = [];            // the colour they asked for, readable after the turn
   const turnSizeSearchSizes = [];       // sizes from pure size (±brand only) searches this turn
   const turnSizeSearchBrands = [];      // the brand filter on each of those searches ('' = none)
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
@@ -10758,6 +10759,7 @@ and it must NEVER be answered with a question back.`;
           );
           const wanted = colourWanted(recentSaid2);
           _colourWanted = wanted;
+          turnColourWanted = wanted;
           if (wanted.length) {
             const liveM = liveShoeMap();
             const keep = (id) => {
@@ -11936,6 +11938,49 @@ and it must NEVER be answered with a question back.`;
   // turnTopUpMerged: the rest-of-your-size was already folded into the album Kiki just sent
   // (see size-topup-merged above), so there is nothing left to append — firing here too would
   // re-send the very "and here's the rest 👇" second batch that merging exists to remove.
+  /* 🎨 AND CHECK THE ALBUM THAT ACTUALLY WENT OUT (idea from the M5 Facebook session, who
+   * hit the same chat from their side: "a colour-equivalent - customer named a colour, the
+   * album that went out contains none of it - would catch exactly this").
+   *
+   * The colour guard inside send_photos is correct - fed Lisa's "pink and white dunks" it
+   * drops a Purple/White, a Black/White and an Orange, which is exactly what she was sent. So
+   * the album she got never passed through it. Rather than hunt which of the half-dozen paths
+   * that build an album skipped it, check the result: these are the ids that really reached
+   * her. If she named a colour and not one shoe that went out is that colour, the guard did
+   * not happen, and the shoes she asked for go now. Once per turn, and never when a colour
+   * album has already been sent on this turn. */
+  if (!staffName && saidOutWeHave < 1 && turnColourWanted.length && turnSentIds.size) {
+    try {
+      const _lm3 = liveShoeMap();
+      const _lead = sh => String((sh && sh.color) || '').toLowerCase()
+        .replace(/\bgray\b/g, 'grey').split(/[\/,]/)[0].replace(/\ball\b/g, '').trim();
+      const _isWanted = sh => { const L = _lead(sh);
+        return !!L && turnColourWanted.some(w => L === w || L.startsWith(w + ' ') || L.endsWith(' ' + w)); };
+      let _hit = 0;
+      for (const id of turnSentIds) if (_isWanted(_lm3[id])) _hit++;
+      if (!_hit) {
+        const _sz = String(knownSize || '').split('/')[0].trim();
+        let _right = [];
+        try {
+          _right = (searchInventory(Object.assign({ color: turnColourWanted.join(' ') },
+                                                  _sz ? { size: _sz } : {})) || [])
+            .filter(r => !turnSentIds.has(r.id)).slice(0, 10);
+        } catch (_) {}
+        record(req, { endpoint: 'colour-missing-from-album', sub, store: ctx.store || '',
+                      wanted: turnColourWanted.join('/'), sent: turnSentIds.size, have: _right.length });
+        if (_right.length) {
+          const _r = await sendShoePhotos(sub, _right.map(r => r.id), token, true, null,
+            'And here go the ' + turnColourWanted.join(' and ') + ' I got'
+              + (_sz ? ' in your ' + _sz : '') + ' 👟',
+            false, false, false, ctx.turnAt || 0, _sz || null).catch(() => null);
+          if (_r && _r.sent > 0) { photosSentRun = true; sentToCustomer = true; }
+          record(req, { endpoint: 'colour-album-repaired', sub, store: ctx.store || '',
+                        wanted: turnColourWanted.join('/'), sent: (_r && _r.sent) || 0 });
+        }
+      }
+    } catch (e) { record(req, { endpoint: 'colour-repair-error', sub, error: String(e).slice(0, 100) }); }
+  }
+
   /* 🎯 THE NAMED SHOE WINS — SEND IT EVEN IF SHE SENT THE SHELF (Rodney 2026-10-06: "he said
    * vapormax"). The system line above steers her, and a steer is not a guarantee: she has sent
    * the whole size browse over a named shoe before. If a model was named and what went out was
