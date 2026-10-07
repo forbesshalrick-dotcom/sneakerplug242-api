@@ -2486,6 +2486,18 @@ function liveAds() {
  * $150 ad, typed "11", and got "This is what we have in 11 rite now" - the whole shelf -
  * because as far as she knew FF was advertising nothing at all.
  * An ad entry may now carry `shop`. No `shop` means every line, as before. */
+// The shoe ids this shop is advertising right now, for the paths that must LEAD with them.
+function adShoeIds(store) {
+  try {
+    const _st = String(store || '').toLowerCase().trim();
+    const out = [];
+    for (const ad of (liveAds().ads || [])) {
+      if (ad.shop && String(ad.shop).toLowerCase().trim() !== _st) continue;
+      for (const sh of (ad.shoes || [])) if (sh && sh.id) out.push({ id: String(sh.id), name: sh.name, price: sh.price });
+    }
+    return out;
+  } catch (_) { return []; }
+}
 function adsBlock(store) {
   try {
     const _all = liveAds().ads || [];
@@ -7978,6 +7990,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
   }
   const history = sanitizeHistory(convos.get(sub) || []);
+  // What this shop advertises, filled in on a bare-size turn and read after it. Declared
+  // here because the bare-size block below runs long before the counters are set up.
+  let turnAdShoes = [];
   // A photo is a fresh statement of what they want - every colour they typed before it is
   // history. See colourCut above.
   try { if (image) { colourCut.set(String(sub), history.length); if (colourCut.size > 500) { const f = colourCut.keys().next().value; colourCut.delete(f); } } } catch (_) {}
@@ -8482,6 +8497,13 @@ and it must NEVER be answered with a question back.`;
     if (bareSize && sizeFromCustomerWords(userText)) {
       forceSearchNext = true;
       record(req, { endpoint: 'bare-size-forced-search', sub, q: String(userText).slice(0, 20) });
+      /* 📣 AND IF THIS SHOP IS RUNNING AN AD, THAT IS WHAT THE SIZE IS FOR (Rodney 2026-10-07:
+       * "foot fetish only has these jordans up on an ad now. why the confusion?"). Somebody
+       * who tapped an ad and then types a bare size is asking about the ADVERTISED shoe in
+       * that size - they are looking at the picture while they type. Saying so in the prompt
+       * was not enough: the forced size search ran anyway and handed back the whole shelf. So
+       * the ids travel out of the turn and go on top of whatever album she sends. */
+      try { turnAdShoes = adShoeIds(ctx.store) || []; } catch (_) {}
       /* 🎯 AND THE SIZE BELONGS TO THE SHOE THEY JUST NAMED (Rodney 2026-10-06: "he said
        * vapormax"). +1 242 822-7913 typed "Vape", was told "Got it — VaporMax 👟 what size you
        * wear?", answered "10" — and got two Jordan 4s at $180. The force above searches the
@@ -12257,6 +12279,30 @@ and it must NEVER be answered with a question back.`;
         }
       }
     } catch (e) { record(req, { endpoint: 'colour-repair-error', sub, error: String(e).slice(0, 100) }); }
+  }
+
+  /* 📣 THE ADVERTISED SHOE LEADS. Same shape as the named-shoe top-up below: if this shop is
+   * running an ad, the customer gave nothing but a size, and a general size album went out
+   * anyway, the ad's shoes go on top of it in their size. They are the only thing somebody who
+   * tapped that ad can be asking about. */
+  if (!staffName && turnAdShoes.length && turnGenericSizeAlbum) {
+    try {
+      const _sz = String(knownSize || '').split('/')[0].trim();
+      const _lm = liveShoeMap();
+      const _have = turnAdShoes
+        .filter(a => _lm[a.id] && !turnSentIds.has(a.id))
+        .filter(a => String(sizesOf(_lm[a.id]) || '').split(/[,\s]+/).filter(Boolean).includes(_sz));
+      if (_have.length) {
+        const _r = await sendShoePhotos(sub, _have.map(a => a.id), token, true, null,
+          'These are the ones on the ad' + (_sz ? ' — in your ' + _sz : '') + ' 👟',
+          false, false, false, ctx.turnAt || 0, _sz || null).catch(() => null);
+        record(req, { endpoint: 'ad-shoes-sent-first', sub, store: ctx.store || '',
+                      size: _sz, sent: (_r && _r.sent) || 0, had: _have.length });
+        if (_r && _r.sent > 0) { photosSentRun = true; sentToCustomer = true; }
+      } else {
+        record(req, { endpoint: 'ad-shoes-none-in-size', sub, store: ctx.store || '', size: _sz });
+      }
+    } catch (e) { record(req, { endpoint: 'ad-shoes-error', sub, error: String(e).slice(0, 100) }); }
   }
 
   /* 🎯 THE NAMED SHOE WINS — SEND IT EVEN IF SHE SENT THE SHELF (Rodney 2026-10-06: "he said
