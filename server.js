@@ -16780,7 +16780,7 @@ function deliveredPair(sub) {
       if (rows.length === 1) sh = shoeByAnyId(rows[0].id, lm);
       else if (rows.length > 1) {
         const inSize = rows.filter(r => String(r.sizes || '').split(/[,\s]+/).includes(String(size)));
-        if (inSize.length === 1) sh = lm[inSize[0].id];
+        if (inSize.length === 1) sh = shoeByAnyId(inSize[0].id, lm);
       }
     } catch (_) {}
   }
