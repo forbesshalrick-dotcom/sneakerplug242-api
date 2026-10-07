@@ -1587,6 +1587,33 @@ function getToken(req) {
 }
 
 async function sendChunkRaw(subscriberId, messages, token) {
+  /* 📵 DO NOT ASK MANYCHAT ABOUT SOMEBODY IT HAS NEVER HEARD OF (Rodney 2026-10-07, watching
+   * the alerts: "ALBUM CUT SHORT 0 photos went").
+   *
+   * A Foot Fetish customer comes in through YCloud, so ManyChat has no subscriber for them and
+   * answers "Subscriber does not exist" to every single call. Measured on +51 927 465 414 in
+   * ONE two-minute window: 62 failed sends, 9 albums attempted, 0 photos delivered, and an
+   * alarm fired at Rodney for each one. Each photo also burned a 45-second timeout budget
+   * before failing. The fallback at the bottom of this function was already right - it parks
+   * the words for kiki-waoutbox - it was just being reached the long way round, twenty times
+   * per album.
+   * So a phone-shaped id we know came from YCloud never goes to ManyChat at all. Text is
+   * parked for the browser immediately; a photo fails instantly and cleanly, which lets
+   * album-sent-nothing queue the browser forward once instead of the loop. */
+  try {
+    const _phoneSub = ycloudStore.has(String(subscriberId || ''))
+                   && /^\d{10,15}$/.test(String(subscriberId || ''));
+    if (_phoneSub) {
+      const _text = (messages || []).filter(m => m && m.type === 'text' && m.text)
+                                    .map(m => String(m.text)).join('\n\n').trim();
+      if (_text) { try { queueWaOutbox(String(subscriberId), _text); } catch (_) {} }
+      try { recent.unshift({ at: new Date().toISOString(), endpoint: 'ycloud-skipped-manychat',
+                             sub: String(subscriberId), had: (messages || []).length,
+                             text: _text ? 'queued for the browser' : 'photo - no road here' }); } catch (_) {}
+      return { ok: false, status: 0,
+               body: JSON.stringify({ skipped: 'ycloud line - ManyChat has no subscriber for this number; text parked for the browser outbox' }) };
+    }
+  } catch (_) {}
   // HARD TIMEOUT (2026-07-16: a size-9 album froze silently at shoe E8 — one
   // ManyChat call hung forever with no error, and the whole album hung with it).
   // 20s was too tight for PHOTO sends: ManyChat regularly takes longer than that and
