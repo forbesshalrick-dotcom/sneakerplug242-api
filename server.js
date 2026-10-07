@@ -9951,7 +9951,14 @@ and it must NEVER be answered with a question back.`;
       // asking permission to do the thing they just asked for (Rodney 2026-10-07, on a camo
       // jacket: the customer asked for matching shoes and was asked whether he wanted matching
       // shoes).
-      const ASK_TO_SEND = /\b(want me to (?:send|show|find|look|pull|match|check)|should i send|shall i send|you want (?:me )?(?:to )?see|want to see (?:them|those|'?em|the pics?|the photos?)|let me know if you want (?:me to )?(?:send|show|find)|i can send (?:them|those|'?em)(?:\s|[?.!]|$)|\bor i can (?:send|show)\b)/i;
+      /* 🕳️ "WANT TO SEE SOME OTHER JORDANS?" USED TO WALK STRAIGHT THROUGH THIS.
+       * Rodney 2026-10-07, Nexgen +1 242 810-9740, flagged "KIKI WASTING TIME". He asked for a
+       * Jordan 11 in an 8.5 or 9, we had one, and the reply was "Nah... Want to see some other
+       * Jordans we have in your 8.5 or 9?" - a question, with 24 Jordans in his size sitting
+       * right there. The old pattern only caught "want to see THEM / THOSE / the pics", so any
+       * offer that named the shoes instead of pointing at them was invisible to the guard.
+       * A bare "want to see" is the whole tell; what follows it never mattered. */
+      const ASK_TO_SEND = /\b(want me to (?:send|show|find|look|pull|match|check)|should i (?:send|show)|shall i (?:send|show)|(?:do )?(?:you|u|ya)?\s*want(?:\s+to|a|\s+me\s+to)?\s+see\b|wanna see\b|want(?:\s+to|a)\s+(?:peep|check out)\b|let me know if (?:you|u)(?:'?d| would)? (?:want|like)|i can (?:send|show|pull)\b|\bor i can (?:send|show)\b)/i;
       /* ⚠️ IT FIRES WITH OR WITHOUT IDS (Rodney 2026-10-05, "no pic sent for vapormax").
        * Jsjsh was told "the All Black VaporMax comes in a 10 too 👟 Want me to send it?" and
        * this guard sat out: she had answered from memory without searching, so lastSearchIds
@@ -11001,6 +11008,49 @@ and it must NEVER be answered with a question back.`;
         lastSearchCount = found.length;
         lastSearchIds = found.map(r => String(r.id));
         result = { shoes: found };
+        /* 🚫 A NEAR MISS IS NOT A MATCH - SAY SO IN THE RESULT.
+         * Rodney 2026-10-07 flagged Nexgen (+1 242 810-9740) as "KIKI WASTING TIME":
+         *     THEM: "U got the jordan 11 gamma blue"
+         *     KIKI: "Yeah we got that one! Air Jordan 11 (Gamma Blue) - $180"
+         *     KIKI: "We've got the Jordan 11 Gamma Blue in a 5.5, 6.5, and 7"
+         * We have never owned a Gamma Blue. Those are the ALL BLACK 11's sizes, read off the
+         * row the search returned. The search drops words it cannot match - that is on purpose,
+         * it is what stops a typo killing a sale - but it hands back the survivors with nothing
+         * to say they are not what was asked for, so a near miss reads exactly like a hit. She
+         * then promised a colourway that does not exist and recited another shoe's sizes as its
+         * sizes, and the customer spent four messages finding out we had nothing for him.
+         * So the result now names the words NO returned shoe carries. Nothing is removed - the
+         * near misses are still there to offer - she just can no longer mistake them for a yes. */
+        try {
+          if (found.length && p.query && String(p.query).trim()) {
+            const _n = t => String(t || '').toLowerCase().replace(/\bgray\b/g, 'grey');
+            const STOPQ = new Set(['the','a','an','in','of','and','or','you','u','got','have','has',
+              'do','does','any','some','size','sizes','pair','pairs','shoe','shoes','sneaker',
+              'sneakers','retro','air','nike','jordan','balance','new','me','my','your','is','it',
+              'that','this','them','for','with','on','at','to','got','gat','wan','want','need',
+              'low','high','mid','men','mens','women','womens','kids','please','pls','plz']);
+            const _words = [...new Set(_n(p.query).split(/[^a-z0-9.]+/)
+              .filter(w => w.length >= 3 && !STOPQ.has(w) && !/^\d+(\.\d+)?$/.test(w)))];
+            if (_words.length) {
+              const _hay = found.map(r => _n(`${r.name} ${r.color} ${r.brand}`));
+              const _missing = _words.filter(w => !_hay.some(h => h.includes(w)));
+              if (_missing.length) {
+                result.not_matched = _missing;
+                result.note = 'CAREFUL - NOT AN EXACT MATCH. Nothing we hold is a "'
+                  + _missing.join(' ') + '". The search drops words it cannot find, so what came '
+                  + 'back are the CLOSEST shoes, not the one they asked for. Do NOT say "yeah we '
+                  + 'got that one", do NOT repeat their words back as if they name one of ours, '
+                  + 'and NEVER read these shoes\' sizes out as that shoe\'s sizes. Say plainly we '
+                  + 'do not have that one, then in the SAME message send pictures of what we DO '
+                  + 'have that is closest, by name. Being straight costs one line; a shoe we do '
+                  + 'not own costs the whole sale.';
+                record(req, { endpoint: 'search-near-miss-flagged', sub, store: ctx.store || '',
+                              query: String(p.query).slice(0, 50), missing: _missing.join(','),
+                              found: found.length });
+              }
+            }
+          }
+        } catch (_) {}
         }
         // Remember the customer's size (a single concrete size search = their size) so we can
         // reuse it later without re-asking. Skip "all"/ranges/matching (sizes array).
@@ -17374,8 +17424,24 @@ app.post('/inbox/send-shoe', async (req, res) => {
   // Skip shoes this customer already has (a follow-up send after a partial one), so the
   // rest of a size goes out without repeating a single picture.
   if (Array.isArray(b.exclude_ids) && b.exclude_ids.length) {
-    const skip = new Set(b.exclude_ids.map(String));
-    results = results.filter(x => !skip.has(String(x.id)));
+    /* ⚠️ EXCLUDE BY SHOE ID, NOT BY ROW NUMBER (found by the M5 session 2026-10-07).
+     * searchInventory returns liveCatalog() rows, and liveCatalog() sets `id: +id` where that
+     * id is the ARRAY INDEX into the catalogue - not the shoe's own id. So an exclude_ids list
+     * of real ids ("jordan11volt001") matched nothing at all and every excluded shoe went out
+     * again: on 09-26 a follow-up send repeated 40 photos the customer already had. Resolve
+     * BOTH sides through shoeByAnyId so an index and a real id both work. */
+    const _lmEx = liveShoeMap();
+    const skip = new Set();
+    for (const x of b.exclude_ids) {
+      skip.add(String(x));
+      const sh = shoeByAnyId(x, _lmEx);
+      if (sh && sh.id != null) skip.add(String(sh.id));
+    }
+    results = results.filter(x => {
+      if (skip.has(String(x.id))) return false;
+      const sh = shoeByAnyId(x.id, _lmEx);
+      return !(sh && sh.id != null && skip.has(String(sh.id)));
+    });
     if (!results.length) return res.json({ ok: false, error: 'They already have every shoe that matched — nothing sent.', found: 0 });
   }
   // 📬 A HAND SEND SENDS EVERYTHING IT FOUND (Rodney 2026-09-26).
