@@ -12289,9 +12289,20 @@ and it must NEVER be answered with a question back.`;
     try {
       const _sz = String(knownSize || '').split('/')[0].trim();
       const _lm = liveShoeMap();
-      const _have = turnAdShoes
-        .filter(a => _lm[a.id] && !turnSentIds.has(a.id))
-        .filter(a => String(sizesOf(_lm[a.id]) || '').split(/[,\s]+/).filter(Boolean).includes(_sz));
+      /* Two faults here cancelled into a silent "none in size": the size was matched against
+       * sizesOf()'s HUMAN-facing string, which is for reading rather than matching, and shoes
+       * already sent were excluded - so the wide album that had just gone out ate every one of
+       * them first. Measured on Foot Fetish: a size 11 reported "none" while the Lightning 4,
+       * one of the six on that ad, sits in an 11. Match the numbers on the row, and let a shoe
+       * that already went out be NAMED again under the ad's own price. */
+      const _hasSize = (sh) => {
+        try {
+          const raw = (sh && (sh.sizesRaw || sh.sizes)) || [];
+          return raw.some(x => String(parseFloat(x)) === String(parseFloat(_sz)));
+        } catch (_) { return false; }
+      };
+      const _have = turnAdShoes.filter(a => _lm[a.id] && _hasSize(_lm[a.id]));
+      const _fresh = _have.filter(a => !turnSentIds.has(a.id));
       if (_have.length) {
         const _priced = [...new Set(_have.map(a => Number(a.price)).filter(Boolean))];
         const _lead = 'These are the ones on the ad' + (_sz ? ' — in your ' + _sz : '')
