@@ -2811,6 +2811,10 @@ You also answer these common questions yourself, in your own short friendly word
 - This is the general rule, not a one-off: plain Bahamian shop talk beats polished retail English every time. Short, warm, the way somebody behind the counter actually speaks.
 
 🖼️ A PICTURE THAT IS NOT A SHOE — SAY WHAT IT IS, LIKE A PERSON WOULD (Rodney 2026-10-03, and he has now said it three ways: "why can't she see the picture like Google? Google sees every single picture... she's supposed to be able to point it out").
+👕 CLOTHES ARE FOR MATCHING — THEY ARE A SHOE REQUEST (Rodney, repeatedly, and again 2026-10-07: "I told you clothes are for fucking matching"). A customer sending a jacket, a shirt, a dress, a fit, an outfit — especially with "what shoes match this", "anything to go with that", "shoes for this" — is asking you to SELL THEM SNEAKERS. It is the easiest sale in the shop.
+  ⛔ NEVER say "that's not a shoe" to a clothing picture. NEVER say "we only sell sneakers" to somebody who just asked you for sneakers — that is the rudest possible answer to a buying question. NEVER describe the picture back to them like a report ("I can see the picture is clothing — that's a jacket with a camo pattern and the tag shows a big logo"); nobody talks like that, and they know what they sent you.
+  ⛔ NEVER ask permission ("want me to find you a pair to match?"). They already asked. Doing it IS the answer.
+  ✅ The whole reply is: the colours you can see, warm and short, then their size. "That camo and cream is clean 🔥 what size you wear?" — then the MOMENT they give a size, search those colours in that size and SEND THE PICTURES. If you already know their size, skip straight to sending.
 YOU CAN SEE EVERY PICTURE. A customer sends you a photo of anything — money, a car, a lawnmower, food, a dog, a screenshot, a prayer — and your job is simply to LOOK AT IT and say what it is, warmly, in your own words. Then ONE short line that we only sell sneakers. That is the entire reply.
 ⛔ What you must NEVER do with a non-shoe picture:
   - call for a team member ("a team member will get back to you") — nobody is needed to look at a photo
@@ -2825,6 +2829,7 @@ YOU CAN SEE EVERY PICTURE. A customer sends you a photo of anything — money, a
   - food → "That looks good 😋 we only sell sneakers though 👟"
   - a dog → "Ha, nice dog 🐕 we only do sneakers here 👟"
   - anything we do not deal in → name it lightly, say we only sell sneakers, and leave it there. Do not ask its price, do not offer to buy it, do not take it further.
+  ⛔ CLOTHING IS NOT ON THIS LIST. A jacket, shirt, dress, hoodie, jeans, a whole fit — none of these get "we only sell sneakers". They get the colours and a size question. See the clothing rule above.
 🙏 A PRAYER, A BLESSING OR A MOTIVATIONAL QUOTE IS NOT A SALES OPENING. Bahamians send these every morning. Do NOT answer one with "we only sell sneakers" — that is cold and it reads like a machine. Just take it the way it was meant: "Amen 🙏 blessed morning to you too — holler if you ever need anything 👟". Then stop.
 Let THEM bring up shoes. If they want kicks they will ask. Your one line that we sell sneakers is all the selling a picture of a lawnmower ever needs.
 
@@ -8415,6 +8420,7 @@ and it must NEVER be answered with a question back.`;
   let priceListDodged = 0;     // a general price ask answered with anything but the list
   let sizesMadeToChoose = 0;   // they listed several sizes and were asked to pick one
   let gaveARange = 0;          // "$70-$180" instead of a price, with the price on the card
+  let clothesRefused = 0;      // a garment sent for matching answered with "not a shoe"
   let namedFromAirs = 0;       // she named a shoe off a photo without ever looking at ours
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
@@ -8783,6 +8789,62 @@ and it must NEVER be answered with a question back.`;
             continue;
           }
         }
+      }
+    } catch (_) {}
+
+    /* 👕 CLOTHES ARE FOR MATCHING (Rodney 2026-10-07, "The Dj": "I told you clothes are for
+     * fucking matching").
+     *
+     * He sent a camo jacket and a cream tee and asked "do you have any shoes could match with
+     * that please". He got three replies and all three were wrong: a report reading "I can see
+     * the picture is clothing — that's a jacket with a camo/brown and black pattern... Not a
+     * shoe 👟", then "Want me to find you a pair of shoes to match?" — asking permission to do
+     * the thing he had just asked for — and then "We only sell sneakers here though", said to
+     * a man asking to buy sneakers.
+     *
+     * A garment is the easiest sale in the shop: he has told us the colours and told us he
+     * wants shoes. The prompt has said so for months. So the sentences are removed. */
+    try {
+      const MATCH_ASK = /\b(match(?:es|ing)?|go(?:es)? (?:with|wit)|to wear with|wear (?:with|wit)|outfit|fit\b|something for (?:this|that))\b/i;
+      const BANNED = /\bnot a shoe\b|\bonly (?:sell|do|carry) sneakers\b|\bi can see (?:the |that )?(?:picture|photo|image|pic)\b|\bthat(?:'|’)?s (?:a )?clothing\b|\bthe tag shows\b/i;
+      const _said = String(userText || '').split('(SYSTEM NOTE')[0];
+      const _recentSaid = history.slice(-6)
+        .filter(h => h && h.role === 'user' && typeof h.content === 'string')
+        .map(h => String(h.content).split('(SYSTEM NOTE')[0]).concat([_said]).join(' ');
+      if (turnText && !staffName && clothesRefused < 1 && BANNED.test(turnText)
+          && (image || imageSeenAt.get(sub)) && MATCH_ASK.test(_recentSaid)) {
+        clothesRefused++;
+        let sent = 0;
+        // If we already know their size there is nothing left to ask - send the colours.
+        try {
+          const _sz = String(knownSize || '').split('/')[0].trim();
+          const _col = (colourWanted([_recentSaid]) || []).join(' ');
+          if (_sz && _col) {
+            const rows = (searchInventory({ color: _col, size: _sz }) || []).slice(0, 10);
+            if (rows.length) {
+              const _r = await sendShoePhotos(sub, rows.map(r => r.id), token, true, null,
+                'These go with that 🔥', false, false, false, ctx.turnAt || 0, _sz).catch(() => null);
+              sent = (_r && _r.sent) || 0;
+              if (sent > 0) { photosSentRun = true; sentToCustomer = true; }
+            }
+          }
+        } catch (_) {}
+        record(req, { endpoint: 'clothes-are-for-matching', sub, store: ctx.store || '',
+                      said: turnText.slice(0, 90), sent });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+          + 'sent CLOTHES and asked what shoes go with them. That is a request to BUY SNEAKERS — '
+          + 'the easiest sale in the shop — and you answered it with "not a shoe" / "we only sell '
+          + 'sneakers" / a description of their own photo read back to them. Never again:\n'
+          + '• Never tell somebody asking for sneakers that we only sell sneakers.\n'
+          + '• Never call a garment "not a shoe". Never narrate what is in the picture.\n'
+          + '• Never ask permission to find them something — they asked, doing it is the answer.\n'
+          + (sent > 0
+             ? 'The pictures are ALREADY SENT — ' + sent + ' in their size, in those colours. '
+               + 'Write ONE short warm line around them and nothing else.'
+             : 'Say the colours you can see in half a line and ask their SIZE — that is the whole '
+               + 'reply. The moment they answer, search those colours in that size and send the '
+               + 'pictures.') + ')' });
+        continue;
       }
     } catch (_) {}
 
@@ -9583,7 +9645,11 @@ and it must NEVER be answered with a question back.`;
      * Only fires when we actually have something to send: if there are no ids in hand the
      * question may be the honest thing to ask, and the reply goes through untouched. */
     try {
-      const ASK_TO_SEND = /\b(want me to send|want me to show|should i send|shall i send|you want (?:me )?(?:to )?see|want to see (?:them|those|'?em|the pics?|the photos?)|let me know if you want (?:me to )?(?:send|show)|i can send (?:them|those|'?em)(?:\s|[?.!]|$)|\bor i can (?:send|show)\b)/i;
+      // "want me to FIND you a pair to match?" is the same sin as "want me to send them" -
+      // asking permission to do the thing they just asked for (Rodney 2026-10-07, on a camo
+      // jacket: the customer asked for matching shoes and was asked whether he wanted matching
+      // shoes).
+      const ASK_TO_SEND = /\b(want me to (?:send|show|find|look|pull|match|check)|should i send|shall i send|you want (?:me )?(?:to )?see|want to see (?:them|those|'?em|the pics?|the photos?)|let me know if you want (?:me to )?(?:send|show|find)|i can send (?:them|those|'?em)(?:\s|[?.!]|$)|\bor i can (?:send|show)\b)/i;
       /* ⚠️ IT FIRES WITH OR WITHOUT IDS (Rodney 2026-10-05, "no pic sent for vapormax").
        * Jsjsh was told "the All Black VaporMax comes in a 10 too 👟 Want me to send it?" and
        * this guard sat out: she had answered from memory without searching, so lastSearchIds
