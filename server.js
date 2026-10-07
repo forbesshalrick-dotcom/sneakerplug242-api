@@ -12314,7 +12314,14 @@ and it must NEVER be answered with a question back.`;
                       size: _sz, sent: (_r && _r.sent) || 0, had: _have.length });
         if (_r && _r.sent > 0) { photosSentRun = true; sentToCustomer = true; }
       } else {
-        record(req, { endpoint: 'ad-shoes-none-in-size', sub, store: ctx.store || '', size: _sz });
+        record(req, { endpoint: 'ad-shoes-none-in-size', sub, store: ctx.store || '', size: _sz,
+                      ads: turnAdShoes.length,
+                      inMap: turnAdShoes.filter(a => _lm[a.id]).length,
+                      sample: (() => { try {
+                        const f = turnAdShoes[0]; if (!f) return 'no ads';
+                        const sh = _lm[f.id];
+                        return f.id + (sh ? ' sizes=' + ((sh.sizesRaw || sh.sizes || []).join('/')) : ' NOT IN liveShoeMap');
+                      } catch (_) { return 'err'; } })() });
       }
     } catch (e) { record(req, { endpoint: 'ad-shoes-error', sub, error: String(e).slice(0, 100) }); }
   }
