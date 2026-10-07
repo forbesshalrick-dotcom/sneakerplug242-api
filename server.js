@@ -8488,6 +8488,8 @@ and it must NEVER be answered with a question back.`;
   let sizesMadeToChoose = 0;   // they listed several sizes and were asked to pick one
   let gaveARange = 0;          // "$70-$180" instead of a price, with the price on the card
   let clothesRefused = 0;      // a garment sent for matching answered with "not a shoe"
+  let askedToSeeIt = 0;        // they asked to SEE it and got words
+  let sentThemAway = 0;        // the website offered to somebody we can serve right now
   let namedFromAirs = 0;       // she named a shoe off a photo without ever looking at ours
   let twoModelAsks = 0;        // they named TWO shoes in one breath and only one album went out
   let theySaidWeAreOut = 0;    // the CUSTOMER said we don't have their size, and we do
@@ -8862,6 +8864,95 @@ and it must NEVER be answered with a question back.`;
                    + 'on this turn — a no with nothing attached ends the sale.') + ')' });
             continue;
           }
+        }
+      }
+    } catch (_) {}
+
+    /* 🌐 THE WEBSITE IS FOR PEOPLE WE CANNOT HELP (Rodney 2026-10-07, all day).
+     * "You can see the full lineup at 242plug.com" went to a woman asking to see one shoe we
+     * had in her size, to a man asking for a price list, and to three people whose photos had
+     * simply failed to send. It reads as "go away and do it yourself" to somebody who is
+     * trying to hand us money. The link is fine when we genuinely have nothing - it is never
+     * an answer to a question we can answer. */
+    try {
+      const SITE = /\s*(?:\(|—|-|·)?\s*(?:you can |u can |feel free to |or )?(?:see|browse|check|shop|view)[^.?!\n]{0,40}?\b(?:242plug\.com|our site|the site|the website)\b[^.?!\n]*[?.!]*/gi;
+      const HAS_SITE = /242plug\.com|\bour (?:site|website)\b/i;
+      if (turnText && !staffName && sentThemAway < 1 && HAS_SITE.test(turnText)
+          && (photosSentRun || (Array.isArray(lastSearchIds) && lastSearchIds.length))) {
+        const _was = turnText;
+        turnText = turnText.replace(SITE, ' ')
+          .replace(/[ \t]{2,}/g, ' ').replace(/\s+([?.!])/g, '$1').replace(/\n{3,}/g, '\n\n').trim();
+        if (turnText !== _was) {
+          sentThemAway++;
+          record(req, { endpoint: 'website-link-stripped', sub, store: ctx.store || '',
+                        was: _was.slice(0, 110), now: turnText.slice(0, 110) });
+        }
+      }
+    } catch (_) {}
+
+    /* 📸 "CAN I SEE IT" MEANS SEND THE PICTURE. NOTHING ELSE IS AN ANSWER.
+     * (Rodney 2026-10-07, +1 242 395-1377: "the FUCKING picture".)
+     *
+     * She asked for the pink/silver Asics. She was told its name and its price. She asked
+     * again - "Can I see it pls" - and was told the name and the price a second time, with a
+     * link to the website bolted on. The shoe was on the shelf in her 8.5 the whole time and
+     * the card exists. Twice asking to see a thing we are holding is the clearest buying
+     * signal there is, and twice she got words.
+     *
+     * So this does not ask her to send it. It sends it. The shoe is whichever one is already
+     * settled - the owner's pin, the order table, or the one her own reply just named. */
+    try {
+      const SEE_IT = /\b(can i see|could i see|lemme see|let me see|can you (?:send|show)|send (?:it|me|them|those|a pic|pics|the pic)|show me|a picture|the picture|a photo|the photo|\bpics?\b)\b/i;
+      const _askedSee = String(userText || '').split('(SYSTEM NOTE')[0];
+      if (turnText && !staffName && askedToSeeIt < 1 && !photosSentRun && SEE_IT.test(_askedSee)) {
+        const _lm = liveShoeMap();
+        let pick = null;
+        try { const l = lockedShoeFor(sub); if (l) pick = shoeByAnyId(l.id, _lm); } catch (_) {}
+        if (!pick) {
+          try {
+            const row = onTheTable.get(String(sub));
+            for (const it of ((row && row.items) || []).slice().reverse()) {
+              const c = it.id && shoeByAnyId(it.id, _lm);
+              if (c) { pick = c; break; }
+            }
+          } catch (_) {}
+        }
+        // Otherwise: the shoe SHE just named in the reply they are complaining about.
+        if (!pick) {
+          try {
+            const _mdl = lastModelNamed(turnText);
+            if (_mdl) {
+              const rows = searchInventory(Object.assign({ query: _mdl },
+                knownSize ? { size: String(knownSize).split('/')[0].trim() } : {})) || [];
+              if (rows.length) pick = shoeByAnyId(rows[0].id, _lm);
+            }
+          } catch (_) {}
+        }
+        if (!pick && Array.isArray(lastSearchIds) && lastSearchIds.length === 1) {
+          pick = shoeByAnyId(lastSearchIds[0], _lm);
+        }
+        if (pick) {
+          askedToSeeIt++;
+          let sent = 0;
+          try {
+            const _r = await sendShoePhotos(sub, [pick.id != null ? pick.id : pick], token, true, null,
+              'Here it is 👟', false, false, false, ctx.turnAt || 0,
+              String(knownSize || '').split('/')[0].trim() || null).catch(() => null);
+            sent = (_r && _r.sent) || 0;
+            if (sent > 0) { photosSentRun = true; sentToCustomer = true; }
+          } catch (_) {}
+          record(req, { endpoint: 'asked-to-see-it-sent', sub, store: ctx.store || '',
+                        shoe: displayName(pick), sent, said: turnText.slice(0, 80) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
+            + 'asked to SEE it and you answered with words. Asking to see a shoe we are holding is '
+            + 'the clearest buying signal there is — the only answer is the picture. '
+            + (sent > 0
+               ? 'It has ALREADY been sent (' + displayName(pick) + '). Write ONE short line around '
+                 + 'it — the price and "you want it?" — and nothing else.'
+               : 'Call send_photos for ' + displayName(pick) + ' right now.')
+            + ' And never put the website in front of somebody who asked you for a picture: the '
+            + 'website is where we send people we cannot help, not people we can.)' });
+          continue;
         }
       }
     } catch (_) {}
