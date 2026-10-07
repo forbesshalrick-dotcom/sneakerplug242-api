@@ -9713,6 +9713,24 @@ and it must NEVER be answered with a question back.`;
               || BARE_LOC.test(String(userText || '').split('(SYSTEM NOTE')[0].trim()))
           && !ANSWERS_IT.test(turnText)) {
         whereAreWe++;
+        /* 📍 AND SAY IT IN CODE, NOT BY ASKING HER NICELY (2026-10-07).
+         * The note below is the third version of this rule and the drill still catches "You
+         * Nassau" coming back as "I'm here to help you find the perfect pair! What size you
+         * looking for?" - the retry burns the one allowance and ships the same non-answer.
+         * Where we are is a FACT with no judgement in it: Nassau, Carmichael Road, mobile and
+         * delivery only, free anywhere in Nassau. A fact belongs in code. So the true line goes
+         * on the FRONT of whatever she wrote and the rest of her reply carries on underneath -
+         * nothing is lost, and the question cannot go unanswered again. Another island still
+         * gets the shipping answer; that one has numbers in it and stays with the note. */
+        const _otherIsland = ISLANDS.test(String(userText || ''))
+          && !/\b(nassau|nasau|nassu|new providence)\b/i.test(String(userText || ''));
+        if (!_otherIsland) {
+          const _was = turnText;
+          turnText = 'Yeah we in Nassau — Carmichael Road, mobile only, an we deliver free '
+                   + 'anywhere in Nassau \u{1F697}' + (_was ? '\n\n' + _was : '');
+          record(req, { endpoint: 'location-answered-in-code', sub, store: ctx.store || '',
+                        asked: String(userText || '').slice(0, 60), was: _was.slice(0, 80) });
+        } else {
         record(req, { endpoint: 'location-question-ignored', sub, store: ctx.store || '',
                       asked: String(userText || '').slice(0, 60), said: turnText.slice(0, 80) });
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: they '
@@ -9723,6 +9741,7 @@ and it must NEVER be answered with a question back.`;
           + 'ship there — boat $10 on the weekly sail day, or plane $35 daily, paid first with '
           + 'the receipt sent over. Answer it in one short line, then carry on with the shoes.)' });
         continue;
+        }
       }
     } catch (_) {}
     /* 📷 DO NOT BLAME THE PHOTOS WHEN NO PHOTO WAS EVER SENT (Rodney 2026-10-05: "no pic was
