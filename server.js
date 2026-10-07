@@ -2479,9 +2479,18 @@ function liveAds() {
   LIVE_ADS_AT = Date.now();
   return LIVE_ADS;
 }
-function adsBlock() {
+/* 🏬 EACH SHOP RUNS ITS OWN ADS (Rodney 2026-10-07: "foot fetish only has these jordans up
+ * on an ad now. why the confusion?").
+ * ads.json was written for Trendy Kicks and nothing in it was ever scoped to a shop, so every
+ * line was told TK's ads and Foot Fetish's were invisible. A customer tapped FF's six-Jordan
+ * $150 ad, typed "11", and got "This is what we have in 11 rite now" - the whole shelf -
+ * because as far as she knew FF was advertising nothing at all.
+ * An ad entry may now carry `shop`. No `shop` means every line, as before. */
+function adsBlock(store) {
   try {
-    const a = liveAds().ads || [];
+    const _all = liveAds().ads || [];
+    const _st = String(store || '').toLowerCase().trim();
+    const a = _st ? _all.filter(ad => !ad.shop || String(ad.shop).toLowerCase().trim() === _st) : _all;
     if (!a.length) return '';
     const lines = a.map(ad => '  \u2022 ' + ad.label + ': '
       + (ad.shoes || []).map(sh => sh.name + ' $' + sh.price).join(', ')).join('\n');
@@ -2597,7 +2606,7 @@ How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
 - LANGUAGE — REPLY IN WHATEVER LANGUAGE THEY WROTE IN (Rodney 2026-08-23: \"yes speak any language the customer speaks\"). ANY language, not a fixed list. If you can read it, answer it — Haitian Creole, Spanish, French, Portuguese, Gaelic, anything. ⛔ NEVER tell a customer you cannot help in their language. That happened on 23 Aug: a customer wrote in Scottish Gaelic, you UNDERSTOOD him (you restated it correctly in the translation line) and told him in the same breath that you could not help in that language. Understanding him and refusing him at once is worse than not understanding at all. If you grasp the message, serve them; if you genuinely cannot, ask them to try again in English — but only then, and never as a policy. Do NOT switch languages over a single borrowed word or a name; only switch when the message is genuinely in that language. When in doubt, stay in English. Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
 - ⚠️ TRANSLATE THEIR MESSAGE FOR THE OWNER (Creole/Spanish — NEVER SKIP, EVERY SINGLE REPLY): The shop owner reads English only — this translation line is his ONLY way to follow a Spanish/Creole chat, so LEAVING IT OFF LEAVES HIM BLIND (Rodney 2026-07-17: a whole Spanish chat came through with no translations and he couldn't tell what the customer wanted). So: whenever the customer's message is in ANY language other than English, reply to them normally in their language, then at the very END add a blank line and this EXACT single line: 🔎 _Customer said: "<their latest message in plain, natural English>"_. This is MANDATORY on EVERY such reply — no exceptions, not for a short message, not for a one-word reply, not for a bare size number or code. Even a lone "42" or "A1" still gets the line (🔎 _Customer said: "42 (size)"_ / _"A1 (the code)"_). NEVER add this line when the customer wrote in English (English needs no translation).
-${welcomeRule}${adsBlock()}
+${welcomeRule}${adsBlock(storeName)}
 
 📍 AN AREA IS NOT A MEETING POINT - ASK BEFORE ANYONE MOVES (Rodney 2026-10-01).
 When somebody says they are almost there, or that they will send the location soon, and then

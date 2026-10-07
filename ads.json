@@ -1,33 +1,97 @@
 {
-  "_why": "The ads Trendy Kicks is running RIGHT NOW. Rodney 2026-09-29: 'Kiki never understands when a customer asks for a certain advertisement... the guy asks for the price in size nine and Kiki starts sending them all type of pictures. She don't even know which one he want the price for.' Facebook does not tell us which ad was tapped (and ManyChat does not pass it), so a customer arriving off an ad is invisible to us. This list is what they could possibly be asking about. Keep it in step with what is actually live - anything listed here is what Kiki will name and price.",
-  "shop": "Trendy Kicks",
-  "updated": "2026-09-29",
+  "_why": "The ads each shop is running RIGHT NOW. Rodney 2026-09-29: 'Kiki never understands when a customer asks for a certain advertisement... the guy asks for the price in size nine and Kiki starts sending them all type of pictures.' Facebook does not tell us which ad was tapped (and neither ManyChat nor YCloud passes it), so a customer arriving off an ad is invisible to us. This list is what they could possibly be asking about. Keep it in step with what is actually live - anything listed here is what Kiki will name and price. EACH ENTRY CARRIES ITS OWN `shop` (2026-10-07): Foot Fetish runs different ads from Trendy Kicks, and before this every line was told TK's ads and FF's were invisible - a customer tapped FF's six-Jordan $150 ad, said '11', and got the whole shelf. No `shop` = every line. The `price` here is the AD price and it is what Kiki quotes - that is how a shop runs a sale without cutting the price on the other two lines.",
+  "updated": "2026-10-07",
   "ads": [
     {
       "id": "nb9060-bw",
-      "label": "New Balance 9060 — Black/White and White/Black",
+      "label": "New Balance 9060 \u2014 Black/White and White/Black",
       "caption": "Free Delivery",
       "shoes": [
-        { "id": "c0403", "name": "New Balance 9060 Black/White", "price": 130 },
-        { "id": "c0400", "name": "New Balance 9060 White/Black", "price": 130 }
-      ]
+        {
+          "id": "c0403",
+          "name": "New Balance 9060 Black/White",
+          "price": 130
+        },
+        {
+          "id": "c0400",
+          "name": "New Balance 9060 White/Black",
+          "price": 130
+        }
+      ],
+      "shop": "Trendy Kicks"
     },
     {
       "id": "allblack",
-      "label": "All Black — New Balance 9060 and Air VaporMax Plus",
+      "label": "All Black \u2014 New Balance 9060 and Air VaporMax Plus",
       "caption": "Free DELIVERY",
       "shoes": [
-        { "id": "c0406", "name": "New Balance 9060 All Black", "price": 130 },
-        { "id": "c0451", "name": "Air VaporMax All Black", "price": 120 }
-      ]
+        {
+          "id": "c0406",
+          "name": "New Balance 9060 All Black",
+          "price": 130
+        },
+        {
+          "id": "c0451",
+          "name": "Air VaporMax All Black",
+          "price": 120
+        }
+      ],
+      "shop": "Trendy Kicks"
     },
     {
       "id": "af1",
-      "label": "Air Force 1 — black and white, $120",
-      "caption": "$120 · FREE DELIVERY",
+      "label": "Air Force 1 \u2014 black and white, $120",
+      "caption": "$120 \u00b7 FREE DELIVERY",
       "shoes": [
-        { "id": "co574", "name": "Air Force 1 All Black", "price": 120 },
-        { "id": "co576", "name": "Air Force 1 White", "price": 120 }
+        {
+          "id": "co574",
+          "name": "Air Force 1 All Black",
+          "price": 120
+        },
+        {
+          "id": "co576",
+          "name": "Air Force 1 White",
+          "price": 120
+        }
+      ],
+      "shop": "Trendy Kicks"
+    },
+    {
+      "id": "ff-jordan4-150",
+      "shop": "Foot Fetish",
+      "label": "SALE $150 MUST GO - six Jordan 4s, free delivery",
+      "caption": "SALE $150 \u00b7 FREE DELIVERY \u00b7 MUST GO",
+      "shoes": [
+        {
+          "id": "jordan4yellow001",
+          "name": "Air Jordan 4 Lightning (Yellow/Grey)",
+          "price": 150
+        },
+        {
+          "id": "jordan4military001",
+          "name": "Air Jordan 4 Military (White/Black/Gold)",
+          "price": 150
+        },
+        {
+          "id": "jordan4blackred001",
+          "name": "Air Jordan 4 Bred Reimagined (Black/Red)",
+          "price": 150
+        },
+        {
+          "id": "jordan4blackred002",
+          "name": "Air Jordan 4 Red Thunder (Black/Red)",
+          "price": 150
+        },
+        {
+          "id": "jordan4gum001",
+          "name": "Air Jordan 4 SB Navy (White/Blue/Gum)",
+          "price": 150
+        },
+        {
+          "id": "jordan4bblured001",
+          "name": "Air Jordan 4 Rare Air (Black/Blue/Red)",
+          "price": 150
+        }
       ]
     }
   ]
