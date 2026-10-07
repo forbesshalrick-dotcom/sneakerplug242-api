@@ -3473,6 +3473,22 @@ function aliasOnly(s, words) {
 // in from the website). Only AVAILABLE shoes are in the map; deleted / sold /
 // no-sizes-left shoes are left out entirely. sendShoePhotos and searchInventory
 // both look shoes up by catalog index, so the index must stay the key.
+/* 🔑 liveShoeMap IS KEYED BY THE CATALOGUE'S ARRAY INDEX, NOT BY THE SHOE'S ID.
+ * `catalog.forEach((s, id) => { map[id] = ... })` - that `id` is the index, and every search
+ * result carries the same index as its "id". Fine as long as nothing ever looks a shoe up by
+ * its REAL id ("jordan4yellow001"), which is what the ads file, the pinned shoe and the order
+ * table all hold. Every one of those lookups silently found nothing. Caught 2026-10-07 when
+ * the Foot Fetish ad guard reported "no ad shoe in a size 11" while the Lightning 4 sat in an
+ * 11 - the record it printed said it plainly: "jordan4yellow001 NOT IN liveShoeMap".
+ * This resolves either, so a caller can stop caring which kind of id it is holding. */
+function shoeByAnyId(x, map) {
+  if (x == null) return null;
+  const m = map || liveShoeMap();
+  if (m[x]) return m[x];                                   // an index, the old way
+  const want = String(x);
+  for (const k of Object.keys(m)) if (String(m[k].id) === want) return m[k];
+  return null;
+}
 function liveShoeMap() {
   let overrides = {}, deleted = {};
   try {
@@ -10272,7 +10288,7 @@ and it must NEVER be answered with a question back.`;
           const row = onTheTable.get(String(sub));
           let hits = [];
           for (const it of ((row && row.items) || []).slice().reverse()) {
-            const sh = it.id ? lm[it.id] : null;
+            const sh = it.id ? shoeByAnyId(it.id, lm) : null;
             if (sh && sizesOf(sh).split(/[,\s]+/).filter(Boolean).includes(want)) hits.push(sh);
             if (hits.length >= 2) break;
           }
@@ -12301,7 +12317,7 @@ and it must NEVER be answered with a question back.`;
           return raw.some(x => String(parseFloat(x)) === String(parseFloat(_sz)));
         } catch (_) { return false; }
       };
-      const _have = turnAdShoes.filter(a => _lm[a.id] && _hasSize(_lm[a.id]));
+      const _have = turnAdShoes.filter(a => { const sh = shoeByAnyId(a.id, _lm); return sh && _hasSize(sh); });
       const _fresh = _have.filter(a => !turnSentIds.has(a.id));
       if (_have.length) {
         const _priced = [...new Set(_have.map(a => Number(a.price)).filter(Boolean))];
@@ -12316,10 +12332,10 @@ and it must NEVER be answered with a question back.`;
       } else {
         record(req, { endpoint: 'ad-shoes-none-in-size', sub, store: ctx.store || '', size: _sz,
                       ads: turnAdShoes.length,
-                      inMap: turnAdShoes.filter(a => _lm[a.id]).length,
+                      inMap: turnAdShoes.filter(a => shoeByAnyId(a.id, _lm)).length,
                       sample: (() => { try {
                         const f = turnAdShoes[0]; if (!f) return 'no ads';
-                        const sh = _lm[f.id];
+                        const sh = shoeByAnyId(f.id, _lm);
                         return f.id + (sh ? ' sizes=' + ((sh.sizesRaw || sh.sizes || []).join('/')) : ' NOT IN liveShoeMap');
                       } catch (_) { return 'err'; } })() });
       }
@@ -16677,7 +16693,7 @@ app.get('/inbox/shoe-options', (req, res) => {
     seen.add(String(sh.id));
     out.push({ id: String(sh.id), name: displayName(sh), price: sh.price, sizes: sizesOf(sh) });
   };
-  try { for (const it of ((onTheTable.get(sub) || {}).items || [])) if (it.id && lm[it.id]) push(lm[it.id]); } catch (_) {}
+  try { for (const it of ((onTheTable.get(sub) || {}).items || [])) { const sh = it.id && shoeByAnyId(it.id, lm); if (sh) push(sh); } } catch (_) {}
   try {
     const a = albumShown.get(sub);
     if (a) for (const sh of (a.shoes || [])) if (sh.id && lm[sh.id]) push(lm[sh.id]);
@@ -16697,10 +16713,10 @@ app.post('/inbox/lockshoe', (req, res) => {
     return res.json({ ok: true, locked: null });
   }
   const lm = liveShoeMap();
-  let sh = b.id ? lm[String(b.id)] : null;
+  let sh = b.id ? shoeByAnyId(String(b.id), lm) : null;
   if (!sh && String(b.query || '').trim()) {
     const rows = searchInventory({ query: String(b.query).trim() }) || [];
-    if (rows.length) sh = lm[rows[0].id];
+    if (rows.length) sh = shoeByAnyId(rows[0].id, lm);
   }
   if (!sh) return res.json({ ok: false, error: 'Could not find that shoe — try the name as it reads on the picture.' });
   const l = { id: String(sh.id), name: displayName(sh), price: String(sh.price),
@@ -16751,17 +16767,17 @@ function deliveredPair(sub) {
   // Which shoe? The pinned one first - he said so himself with the button.
   const lm = liveShoeMap();
   let sh = null;
-  try { const l = lockedShoeFor(want); if (l && lm[l.id]) sh = lm[l.id]; } catch (_) {}
+  try { const l = lockedShoeFor(want); if (l) sh = shoeByAnyId(l.id, lm) || sh; } catch (_) {}
   if (!sh) {
     try {
       const row = onTheTable.get(want);
-      for (const it of ((row && row.items) || []).slice().reverse()) if (it.id && lm[it.id]) { sh = lm[it.id]; break; }
+      for (const it of ((row && row.items) || []).slice().reverse()) { const c = it.id && shoeByAnyId(it.id, lm); if (c) { sh = c; break; } }
     } catch (_) {}
   }
   if (!sh && name) {
     try {
       const rows = searchInventory({ query: name.replace(/\(|\)/g, ' ') }) || [];
-      if (rows.length === 1) sh = lm[rows[0].id];
+      if (rows.length === 1) sh = shoeByAnyId(rows[0].id, lm);
       else if (rows.length > 1) {
         const inSize = rows.filter(r => String(r.sizes || '').split(/[,\s]+/).includes(String(size)));
         if (inSize.length === 1) sh = lm[inSize[0].id];
