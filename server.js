@@ -11503,6 +11503,46 @@ and it must NEVER be answered with a question back.`;
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
 
+        /* 📣 AN AD CUSTOMER WHO SAYS A SIZE GETS THE AD, NOT THE SHELF.
+         * Rodney 2026-10-07: "kiki sent random pictures bitch" / "why is she fucking up my
+         * sales?". +1 242 437-6469 came in off the all-black Trendy Kicks ad, circled the all
+         * black Air Max 97 on the card and typed "10". She answered "yes its $130", then
+         * requested FIFTY-NINE shoes for a size 10 and started firing out Jordan 4s at $180 -
+         * Wet Cement, Laker, Valentine, Lightning. He had to watch six grey and purple Jordans
+         * arrive after being told $130. Rodney hit STOP three times.
+         * The ad top-up further down was already written for this and it is NOT enough: it adds
+         * the ad's shoes ON TOP of the shelf dump, so the random pictures still go out first and
+         * the customer has already decided we are not listening. The option has to go away.
+         * A customer off an ad who has named no brand, no model and no colour is asking about
+         * the ad. Nothing else. So the album's ids are REPLACED with the ad's shoes in their
+         * size before a single picture moves. If the ad has nothing in their size this does
+         * nothing and the normal browse runs - saying nothing is still the worse mistake. */
+        try {
+          const _adSz = String(knownSize || '').split('/')[0].trim();
+          if (!staffName && turnAdShoes.length && _adSz && !namedModel
+              && !BRAND_WORD_RE.test(String(leadIn || ''))
+              && !BRAND_WORD_RE.test(String(userText || '').split('(SYSTEM NOTE')[0])
+              && !(turnColourWanted && turnColourWanted.length)) {
+            const _lmAd = liveShoeMap();
+            const _inSize = turnAdShoes.filter(a => {
+              const sh = shoeByAnyId(a.id, _lmAd);
+              const raw = (sh && (sh.sizesRaw || sh.sizes)) || [];
+              return raw.some(x => String(parseFloat(x)) === String(parseFloat(_adSz)));
+            });
+            const _asked = [].concat(inp.ids || [],
+              ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).length;
+            if (_inSize.length && _asked > _inSize.length) {
+              inp.ids = _inSize.map(a => a.id);
+              inp.groups = null;
+              const _p = [...new Set(_inSize.map(a => Number(a.price)).filter(Boolean))];
+              leadIn = 'These the ones on the ad in your ' + _adSz
+                     + (_p.length === 1 ? ' — $' + _p[0] + ' each' : '') + ' \u{1F45F}';
+              record(req, { endpoint: 'ad-shoes-replaced-shelf-dump', sub, store: ctx.store || '',
+                            size: _adSz, wouldHaveSent: _asked, sending: _inSize.length });
+            }
+          }
+        } catch (e) { record(req, { endpoint: 'ad-replace-error', sub, error: String(e).slice(0, 100) }); }
+
         /* 🗣️ A PICTURE ANSWERED WITH A PICTURE AND NO WORDS IS A SWAP, NOT AN ANSWER.
          * Rodney 2026-10-02 sent the Jordan 5 "Racer Blue". She searched "Jordan 5 black blue" -
          * she SAW the colour - compared three of our pictures, and then sent our White/Black 5
