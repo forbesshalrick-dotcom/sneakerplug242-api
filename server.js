@@ -3833,8 +3833,23 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
      * three-category guard, which answers honestly and with pictures: no all black TN in an 8,
      * here is every all black we DO have in an 8, and the all black TN in a 7 and a 12. That
      * guard did not exist when the fallback was written. */
-    const pure = rows.filter(isPureColour);
-    rows = pure;
+    /* 🩷 BUT A BARE COLOUR MUST NEVER HIDE A COLOURWAY THAT HAS IT (Rodney 2026-10-07, in full:
+     * "WE HAVE 2 PINK YOU DUMB BITCH" / "WHERE IS THE OTHER FUCKING PINK?" / "ARENT YOU
+     * SUPPOSE TO SEND ALL FUCKING OPTIONS IN THE CATEGORY?").
+     * The hard cut above deleted every mixed colourway. So a "pink" ask lost the Black/Pink/
+     * Silver, and a customer pointing at our own white/black/RED New Balance photo could not
+     * be answered at all - brand New Balance + colour red + size 8.5 returned ZERO while we
+     * hold two of them. Hiding stock we have costs the same sale as promising stock we don't.
+     * The split that serves both complaints: the WORD decides.
+     *   - "all black" / "full black" / "triple black" / "solid black" names a colourway, so it
+     *     still hard-filters to the pairs that ARE that colour (BJ, 2026-10-04 - he does not
+     *     want Pink/Black sold to him as black). Empty is a real answer there, and the
+     *     three-category guard says it honestly with pictures.
+     *   - a bare "pink" / "red" / "black" is a HUE. Every pair carrying it comes back, with the
+     *     pure colourways ranked first by the sort above - so the all-blacks still lead the
+     *     album and nothing in the category is thrown away. */
+    const STRICT_COLOUR = /\b(all|full|only|pure|solid|straight|triple)\b/i.test(String(color));
+    if (STRICT_COLOUR) rows = rows.filter(isPureColour);
   }
   // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
   // foam clogs (Rodney 2026-08-04). See SLIP_ON_RE.
@@ -8490,6 +8505,8 @@ and it must NEVER be answered with a question back.`;
   let closedWithoutSize = 0;   // "is this available?" answered with a meet-up and no size
   let falsePhotoExcuse = 0;    // blaming the photos when nothing was ever sent
   let pricedNothing = 0;       // a price question about named shoes answered with no price
+  let albumPriceDodged = 0;    // "how much" about the album they are looking at, answered with a question
+  let pointerNamedAShoe = 0;   // a pointer we could not read, answered with a shoe name as fact
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
   let namedModel = '';         // the shoe they named before answering with a bare size
@@ -9769,6 +9786,94 @@ and it must NEVER be answered with a question back.`;
           + 'if they named two — in one short line. Do not send the price list, do not ask their '
           + 'size first, and do not send them to the website. Pictures can follow after.)' });
         continue;
+      }
+    } catch (_) {}
+    /* 💲 "A MUCH" IS A PRICE QUESTION, AND AN ALBUM OF ONE PRICE ALREADY ANSWERS IT.
+     * Rodney 2026-10-07. NoelBelbossLhomme (+1 242 432-5195), three minutes after we sent him
+     * twelve New Balances in his 8.5 - every single one of them $130:
+     *     THEM: "A much"
+     *     KIKI: "Which one you like? 👟"
+     * He wrote back "☝️" and got a five-name list, then "☝️" again and got the wrong shoe named
+     * as a fact. Every bit of that started here. He asked ONE question with ONE answer, $130;
+     * WHICH shoe he means does not change it, so asking him is pure delay on a warm customer.
+     * And the answer does not need Kiki at all - the album's prices are on file, so when they
+     * are all the same the reply is written in code. "A much" / "ah much" / "how mch" are how
+     * it actually gets typed here; the old PRICE_Q regex matched none of them and also required
+     * a shoe NAME, which a man looking at a picture never types. */
+    try {
+      const _ap = albumShown.get(String(sub));
+      const ALBUM_PRICE_Q = /(\bhow\s*(?:much|mch|mush|mch)\b|\bhw\s*much\b|\ba+h?\s+much\b|^\s*much\s*\?*\s*$|\bprice\b|\bprices\b|\bhow\s*they\s*going\b|\bwhat.{0,3}s\s+the\s+cost\b|\bcost\b)/i;
+      const HAS_MONEY = /\$\s?\d{2,4}|\b\d{2,4}\s?(?:dollars|bucks)\b/i;
+      const _cust = String(userText || '').split('(SYSTEM NOTE')[0].split('(SYSTEM:')[0].split('\u{1F50E}')[0];
+      if (turnText && !staffName && albumPriceDodged < 1 && _ap
+          && Date.now() - _ap.at < 30 * 60 * 1000
+          && ALBUM_PRICE_Q.test(_cust) && !HAS_MONEY.test(turnText)) {
+        const _prices = [...new Set((_ap.shoes || []).map(s => parseFloat(s.price)).filter(n => n > 0))];
+        albumPriceDodged++;
+        if (_prices.length === 1) {
+          const _one = (_ap.shoes || []).length === 1;
+          record(req, { endpoint: 'album-price-rewritten', sub, store: ctx.store || '',
+                        asked: _cust.slice(0, 40), was: turnText.slice(0, 90), price: _prices[0] });
+          turnText = (_one ? 'That one $' : 'They all $') + _prices[0] + ' \u{1F45F} you want it now?';
+        } else if (_prices.length > 1) {
+          record(req, { endpoint: 'album-price-unanswered', sub, store: ctx.store || '',
+                        asked: _cust.slice(0, 40), was: turnText.slice(0, 90),
+                        range: Math.min(..._prices) + '-' + Math.max(..._prices) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: '
+            + 'they asked HOW MUCH about the pictures you just sent them, and your reply has no '
+            + 'price in it. Do not ask which one - the price is the answer either way. The album '
+            + 'you sent runs $' + Math.min(..._prices) + ' to $' + Math.max(..._prices) + '. Give '
+            + 'them that in one short line ("they run $' + Math.min(..._prices) + ' to $'
+            + Math.max(..._prices) + ', depends which one \u{1F45F}") and ask if they want it now. '
+            + 'No website link, no asking their size again.)' });
+          continue;
+        }
+      }
+    } catch (_) {}
+
+    /* ☝️ A POINTER WE COULD NOT READ IS NEVER A SHOE NAME.
+     * Rodney 2026-10-07, in full: "THIS MAN LOOKING AT THE WHITE BLACK AND RED YOU AND KIKIS
+     * DUMB ASS ARE SPEAKIMG ABOUT THE BLACK AND WHITE".
+     * Same customer, 13:27. He tapped one of our pictures. A WhatsApp quote-reply never reaches
+     * this server, kiki-tagwatch logged "no tagged message on screen for +1 (242) 432-5195", and
+     * she answered anyway: "That's the black and white New Balance 9060 - $130 \u{1F45F} Send the
+     * location". He was looking at the white, black and RED one. He now thinks that is settled,
+     * and a driver would have gone out with a shoe he never asked for.
+     * The album note has carried this rule IN WORDS since 2026-09-26 ("never write one of those
+     * names as though you do") and the words have now failed twice. So the option goes away
+     * instead: a pointer turn, nothing pinned, no tag ever resolved, and the reply ASSERTS a
+     * shoe - the assertion is cut out in code. What survives is the part that is true either
+     * way (the price, the size, the close), and the thread is pinned and labelled so Rodney can
+     * hit \u{1F45F} and pin the real pair in one tap. */
+    try {
+      const _notes = (ownerNotes.get(sub) || []).map(n => String((n && n.text) || n || ''));
+      const _tagResolved = _notes.some(t => /TAGGED one of our photos/i.test(t));
+      const ASSERTS_SHOE = /\b(that'?s|thats|that is|this is|those are|these are|you'?re looking at|your looking at|it'?s|its)\b[^.!?\n]{0,28}\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|1000|530|550|574|327|990|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|tns?|blazer|cortez|panda)\b/i;
+      if (turnText && !staffName && pointerNamedAShoe < 1
+          && (_pointerOnly || _pointerAsk) && !_sentUsAPicture
+          && !_tagResolved && !lockedShoeFor(sub)
+          && ASSERTS_SHOE.test(turnText)) {
+        pointerNamedAShoe++;
+        const _was = turnText;
+        const _apb = albumShown.get(String(sub));
+        const _pr = [...new Set(((_apb && _apb.shoes) || []).map(s => parseFloat(s.price)).filter(n => n > 0))];
+        const _money = (turnText.match(/\$\s?\d{2,4}/) || [])[0]
+          || (_pr.length === 1 ? ('$' + _pr[0]) : '');
+        // Rebuild the reply out of what we actually know. Never a model name, never a colourway.
+        let _fix;
+        if (_money) _fix = 'Yes we got it — ' + _money + ' \u{1F45F} you want it now?';
+        else _fix = 'Yes we got it \u{1F45F} you want it now?';
+        turnText = _fix;
+        try {
+          const _t = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+          if (_t) {
+            _t.pinned = true;
+            _t.label = { text: '\u{1F45F} PIN THE SHOE', color: '#ff3b5c' };
+            inboxRev++; saveInbox();
+          }
+        } catch (_) {}
+        record(req, { endpoint: 'pointer-named-a-shoe-blocked', sub, store: ctx.store || '',
+                      was: _was.slice(0, 140), now: turnText });
       }
     } catch (_) {}
     /* 📏 "IS THIS AVAILABLE?" IS NOT "I WANT IT" — THE SIZE COMES FIRST (2026-10-04).
