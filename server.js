@@ -12293,8 +12293,11 @@ and it must NEVER be answered with a question back.`;
         .filter(a => _lm[a.id] && !turnSentIds.has(a.id))
         .filter(a => String(sizesOf(_lm[a.id]) || '').split(/[,\s]+/).filter(Boolean).includes(_sz));
       if (_have.length) {
-        const _r = await sendShoePhotos(sub, _have.map(a => a.id), token, true, null,
-          'These are the ones on the ad' + (_sz ? ' — in your ' + _sz : '') + ' 👟',
+        const _priced = [...new Set(_have.map(a => Number(a.price)).filter(Boolean))];
+        const _lead = 'These are the ones on the ad' + (_sz ? ' — in your ' + _sz : '')
+          + (_priced.length === 1 ? ' — $' + _priced[0] + ' each' : '') + ' 👟';
+        const _send = _fresh.length ? _fresh : _have;
+        const _r = await sendShoePhotos(sub, _send.map(a => a.id), token, true, null, _lead,
           false, false, false, ctx.turnAt || 0, _sz || null).catch(() => null);
         record(req, { endpoint: 'ad-shoes-sent-first', sub, store: ctx.store || '',
                       size: _sz, sent: (_r && _r.sent) || 0, had: _have.length });
