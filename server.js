@@ -839,15 +839,27 @@ function colourPairJoined(said) {
 }
 /* The same rule the album guard uses, for the searches our own guards run: a joined pair must
  * be BOTH colours, lead first. Without it "pink and white" pulls plain white shoes. */
+/* 🩷 A BLACK/PINK/SILVER IS A PINK SHOE (Rodney 2026-10-07: "WE HAVE 2 PINK ... WHERE IS THE
+ * OTHER FUCKING PINK? ARENT YOU SUPPOSE TO SEND ALL FUCKING OPTIONS IN THE CATEGORY?").
+ * A customer asked for pink ASICS in an 8.5. We hold two - a Pink/Black/Silver and a
+ * Black/Pink/Silver - and she was told we had none, then sent one. The second was thrown away
+ * because the rule only kept shoes whose FIRST colour is the one asked for.
+ * That rule was written for a real problem (ask for black, get a red shoe with a black stripe)
+ * and it overshot: a shoe with pink in it is a pink option, and hiding it breaks the older and
+ * bigger rule - never hide stock we have. So a colour now has to BE IN the colourway, and the
+ * pure ones still lead the album (see colour-pure-first). A joined pair still needs both. */
 function wearsColour(sh, wanted, pair) {
   const col = String((sh && (sh.color || sh.colour)) || '').toLowerCase().replace(/\bgray\b/g, 'grey').trim();
   if (!col) return true;
+  const has = w => new RegExp('\\b' + w + '\\b').test(col);
+  if (pair && pair.length === 2) return pair.every(has);
+  return (wanted || []).some(has);
+}
+// Does this shoe LEAD with the colour? Used only for ordering now, never to drop one.
+function leadsWithColour(sh, wanted) {
+  const col = String((sh && (sh.color || sh.colour)) || '').toLowerCase().replace(/\bgray\b/g, 'grey').trim();
   const lead = col.split(/[\/,]/)[0].replace(/\ball\b/g, '').trim();
-  const isLead = w => lead === w || lead.startsWith(w + ' ') || lead.endsWith(' ' + w);
-  if (pair && pair.length === 2) {
-    return pair.some(isLead) && pair.every(w => new RegExp('\\b' + w + '\\b').test(col));
-  }
-  return (wanted || []).some(isLead);
+  return (wanted || []).some(w => lead === w || lead.startsWith(w + ' ') || lead.endsWith(' ' + w));
 }
 function colourWanted(said) {
   for (const raw of (said || [])) {
@@ -11184,7 +11196,9 @@ and it must NEVER be answered with a question back.`;
                 if (wearsColour(sh, wanted, _pair)) return true;
                 droppedWrongColour.push(displayName(sh)); return false;
               }
-              if (_col && wanted.some(w => _lead === w || _lead.startsWith(w + ' ') || _lead.endsWith(' ' + w))) return true;
+              // 🩷 IN the colourway is enough - leading with it only decides the ORDER.
+              // See wearsColour: dropping a Black/Pink from a pink ask hid half our pink.
+              if (_col && wearsColour(sh, wanted, null)) return true;
               // No colour field to judge (older rows): fall back to the old loose match rather
               // than drop a shoe we simply have no colour for.
               if (!_col) {
