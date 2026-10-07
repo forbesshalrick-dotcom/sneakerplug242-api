@@ -11013,14 +11013,21 @@ and it must NEVER be answered with a question back.`;
          *     THEM: "U got the jordan 11 gamma blue"
          *     KIKI: "Yeah we got that one! Air Jordan 11 (Gamma Blue) - $180"
          *     KIKI: "We've got the Jordan 11 Gamma Blue in a 5.5, 6.5, and 7"
-         * We have never owned a Gamma Blue. Those are the ALL BLACK 11's sizes, read off the
-         * row the search returned. The search drops words it cannot match - that is on purpose,
-         * it is what stops a typo killing a sale - but it hands back the survivors with nothing
-         * to say they are not what was asked for, so a near miss reads exactly like a hit. She
-         * then promised a colourway that does not exist and recited another shoe's sizes as its
-         * sizes, and the customer spent four messages finding out we had nothing for him.
-         * So the result now names the words NO returned shoe carries. Nothing is removed - the
-         * near misses are still there to offer - she just can no longer mistake them for a yes. */
+         * ⚠️ CORRECTION (2026-10-07, the M5 session, and it is right): we DO stock the Gamma
+         * Blue - jordan11black001, catalogue colour "All Black", NICKNAME "Gamma Blue". The real
+         * Gamma Blue 11 is a black shoe, and Rodney's own card reads "GAMMA BLUE / AIR JORDAN 11
+         * RETRO · ALL BLACK". So her 5.5, 6.5, 7 was TRUE and this guard never fired here -
+         * displayName() carries the nickname, so "gamma" is in the hay and nothing is missing.
+         * What she got wrong on that chat was the NEXT turn, and it is handled separately below
+         * (see named-shoe-missing-that-size): he said "8.5", she sent the Gamma Blue, which has
+         * no 8.5, captioned "Those are the ones we got".
+         * The guard still earns its place for the real case it was written for - a colourway we
+         * genuinely do not own. The search drops words it cannot match, on purpose, because that
+         * is what stops a typo killing a sale; but it handed back the survivors with nothing to
+         * say they are not what was asked for, so a near miss read exactly like a hit. The result
+         * now names the words NO returned shoe carries. Nothing is removed - the near misses are
+         * still there to offer - she just cannot mistake them for a yes. A NICKNAME COUNTS AS A
+         * MATCH and must never be flagged as a miss; there is a drill case for that. */
         try {
           if (found.length && p.query && String(p.query).trim()) {
             const _n = t => String(t || '').toLowerCase().replace(/\bgray\b/g, 'grey');
@@ -12705,6 +12712,70 @@ and it must NEVER be answered with a question back.`;
                       model: namedModel, size: _sz });
       }
     } catch (e) { record(req, { endpoint: 'named-shoe-topup-error', sub, error: String(e).slice(0, 100) }); }
+  }
+  /* 📏 WE JUST SENT HIM PICTURES AND NOT ONE COMES IN HIS SIZE.
+   * Rodney 2026-10-07 on Nexgen (+1 242 810-9740), "KIKI WASTING TIME":
+   *     THEM "U got the jordan 11 gamma blue"   (we do - jordan11black001, nickname Gamma Blue)
+   *     THEM "8.5"
+   *     KIKI [sends the Gamma Blue] "Those are the ones we got 👟"
+   * The Gamma Blue stops at a 7. He answered the size question and got a picture of a shoe he
+   * cannot buy, captioned as though it were his. He had to ask again - "You got 8.5 or 9" - to
+   * find out, and the Jordan 11 Black/Volt was in stock in BOTH his sizes the whole time.
+   * The near-miss flag above cannot catch this one: "gamma blue" IS one of ours, so the search
+   * was an exact hit. The failure is downstream, at the size.
+   * An album where NOT ONE shoe comes in the size we are holding for this customer is always
+   * wrong, whatever was asked. So: say it plainly, with the sizes it does come in, and send the
+   * same MODEL in their size in the same breath - the brand if the model has nothing. Nothing
+   * is taken away; the pictures already sent stay. */
+  if (!staffName && knownSize && turnSentIds.size) {
+    try {
+      const _wantN = parseFloat(String(knownSize).split('/')[0].trim());
+      if (!isNaN(_wantN)) {
+        const _lmS = liveShoeMap();
+        const _fits = (sh) => ((sh && (sh.sizesRaw || sh.sizes)) || [])
+          .some(x => parseFloat(x) === _wantN);
+        const _sent = [...turnSentIds].map(id => shoeByAnyId(id, _lmS)).filter(Boolean);
+        const _miss = _sent.filter(sh => !_fits(sh));
+        // Only when EVERY picture that went out misses the size. A mixed album is a browse and
+        // the album's own size labels already tell the truth about each pair.
+        if (_sent.length && _miss.length === _sent.length) {
+          const _shoe = _miss[0];
+          const _has = [...new Set(((_shoe.sizesRaw || _shoe.sizes) || [])
+            .map(x => parseFloat(x)).filter(n => !isNaN(n)))].sort((a, b) => a - b);
+          const _label = displayName(_shoe);
+          // The model is the shoe's own name without the colourway - "Air Jordan 11 Retro".
+          const _model = String(_shoe.name || '').trim();
+          let _rows = _model ? (searchInventory({ query: _model, size: String(_wantN), exact_sizes: true }) || []) : [];
+          let _how = 'model';
+          if (!_rows.length && _shoe.brand) {
+            _rows = searchInventory({ brand: _shoe.brand, size: String(_wantN), exact_sizes: true }) || [];
+            _how = 'brand';
+          }
+          const _ids = _rows.map(r => r.id).filter(id => !turnSentIds.has(id)).slice(0, 12);
+          const _sizeLine = _has.length
+            ? ' — it only left in a ' + (_has.length === 1 ? _has[0]
+                : _has.slice(0, -1).join(', ') + ' an ' + _has[_has.length - 1])
+            : '';
+          if (_ids.length) {
+            const _lead = 'Heads up, the ' + _label + ' dont come in a ' + _wantN + _sizeLine
+                        + '. This is what we got in your ' + _wantN + ' \U0001f45f';
+            const _r = await sendShoePhotos(sub, _ids, token, true, null, _lead,
+              false, false, false, ctx.turnAt || 0, String(_wantN)).catch(() => null);
+            record(req, { endpoint: 'named-shoe-missing-that-size', sub, store: ctx.store || '',
+                          shoe: String(_shoe.id), size: _wantN, via: _how,
+                          sent: (_r && _r.sent) || 0, had: _ids.length });
+            if (_r && _r.sent > 0) { photosSentRun = true; sentToCustomer = true; }
+          } else {
+            // Nothing in that model or brand in their size - still never leave the wrong-size
+            // picture standing as though it were theirs.
+            turnText = 'That ' + _label + ' dont come in a ' + _wantN + _sizeLine
+                     + '. What else you open to? I’ll find you something in your size \U0001f45f';
+            record(req, { endpoint: 'named-shoe-missing-that-size-nothing-near', sub,
+                          store: ctx.store || '', shoe: String(_shoe.id), size: _wantN });
+          }
+        }
+      }
+    } catch (e) { record(req, { endpoint: 'missing-size-guard-error', sub, error: String(e).slice(0, 100) }); }
   }
   if (!staffName && photosSentRun && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !customerNamedSpecific && turnSizeSearchSizes.length && !turnTopUpMerged) {
     try {
