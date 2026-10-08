@@ -925,7 +925,44 @@ function colourWanted(said) {
     const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
     if (!t.trim()) continue;
     if (ANY_COLOUR_RE.test(t)) return [];          // they opened it back up - newest wins
-    const hits = COLOUR_WORDS.filter(c => new RegExp('\\b' + c + '\\b').test(t));
+    let hits = COLOUR_WORDS.filter(c => new RegExp('\\b' + c + '\\b').test(t));
+    /* ✍️ AND READ IT WHEN THEY MISSPELL IT. Rodney 2026-10-08, TK +1 (242) 437-7841: he
+     * typed "grenn and black". "black" matched, "grenn" matched nothing, so the ask
+     * collapsed to black alone and the green he was actually after was dropped on the floor
+     * - twice, because the colour guard then enforced the half it could see.
+     * People type these one-handed on a phone. One wrong, missing or doubled letter in a
+     * colour word is still that colour, so anything within one edit of a colour we stock
+     * counts. Four letters minimum, so "red" cannot swallow "bed" and "tan" cannot swallow
+     * "ran". Exact matches always win; this only adds what was otherwise lost. */
+    try {
+      const near = (a, b) => {           // true when one edit apart (add, drop or change)
+        if (Math.abs(a.length - b.length) > 1) return false;
+        let i = 0, j = 0, slips = 0;
+        while (i < a.length && j < b.length) {
+          if (a[i] === b[j]) { i++; j++; continue; }
+          if (++slips > 1) return false;
+          if (a.length > b.length) i++;
+          else if (a.length < b.length) j++;
+          else { i++; j++; }
+        }
+        return slips + (a.length - i) + (b.length - j) <= 1;
+      };
+      /* ⛔ AND ORDINARY WORDS ARE NOT TYPOS. Measured against the real catalogue colours:
+       * "what" is one edit from WHEAT, "deal" and "real" from TEAL, "dream" from CREAM.
+       * "what size you got" would have become a wheat-coloured search. Anything a customer
+       * plainly meant as a word stays a word. */
+      const NOT_A_COLOUR = new Set(['what', 'deal', 'real', 'dream', 'bread', 'break', 'brand',
+        'clean', 'clear', 'great', 'wheel', 'steal', 'meal', 'heal', 'they', 'them', 'then',
+        'that', 'this', 'with', 'want', 'need', 'send', 'size', 'have', 'here', 'wear']);
+      for (const w of (t.match(/[a-z]{4,}/g) || [])) {
+        if (hits.indexOf(w) !== -1 || NOT_A_COLOUR.has(w)) continue;
+        for (const c of COLOUR_WORDS) {
+          if (c.length < 4 || hits.indexOf(c) !== -1) continue;
+          if (new RegExp('\\b' + c + '\\b').test(t)) continue;   // spelled right elsewhere
+          if (near(w, c)) { hits = hits.concat([c]); break; }
+        }
+      }
+    } catch (_) {}
     if (hits.length) return hits;
   }
   return [];
@@ -3961,6 +3998,20 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
      *     album and nothing in the category is thrown away. */
     const STRICT_COLOUR = /\b(all|full|only|pure|solid|straight|triple)\b/i.test(String(color));
     if (STRICT_COLOUR) rows = rows.filter(isPureColour);
+    /* 🎨 AND IF WE HAVE PLENTY THAT REALLY ARE THAT COLOUR, SEND THOSE AND ONLY THOSE.
+     * Rodney 2026-10-08, TK +1 (242) 437-7841: he asked for "grenn and black" and got an
+     * album headed "Here go the black I got in your 9" carrying a Jordan 4 LAKER - purple,
+     * black and yellow - and a Bred. Purple is not black, and the header promised it was.
+     * This is the middle ground between the two complaints. Hiding every mixed colourway
+     * lost the Black/Pink/Silver from a pink ask ("WE HAVE 2 PINK YOU DUMB BITCH"), and
+     * keeping them all put purple in a black album. So: the mixed ones are the FALLBACK, not
+     * the filling. With six or more true matches the album is made of those; with fewer, the
+     * mixed ones come in behind them rather than leaving someone with nothing. Nothing is
+     * hidden when we are thin, and nothing is mislabelled when we are not. */
+    if (!STRICT_COLOUR) {
+      const _pureRows = rows.filter(isPureColour);
+      if (_pureRows.length >= 6) rows = _pureRows;
+    }
   }
   // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
   // foam clogs (Rodney 2026-08-04). See SLIP_ON_RE.
