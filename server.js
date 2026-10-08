@@ -1925,7 +1925,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // MOBB and a size-4.5 customer all lost service this way). Try the suggested token
   // first; on those errors, try every other token we know. Remember what worked.
   const fixed = subTokenFix.get(String(subscriberId));
-  const candidates = [fixed, token, ...storeTokens.values(), lastToken, process.env.MANYCHAT_TOKEN]
+  const candidates = [fixed, token, ...storeTokens.values(), ...allTokens, lastToken, process.env.MANYCHAT_TOKEN]
     .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
   let last = null;
   for (const tk of candidates) {
@@ -5852,6 +5852,14 @@ const MUTE_MS = 20 * 1000; // 20s ROLLING window (Rodney's call 2026-07-12) — 
 // the right account automatically.
 const recentCustomers = new Map(); // sub -> {sub, name, store, lastText, at}
 const storeTokens = new Map();     // store name -> latest ManyChat token seen for it
+/* 🔑 AND KEEP EVERY TOKEN WE HAVE EVER SEEN, not one per store NAME.
+ * Two ManyChat accounts sit behind each name (5476640 + 3732170 are both "Official Sneaker
+ * Crew"), so storeTokens holds whichever posted last and the other is simply gone. On
+ * 2026-10-08 Bobo's account was the one that had been overwritten: three store tokens were
+ * tried for him and none could reach a man who had written minutes earlier. Nothing in the
+ * file still held the key that could. This keeps them all, so the per-subscriber map and the
+ * cross-account fallback both have something real to pick from after a restart. */
+const allTokens = new Set();
 let lastToken = null;              // most-recent token of any account (fallback)
 // Tokens survive restarts (2026-07-14: every deploy wiped them, so console sends, shift
 // reminders and manager alerts were mute until a customer happened to text; 3 restarts
@@ -5868,6 +5876,7 @@ try {
     const saved = JSON.parse(require('fs').readFileSync(TOKENS_FILE, 'utf8')) || {};
     for (const [k, v] of Object.entries(saved.stores || {})) storeTokens.set(k, v);
     for (const [k, v] of Object.entries(saved.subs || {})) subTokenFix.set(k, v);   // see saveTokens
+    for (const t of (saved.all || [])) if (t) allTokens.add(t);                     // see allTokens
     lastToken = saved.last || null;
     console.log('[tokens] restored', storeTokens.size, 'store token(s)');
   }
@@ -5891,7 +5900,8 @@ function saveTokens() {
         _subs[k] = v;
       }
       require('fs').writeFileSync(TOKENS_FILE, JSON.stringify({
-        stores: Object.fromEntries(storeTokens), last: lastToken, subs: _subs }));
+        stores: Object.fromEntries(storeTokens), last: lastToken, subs: _subs,
+        all: [...allTokens].slice(-20) }));
     } catch (_) {}
   }, 1000);
   if (tokensSaveT.unref) tokensSaveT.unref();
@@ -5901,6 +5911,7 @@ function rememberCustomer(sub, name, store, text, token) {
     recentCustomers.set(sub, { sub, name: name || '', store: store || '', lastText: (text || '').slice(0, 80), at: new Date().toISOString() });
     if (recentCustomers.size > 80) { const first = recentCustomers.keys().next().value; recentCustomers.delete(first); }
     if (store) storeTokens.set(store, token);
+    allTokens.add(token);
     /* 🔑 AND REMEMBER IT PER SUBSCRIBER, NOT JUST PER STORE NAME.
      * Rodney 2026-10-08, blocked mid-chat with Bobo (+1 242 448-4526, OSC): Kiki was
      * sending him 20-photo albums fine while /inbox/send bounced with "Subscriber does not
