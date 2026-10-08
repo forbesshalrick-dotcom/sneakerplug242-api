@@ -4419,6 +4419,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   const dedupe = (idList, seen) => {
     const s = seen || new Set();
     const out = [];
+    const blocked = [];
     for (const id of (idList || [])) {
       if (s.has(id)) continue;
       s.add(id);
@@ -4427,9 +4428,34 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       // Key the "they already have this" memory on the shoe's OWN id, so an index and a
       // real id for the same pair can never slip past each other as two different shoes.
       const real = String(sh.id != null ? sh.id : id);
-      if (_justSent.has(real) || _justSent.has(String(id))) continue;
+      if (_justSent.has(real) || _justSent.has(String(id))) { blocked.push(sh); continue; }
       out.push(sh);
     }
+    /* 🔁 NARROWING DOWN IS NOT A DUPLICATE ALBUM (2026-10-08, caught by the drill's
+     * "two shoes in one breath" and never by a customer, which is the point of having it).
+     *     THEM "what size 10 you got"   -> 59 photos, the whole size-10 shelf
+     *     THEM "97 an vapors"           -> NOTHING. Not a word.
+     * Every 97 and VaporMax was in those 59, so the 90-second no-repeat window blocked all
+     * of them, the album came back empty and Kiki filled the silence with "I'm having
+     * trouble pulling these up right now" - an excuse, for a customer who had just told us
+     * exactly what he wanted out of the pile.
+     * That window exists to stop TWO OVERLAPPING ALBUMS firing at once, which happens in the
+     * same second and with no word from the customer in between. It was never meant to
+     * answer a person. So: if the only thing standing in the way is that we sent these
+     * moments ago, AND they have spoken since, they are asking on purpose - send them again.
+     * Sending a picture twice costs nothing. Silence costs the sale. */
+    if (!out.length && blocked.length) try {
+      const spokeAt = lastInboundAt.get(String(sub)) || 0;
+      const newestSend = Math.max(0, ...[..._justSent.values()]);
+      if (spokeAt && spokeAt >= newestSend) {
+        try {
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'resend-after-they-asked-again',
+                           sub: String(sub), shoes: blocked.length });
+          if (recent.length > 120) recent.length = 120;
+        } catch (_) {}
+        return blocked;
+      }
+    } catch (_) { /* never let the re-send check break an album */ }
     return out;
   };
   let sent = 0, requested = 0, attempted = 0;   // attempted = we actually tried to send it
