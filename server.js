@@ -5093,6 +5093,32 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 // while questions let the album finish (they queue and get answered right after).
 const imageSeenAt = new Map();   // sub -> when a REAL picture last reached us (see nonTextReplay)
 const pendingPhoto = new Map();  // sub -> {url, at} the last photo, still unanswered - see photo-joined-to-next-message
+/* 🧾 And the last few photos they sent, so a customer forwarding SEVERAL of our own cards
+ * back can be read as the shopping list it is. Our card filenames carry the shoe id
+ * (".../jordan4wetcement001-card.jpg"), so a forward is self-identifying. See
+ * picks-totalled-with-deal. */
+const inboundPhotos = new Map();  // sub -> [{url, at}]
+function noteInboundPhoto(sub, url) {
+  if (!sub || !url) return;
+  const k = String(sub);
+  const arr = inboundPhotos.get(k) || [];
+  if (!arr.some(x => x.url === url)) arr.push({ url: String(url), at: Date.now() });
+  while (arr.length > 12) arr.shift();
+  inboundPhotos.set(k, arr);
+  if (inboundPhotos.size > 300) inboundPhotos.delete(inboundPhotos.keys().next().value);
+}
+function ourCardIdsFrom(sub, windowMs) {
+  const out = [];
+  try {
+    const cut = Date.now() - (windowMs || 3 * 60 * 1000);
+    for (const x of (inboundPhotos.get(String(sub)) || [])) {
+      if (x.at < cut) continue;
+      const m = String(x.url).match(/\/([A-Za-z0-9_]+)-(?:card|thumb)\.(?:jpg|jpeg|png|webp)/i);
+      if (m && m[1] && out.indexOf(m[1]) === -1) out.push(m[1]);
+    }
+  } catch (_) {}
+  return out;
+}
 const lastIncoming = new Map();
 // sub|shoeId -> ts of the last photo of that shoe sent to that chat. record_sale is
 // REFUSED unless the shoe was photo'd in the same chat within 2h (2026-07-16: Kiki
@@ -8764,6 +8790,7 @@ and it must NEVER be answered with a question back.`;
   let pricedNothing = 0;       // a price question about named shoes answered with no price
   let albumPriceDodged = 0;    // "how much" about the album they are looking at, answered with a question
   let deliveryTimeDodged = 0;  // "wat time is best" on a placed order, answered with anything but ASAP
+  let multiPickPriced = 0;     // they sent several of our cards back - total them and deal
   let pointerNamedAShoe = 0;   // a pointer we could not read, answered with a shoe name as fact
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
@@ -10615,6 +10642,45 @@ and it must NEVER be answered with a question back.`;
                       asked: _ct.slice(0, 50), was: _was.slice(0, 90) });
       }
     } catch (_) {}
+    /* 🧾 SEVERAL OF OUR OWN CARDS SENT BACK IS A SHOPPING LIST, NOT A BROWSE.
+     * Rodney 2026-10-08, near-verbatim: if he sent four pictures back he is interested in
+     * four. Say it in simple text - "the Jordan 4 Wet Cement, $180; the Jordan 3, $180; the
+     * New Balance, $130" - then the total, then the deal. His price, settled today:
+     * $10 OFF EACH PAIR when they take 2 or more. Five pairs at $750 becomes $700.
+     * OSC, Bobo, 10:56: he forwarded back six of our cards and a 👆 after we already knew he
+     * wears an 11. He got "That's the Jordan 4 Wet Cement, $180, we got it in 7, 8... what
+     * size you need?" - the wrong question, a size he had already given - and then TWENTY
+     * FOUR more Jordan 4 photos. He had finished choosing and we started selling again.
+     * This overrides the $10-max-only-when-asked haggling rule for multi-pair picks only. */
+    try {
+      const _picks = [];
+      const _seenPick = new Set();
+      for (const id of ourCardIdsFrom(sub, 3 * 60 * 1000)) {
+        const sh = shoeByAnyId(id, liveShoeMap());
+        if (!sh) continue;
+        const k = String(sh.id != null ? sh.id : id);
+        if (_seenPick.has(k)) continue;
+        _seenPick.add(k);
+        _picks.push(sh);
+      }
+      if (!staffName && multiPickPriced < 1 && _picks.length >= 2) {
+        multiPickPriced++;
+        const _line = _picks.map(sh => '• ' + displayName(sh) + ' — $' + (parseFloat(sh.price) || 0));
+        const _total = _picks.reduce((n, sh) => n + (parseFloat(sh.price) || 0), 0);
+        const _deal = _total - (10 * _picks.length);
+        const _sz = (custSize.get(sub) && custSize.get(sub).size) || '';
+        const _was = turnText;
+        turnText = 'Good picks \U0001f44c\n' + _line.join('\n')
+                 + '\n\nThat’s $' + _total + ' for the ' + _picks.length
+                 + ' — take them all together an I’ll do $' + _deal
+                 + ' \U0001f45f'
+                 + (_sz ? '\n\nAll in your ' + _sz + '. Free delivery — where you want them brought?'
+                        : '\n\nFree delivery — what size you wear?');
+        record(req, { endpoint: 'picks-totalled-with-deal', sub, store: ctx.store || '',
+                      picks: _picks.length, total: _total, deal: _deal, was: _was.slice(0, 80) });
+      }
+    } catch (e) { record(req, { endpoint: 'picks-total-error', sub, error: String(e).slice(0, 90) }); }
+
     /* 🕘 THE CLOSING HOUR IS A FACT, SO CORRECT IT IN CODE.
      * Rodney 2026-10-07: "we close at 10pm every night dummy". The server prompt said 7 AM - 11 PM
      * for months while the Mac half of Kiki has said 8 AM - 10 PM since 2026-09-15, so the same
@@ -13214,6 +13280,7 @@ function handleChat(req, res) {
       const _sub0 = getContactId(req);
       if (_sub0) {
         pendingPhoto.set(String(_sub0), { url: imageUrl, at: Date.now() });
+        noteInboundPhoto(_sub0, imageUrl);
         if (pendingPhoto.size > 300) pendingPhoto.delete(pendingPhoto.keys().next().value);
       }
     }
