@@ -5885,6 +5885,20 @@ function rememberCustomer(sub, name, store, text, token) {
     recentCustomers.set(sub, { sub, name: name || '', store: store || '', lastText: (text || '').slice(0, 80), at: new Date().toISOString() });
     if (recentCustomers.size > 80) { const first = recentCustomers.keys().next().value; recentCustomers.delete(first); }
     if (store) storeTokens.set(store, token);
+    /* 🔑 AND REMEMBER IT PER SUBSCRIBER, NOT JUST PER STORE NAME.
+     * Rodney 2026-10-08, blocked mid-chat with Bobo (+1 242 448-4526, OSC): Kiki was
+     * sending him 20-photo albums fine while /inbox/send bounced with "Subscriber does not
+     * exist", and the app told him "Can't text this number yet - WhatsApp only lets us
+     * reply after the customer messages first". He HAD messaged, minutes earlier.
+     * storeTokens is one token per store NAME, but two ManyChat accounts map to each name
+     * (5476640 + 3732170 are both "Official Sneaker Crew"). Whichever account posted the
+     * last inbound overwrites the slot, so the inbox answered a 5476640 subscriber with the
+     * other account's key. Kiki never hit it because she replies with the token off the
+     * very webhook she is answering.
+     * The token that just carried a message FROM this person is the one that can carry one
+     * back. subTokenFix is already the first candidate everywhere that sends, so writing it
+     * here fixes the inbox, the nudges and the albums in one place. */
+    if (sub) subTokenFix.set(String(sub), token);
     lastToken = token;
     // Hand the live token down to the modules that send staff/customer WhatsApp texts.
     // They only ever read MANYCHAT_TOKEN from the environment, which isn't set on Railway
@@ -14041,7 +14055,8 @@ app.post('/console/send', async (req, res) => {
 
   // Pick the right account token: the customer's own account first, then the
   // chosen store, then the most recent token, then the env var.
-  const token = (sub && recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
+  const token = (sub && subTokenFix.get(String(sub)))
+    || (sub && recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
     || (store && storeTokens.get(store)) || lastToken || process.env.MANYCHAT_TOKEN || null;
   if (!token) return res.json({ ok: false, error: 'No ManyChat token yet. Have a customer message the bot once (so the server learns the account key), then try again.' });
 
@@ -16964,6 +16979,7 @@ app.post('/inbox/send', async (req, res) => {
   // Right account token: the customer's own account first, then env fallbacks. Direct-API
   // customers (waChannel) route to the Graph API inside sendChunk no matter the token.
   const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
+    || subTokenFix.get(String(sub))
     || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
     || lastToken || process.env.MANYCHAT_TOKEN || null;
   if (!token && !waChannel.get(sub)) return res.json({ ok: false, error: 'No account token learned for this customer yet — have them message the bot once, then reply.' });
@@ -17031,6 +17047,24 @@ app.post('/inbox/send', async (req, res) => {
     // ManyChat rejects a send to a number that never messaged us (no subscriber exists yet).
     // Show WHY in plain English instead of the raw "Subscriber does not exist" JSON.
     if (/subscriber (does not|doesn'?t) exist|subscriber not found/i.test(body)) {
+      /* 🚩 DO NOT BLAME WHATSAPP FOR OUR OWN TOKEN PICK (Rodney 2026-10-08).
+       * He was told "Can't text this number yet - WhatsApp only lets us reply after the
+       * customer messages first" about Bobo, who had messaged minutes earlier and was being
+       * sent 20-photo albums at that moment. ManyChat says "does not exist" when the
+       * SUBSCRIBER is unknown TO THAT ACCOUNT, which also happens when we reach for the
+       * wrong one of the two accounts behind a store name. If this person has written to us
+       * recently, the 24-hour rule is not the explanation and saying it is sends Rodney
+       * looking in the wrong place. */
+      const _heard = lastInboundAt.get(String(sub)) || 0;
+      const _recent = _heard && (Date.now() - _heard) < 24 * 60 * 60 * 1000;
+      if (_recent) {
+        record(req, { endpoint: 'inbox-send-wrong-account', sub, store: store || '',
+                      heardMinAgo: Math.round((Date.now() - _heard) / 60000) });
+        return res.json({ ok: false, pausedUntil: pausedUntilOf(sub),
+          error: "That didn't go through on this shop's account, but they DID message us "
+               + Math.round((Date.now() - _heard) / 60000) + " min ago — so it is not the 24-hour rule. "
+               + "Kiki can still reach them. Try again in a moment, or send it from her side." });
+      }
       return res.json({ ok: false, error: "Can't text this number yet — WhatsApp only lets us reply after the customer messages your business first. They'll show up here automatically once they do.", pausedUntil: pausedUntilOf(sub) });
     }
     return res.json({ ok: false, error: (audioUrl ? 'Voice note didn\'t send: ' : 'Send failed: ') + body.slice(0, 160), pausedUntil: pausedUntilOf(sub) });
@@ -17702,6 +17736,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
   const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
+    || subTokenFix.get(String(sub))
     || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store)) || lastToken || process.env.MANYCHAT_TOKEN || null;
   if (!token && !waChannel.get(sub)) return res.json({ ok: false, error: 'No account token for this customer yet.' });
   // Multi-size: the picker can send `sizes` (array) + `size_match` ("any" range, or "all"
