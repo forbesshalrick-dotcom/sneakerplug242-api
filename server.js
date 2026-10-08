@@ -5092,6 +5092,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 // between shoes; a STOP-worded message ("stop", "that's enough") halts the rest,
 // while questions let the album finish (they queue and get answered right after).
 const imageSeenAt = new Map();   // sub -> when a REAL picture last reached us (see nonTextReplay)
+const pendingPhoto = new Map();  // sub -> {url, at} the last photo, still unanswered - see photo-joined-to-next-message
 const lastIncoming = new Map();
 // sub|shoeId -> ts of the last photo of that shoe sent to that chat. record_sale is
 // REFUSED unless the shoe was photo'd in the same chat within 2h (2026-07-16: Kiki
@@ -13186,6 +13187,37 @@ function handleChat(req, res) {
   let userText = extractQuery(req);
   let audioUrl = getAudioUrl(req);
   let imageUrl = getImageUrl(req);
+  /* 📸➕💬 A PHOTO AND THE QUESTION ABOUT IT ARRIVE AS TWO MESSAGES.
+   * Rodney 2026-10-08, after a day of these: "every day we going behind Kiki to fix up some
+   * dumb shit." Foot Fetish +1 (242) 556-4183:
+   *     15:40:37  [photo of a Grey/Black Air Jordan 5]
+   *     15:40:44  "Do u have these size7"
+   * Seven seconds apart, and the turn that answered the words logged hadImage FALSE. So she
+   * was asked "do you have THESE" about a picture she was never shown, could not see a shoe
+   * in it, and fell back to dumping the whole size-7 album. We HAVE it - the Jordan 5 Wolf
+   * Grey, in a 7 - and he was never told.
+   * Nobody types the shoe's name after sending its picture; the picture IS the noun. So the
+   * last photo from this customer stays attached to the next turn for two minutes, unless
+   * that turn carries its own. Consumed once, so it can never leak into a third message. */
+  try {
+    if (!imageUrl && !audioUrl) {
+      const _sub0 = getContactId(req);
+      const _p = _sub0 && pendingPhoto.get(String(_sub0));
+      if (_p && Date.now() - _p.at < 2 * 60 * 1000 && _p.url) {
+        imageUrl = _p.url;
+        pendingPhoto.delete(String(_sub0));
+        try { record(req, { endpoint: 'photo-joined-to-next-message', sub: String(_sub0),
+                            agoSec: Math.round((Date.now() - _p.at) / 1000),
+                            asked: String(userText || '').slice(0, 60) }); } catch (_) {}
+      }
+    } else if (imageUrl) {
+      const _sub0 = getContactId(req);
+      if (_sub0) {
+        pendingPhoto.set(String(_sub0), { url: imageUrl, at: Date.now() });
+        if (pendingPhoto.size > 300) pendingPhoto.delete(pendingPhoto.keys().next().value);
+      }
+    }
+  } catch (_) {}
   const inboxPhotoUrl = imageUrl || ''; // keep the customer's photo URL for the Inbox even when PHOTO_VISION blanks it for the AI
   // A message that is JUST a bare link (no other words) and isn't audio is almost
   // always the customer's photo arriving via Last Text Input. Catch it even if the
