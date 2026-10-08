@@ -8791,6 +8791,7 @@ and it must NEVER be answered with a question back.`;
   let albumPriceDodged = 0;    // "how much" about the album they are looking at, answered with a question
   let deliveryTimeDodged = 0;  // "wat time is best" on a placed order, answered with anything but ASAP
   let multiPickPriced = 0;     // they sent several of our cards back - total them and deal
+  let cardSizeClaimed = 0;     // promised a forwarded card in a size it does not come in
   let pointerNamedAShoe = 0;   // a pointer we could not read, answered with a shoe name as fact
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
@@ -10652,6 +10653,50 @@ and it must NEVER be answered with a question back.`;
      * size you need?" - the wrong question, a size he had already given - and then TWENTY
      * FOUR more Jordan 4 photos. He had finished choosing and we started selling again.
      * This overrides the $10-max-only-when-asked haggling rule for multi-pair picks only. */
+    /* 🚫 A FORWARDED CARD IS THE SHOE, SO CHECK ITS SIZES BEFORE PROMISING IT.
+     * Rodney 2026-10-08 ("kiki is retarded?"), TK +1 (242) 437-7841, 19:09. He forwarded our
+     * OWN Green/Black 9060 card back. Kiki: "We got those in a 9 👟 Where should we meet
+     * you?" That shoe is in a 7, 8 and 8.5 only - and she had told him so herself 37 minutes
+     * earlier. A driver nearly went out on a promise we could not keep, and the customer had
+     * already been told the opposite once.
+     * The card names the shoe exactly - the id is in the filename - so there is nothing to
+     * guess. If that pair does not come in the size we are holding for him, she cannot say we
+     * have it. The honest line goes out instead, with what we DO have in his size. */
+    try {
+      const _cards = ourCardIdsFrom(sub, 3 * 60 * 1000)
+        .map(id => shoeByAnyId(id, liveShoeMap())).filter(Boolean);
+      const _wantSz = parseFloat(String((custSize.get(sub) && custSize.get(sub).size) || knownSize || '').split('/')[0]);
+      const CLAIMS_HAVE = /\b(?:we|i)\s*(?:'ve|ve)?\s*(?:got|have|do have)\b|\byes+\b|\bgot (?:those|that|it|them)\b|\bin stock\b/i;
+      if (!staffName && cardSizeClaimed < 1 && _cards.length === 1 && !isNaN(_wantSz)
+          && turnText && CLAIMS_HAVE.test(turnText)) {
+        const _sh = _cards[0];
+        const _has = [...new Set(((_sh.sizesRaw || _sh.sizes) || []).map(x => parseFloat(x)).filter(n => !isNaN(n)))].sort((a, b) => a - b);
+        if (_has.length && !_has.includes(_wantSz)) {
+          cardSizeClaimed++;
+          const _was = turnText;
+          const _model = String(_sh.name || '').trim();
+          let _alt = [];
+          try {
+            _alt = (searchInventory({ query: _model, size: String(_wantSz), exact_sizes: true }) || [])
+              .map(r => r.id).filter(id => String(id) !== String(_sh.id)).slice(0, 8);
+          } catch (_) {}
+          const _list = _has.length === 1 ? ('a ' + _has[0])
+            : ('a ' + _has.slice(0, -1).join(', ') + ' an a ' + _has[_has.length - 1]);
+          turnText = 'Straight up — that ' + displayName(_sh) + ' dont come in a ' + _wantSz
+                   + ', it only left in ' + _list + ' \U0001f64f'
+                   + (_alt.length ? ' Here what we got in your ' + _wantSz + ' \U0001f447' : '');
+          record(req, { endpoint: 'forwarded-card-size-claim-blocked', sub, store: ctx.store || '',
+                        shoe: String(_sh.id), want: _wantSz, has: _has.join('/'),
+                        was: _was.slice(0, 90), alts: _alt.length });
+          if (_alt.length) {
+            const _r = await sendShoePhotos(sub, _alt, token, true, null, '', false, true, false,
+                                            ctx.turnAt || 0, String(_wantSz)).catch(() => null);
+            if (_r && _r.sent > 0) { photosSentRun = true; sentToCustomer = true; }
+          }
+        }
+      }
+    } catch (e) { record(req, { endpoint: 'card-size-check-error', sub, error: String(e).slice(0, 90) }); }
+
     try {
       const _picks = [];
       const _seenPick = new Set();
@@ -13477,8 +13522,22 @@ function handleChat(req, res) {
   // Default-Reply / ManyChat quirk). If we just handled this exact photo for this
   // customer, skip the duplicate so Kiki doesn't answer the same picture twice.
   if (imageUrl) {
-    const k = sub + '|' + imageUrl;
-    const prevSeen = recentImageSeen.get(k);
+    /* 📍 A PIN IS NOT A REPEATED PHOTO, AND NEITHER IS A PHOTO WITH NEW WORDS ON IT.
+     * Rodney 2026-10-08, TK +1 (242) 437-7841, 19:09:47: he dropped a LOCATION PIN and the
+     * inbox logged "📷 photo (sent again)". The whole turn was dropped here, so the pin was
+     * never read - and three minutes later Kiki asked him "Where you at?" while his location
+     * sat in the chat. The trail still shows delivery-ready-no-seen-pin on that chat.
+     * On ManyChat a pin arrives carrying its map thumbnail, so it looks like an image; this
+     * guard keyed on the image URL ALONE and returned without processing anything else.
+     * Two corrections. A turn whose words carry a pin is never a duplicate. And the dedupe
+     * now keys on the image AND the words: the same picture sent twice in silence is a
+     * genuine repeat, but the same picture with something new typed under it is a new
+     * message - which is exactly the photo-then-question pattern we just taught her to read. */
+    const _txtKey = String(userText || '').trim().slice(0, 120);
+    const _isPin = /LOCATION PIN|maps\.google\.com|\bgeo:/i.test(String(userText || ''))
+                || /^-?\d{1,3}\.\d{3,},\s*-?\d{1,3}\.\d{3,}$/.test(_txtKey);
+    const k = sub + '|' + imageUrl + '|' + _txtKey;
+    const prevSeen = _isPin ? 0 : recentImageSeen.get(k);
     if (prevSeen && (Date.now() - prevSeen) < 60000) {
       record(req, { endpoint: 'photo-dupe-skip', sub, imageUrl });
       // 📥 STILL LOG TO THE INBOX (Rodney 2026-07-23 — "sometimes a message doesn't come to
@@ -13486,7 +13545,7 @@ function handleChat(req, res) {
       // never make the message itself invisible to staff. Without this, a customer's repeat
       // send during a ManyChat send-fail (they think it didn't go through) vanished from the
       // Inbox entirely, on top of getting no reply. Log it, just don't re-trigger the AI.
-      if (!staffNameFor(req)) try { inboxRecord(store, sub, { dir: 'in', sender: 'customer', text: '📷 photo (sent again)', name, img: imageUrl, phone: getPhone(req) || '' }); } catch (_) {}
+      if (!staffNameFor(req)) try { inboxRecord(store, sub, { dir: 'in', sender: 'customer', text: (_txtKey ? '📷 photo (sent again) · ' + _txtKey.slice(0, 60) : '📷 photo (sent again)'), name, img: imageUrl, phone: getPhone(req) || '' }); } catch (_) {}
       return;
     }
     recentImageSeen.set(k, Date.now());
