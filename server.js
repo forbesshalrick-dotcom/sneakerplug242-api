@@ -10693,6 +10693,20 @@ and it must NEVER be answered with a question back.`;
                                             ctx.turnAt || 0, String(_wantSz)).catch(() => null);
             if (_r && _r.sent > 0) { photosSentRun = true; sentToCustomer = true; }
           }
+        } else if (_has.length && _has.includes(_wantSz) && !/\$\s?\d/.test(turnText)) {
+          /* ✅ AND THE YES BRANCH. Rodney 2026-10-08: "You're supposed to say yes, if you
+           * have this, let them know the price, find out the location, try and make a
+           * delivery. If you don't have it, then you can say no, I don't have this, but I
+           * have these." A size album is not an answer to "do you have this" - it is us
+           * changing the subject to a man who already picked. We know the shoe (he sent us
+           * our own card) and we know it comes in his size, so there is one reply. */
+          cardSizeClaimed++;
+          const _was2 = turnText;
+          turnText = 'Yes \U0001f44c that’s the ' + displayName(_sh) + ' — $'
+                   + (parseFloat(_sh.price) || 0) + ', an we got it in your ' + _wantSz
+                   + ' \U0001f45f Free delivery — where you want it brought?';
+          record(req, { endpoint: 'availability-answered-yes', sub, store: ctx.store || '',
+                        shoe: String(_sh.id), size: _wantSz, was: _was2.slice(0, 90) });
         }
       }
     } catch (e) { record(req, { endpoint: 'card-size-check-error', sub, error: String(e).slice(0, 90) }); }
