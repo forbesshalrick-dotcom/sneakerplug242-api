@@ -8433,10 +8433,38 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const _sentUsAPicture = !!(image || (ctx && ctx.inPhotoUrl));
   if ((_pointerOnly || _pointerAsk) && !_sentUsAPicture) {
     try {
-      const albumNote = pointedAtAlbumNote(sub);
-      if (albumNote) {
-        addOwnerNote(sub, albumNote);
-        record(req, { endpoint: 'pointed-at-album', sub, q: String(userText).slice(0, 30) });
+      /* 👇 A CARD THEY JUST SENT US SETTLES THE POINTER - NO GUESSING NEEDED.
+       * Rodney 2026-10-08, TK +1 (242) 437-7841, 18:31: he pointed at our Green/Black 9060
+       * card and asked "I ask u if u av that and which size?" and was answered about the
+       * BLACK/WHITE 9060. A quote-reply never reaches this server, so she picked a 9060 out
+       * of the conversation - and picked wrong.
+       * But when the customer FORWARDS one of our cards the picture does arrive, and our
+       * card filenames carry the shoe id. That is not a hint, it is the shoe. So when
+       * exactly one of ours came in within the last three minutes, the pointer means THAT
+       * one and she is told so plainly, instead of being handed a list to choose from. */
+      let _settled = null;
+      try {
+        const _ids = ourCardIdsFrom(sub, 3 * 60 * 1000);
+        if (_ids.length === 1) _settled = shoeByAnyId(_ids[0], liveShoeMap());
+      } catch (_) {}
+      if (_settled) {
+        const _sizes = [...new Set(((_settled.sizesRaw || _settled.sizes) || [])
+          .map(x => parseFloat(x)).filter(n => !isNaN(n)))].sort((a, b) => a - b);
+        addOwnerNote(sub, 'The customer is pointing at a picture they sent us, and it is OUR '
+          + 'OWN card for the ' + displayName(_settled) + ' - the shoe id is printed in the '
+          + 'file name, so this is CERTAIN, not a guess. That is the shoe they mean. It is $'
+          + (parseFloat(_settled.price) || 0) + ' and it comes in '
+          + (_sizes.length ? _sizes.join(', ') : 'no sizes we have entered yet')
+          + '. Answer about THAT pair and nothing else. Do NOT name a different shoe, do NOT '
+          + 'offer a size it does not come in, and do NOT ask which one they mean.');
+        record(req, { endpoint: 'pointer-settled-by-our-card', sub, shoe: String(_settled.id || ''),
+                      q: String(userText).slice(0, 30) });
+      } else {
+        const albumNote = pointedAtAlbumNote(sub);
+        if (albumNote) {
+          addOwnerNote(sub, albumNote);
+          record(req, { endpoint: 'pointed-at-album', sub, q: String(userText).slice(0, 30) });
+        }
       }
     } catch (_) {}
   }
