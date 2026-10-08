@@ -274,6 +274,37 @@ function saveRecent() {
   }, 2000);
   if (recentLogSaveT.unref) recentLogSaveT.unref();
 }
+/* 🗂️ One trail per customer. See the note inside record(). Persisted, because what we most
+ * often need to read is what happened BEFORE the last restart. */
+const subTrail = new Map();
+const TRAIL_FILE = (() => {
+  try {
+    const fs = require('fs'), path = require('path');
+    for (const d of ['/data', __dirname]) {
+      try { fs.accessSync(d, fs.constants.W_OK); return path.join(d, 'sub-trail.json'); } catch (_) {}
+    }
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (TRAIL_FILE && require('fs').existsSync(TRAIL_FILE)) {
+    const _saved = JSON.parse(require('fs').readFileSync(TRAIL_FILE, 'utf8')) || {};
+    for (const [k, v] of Object.entries(_saved)) if (Array.isArray(v)) subTrail.set(k, v.slice(-300));
+  }
+} catch (_) {}
+let trailSaveT = null;
+function saveTrail() {
+  if (!TRAIL_FILE) return;
+  clearTimeout(trailSaveT);
+  trailSaveT = setTimeout(() => {
+    try {
+      const out = {};
+      for (const [k, v] of [...subTrail.entries()].slice(-200)) out[k] = v.slice(-300);
+      require('fs').writeFileSync(TRAIL_FILE, JSON.stringify(out));
+    } catch (_) {}
+  }, 4000);
+  if (trailSaveT.unref) trailSaveT.unref();
+}
 function record(req, extra) {
   recent.unshift({
     at: new Date().toISOString(),
@@ -294,6 +325,34 @@ function record(req, extra) {
   });
   if (recent.length > 120) recent.length = 120;
   saveRecent();
+  /* 🗂️ AND KEEP A PER-CUSTOMER TRAIL, because /last is useless by the time anyone looks.
+   * Asked for by the M5 session 2026-10-08 after missing the turn events on nearly every
+   * case all day: /last is ONE ring of 120 rows across every customer on three shops, which
+   * at a busy hour is one to ten minutes. Rodney screenshots a chat, and by the time anyone
+   * pulls the log the evidence has scrolled out - so the same bug gets guessed at twice
+   * instead of read once. Four cases today were diagnosed from the chat text alone because
+   * of this.
+   * 300 events per customer, so an hour-old screenshot is still diagnosable. Bodies are
+   * dropped: they are the bulky part, and the endpoint names plus the guard fields are what
+   * actually tell the story. Read it with /last?sub=NNN. */
+  try {
+    const _s = String((extra && extra.sub) || '');
+    if (_s) {
+      const row = { at: new Date().toISOString(), endpoint: (extra && extra.endpoint) || req.path };
+      for (const [k, v] of Object.entries(extra || {})) {
+        if (k === 'sub' || k === 'endpoint' || v == null) continue;
+        const t = typeof v;
+        if (t === 'object') continue;
+        row[k] = (t === 'string') ? v.slice(0, 160) : v;
+      }
+      let arr = subTrail.get(_s);
+      if (!arr) { arr = []; subTrail.set(_s, arr); }
+      arr.push(row);
+      if (arr.length > 300) arr.splice(0, arr.length - 300);
+      if (subTrail.size > 400) subTrail.delete(subTrail.keys().next().value);
+      saveTrail();
+    }
+  } catch (_) {}
 }
 
 // ── Pull the customer's text out of the request, however it arrived ───────────
@@ -1221,6 +1280,20 @@ app.get('/debug-manager-ping-test', async (req, res) => {
 // phone-readable summary of each — easy to eyeball on a phone. Omit q for the full raw dump.
 app.get('/last', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  /* 🗂️ /last?sub=NNN — this customer's OWN trail, 300 events deep and across restarts,
+   * instead of the 120-row ring that covers every customer on three shops and empties in
+   * minutes. &since=ISO to narrow, &grep=word to filter. See subTrail in record(). */
+  const subQ = String(req.query.sub || '').replace(/[^0-9]/g, '');
+  if (subQ) {
+    let rows = (subTrail.get(subQ) || []).slice();
+    const since = String(req.query.since || '').trim();
+    if (since) rows = rows.filter(r => String(r.at) >= since);
+    const grep = String(req.query.grep || '').trim().toLowerCase();
+    if (grep) rows = rows.filter(r => { try { return JSON.stringify(r).toLowerCase().includes(grep); } catch (_) { return false; } });
+    const lim = Math.min(300, parseInt(req.query.limit, 10) || 120);
+    return res.json({ sub: subQ, events: rows.length, kept: (subTrail.get(subQ) || []).length,
+                      subsTracked: subTrail.size, trail: rows.slice(-lim) });
+  }
   const q = String(req.query.q || '').trim();
   if (q) {
     const hits = recent
