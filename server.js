@@ -8792,6 +8792,7 @@ and it must NEVER be answered with a question back.`;
   let deliveryTimeDodged = 0;  // "wat time is best" on a placed order, answered with anything but ASAP
   let multiPickPriced = 0;     // they sent several of our cards back - total them and deal
   let cardSizeClaimed = 0;     // promised a forwarded card in a size it does not come in
+  let shoePriceGiven = 0;      // "how much" about a shoe we can name, answered with the whole list
   let pointerNamedAShoe = 0;   // a pointer we could not read, answered with a shoe name as fact
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
@@ -9833,12 +9834,51 @@ and it must NEVER be answered with a question back.`;
      * text-list guard then binned the one reply he actually wanted. It is the WHOLE message
      * being about prices that matters, not which three words he chose. */
     const _priceAskText = String(userText || '').split('(SYSTEM NOTE')[0].trim();
-    const _barePriceAsk = /^\s*(?:prices?|pricing|cost|how much|how much (?:is|are|for)|what(?:'|\u2019)?s the price|wats? the price)\s*[?.!]*\s*$/i.test(_priceAskText)
+    let _barePriceAsk = /^\s*(?:prices?|pricing|cost|how much|how much (?:is|are|for)|what(?:'|\u2019)?s the price|wats? the price)\s*[?.!]*\s*$/i.test(_priceAskText)
       || (_priceAskText.length <= 90
           && /\b(price|prices|pricing|price ?list|price ?listing|cost|costs)\b/i.test(_priceAskText)
           && /\b(list|listing|have|got|send|share|see|what(?:'|\u2019)?s|whats|any|your|for your|items|everything|all)\b/i.test(_priceAskText)
           // but NOT a price question about one named shoe - that gets THAT shoe's price
           && !/\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97|95|90|270|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|huarache|shox|tn|blazer|cortez|panda)\b/i.test(_priceAskText));
+    /* 💲 "HOW MUCH?" ABOUT A SHOE WE ARE ALREADY TALKING ABOUT IS NOT A PRICE-LIST ASK.
+     * Rodney 2026-10-08 ("kiki is retarded?"), TK +1 (242) 437-7841, 19:08. He quote-replied
+     * HER OWN line about the Black/White 9060 and typed "How much?" - and got the entire
+     * price list, every tier in the shop, for a shoe she had named herself one message
+     * earlier. The answer was $130.
+     * The list rule is right for someone who walks in and says "prices?" with nothing on the
+     * table. It is wrong the moment we know which shoe they mean - and we often do: they
+     * pinned it, they forwarded our card, or there is exactly one shoe in the album we just
+     * sent. Then "how much" has one number for an answer, and the list is noise. */
+    try {
+      let _inPlay = null;
+      try { _inPlay = lockedShoeFor(sub) || null; } catch (_) {}
+      if (!_inPlay) {
+        const _cardIds = ourCardIdsFrom(sub, 3 * 60 * 1000);
+        if (_cardIds.length === 1) _inPlay = shoeByAnyId(_cardIds[0], liveShoeMap());
+      }
+      if (!_inPlay) {
+        try {
+          const _a = albumShown.get(String(sub));
+          if (_a && Date.now() - _a.at < 30 * 60 * 1000 && (_a.shoes || []).length === 1) {
+            _inPlay = shoeByAnyId(_a.shoes[0].id, liveShoeMap()) || _a.shoes[0];
+          }
+        } catch (_) {}
+      }
+      if (_inPlay && _barePriceAsk && !staffName) {
+        const _p = parseFloat(_inPlay.price) || 0;
+        if (_p > 0) {
+          _barePriceAsk = false;   // the list must not fire over a shoe we can name
+          if (shoePriceGiven < 1 && turnText && !/\$\s?\d/.test(turnText)) {
+            shoePriceGiven++;
+            const _was = turnText;
+            turnText = 'That one $' + _p + ' \U0001f45f you want it?';
+            record(req, { endpoint: 'price-of-the-shoe-in-play', sub, store: ctx.store || '',
+                          shoe: String(_inPlay.id || ''), price: _p, was: _was.slice(0, 90) });
+          }
+        }
+      }
+    } catch (e) { record(req, { endpoint: 'price-in-play-error', sub, error: String(e).slice(0, 90) }); }
+
     /* 💵 A PRICE ASK GETS THE PRICE LIST, FULL STOP (Rodney 2026-10-06: "One guy asked for
      * price listing and got jargon"). Exempting it from the text-list guard was only half of
      * it - he still has to actually RECEIVE the list. +1 242 829-5104 asked for a price listing
