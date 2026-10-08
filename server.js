@@ -12782,20 +12782,36 @@ and it must NEVER be answered with a question back.`;
         // Only when EVERY picture that went out misses the size. A mixed album is a browse and
         // the album's own size labels already tell the truth about each pair.
         if (_sent.length && _miss.length === _sent.length) {
+          /* 🧍🧍 TWO SHOES IN ONE BREATH STILL MEANS TWO (caught by the drill, 2026-10-08).
+           * The first version of this took _miss[0] and searched only THAT model, so a
+           * customer who asked for "97 an vapors in a 10.5" was answered about the Air Max
+           * 97 alone and the VaporMax vanished - the exact failure the second-shoe guard
+           * exists to stop, reintroduced by a guard meant to help. Every model they were
+           * shown gets looked up, and every one of them gets named. */
+          const _byModel = new Map();
+          for (const sh of _miss) {
+            const k = String(sh.name || '').trim() || String(sh.brand || '');
+            if (k && !_byModel.has(k)) _byModel.set(k, sh);
+          }
           const _shoe = _miss[0];
           const _has = [...new Set(((_shoe.sizesRaw || _shoe.sizes) || [])
             .map(x => parseFloat(x)).filter(n => !isNaN(n)))].sort((a, b) => a - b);
-          const _label = displayName(_shoe);
-          // The model is the shoe's own name without the colourway - "Air Jordan 11 Retro".
-          const _model = String(_shoe.name || '').trim();
-          let _rows = _model ? (searchInventory({ query: _model, size: String(_wantN), exact_sizes: true }) || []) : [];
+          const _label = [..._byModel.values()].slice(0, 3).map(displayName).join(' an the ');
+          let _rows = [];
           let _how = 'model';
-          if (!_rows.length && _shoe.brand) {
-            _rows = searchInventory({ brand: _shoe.brand, size: String(_wantN), exact_sizes: true }) || [];
+          for (const [_model, sh] of _byModel) {
+            const r = _model ? (searchInventory({ query: _model, size: String(_wantN), exact_sizes: true }) || []) : [];
+            if (r.length) _rows = _rows.concat(r);
+          }
+          if (!_rows.length) {
             _how = 'brand';
+            for (const sh of _byModel.values()) {
+              if (!sh.brand) continue;
+              _rows = _rows.concat(searchInventory({ brand: sh.brand, size: String(_wantN), exact_sizes: true }) || []);
+            }
           }
           const _ids = _rows.map(r => r.id).filter(id => !turnSentIds.has(id)).slice(0, 12);
-          const _sizeLine = _has.length
+          const _sizeLine = (_byModel.size === 1) && _has.length
             ? ' — it only left in a ' + (_has.length === 1 ? _has[0]
                 : _has.slice(0, -1).join(', ') + ' an ' + _has[_has.length - 1])
             : '';
