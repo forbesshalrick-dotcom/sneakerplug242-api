@@ -1774,9 +1774,46 @@ function splitLongText(messages) {
  * follow-up - is captured with no second code path to keep in step. That is the whole point:
  * a second path is how the brains drifted apart in the first place. */
 const composeSink = new Map();   // sub -> array collecting what WOULD have been sent
+/* 🧪 A COMPOSE SUB IS NOT A CUSTOMER, AND IT MUST NEVER BECOME ONE.
+ * Found by the M5 session 2026-10-08. /social/reply hashes its thread id to a "9"-prefixed
+ * number so it can never collide with a real subscriber - true, and not enough. The sink is
+ * deleted at the end of the request, but two things outlive it:
+ *   - inboxRecord had already written the turn into Rodney's app, so ~10 nameless,
+ *     phoneless threads appeared among his live TK customers. He read one of them
+ *     ("you have the all black air force 1 in a 8?") as a real buyer and answered it.
+ *   - scheduleNudge had armed a 10-minute follow-up. By the time it fired the sink was
+ *     gone, so FOLLOWUP_MSG went out through the NORMAL path - a real ManyChat send
+ *     aimed at a subscriber id we invented.
+ * Nothing reached a customer this time. That was luck, not design.
+ * So the id is remembered for a day: no inbox row, no nudge, and no send can ever leave
+ * this server for one of these - whether or not its sink is still open. */
+const composeSubs = new Map();   // sub -> when we last saw it as a compose/drill thread
+function isComposeSub(sub) {
+  const k = String(sub || '');
+  const at = composeSubs.get(k);
+  if (!at) return false;
+  if (Date.now() - at > 24 * 60 * 60 * 1000) { composeSubs.delete(k); return false; }
+  return true;
+}
+function noteComposeSub(sub) {
+  composeSubs.set(String(sub), Date.now());
+  if (composeSubs.size > 500) composeSubs.delete(composeSubs.keys().next().value);
+}
 async function sendChunk(subscriberId, messages, token, logOpts) {
   messages = splitLongText(messages);
   const _sink = composeSink.get(String(subscriberId));
+  /* 🚧 THE LAST DOOR. If this is a compose/drill sub and its sink has already been torn
+   * down, the send is DROPPED - never handed to ManyChat or the YCloud browser outbox.
+   * There is no customer at the other end of that id. */
+  if (!_sink && isComposeSub(subscriberId)) {
+    try {
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'compose-send-blocked',
+                       sub: String(subscriberId),
+                       text: String((messages || []).map(m => m && m.text).filter(Boolean).join(' ')).slice(0, 80) });
+      if (recent.length > 120) recent.length = 120;
+    } catch (_) {}
+    return { ok: true, sent: 0, blocked: 'compose sub - no real customer behind this id' };
+  }
   if (_sink) {
     // Compose-only: collect and report success. Nothing leaves this server, and the inbox
     // thread is NOT written - the Mac owns that conversation's record.
@@ -5882,6 +5919,7 @@ function clearHumanPause(sub) { if (humanPaused.delete(String(sub))) { inboxRev+
 function inboxRecord(account, sub, m) {
   try {
     if (!sub) return;
+    if (isComposeSub(sub)) return;   // a drill turn is not a customer - see composeSubs
     const text = (m.text == null ? '' : String(m.text)).slice(0, 4000);
     const img = m.img ? String(m.img).slice(0, 1500) : '';
     const loc = m.loc ? String(m.loc).slice(0, 500) : '';
@@ -6270,6 +6308,9 @@ const FIT_QUESTION_RE = new RegExp(
     '|\\b(?:will|would|do|does|they|these|it)\\b[^.!?\\n]{0,20}\\bfit\\b' +
   ')', 'i');
 function scheduleNudge(sub, token, text, ms, next, isCloser) {
+  // 🧪 Never chase a thread that does not exist. The sink is gone by the time a nudge
+  // fires, so this used to become a real send to an invented subscriber id.
+  if (isComposeSub(sub)) return;
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
     followUps.delete(sub);
@@ -17073,6 +17114,7 @@ app.post('/social/reply', async (req, res) => {
 
   const sink = [];
   composeSink.set(sub, sink);
+  noteComposeSub(sub);   // remembered for a day - see composeSubs
   try {
     // Seed the conversation with the history the caller holds, so she is not amnesiac on the
     // first call. Only on a thread this server has not seen before — after that its own
