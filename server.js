@@ -4011,6 +4011,37 @@ const lastPhotoLandedAt = new Map(); // sub -> when a photo last actually reache
 // not aware until he checks the message it can be 10 to 20 minutes afterwards... by the time we
 // contact the client, the client's like, man, you told me you were on the way 20 minutes ago."
 const driverDispatchedAt = new Map();   // sub -> when a human pressed Driver dispatched
+/* ⏰ "WAT TIME IS BEST" ON AN ORDER ALREADY PLACED = ASAP.
+ * Rodney 2026-10-08, verbatim: "Asap for custimer".
+ * OSC, Bobo +1 (242) 448-4526, 13:52:41. His order was filed ninety seconds earlier - two
+ * pairs, Southwest Plaza at CIBC - and he asked "Good. Wat time is best". There was no
+ * answer to that anywhere in this file, so she reached for the two lines she had: "let me
+ * check with the driver" (blocked, stall-line) and "Driver's on the way to you now"
+ * (blocked, invented - no driver had been dispatched). Both guards were right. With
+ * nothing left she called get_agent, so he got "a team member will get right with you"
+ * and Rodney got the same alert twice, for a question with a one-word answer.
+ * A missing answer is how a guard chain turns into an escalation. The answer lives here. */
+const DELIVERY_TIME_Q = /\b(?:wa?t|what)\s*time\b|\btime\s+is\s+best\b|\bbest\s+time\b|\bwhen\s+(?:you|u|y'?all|yall|can|will|is|are)\b[^.!?\n]{0,26}\b(?:come|comin|coming|reach|bring|drop|deliver|get here|here)\b|\bwhen\s+(?:can|will)\s+(?:i|we)\s+(?:get|have|pick)\b|\bhow\s+soon\b/i;
+/* ⚠️ "WHAT TIME Y'ALL CLOSE?" IS AN HOURS QUESTION, NOT A DELIVERY ONE - and a customer with
+ * an order open can still ask it. Answering that with "ASAP" would be nonsense, so anything
+ * about opening or closing is handed back to the hours rule. */
+function asksDeliveryTime(t) {
+  const txt = String(t || '');
+  if (!DELIVERY_TIME_Q.test(txt)) return false;
+  if (/\b(close[sd]?|closing|open|opens|opening|shut|hours)\b/i.test(txt)) return false;
+  return true;
+}
+function nassauIsClosed() {
+  try {
+    const h = new Date(Date.now() - 4 * 3600 * 1000).getUTCHours();   // Nassau, UTC-4
+    return h >= 22 || h < 8;                                          // 8 AM - 10 PM
+  } catch (_) { return false; }
+}
+function asapAnswer() {
+  return nassauIsClosed()
+    ? 'First run in the morning from 8 AM ⏰ you on it — we’ll text you when the driver heading out \U0001f45f'
+    : 'ASAP \U0001f45f we lining it up now — we’ll text you when the driver heading out';
+}
 /* 🚦 WHERE THE DRIVER ACTUALLY IS — SET BY A BUTTON, NEVER GUESSED (Rodney 2026-10-05).
  * "sometimes she's saying driver is on the way and I'm not even on the way as yet... I can
  *  have a button to say driver on the way or I'm leaving out now... I can have like a button
@@ -8617,6 +8648,7 @@ and it must NEVER be answered with a question back.`;
   let falsePhotoExcuse = 0;    // blaming the photos when nothing was ever sent
   let pricedNothing = 0;       // a price question about named shoes answered with no price
   let albumPriceDodged = 0;    // "how much" about the album they are looking at, answered with a question
+  let deliveryTimeDodged = 0;  // "wat time is best" on a placed order, answered with anything but ASAP
   let pointerNamedAShoe = 0;   // a pointer we could not read, answered with a shoe name as fact
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
@@ -10433,6 +10465,24 @@ and it must NEVER be answered with a question back.`;
           + 'day — and only then carry on with whatever you were arranging. Do not push for the '
           + 'pin instead of answering; you can do both in one short line.)' });
         continue;
+      }
+    } catch (_) {}
+    /* ⏰ AND IF SHE STILL DOES NOT SAY IT, SAY IT IN CODE (Rodney: "Asap for custimer").
+     * See DELIVERY_TIME_Q. The customer has an order with us and asked what time. There is
+     * exactly one right answer and it never changes, so it does not need a model to produce
+     * it. This fires only when the reply carries no time answer at all - if she has already
+     * said ASAP, or soon, or named the morning, hers stands. */
+    try {
+      const _ct = String(userText || '').split('(SYSTEM NOTE')[0].split('(SYSTEM:')[0];
+      const SAYS_WHEN = /\b(asap|as soon as|right away|straight away|shortly|soon|today|tonight|this (?:morning|afternoon|evening)|tomorrow|in the morning|first (?:run|thing)|\d{1,2}\s*(?:am|pm)|\d{1,2}:\d{2})\b/i;
+      if (turnText && !staffName && deliveryTimeDodged < 1
+          && orderIsLocked(sub) && !driverDispatchedAt.has(String(sub))
+          && asksDeliveryTime(_ct) && !SAYS_WHEN.test(turnText)) {
+        deliveryTimeDodged++;
+        const _was = turnText;
+        turnText = asapAnswer();
+        record(req, { endpoint: 'delivery-time-answered-in-code', sub, store: ctx.store || '',
+                      asked: _ct.slice(0, 50), was: _was.slice(0, 90) });
       }
     } catch (_) {}
     /* 🕘 THE CLOSING HOUR IS A FACT, SO CORRECT IT IN CODE.
@@ -12491,6 +12541,24 @@ and it must NEVER be answered with a question back.`;
       }
       else if (tu.name === 'get_agent') {
         const inp = tu.input || {};
+        /* ⏰ A DELIVERY-TIME QUESTION IS NOT A REASON TO FETCH A HUMAN (Rodney: "Asap for
+         * custimer"). See DELIVERY_TIME_Q. Answer it; do not ring anybody. */
+        try {
+          const _ct = String(userText || '').split('(SYSTEM NOTE')[0];
+          if (!staffName && orderIsLocked(sub) && !driverDispatchedAt.has(String(sub))
+              && asksDeliveryTime(_ct)) {
+            record(req, { endpoint: 'get-agent-blocked-delivery-time', sub, store: ctx.store || '',
+                          asked: _ct.slice(0, 50) });
+            toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
+              ok: false, blocked: 'they asked WHEN, and you know the answer',
+              note: 'NOBODY WAS CALLED. They have an order with us already and they asked what '
+                  + 'time. The answer is ASAP - say it in your own words, warm and short, like: '
+                  + '"' + asapAnswer() + '". Do NOT say you are checking with the driver, do NOT '
+                  + 'say a driver is on the way (none has been sent), and do NOT pass them to a '
+                  + 'person. This is a question you can answer yourself.' }) });
+            continue;
+          }
+        } catch (_) {}
         // ⏱️ ONE CALL FOR HELP PER CUSTOMER, NOT EIGHT.
         // Rodney 2026-09-24, on the same escalation arriving over and over: "I already dealt
         // with this." Seven get_agent calls and thirteen alerts in two minutes. The loop that
