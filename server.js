@@ -4367,13 +4367,35 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // retry would make a silent failure permanent.
   const _freshCut = Date.now() - 90 * 1000;
   for (const [id, ts] of _justSent) if (ts < _freshCut) _justSent.delete(id);
+  /* 🆔 A REAL SHOE ID IS NOT A ROW NUMBER, AND THIS DROPPED EVERY ONE OF THEM.
+   * Found by the M5 session 2026-10-08 on TK +1 (242) 802-3993 (sub 1850241886, 08:33).
+   * He came off an ad, said "Size 10", and four seconds later - before a single photo was
+   * even attempted - got "Ugh, the photos aren't sending on my end right now" and the
+   * website link. Twice. Rodney's alerts showed "PHOTOS FAILED TO SEND - 0 of 6".
+   * Nothing had failed. liveShoeMap() is keyed by catalogue ROW INDEX, but the ad-shoe
+   * replace hands over REAL ids ("c0644") - so live["c0644"] was undefined, all six were
+   * silently filtered out, and the loop never ran. The ad's shoes never went out either,
+   * which is why the 60-shoe shelf album got through behind it - the exact dump the ad fix
+   * was written to stop.
+   * Same row-index-vs-real-id split as exclude_ids. shoeByAnyId takes both. */
+  const _resolve = (id) => live[id] || shoeByAnyId(id, live);
   const dedupe = (idList, seen) => {
     const s = seen || new Set();
-    return (idList || []).filter(id => !s.has(id) && s.add(id))
-      .filter(id => !_justSent.has(String(id)))   // they already have this one, moments ago
-      .map(id => live[id]).filter(x => x && x.image);
+    const out = [];
+    for (const id of (idList || [])) {
+      if (s.has(id)) continue;
+      s.add(id);
+      const sh = _resolve(id);
+      if (!sh || !sh.image) continue;
+      // Key the "they already have this" memory on the shoe's OWN id, so an index and a
+      // real id for the same pair can never slip past each other as two different shoes.
+      const real = String(sh.id != null ? sh.id : id);
+      if (_justSent.has(real) || _justSent.has(String(id))) continue;
+      out.push(sh);
+    }
+    return out;
   };
-  let sent = 0, requested = 0;
+  let sent = 0, requested = 0, attempted = 0;   // attempted = we actually tried to send it
   const albumTrace = [];   // per-shoe record of what ManyChat answered — see below
   // 🐌 BREATHE BETWEEN PHOTOS (Rodney 2026-08-05). A 34-pair album fired 68 ManyChat calls
   // back-to-back with no gap whatsoever, ManyChat answered 200 {"status":"success"} to every
@@ -4574,6 +4596,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
 
   // Send ONE shoe (photo + its label) per call, so a "stop" halts within a single shoe.
   const sendShoe = async (s) => {
+    attempted++;   // a real send is about to be made - see the sent===0 branches below
     try {
       // ⚠️ sendChunk RETURNS {ok:false} on failure — it does NOT throw. This used to do
       // `sent += 1` unconditionally, so 12 straight ManyChat timeouts still counted as
@@ -4722,7 +4745,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       // pre-approved line here instead so there's nothing left to invent.
       if (sent > 0 && !isStaff) {
         sendChunk(sub, [{ type: 'text', text: "That's what came through so far 👟 a few more didn't send — gimme one sec and I'll get them to you 🙏" }], token).catch(() => {});
-      } else if (sent === 0 && !isStaff && !photosLandedRecently(sub)) {
+      } else if (sent === 0 && attempted > 0 && !isStaff && !photosLandedRecently(sub)) {
         sendChunk(sub, [{ type: 'text', text: "Ugh, the photos aren't sending on my end right now 😩 You can browse everything at *242plug.com* in the meantime — I'm on it and will follow up the second it's fixed 🙏" }], token).catch(() => {});
       }
       const label = (lastShoeSent && displayName(lastShoeSent)) || '';
@@ -4741,11 +4764,25 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // send found nothing left to deliver and reported zero. From his side it reads as us not
   // knowing what we just did. If a photo actually landed in this chat in the last three
   // minutes, the photos are demonstrably sending, whatever this particular call managed.
-  if (!brokeOnFailures && sent === 0 && requested > 0 && !manualStopped && !interrupted && !isStaff
+  /* ⛔ AND NEVER OVER SHOES NOBODY EVEN TRIED TO SEND (2026-10-08).
+   * `requested` is the length of the id list that came IN. `attempted` is how many sends
+   * were actually made. When every id fails to resolve, the first is 6 and the second is 0,
+   * and this told a customer our photos were broken four seconds after he gave his size,
+   * with nothing wrong at either end. An empty list after dedupe is a LOOKUP failure, and
+   * it has to be loud in a different way - telling the shop, not apologising to the buyer. */
+  if (requested > 0 && attempted === 0 && !manualStopped && !interrupted) {
+    try {
+      record({ method: 'INTERNAL', path: '/album' }, { endpoint: 'album-ids-did-not-resolve',
+        sub: String(sub), requested, sample: (ids || []).slice(0, 4).map(String).join(',') });
+    } catch (_) {}
+    try { console.error('[album] none of', requested, 'ids resolved for', sub,
+                        (ids || []).slice(0, 4)); } catch (_) {}
+  }
+  if (!brokeOnFailures && sent === 0 && attempted > 0 && !manualStopped && !interrupted && !isStaff
       && !photosLandedRecently(sub)) {
     try {
       sendChunk(sub, [{ type: 'text', text: "Ugh, the photos aren't sending on my end right now 😩 You can browse everything at *242plug.com* in the meantime — I'm on it and will follow up the second it's fixed 🙏" }], token).catch(() => {});
-      waSendManager('📷 *PHOTOS FAILED TO SEND* — 0 of ' + requested + ' got through (below the 3-in-a-row breaker).\n👤 Customer: ' + sub + '\n⚠️ Check ManyChat / image URLs — the customer got a website link instead.', token).catch(() => {});
+      waSendManager('📷 *PHOTOS FAILED TO SEND* — 0 of ' + attempted + ' got through (below the 3-in-a-row breaker).\n👤 Customer: ' + sub + '\n⚠️ Check ManyChat / image URLs — the customer got a website link instead.', token).catch(() => {});
     } catch (_) {}
   }
 
@@ -11616,6 +11653,12 @@ and it must NEVER be answered with a question back.`;
               const _p = [...new Set(_inSize.map(a => Number(a.price)).filter(Boolean))];
               leadIn = 'These the ones on the ad in your ' + _adSz
                      + (_p.length === 1 ? ' — $' + _p[0] + ' each' : '') + ' \u{1F45F}';
+              /* 🚧 AND STOP THE TOP-UP PUTTING THE SHELF BACK (2026-10-08).
+               * The ad lead-in names no brand, so the album still counted as a generic size
+               * browse and the completeness top-up dumped 60 shoes in behind it - which is
+               * the exact thing this replace exists to prevent. An ad customer asking about
+               * the ad is as specific a request as naming a model, so say so. */
+              turnHadRestrictiveSearch = true;
               record(req, { endpoint: 'ad-shoes-replaced-shelf-dump', sub, store: ctx.store || '',
                             size: _adSz, wouldHaveSent: _asked, sending: _inSize.length });
             }
