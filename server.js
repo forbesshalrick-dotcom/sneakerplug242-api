@@ -10587,7 +10587,10 @@ and it must NEVER be answered with a question back.`;
           try {
             const _lm2 = liveShoeMap();
             for (const id of turnSentIds) {
-              const sh = _lm2[id];
+              // 🆔 turnSentIds now carries REAL ids as well as row indexes (the ad replace and
+              // the narrowing re-send both produce them). _lm2[id] alone saw none of those, so
+              // every shoe read as "not sent" and this guard judged on nothing.
+              const sh = _lm2[id] || shoeByAnyId(id, _lm2);
               if (sh) _sentModels.push(String(displayName(sh)).toLowerCase());
             }
           } catch (_) {}
@@ -10605,7 +10608,7 @@ and it must NEVER be answered with a question back.`;
               try {
                 const _lead = 'And the ' + g.seg + ' I got in your ' + knownSize + ' 👟';
                 const _r = await sendShoePhotos(sub, g.rows.map(r => r.id), token, true, null,
-                                                _lead, false, false, false, 0, knownSize);
+                                                _lead, false, false, false, ctx.turnAt || 0, knownSize);
                 const n = (_r && _r.sent) || 0;
                 if (n > 0) { sentNow += n; photosSentRun = true; names.push(g.seg); }
               } catch (_) {}
