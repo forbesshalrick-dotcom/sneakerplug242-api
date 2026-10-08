@@ -4445,9 +4445,15 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
      * moments ago, AND they have spoken since, they are asking on purpose - send them again.
      * Sending a picture twice costs nothing. Silence costs the sale. */
     if (!out.length && blocked.length) try {
-      const spokeAt = lastInboundAt.get(String(sub)) || 0;
+      /* Use the TURN, not an inbound timestamp. requestAt is when this turn began, and an
+       * overlapping album fired inside the same turn carries the SAME requestAt - which is
+       * always earlier than the sends that turn already made. A genuinely new turn started
+       * after them. (lastInboundAt stays as a fallback for callers that pass no requestAt;
+       * it is only set on the real ManyChat/YCloud path, so on its own it left this check
+       * dead for every other caller - including the drill that found the bug.) */
+      const askedAt = Number(requestAt) || lastInboundAt.get(String(sub)) || 0;
       const newestSend = Math.max(0, ...[..._justSent.values()]);
-      if (spokeAt && spokeAt >= newestSend) {
+      if (askedAt && askedAt >= newestSend) {
         try {
           recent.unshift({ at: new Date().toISOString(), endpoint: 'resend-after-they-asked-again',
                            sub: String(sub), shoes: blocked.length });
