@@ -5867,6 +5867,7 @@ try {
   if (TOKENS_FILE && require('fs').existsSync(TOKENS_FILE)) {
     const saved = JSON.parse(require('fs').readFileSync(TOKENS_FILE, 'utf8')) || {};
     for (const [k, v] of Object.entries(saved.stores || {})) storeTokens.set(k, v);
+    for (const [k, v] of Object.entries(saved.subs || {})) subTokenFix.set(k, v);   // see saveTokens
     lastToken = saved.last || null;
     console.log('[tokens] restored', storeTokens.size, 'store token(s)');
   }
@@ -5876,7 +5877,22 @@ function saveTokens() {
   if (!TOKENS_FILE) return;
   clearTimeout(tokensSaveT);
   tokensSaveT = setTimeout(() => {
-    try { require('fs').writeFileSync(TOKENS_FILE, JSON.stringify({ stores: Object.fromEntries(storeTokens), last: lastToken })); } catch (_) {}
+    try {
+      /* 💾 PERSIST THE PER-SUBSCRIBER TOKENS TOO (2026-10-08).
+       * subTokenFix is what lets the inbox answer a customer on the account that actually
+       * heard them. It lived only in memory, and every push to main restarts this server -
+       * twelve times today - so the map was empty again within minutes and Rodney was back
+       * to "Can't text this number yet" until that customer happened to write again.
+       * Capped and newest-first so the file cannot grow without bound. */
+      const _subs = {};
+      let _n = 0;
+      for (const [k, v] of [...subTokenFix.entries()].reverse()) {
+        if (_n++ >= 400) break;
+        _subs[k] = v;
+      }
+      require('fs').writeFileSync(TOKENS_FILE, JSON.stringify({
+        stores: Object.fromEntries(storeTokens), last: lastToken, subs: _subs }));
+    } catch (_) {}
   }, 1000);
   if (tokensSaveT.unref) tokensSaveT.unref();
 }
