@@ -4039,8 +4039,8 @@ function nassauIsClosed() {
 }
 function asapAnswer() {
   return nassauIsClosed()
-    ? 'First run in the morning from 8 AM ⏰ you on it — we’ll text you when the driver heading out \U0001f45f'
-    : 'ASAP \U0001f45f we lining it up now — we’ll text you when the driver heading out';
+    ? 'First run in the morning from 8 AM ⏰ you on it — we’ll text you when the driver heading out \u{1f45f}'
+    : 'ASAP \u{1f45f} we lining it up now — we’ll text you when the driver heading out';
 }
 /* 🚦 WHERE THE DRIVER ACTUALLY IS — SET BY A BUTTON, NEVER GUESSED (Rodney 2026-10-05).
  * "sometimes she's saying driver is on the way and I'm not even on the way as yet... I can
@@ -4343,7 +4343,7 @@ function pointedAtAlbumNote(sub) {
     return head + 'IMPORTANT: every single one of those came out of a search for a SIZE '
          + a.size + ' - that is what that album was. So if they are asking whether we have '
          + 'it in a ' + a.size + ', the answer is simply YES, and you can say so about the '
-         + 'whole lot: "Yes \u2014 everything I sent you there is in a ' + a.size + ' \U0001f45f". '
+         + 'whole lot: "Yes \u2014 everything I sent you there is in a ' + a.size + ' \u{1f45f}". '
          + 'Do NOT send the album again, do NOT send any photos, and do NOT ask which one. '
          + 'Answer in words and ask if they want you to set it up.';
   }
@@ -6663,8 +6663,8 @@ function queueWaOutbox(phone, text) {
   try {
     const waiting = waOutbox.some(q => q.kind === 'photos' && q.phone === String(phone));
     if (waiting && LEADIN_RE.test(String(text || ''))) {
-      text = String(text).replace(/\s*\U0001f447\s*/g, ' ')
-        + "\n\n(sending them over now - give me a minute \U0001f4f8)";
+      text = String(text).replace(/\s*\uD83D\uDC47\s*/g, ' ')
+        + "\n\n(sending them over now - give me a minute \u{1f4f8})";
     }
   } catch (_) {}
   if (OPS_ONLY_RE.test(String(text || ''))) {
@@ -9424,14 +9424,14 @@ and it must NEVER be answered with a question back.`;
       try {
         const num = (String(userText || '').match(/\b(\d{3}[- ]?\d{4})\b/) || [])[1];
         require('./shop').addAlert(
-          '\U0001f4de *CUSTOMER WANTS A CALL NOW* \u2014 ' + (subName.get(sub) || 'Customer') + ' \u2014 ' + (getPhone(req) || sub)
+          '\u{1f4de} *CUSTOMER WANTS A CALL NOW* \u2014 ' + (subName.get(sub) || 'Customer') + ' \u2014 ' + (getPhone(req) || sub)
           + (num ? '\nThey asked us to call ' + num : '') + '\nThey are waiting. Kiki cannot dial - somebody has to.',
-          'Kiki \U0001f916', { sub: String(sub), account: ctx.store || '',
-            pushTitle: '\U0001f4de Call this customer now', pushBody: num || (getPhone(req) || '') });
-        queueForOwner('\U0001f4de *CUSTOMER WANTS A CALL NOW*\n' + (subName.get(sub) || 'Customer') + ' \u2014 ' + (getPhone(req) || sub)
+          'Kiki \u{1f916}', { sub: String(sub), account: ctx.store || '',
+            pushTitle: '\u{1f4de} Call this customer now', pushBody: num || (getPhone(req) || '') });
+        queueForOwner('\u{1f4de} *CUSTOMER WANTS A CALL NOW*\n' + (subName.get(sub) || 'Customer') + ' \u2014 ' + (getPhone(req) || sub)
           + (num ? '\nCall ' + num : '') + '\nThey are waiting at the meet.', null, true);
       } catch (_) {}
-      history.push({ role: 'user', content: '(SYSTEM NOTE \u2014 the customer cannot see this: you are NOT there and you CANNOT make a phone call. Do not say you can see them, that you are outside, on your way, pulling up, or that you are calling them \u2014 none of it is true and they are standing there believing it. You are on the team side, arranging it. Say the true thing instead: "You there now? \U0001f44c I have got the team calling you right now \u2014 give them one minute." The team has already been alerted. Then stop. Do not mention this note.)' });
+      history.push({ role: 'user', content: '(SYSTEM NOTE \u2014 the customer cannot see this: you are NOT there and you CANNOT make a phone call. Do not say you can see them, that you are outside, on your way, pulling up, or that you are calling them \u2014 none of it is true and they are standing there believing it. You are on the team side, arranging it. Say the true thing instead: "You there now? \u{1f44c} I have got the team calling you right now \u2014 give them one minute." The team has already been alerted. Then stop. Do not mention this note.)' });
       continue;
     }
     // 😶 SHE HAS ENOUGH TO SEND - SO SEND. See CONFUSED_RE.
@@ -11258,11 +11258,11 @@ and it must NEVER be answered with a question back.`;
               record(req, { endpoint: 'sizeless-shoe-wanted', sub, ids: unfinished.map(r => r.id) });
               try {
                 require('./shop').addAlert(
-                  '\U0001f4e6 *A CUSTOMER JUST ASKED FOR A SHOE WITH NO SIZES ENTERED* \u2014 ' + names + '\n'
+                  '\u{1f4e6} *A CUSTOMER JUST ASKED FOR A SHOE WITH NO SIZES ENTERED* \u2014 ' + names + '\n'
                   + 'It has photos and a shelf row but no sizes, so Kiki cannot sell it and every search says we are out. '
                   + 'Put the sizes in and it goes out immediately.',
-                  'Kiki \U0001f916', { sub: String(sub), account: ctx.store || '',
-                    pushTitle: '\U0001f4e6 Sizes missing on a shoe someone wants',
+                  'Kiki \u{1f916}', { sub: String(sub), account: ctx.store || '',
+                    pushTitle: '\u{1f4e6} Sizes missing on a shoe someone wants',
                     pushBody: names });
               } catch (_) {}
             }
@@ -12307,7 +12307,7 @@ and it must NEVER be answered with a question back.`;
               const nudge = '\u23f3 *ORDER STILL WAITING* \u2014 confirmed 20 min ago and no location yet, nobody has picked it up.\n'
                           + _orderLines.split('\n').slice(1).join('\n')
                           + '\n\nOpen the chat and finish it before they go cold.';
-              try { require('./shop').addAlert(nudge, 'Kiki \U0001f916', { sub: _orderSub, account: _orderStore || '',
+              try { require('./shop').addAlert(nudge, 'Kiki \u{1f916}', { sub: _orderSub, account: _orderStore || '',
                     pushTitle: '\u23f3 An order is going cold', pushBody: 'Confirmed 20 min ago, still no location' }); } catch (_) {}
               try { queueForOwner(nudge, null, true); } catch (_) {}
               recent.unshift({ at: new Date().toISOString(), endpoint: 'order-went-cold', sub: _orderSub });
@@ -12976,7 +12976,7 @@ and it must NEVER be answered with a question back.`;
             : '';
           if (_ids.length) {
             const _lead = 'Heads up, the ' + _label + ' dont come in a ' + _wantN + _sizeLine
-                        + '. This is what we got in your ' + _wantN + ' \U0001f45f';
+                        + '. This is what we got in your ' + _wantN + ' \u{1f45f}';
             const _r = await sendShoePhotos(sub, _ids, token, true, null, _lead,
               false, false, false, ctx.turnAt || 0, String(_wantN)).catch(() => null);
             record(req, { endpoint: 'named-shoe-missing-that-size', sub, store: ctx.store || '',
@@ -12987,7 +12987,7 @@ and it must NEVER be answered with a question back.`;
             // Nothing in that model or brand in their size - still never leave the wrong-size
             // picture standing as though it were theirs.
             turnText = 'That ' + _label + ' dont come in a ' + _wantN + _sizeLine
-                     + '. What else you open to? I’ll find you something in your size \U0001f45f';
+                     + '. What else you open to? I’ll find you something in your size \u{1f45f}';
             record(req, { endpoint: 'named-shoe-missing-that-size-nothing-near', sub,
                           store: ctx.store || '', shoe: String(_shoe.id), size: _wantN });
           }
@@ -17778,7 +17778,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
         const have = String(r.sizes || '').split(/[^0-9.]+/).map(parseFloat).filter(n => !isNaN(n));
         return have.length && !have.some(n => askedExact.includes(n));
       });
-      if (halfUp) sizeNote = '\n\n(A few in here are half a size up \u2014 check the sizes under each one \U0001f440)';
+      if (halfUp) sizeNote = '\n\n(A few in here are half a size up \u2014 check the sizes under each one \u{1f440})';
     }
   } catch (_) {}
   // 🔁 ONE ALBUM PER CUSTOMER AT A TIME (Rodney 2026-08-15). He sent an 86-shoe album from
