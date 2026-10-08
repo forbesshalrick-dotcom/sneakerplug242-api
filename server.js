@@ -10474,10 +10474,25 @@ and it must NEVER be answered with a question back.`;
      * said ASAP, or soon, or named the morning, hers stands. */
     try {
       const _ct = String(userText || '').split('(SYSTEM NOTE')[0].split('(SYSTEM:')[0];
+      /* ⚠️ OUR OPENING HOURS ARE NOT A DELIVERY TIME. First cut counted any clock in the
+       * reply as an answer, so "We're open till 10 PM tonight 👟 What time works best for
+       * you?" satisfied it - a reply that answers nothing and hands the question back to a
+       * man who has already placed an order. Strip the hours before looking for a time. */
+      const _noHours = String(turnText).replace(/\b(?:open|close[sd]?|closing|till|until|up to)\b[^.!?\n]{0,18}\b\d{1,2}\s*(?:am|pm)?\b/gi, ' ');
       const SAYS_WHEN = /\b(asap|as soon as|right away|straight away|shortly|soon|today|tonight|this (?:morning|afternoon|evening)|tomorrow|in the morning|first (?:run|thing)|\d{1,2}\s*(?:am|pm)|\d{1,2}:\d{2})\b/i;
+      /* 🚪 AND DO NOT GATE IT ON A LOCKED ORDER. Bobo had given the shoe, the size AND the
+       * meet-up spot, and orderIsLocked was still false - so the first version of this guard
+       * sat out on the exact chat it was written for. There is no customer for whom "when can
+       * you bring it" is better answered with a question back. */
+      /* 🔁 AND A QUESTION BACK IS NEVER AN ANSWER, whatever clock is in the sentence.
+       * "We're open till 10 PM tonight 👟 What time works best for you?" carries two times
+       * and answers nothing - the man had already given us the shoe, the size and the spot.
+       * Rodney's rule is that WE say when, not that we ask him. */
+      const BOUNCES_BACK = /\b(?:what time|when)\b[^.!?\n]{0,28}\b(?:works?|best|good|suit|suits|you want|would you like|for you)\b[^.!?\n]{0,14}\?/i;
       if (turnText && !staffName && deliveryTimeDodged < 1
-          && orderIsLocked(sub) && !driverDispatchedAt.has(String(sub))
-          && asksDeliveryTime(_ct) && !SAYS_WHEN.test(turnText)) {
+          && !driverDispatchedAt.has(String(sub))
+          && asksDeliveryTime(_ct)
+          && (BOUNCES_BACK.test(turnText) || !SAYS_WHEN.test(_noHours))) {
         deliveryTimeDodged++;
         const _was = turnText;
         turnText = asapAnswer();
@@ -12545,7 +12560,7 @@ and it must NEVER be answered with a question back.`;
          * custimer"). See DELIVERY_TIME_Q. Answer it; do not ring anybody. */
         try {
           const _ct = String(userText || '').split('(SYSTEM NOTE')[0];
-          if (!staffName && orderIsLocked(sub) && !driverDispatchedAt.has(String(sub))
+          if (!staffName && !driverDispatchedAt.has(String(sub))
               && asksDeliveryTime(_ct)) {
             record(req, { endpoint: 'get-agent-blocked-delivery-time', sub, store: ctx.store || '',
                           asked: _ct.slice(0, 50) });
