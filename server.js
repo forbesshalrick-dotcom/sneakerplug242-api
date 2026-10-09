@@ -5061,9 +5061,18 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       await albumGap();
     }
   }
+  /* 📦 ON A YCLOUD LINE A REFUSED PHOTO IS NOT A FAILED PHOTO (Rodney 2026-10-09: "fix every
+   * bug in kiki"). Foot Fetish customers never came in through ManyChat, so every image this
+   * loop tries is refused on purpose, instantly - and then album-sent-nothing hands the same
+   * album to the browser, which forwards it. Measured on 458-3143 (10-08 23:28): two bulk
+   * forwards landed ("bulk verify ok"), and in between he was told three times "Ugh, the
+   * photos aren't sending on my end". 111 of the 128 "Ugh" lines in 48h were this line.
+   * The pictures are not broken, they are taking the other road - so no apology to the buyer
+   * and no ALBUM CUT SHORT / PHOTOS FAILED card to Rodney. */
+  const _browserCarries = ycloudStore.has(String(sub)) && /^\d{10,15}$/.test(String(sub));
   // Record the bail-out loudly — this is the signal that ManyChat is failing, and it's the
   // only way to tell "album finished" apart from "album gave up" in the logs.
-  if (brokeOnFailures) {
+  if (brokeOnFailures && !_browserCarries) {
     try {
       recent.unshift({ at: new Date().toISOString(), endpoint: 'album-aborted-send-failures', sub,
         sentOk: sent, abandoned: unsent.length, note: String(FAIL_LIMIT) + ' consecutive send failures (after a retry each) — stopped instead of grinding' });
@@ -5113,7 +5122,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     try { console.error('[album] none of', requested, 'ids resolved for', sub,
                         (ids || []).slice(0, 4)); } catch (_) {}
   }
-  if (!brokeOnFailures && sent === 0 && attempted > 0 && !manualStopped && !interrupted && !isStaff
+  if (!brokeOnFailures && !_browserCarries && sent === 0 && attempted > 0 && !manualStopped && !interrupted && !isStaff
       && !photosLandedRecently(sub)) {
     try {
       sendChunk(sub, [{ type: 'text', text: "Ugh, the photos aren't sending on my end right now 😩 You can browse everything at *242plug.com* in the meantime — I'm on it and will follow up the second it's fixed 🙏" }], token).catch(() => {});
@@ -9843,9 +9852,9 @@ and it must NEVER be answered with a question back.`;
     if (turnText && knownSize && CONFUSED_RE.test(turnText) && confusedBlocks < 1) {
       let _askedColour = [], _askedModel = null;
       try {
-        const said = [String(userText || '')].concat(
-          history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
-            .slice(-6).reverse().map(m => m.content));
+        const said = [String(userText || '').split('(SYSTEM NOTE')[0]].concat(   // customer words only - see _custOnly
+          history.filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\s*\(SYSTEM NOTE/.test(m.content))
+            .slice(-6).reverse().map(m => m.content.split('(SYSTEM NOTE')[0]));
         _askedColour = colourWanted(said); _askedModel = modelWanted(said);
       } catch (_) {}
       if (_askedColour.length || _askedModel) {
@@ -10130,7 +10139,7 @@ and it must NEVER be answered with a question back.`;
           if (shoePriceGiven < 1 && turnText && !/\$\s?\d/.test(turnText)) {
             shoePriceGiven++;
             const _was = turnText;
-            turnText = 'That one $' + _p + ' \U0001f45f you want it?';
+            turnText = 'That one $' + _p + ' \u{1f45f} you want it?';
             record(req, { endpoint: 'price-of-the-shoe-in-play', sub, store: ctx.store || '',
                           shoe: String(_inPlay.id || ''), price: _p, was: _was.slice(0, 90) });
           }
@@ -10982,8 +10991,8 @@ and it must NEVER be answered with a question back.`;
           const _list = _has.length === 1 ? ('a ' + _has[0])
             : ('a ' + _has.slice(0, -1).join(', ') + ' an a ' + _has[_has.length - 1]);
           turnText = 'Straight up — that ' + displayName(_sh) + ' dont come in a ' + _wantSz
-                   + ', it only left in ' + _list + ' \U0001f64f'
-                   + (_alt.length ? ' Here what we got in your ' + _wantSz + ' \U0001f447' : '');
+                   + ', it only left in ' + _list + ' \u{1f64f}'
+                   + (_alt.length ? ' Here what we got in your ' + _wantSz + ' \u{1f447}' : '');
           record(req, { endpoint: 'forwarded-card-size-claim-blocked', sub, store: ctx.store || '',
                         shoe: String(_sh.id), want: _wantSz, has: _has.join('/'),
                         was: _was.slice(0, 90), alts: _alt.length });
@@ -11001,9 +11010,9 @@ and it must NEVER be answered with a question back.`;
            * our own card) and we know it comes in his size, so there is one reply. */
           cardSizeClaimed++;
           const _was2 = turnText;
-          turnText = 'Yes \U0001f44c that’s the ' + displayName(_sh) + ' — $'
+          turnText = 'Yes \u{1f44c} that’s the ' + displayName(_sh) + ' — $'
                    + (parseFloat(_sh.price) || 0) + ', an we got it in your ' + _wantSz
-                   + ' \U0001f45f Free delivery — where you want it brought?';
+                   + ' \u{1f45f} Free delivery — where you want it brought?';
           record(req, { endpoint: 'availability-answered-yes', sub, store: ctx.store || '',
                         shoe: String(_sh.id), size: _wantSz, was: _was2.slice(0, 90) });
         }
@@ -11047,10 +11056,10 @@ and it must NEVER be answered with a question back.`;
         const _deal = _total - (10 * _picks.length);
         const _sz = (custSize.get(sub) && custSize.get(sub).size) || '';
         const _was = turnText;
-        turnText = 'Good picks \U0001f44c\n' + _line.join('\n')
+        turnText = 'Good picks \u{1f44c}\n' + _line.join('\n')
                  + '\n\nThat’s $' + _total + ' for the ' + _picks.length
                  + ' — take them all together an I’ll do $' + _deal
-                 + ' \U0001f45f'
+                 + ' \u{1f45f}'
                  + (_sz ? '\n\nAll in your ' + _sz + '. Free delivery — where you want them brought?'
                         : '\n\nFree delivery — what size you wear?');
         record(req, { endpoint: 'picks-totalled-with-deal', sub, store: ctx.store || '',
@@ -12119,9 +12128,16 @@ and it must NEVER be answered with a question back.`;
             if (image) _cFrom = history.length;                 // the photo IS this turn
             else if (typeof _cut === 'number' && _cut <= history.length) _cFrom = _cut;
           } catch (_) {}
-          const recentSaid2 = [String(userText || '')].concat(
-            history.slice(_cFrom).filter(m => m && m.role === 'user' && typeof m.content === 'string')
-              .slice(-6).reverse().map(m => m.content)
+          /* 🎨 ONLY WHAT THE CUSTOMER TYPED (Rodney 2026-10-09). Our own SYSTEM NOTEs live in
+           * history as role:user strings, and some are appended to userText itself - one even
+           * says '"navy" also means "navy blue"'. Read as customer words they invent a colour
+           * nobody asked for: FF 458-3143 never typed a colour, yet "Send me what u have in
+           * women's size 8" was filtered to wanted:"gold/black" and 78 of 81 shoes dropped. */
+          const _custOnly = t => String(t || '').split('(SYSTEM NOTE')[0];
+          const recentSaid2 = [_custOnly(userText)].concat(
+            history.slice(_cFrom).filter(m => m && m.role === 'user' && typeof m.content === 'string'
+                                           && !/^\s*\(SYSTEM NOTE/.test(m.content))
+              .slice(-6).reverse().map(m => _custOnly(m.content))
           );
           const wanted = colourWanted(recentSaid2);
           const _pair = colourPairJoined(recentSaid2);
@@ -12263,9 +12279,9 @@ and it must NEVER be answered with a question back.`;
           // that fits belongs in it.
           let _narrowAsk = false;
           try {
-            const said2 = [String(userText || '')].concat(
-              history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
-                .slice(-6).reverse().map(m => m.content));
+            const said2 = [String(userText || '').split('(SYSTEM NOTE')[0]].concat(   // customer words only - see _custOnly
+              history.filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\s*\(SYSTEM NOTE/.test(m.content))
+                .slice(-6).reverse().map(m => m.content.split('(SYSTEM NOTE')[0]));
             _narrowAsk = !!(colourWanted(said2).length || modelWanted(said2));
           } catch (_) {}
           if (NEAR_SIZE_MAX > 0 && !_narrowAsk) {
