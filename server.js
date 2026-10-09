@@ -2412,6 +2412,12 @@ const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 min
 // instructions and a link on top of forty photos. The size is filled in at the call
 // site where wantSize is known; this is the fallback when it is not.
 const END_OF_PHOTOS_MSG = `Those are the ones we got 👟`;
+/* NO CLOSER AFTER AN ALBUM (Rodney 2026-10-09, twice in one afternoon, TK size-12 chats):
+ * "Why is all of these titles needed for one category? That's too many titles. You just gotta
+ * say, here's the size 12 we got. That's it... There's too many interference with the pictures.
+ * Just send all the pictures one time." The header in front of the pictures is the only text
+ * an album gets. "Those are the size 12 options" / "Those are the ones we got" no longer go out. */
+const ALBUM_CLOSER = false;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 // ONE NUDGE, AND THIS IS THE WORDING (Rodney, 2026-09-17).
 // The old text chased with codes and an apology, and a THIRD message followed it ten
@@ -3351,7 +3357,7 @@ WOMEN'S — stock is men's, so this is the conversion. Say "here's what we have 
 - woman 9.5 → men's 8        • woman 10 → men's 8.5    • woman 11 → men's 9.5
 - 🗂️ ONE ALBUM, ONE HEADER — EVEN FOR TWO SIZES (Rodney 2026-09-25: "when the customer ask for 2 sizes why cant kiki just have 1 group of pics instead of 2 groups saying the same thing on both headers"). A customer asked for an 11 and an 11.5 and got: "This is what we have in 11 and 11.5", then the pictures, then "Those are the size 11 options", then "And here's the rest we've got in 11 and 11.5", then more pictures, then "Those are the ones we got". Three headers and two piles for one request.
 - Two sizes is still ONE ask. Send ONE album covering both, with ONE line in front of it: "This is what we have in 11 and 11.5 👇".
-- Then ONE line after it, and only one: "Those are the ones we got 👟".
+- Then NOTHING after it. No closer, no "those are the ones we got", no "those are the size 12 options" (Rodney 2026-10-09: "You just gotta say, here's the size 12 we got. That's it... There's too many interference with the pictures. Just send all the pictures one time.").
 - ⛔ Never send a second batch saying "and here's the rest" — if there is a rest, it belonged in the first album.
 - Never label an album with one size when it covers two.
 
@@ -5283,7 +5289,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
       await albumGap();
     }
   }
-  if (sent > 0 && !manualStopped && !redirectedMidAlbum && !photosOnly && !isStaff) {
+  if (ALBUM_CLOSER && sent > 0 && !manualStopped && !redirectedMidAlbum && !photosOnly && !isStaff) {
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
@@ -13929,7 +13935,9 @@ and it must NEVER be answered with a question back.`;
           ? "And here's the rest of the " + onlyBrand.map(b => b.replace(/\b\w/g, c => c.toUpperCase())).join(' / ') + " we've got in " + label + ' 👇'
           : "And here's the rest we've got in " + label + ' 👇';
         endMsgSentAt[sub] = 0; // the top-up is the TRUE end of the album — always close after it, even if the first batch's closer was recent
-        const r = await sendShoePhotos(sub, missing, token, true, null, leadIn, false, false, false, ctx.turnAt || 0).catch(() => null);
+        // No second header (Rodney 2026-10-09: "Just send all the pictures one time"). If a
+        // top-up still has to fire, the pictures simply continue under the one header above.
+        const r = await sendShoePhotos(sub, missing, token, true, null, '', false, false, false, ctx.turnAt || 0).catch(() => null);
         if (r && r.sent > 0) sentToCustomer = true;
       }
       }
