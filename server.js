@@ -6964,6 +6964,13 @@ function markLineAlive(store) {
 function noteSendFailure(sub, body, token) {
   try {
     const now = Date.now();
+    // Foot Fetish has no ManyChat account. Every send there is offered to ManyChat first,
+    // refused on purpose ("ycloud line - no subscriber ... parked for the browser outbox")
+    // and then carried by the browser. Those refusals are not failures, so they must not
+    // count here at all: on 2026-10-09 they paged Rodney "THIS CUSTOMER IS CUT OFF" (12:27)
+    // and "MANYCHAT IS DROPPING MESSAGES" (12:47) while every one of those texts was delivered.
+    if (/ycloud line|no subscriber for this number|queued for the browser|text parked/i.test(String(body || ''))) return;
+    try { if (ycloudStore.has(String(sub))) return; } catch (_) {}
     // 🚨 Is the whole SHOP down, not just this customer? See noteLineDown.
     try {
       const _st = (recentCustomers.get(String(sub)) && recentCustomers.get(String(sub)).store) || '';
