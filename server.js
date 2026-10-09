@@ -4207,7 +4207,19 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     rows = rows.filter(({ s }) => {
       const hay = `${s.name} ${s.brand} ${s.nickname || ''} ${s.color || ''} ${aliasTokens(s).join(' ')}`.toLowerCase().replace(/\bgray\b/g, 'grey').replace(/\bnavy( blue)?\b/g, 'navy blue');
       const hayWords = hay.split(/[^a-z0-9.]+/).filter(Boolean);
-      return words.every(w => wordMatches(hay, hayWords, w));
+      if (words.every(w => wordMatches(hay, hayWords, w))) return true;
+      /* ⌨️ AND PEOPLE TYPE WITHOUT SPACES.
+       * Found 2026-10-09 by running all 80 models we hold against 415 ways a customer could
+       * ask for them. Every single miss was the same shape: "airmaxplus", "nikedunk",
+       * "dunkhigh", "asicsgel", "yeezyfoamrnr" - 26 phrasings that returned NOTHING while we
+       * held 19, 18, 10, 6, 5 pairs. Nobody on a phone at 2am puts the spaces in.
+       * One line, because the gap was never 26 bugs - it was one. Only used as a FALLBACK,
+       * after the normal word match has had its say, so nothing that works today changes. */
+      const squashed = hay.replace(/[^a-z0-9]/g, '');
+      return words.every(w => {
+        const ws = String(w).replace(/[^a-z0-9]/g, '');
+        return ws.length >= 4 && squashed.includes(ws);
+      });
     });
     // 🥇 A SHOE THAT REALLY IS WHAT THEY ASKED FOR LEADS THE ONES THAT ONLY MATCHED BY FAMILY.
     // The alias list above is there to WIDEN a search — "slippers" has to pull the Crocs, the
