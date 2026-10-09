@@ -2188,8 +2188,10 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
               pushBody: 'Reply from your phone - the bot cannot reach them' });
         } catch (_) {}
         try { if (_t) { _t.pinned = true; _t.label = { text: '\u{1f4f5} NOT DELIVERING', color: '#ff3b5c' }; inboxRev++; saveInbox(); } } catch (_) {}
-        recent.unshift({ at: new Date().toISOString(), endpoint: 'customer-cannot-receive', sub: _k, fails: _h.n, body: String(body || '').slice(0, 90) });
-        if (recent.length > 120) recent.length = 120;
+        // record(), not recent.unshift - otherwise it never reaches /last?sub= and the one
+        // alert that says "this customer heard nothing" is invisible exactly where anyone
+        // would go looking for it. Caught 2026-10-09 doing precisely that.
+        try { record({ method: 'INTERNAL', path: '/send' }, { endpoint: 'customer-cannot-receive', sub: _k, fails: _h.n, body: String(body || '').slice(0, 90) }); } catch (_) {}
       }
       subHardFails.set(_k, _h);
       if (subHardFails.size > 300) subHardFails.delete(subHardFails.keys().next().value);
@@ -4130,6 +4132,16 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
       // just "pics", matched nothing, and Kiki answered "I can't find a shoe called 'pics' 🙈".
       // With these filtered out the query empties instead, and an empty query means NO name
       // filter — so "any pics?" now shows the stock rather than hunting for a shoe called pics.
+      /* 👋 A GREETING IS NOT A SHOE (Rodney 2026-10-09, found by the M5 session).
+       * "Totm still available in 9.5?" - TOTM is "top of the morning", said here every day.
+       * It survived every filler cut, became the shoe name, matched nothing, and Mr.Ebk was
+       * told "Nah, the TOTM ain't in stock right now in a 9.5". He was quote-replying the Red
+       * Toro Jordan 4 we had sent him the evening before, which has two 9.5s. We said no to a
+       * shoe we had, about a greeting. Eliseé opened with "Totm. What you got in size 14" the
+       * same morning. */
+      'totm', 'gm', 'gd', 'morning', 'mornin', 'goodmorning', 'evening', 'afternoon', 'noon',
+      'hello', 'hey', 'heyy', 'hiya', 'yo', 'sup', 'wassup', 'whatsup', 'greetings', 'blessings',
+      'bless', 'peace', 'respect', 'hail', 'howdy', 'day', 'top',
       'pic', 'pics', 'picture', 'pictures', 'photo', 'photos', 'pix', 'image', 'images',
       'catalog', 'catalogue', 'collection', 'collections', 'stock', 'inventory', 'options',
       'lineup', 'selection', 'ad', 'ads', 'advert', 'post', 'posted', 'page', 'story',
@@ -8560,10 +8572,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // in" - is the same problem and the album note answers it just as well.
   // "👆 how much" is the same thing with a question wrapped round it - see _pointerAsk below.
   const _POINT_EMOJI_ANY = /[\u{1F446}\u{1F447}\u{1F448}\u{1F449}\u{261D}\u{2B06}\u{1F53C}]/u;
+  /* ❓ "STILL AVAILABLE?" WITH NO SHOE NAMED IS A POINTER AT WHAT WE LAST SENT.
+   * Rodney 2026-10-09: Mr.Ebk quote-replied the Red Toro Jordan 4 we had sent him the night
+   * before and typed "Totm still available in 9.5?" The quote never reaches ManyChat, TOTM is
+   * a greeting rather than a shoe (see the stop list), so nothing in that sentence named a
+   * pair - and he was told "Nah, the TOTM ain't in stock right now in a 9.5" about a shoe we
+   * hold two 9.5s of.
+   * Nobody asks "is it still available" about nothing. When they name no shoe, the one they
+   * mean is the one we last put in front of them, which is exactly what the pointer machinery
+   * already knows how to answer. */
+  const _AVAIL_NO_SHOE = /\b(?:still\s+)?(?:available|in stock|got (?:it|any)|have (?:it|any))\b/i
+    .test(String(userText || ''))
+    && !BRAND_WORD_RE.test(String(userText || ''));
   const _pointerAsk = !_pointerOnly
     && (new RegExp('\\b' + _P + '(?: one)?\\b', 'i').test(String(userText || ''))
-        || _POINT_EMOJI_ANY.test(String(userText || '')))
-    && String(userText || '').trim().split(/\s+/).length <= 8;
+        || _POINT_EMOJI_ANY.test(String(userText || ''))
+        || _AVAIL_NO_SHOE)
+    && String(userText || '').trim().split(/\s+/).length <= 10;
   // 🏷️ WAKE THE TAG READER FOR *ANY* POINTER, NOT JUST A BARE ONE.
   // Rodney 2026-09-26: "kiki still cant identify pics." A customer quote-replied to our
   // forwarded ASICS White/Blue card and wrote "Bring that to". Kiki asked the price and size,
