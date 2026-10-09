@@ -6291,10 +6291,31 @@ function setHumanPause(sub, ms) {
 }
 function clearHumanPause(sub) { if (humanPaused.delete(String(sub))) { inboxRev++; saveInbox(); } }
 // Append one message to a customer's thread. Best-effort — never throws into the send path.
+const inboundLogged = new Map();   // sub|turn|text -> true, see the note in inboxRecord
 function inboxRecord(account, sub, m) {
   try {
     if (!sub) return;
     if (isComposeSub(sub)) return;   // a drill turn is not a customer - see composeSubs
+    /* 🔁 ONE INBOUND, ONE ROW - EVEN WHEN THREE CODE PATHS LOG IT.
+     * Rodney 2026-10-09, from the M5 session's 48-hour audit, which counted 82 FF "customer
+     * repeats" that never happened. Bruce Wayne (FF 458-3143): "That's all??" is in his
+     * thread three times (23:30:20, :23, :25) and "Send me what u have in Jordan's 4 in size
+     * women's 8" NINE times, two seconds apart - while the trail shows exactly ONE ycloud-in.
+     * He said it once. The webhook path, the chat path and the fallback each log the same
+     * arrival, and during a slow album those writes spread out across the sends, so they land
+     * interleaved with Kiki's replies and the next-row dedupe below never sees them as
+     * adjacent. Rodney reads a man repeating himself at us and getting nothing.
+     * Keyed on the TURN, not on the words: lastIncoming moves when the customer genuinely
+     * types again, so a real repeat still shows - which matters, because somebody retyping
+     * "I wanna know" three times because our sends were failing is exactly what he needs to
+     * see (2026-07-23). Only the same arrival logged twice is dropped. */
+    if (m && m.dir === 'in' && !m.quiet) {
+      const _turn = lastIncoming.get(String(sub)) || 0;
+      const _k = String(sub) + '|' + _turn + '|' + String(m.text || m.img || '').slice(0, 80);
+      if (inboundLogged.has(_k)) return;
+      inboundLogged.set(_k, 1);
+      if (inboundLogged.size > 800) inboundLogged.delete(inboundLogged.keys().next().value);
+    }
     const text = (m.text == null ? '' : String(m.text)).slice(0, 4000);
     const img = m.img ? String(m.img).slice(0, 1500) : '';
     const loc = m.loc ? String(m.loc).slice(0, 500) : '';
