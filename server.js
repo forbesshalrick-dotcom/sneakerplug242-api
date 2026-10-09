@@ -9210,6 +9210,7 @@ and it must NEVER be answered with a question back.`;
   let multiPickPriced = 0;     // they sent several of our cards back - total them and deal
   let cardSizeClaimed = 0;     // promised a forwarded card in a size it does not come in
   let shoePriceGiven = 0;      // "how much" about a shoe we can name, answered with the whole list
+  let photoSizesListed = 0;    // a photo answer that sent several pairs without saying the sizes
   let pointerNamedAShoe = 0;   // a pointer we could not read, answered with a shoe name as fact
   let whereAreWe = 0;          // "you Nassau?" answered with an album
   let whichShoeAsks = 0;       // "which one you after?" of someone who pointed at them already
@@ -11224,6 +11225,48 @@ and it must NEVER be answered with a question back.`;
       }
     } catch (e) { record(req, { endpoint: 'picks-total-error', sub, error: String(e).slice(0, 90) }); }
 
+    /* 🧾 SELL IT LIKE A SALESMAN: NAME IT, SAY IF WE HAVEN'T GOT IT, THEN SIZES PER COLOUR.
+     * Rodney 2026-10-09, dictating how it should read, after one photo went right and the next
+     * went wrong in the same chat:
+     *   "the guy sent the metallic fives and she sent back the white version. She made no
+     *    acknowledgement that she knows what it is. That's what Google does. Google knows what
+     *    the picture is. She says, this is the metallic Jordan 5s. We don't have those in stock
+     *    right now, but we have these ones... If you send three pictures, maybe a white, a blue
+     *    and a red, you can say, we have the white one in size 10, 11 and 9, we have the blue
+     *    one in 9, 13 and 12. That's how you carry on like a professional salesman."
+     * She had answered "Yeah mon, 100% authentic! 📸 more pics coming 👇" and sent a White/Black
+     * Jordan 5 over a photo of the Metallics - never naming his shoe, never saying we don't
+     * stock it. The customer cannot tell whether he was understood.
+     * The sizes are the part no model should be improvising: they are on the shelf record. So
+     * when a photo turn sends several pairs, the per-colourway sizes go out in code, under her
+     * words, and the ask ends on their size. */
+    try {
+      if (!staffName && photoSizesListed < 1 && photoCompareSent && turnSentIds.size >= 2) {
+        const _lmP = liveShoeMap();
+        const _lines = [];
+        for (const id of turnSentIds) {
+          const sh = shoeByAnyId(id, _lmP);
+          if (!sh) continue;
+          const _sz = [...new Set(((sh.sizesRaw || sh.sizes) || [])
+            .map(x => parseFloat(x)).filter(n => !isNaN(n)))].sort((a, b) => a - b);
+          if (!_sz.length) continue;
+          const _col = String(sh.color || sh.colour || '').trim();
+          _lines.push('• ' + (_col || displayName(sh)) + ' — ' + _sz.join(', '));
+          if (_lines.length >= 8) break;
+        }
+        if (_lines.length >= 2) {
+          photoSizesListed++;
+          const _known = (custSize.get(sub) && custSize.get(sub).size) || '';
+          turnText = (turnText && turnText.trim() ? turnText.trim() + '\n\n' : '')
+            + 'Sizes on them \u{1f447}\n' + _lines.join('\n')
+            + (_known ? '\n\nYou in a ' + _known + ' — which one you want?'
+                      : '\n\nWhich size you need?');
+          record(req, { endpoint: 'photo-answer-sizes-listed', sub, store: ctx.store || '',
+                        shoes: _lines.length });
+        }
+      }
+    } catch (e) { record(req, { endpoint: 'photo-sizes-error', sub, error: String(e).slice(0, 90) }); }
+
     /* 🕘 THE CLOSING HOUR IS A FACT, SO CORRECT IT IN CODE.
      * Rodney 2026-10-07: "we close at 10pm every night dummy". The server prompt said 7 AM - 11 PM
      * for months while the Mac half of Kiki has said 8 AM - 10 PM since 2026-09-15, so the same
@@ -12622,14 +12665,27 @@ and it must NEVER be answered with a question back.`;
         try {
           if (image && !staffName && photoLeadInMisses < 1) {
             const _li = String(leadIn || '').trim();
-            const _generic = !_li || /^this is what we have in .{0,40}rite now/i.test(_li)
+            /* 👀 SAYING SOMETHING IS NOT THE SAME AS SAYING WHAT IT IS.
+             * Rodney 2026-10-09: "the guy sent the metallic fives and she sent back the white
+             * version. She made no acknowledgement that she knows what it is. That's what
+             * Google does - Google knows what the picture is."
+             * Her words were "Yeah mon, 100% authentic! 📸 more pics coming 👇" - friendly,
+             * and it answers nothing. This guard only ever caught an EMPTY or stock lead-in,
+             * so any chatty sentence walked past it. A reply to a photo has to NAME the shoe
+             * in it. If the words carry no shoe name at all, they are not an answer yet. */
+            const _namesIt = BRAND_WORD_RE.test(_li) || !!lastModelNamed(_li);
+            const _generic = !_li || !_namesIt
+                                 || /^this is what we have in .{0,40}rite now/i.test(_li)
                                  || /^those are the (size .{0,12}options|ones we got)/i.test(_li);
             if (_generic) {
               photoLeadInMisses++;
               record(req, { endpoint: 'photo-leadin-missing', sub, store: ctx.store || '', had: _li.slice(0, 60) });
               toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({
                 sent: 0, blocked: 'say what their shoe is first',
-                note: 'STOP - nothing was sent. The customer showed you a PHOTO of a shoe and you were '
+                note: 'STOP - nothing was sent. Rodney 2026-10-09, in his own words: "she made no '
+                    + 'acknowledgement that she knows what it is. That is what Google does. Google knows '
+                    + 'what the picture is. She says, this is the metallic Jordan 5s. We do not have those '
+                    + 'in stock right now, but we have these ones." Do it in that order, every time. '
                     + 'about to answer it with pictures and no words of your own, which reads as "here is '
                     + 'the shoe you asked for" even when it is a different pair. Call send_photos again '
                     + 'with a real lead_in that does these in order: (1) NAME the shoe in THEIR photo, '
