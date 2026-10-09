@@ -2098,6 +2098,22 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     if (r.ok) {
       if (tk !== token) subTokenFix.set(String(subscriberId), tk);
       subProvenAlive.set(String(subscriberId), Date.now()); // they're real — remember it
+      /* ✅ A SEND THAT LANDS CLEARS THE "NOT DELIVERING" FLAG (M5 session, 2026-10-09).
+       * The label and the pin were set on failure and nothing ever took them off, so four
+       * threads that had started working again were still sitting at the top of Rodney's
+       * inbox in red - including two of his own alert chats. A warning that cannot clear
+       * itself becomes furniture, and then he stops seeing the one that is real. */
+      try {
+        const _sk = String(subscriberId);
+        if (subHardFails.has(_sk)) {
+          subHardFails.delete(_sk);
+          const _t = inboxThreads.get(inboxSubIndex.get(_sk) || '');
+          if (_t && _t.label && /NOT DELIVERING/i.test(String(_t.label.text || ''))) {
+            _t.label = ''; _t.pinned = false; inboxRev++; saveInbox();
+            try { record({ method: 'INTERNAL', path: '/send' }, { endpoint: 'delivering-again', sub: _sk }); } catch (_) {}
+          }
+        }
+      } catch (_) {}
       return { ok: true, status: r.status, body: r.body.slice(0, 300) };
     }
     last = r;
@@ -2175,7 +2191,18 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
      * well by the browser. My counter read each of those refusals as a hard failure, hit
      * three, and branded a working line as broken. An alarm that cries on healthy chats is
      * worse than no alarm: he stops reading it, and then it is silent about Mr.Ebk too. */
-    const _hard = !/not active|Something went wrong|timed out|abort|ycloud line|no subscriber for this number|queued for the browser|text parked/i.test(String(body || ''))
+    /* 📋 AND AN OPS CARD IS NOT A CUSTOMER MESSAGE. Two of the four false alarms were
+     * Rodney's OWN alert threads - "MANYCHAT IS DROPPING MESSAGES", "ALBUM CUT SHORT" -
+     * failing to reach him and then being labelled as a customer who cannot receive. The
+     * alarm is about a BUYER hearing nothing; nobody loses a sale because a status card
+     * bounced. */
+    // Defensive: OPS_ONLY_RE is declared further down the file. It is initialised long before
+    // any send runs, but a ReferenceError on this path would silence a customer rather than
+    // fail loudly - see "a crash looks like a dead channel" (2026-10-02). Never risk it.
+    let _opsCard = false;
+    try { _opsCard = (messages || []).some(m => m && m.text && OPS_ONLY_RE.test(String(m.text))); } catch (_) {}
+    const _hard = !_opsCard
+      && !/not active|Something went wrong|timed out|abort|ycloud line|no subscriber for this number|queued for the browser|text parked/i.test(String(body || ''))
       && !(ycloudStore.has(String(subscriberId)) || waChannel.get(String(subscriberId)));
     if (_hard) {
       const _h = subHardFails.get(_k) || { n: 0, first: Date.now(), told: 0 };
