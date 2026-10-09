@@ -6923,21 +6923,30 @@ const SUB_FAIL_THRESHOLD = 3;           // this many rejections for one person =
  * He found out from screenshots because nothing here was watching the LINE, only individual
  * customers. So: when a whole shop stops delivering, say so once, loudly, and say the most
  * likely reason - because topping up a wallet takes a minute and guessing takes a morning. */
-const lineFail = new Map();    // store -> {n, first, told}
-const LINE_DEAD_AFTER = 8;     // consecutive refusals to one shop with nothing getting through
-function noteLineDown(store, body, token) {
+const lineFail = new Map();    // store -> {n, subs:Set, first, told}
+const LINE_DEAD_AFTER = 8;     // refusals on one shop inside the window
+const LINE_DEAD_SUBS = 3;      // ...spread across at least this many DIFFERENT customers
+function noteLineDown(store, body, token, sub) {
   try {
     const k = String(store || 'unknown');
     const now = Date.now();
-    const r = lineFail.get(k) || { n: 0, first: now, told: 0 };
-    if (now - r.first > 15 * 60 * 1000) { r.n = 0; r.first = now; }
+    const r = lineFail.get(k) || { n: 0, subs: new Set(), first: now, told: 0 };
+    if (now - r.first > 15 * 60 * 1000) { r.n = 0; r.subs = new Set(); r.first = now; }
     r.n++;
+    if (sub) r.subs.add(String(sub));
     lineFail.set(k, r);
-    if (r.n < LINE_DEAD_AFTER || now - (r.told || 0) < 60 * 60 * 1000) return;
+    /* SEVERAL CUSTOMERS, NOT ONE RETRYING (the M5 session's refinement, and they are right).
+     * Mr.Ebk alone produced 43 refusals in five minutes - a single contact ManyChat will not
+     * accept, which is real but is NOT the line being down. Counting refusals alone would
+     * have cried wolf on him all morning while the actual cause was account-wide. Three
+     * different people failing on the same shop is what an empty wallet looks like; one
+     * person failing forty times is one broken contact. */
+    if (r.n < LINE_DEAD_AFTER || r.subs.size < LINE_DEAD_SUBS
+        || now - (r.told || 0) < 60 * 60 * 1000) return;
     r.told = now;
     const money = /validation error|insufficient|balance|wallet|billing|payment|quota|limit/i.test(String(body || ''));
     waSendManager('\u{1f6a8} *' + k.toUpperCase() + ' IS NOT DELIVERING ANYTHING*\n'
-      + r.n + ' sends in a row refused by ManyChat in the last few minutes. Customers are '
+      + r.n + ' sends refused by ManyChat across ' + r.subs.size + ' different customers in the last few minutes. They are '
       + 'messaging and Kiki is answering — none of it is reaching them.\n\n'
       + (money
           ? '\u{1f4b3} MOST LIKELY: THE MANYCHAT WALLET IS EMPTY. Meta charges per conversation '
@@ -6946,7 +6955,7 @@ function noteLineDown(store, body, token) {
             + 'Settings → Billing / WhatsApp wallet and top it up. It comes straight back.\n\n'
           : '')
       + '\u{1f4f1} Until then, answer anyone urgent from your phone.', token).catch(() => {});
-    try { record({ method: 'INTERNAL', path: '/send' }, { endpoint: 'line-not-delivering', store: k, fails: r.n, body: String(body || '').slice(0, 80) }); } catch (_) {}
+    try { record({ method: 'INTERNAL', path: '/send' }, { endpoint: 'line-not-delivering', store: k, fails: r.n, customers: r.subs.size, body: String(body || '').slice(0, 80) }); } catch (_) {}
   } catch (_) {}
 }
 function markLineAlive(store) {
@@ -6959,7 +6968,7 @@ function noteSendFailure(sub, body, token) {
     try {
       const _st = (recentCustomers.get(String(sub)) && recentCustomers.get(String(sub)).store) || '';
       if (_st && !/ycloud line|no subscriber for this number|queued for the browser|text parked/i.test(String(body || ''))) {
-        noteLineDown(_st, body, token);
+        noteLineDown(_st, body, token, sub);
       }
     } catch (_) {}
     sendFailTimes.push(now);
