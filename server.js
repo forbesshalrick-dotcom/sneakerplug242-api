@@ -9339,6 +9339,8 @@ and it must NEVER be answered with a question back.`;
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
   let turnGenericSizeAlbum = false;     // an album went out with a size-only lead-in (no brand/model/colour)
   let turnTopUpMerged = false;          // the "rest of your size" was folded into the FIRST album, so don't send it again after
+  const turnColourDroppedIds = new Set(); // shoes the colour guard took OUT of this turn's album - the top-up must never put them back
+  let turnAdShoesLed = false;           // the ad's shoes were put at the top of the album itself, so no separate ad pile after it
   // 🔒 STAFF PHOTO = float/receipt, NEVER a shoe (2026-07-17): the photo→shoe machinery is so
   // strong the model kept SEARCHING a staff member's cash photo. Remove the shoe tools entirely
   // for a staff photo turn — now it CAN'T search or send shoes; only count cash / log a receipt.
@@ -12224,6 +12226,27 @@ and it must NEVER be answered with a question back.`;
                           wouldHaveAdded: Math.max(0, lastSearchIds.length - 1) });
           }
           if (!staffName && !_idPhotoAnswer && lastSearchIds.length) {
+            /* THE AD'S SHOE LEADS THE SAME ALBUM (Rodney 2026-10-09: "why do we need all this
+             * text for 1 category of pictures?"). It used to go out as its own pile AFTER the
+             * album and its closer, under one more lead-in. If search already matched it in
+             * their size and the ad price is the shoe's price, it goes to the front of this
+             * one album and the separate send stands down. A different ad price keeps the old
+             * path, because the ad price is the price (see "ad-shoes-sent-first"). */
+            try {
+              if (turnAdShoes.length && turnGenericSizeAlbum && Array.isArray(inp.ids)
+                  && !(Array.isArray(inp.groups) && inp.groups.length)) {
+                const _lmAd = liveShoeMap();
+                const _lead = turnAdShoes.filter(a => lastSearchIds.map(String).includes(String(a.id)))
+                  .filter(a => { const sh = shoeByAnyId(a.id, _lmAd); return !a.price || !sh || !sh.price || Number(a.price) === Number(sh.price); })
+                  .map(a => String(a.id));
+                if (_lead.length) {
+                  const _rest = inp.ids.map(String).filter(id => !_lead.includes(id));
+                  inp.ids = _lead.concat(_rest);
+                  turnAdShoesLed = true;
+                  record(req, { endpoint: 'ad-shoes-led-album', sub, store: ctx.store || '', led: _lead.length });
+                }
+              }
+            } catch (_) {}
             const have = new Set([].concat(inp.ids || [],
               ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).map(String));
             const missing = lastSearchIds.filter(id => !have.has(id));
@@ -12435,7 +12458,7 @@ and it must NEVER be answered with a question back.`;
               // has to be in there somewhere. See colourPairJoined.
               if (_pair.length === 2 && _col) {
                 if (wearsColour(sh, wanted, _pair)) return true;
-                droppedWrongColour.push(displayName(sh)); return false;
+                droppedWrongColour.push(displayName(sh)); turnColourDroppedIds.add(String(id)); return false;
               }
               // 🩷 IN the colourway is enough - leading with it only decides the ORDER.
               // See wearsColour: dropping a Black/Pink from a pink ask hid half our pink.
@@ -12448,6 +12471,7 @@ and it must NEVER be answered with a question back.`;
                 if (wanted.some(w => hay.includes(w))) return true;
               }
               droppedWrongColour.push(displayName(sh));
+              turnColourDroppedIds.add(String(id));
               return false;
             };
             if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keep);
@@ -13724,7 +13748,7 @@ and it must NEVER be answered with a question back.`;
    * running an ad, the customer gave nothing but a size, and a general size album went out
    * anyway, the ad's shoes go on top of it in their size. They are the only thing somebody who
    * tapped that ad can be asking about. */
-  if (!staffName && turnAdShoes.length && turnGenericSizeAlbum) {
+  if (!staffName && turnAdShoes.length && turnGenericSizeAlbum && !turnAdShoesLed) {
     try {
       const _sz = String(knownSize || '').split('/')[0].trim();
       const _lm = liveShoeMap();
@@ -13890,7 +13914,12 @@ and it must NEVER be answered with a question back.`;
         { sizes: wantSizes, size_match: 'any', exact_sizes: true },
         onlyBrand ? { brands: onlyBrand } : {}
       ));
-      const missing = full.filter(r => !turnSentIds.has(String(r.id))).map(r => r.id);
+      /* ONE PILE, ONE HEADER (Rodney 2026-10-09, TK Mike, size 12: "why do we need all this
+       * text for 1 category of pictures?"). The colour guard dropped 24 of the 49 shoes from
+       * his album, then this top-up found those same 24 "missing" and sent them straight back
+       * under "And here's the rest we've got in 12" - with a closer after each pile. Four lines
+       * of text, two piles, one size. A shoe the guard took out this turn is not missing. */
+      const missing = full.filter(r => !turnSentIds.has(String(r.id)) && !turnColourDroppedIds.has(String(r.id))).map(r => r.id);
       if (missing.length) {
         record(req, { endpoint: 'size-album-topup', sub, sizes: wantSizes, brand: onlyBrand || null, alreadySent: turnSentIds.size, missing: missing.length });
         const label = wantSizes.join(' and ');
