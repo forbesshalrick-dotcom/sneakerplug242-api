@@ -1315,6 +1315,50 @@ app.get('/debug-manager-ping-test', async (req, res) => {
 // Diagnostic: see the last requests ManyChat sent.
 // ?q=<digits/text> filters to entries mentioning it (e.g. ?q=4324406) and returns a SMALL,
 // phone-readable summary of each — easy to eyeball on a phone. Omit q for the full raw dump.
+/* 🔎 /whois?sub=NNN — what ManyChat actually thinks of ONE customer.
+ * Asked for by the M5 session 2026-10-09. "Validation error" has spread from Zion Stuart to
+ * Mr.Ebk (883219798) and Eliseé (355508515): every send to those three is refused 400 while
+ * other customers on the SAME line go through, and Rodney says ManyChat's own chat screen
+ * cannot message Zion either. That points at something on their contact record, not at our
+ * token pick - and nothing we had could look. Read-only, DEBUG_KEY, no sends. Tries every
+ * token we hold, because the one that answers is itself the answer. */
+app.get('/whois', async (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const subs = String(req.query.sub || '').split(',').map(x => x.replace(/[^0-9]/g, '')).filter(Boolean).slice(0, 6);
+  if (!subs.length) return res.status(400).json({ error: 'need ?sub=NNN (comma separated for several)' });
+  const toks = [...new Set([...subTokenFix.values(), ...storeTokens.values(), ...allTokens, lastToken].filter(Boolean))].slice(0, 8);
+  const out = {};
+  for (const sub of subs) {
+    const row = { sub, tried: 0, ok: false };
+    for (const tk of toks) {
+      row.tried++;
+      try {
+        const g = await fetch('https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=' + encodeURIComponent(sub),
+          { headers: { Authorization: 'Bearer ' + tk }, signal: AbortSignal.timeout(9000) });
+        const txt = await g.text();
+        if (g.ok) {
+          row.ok = true;
+          row.account = String(tk).split(':')[0];
+          try {
+            const d = (JSON.parse(txt) || {}).data || {};
+            // Only the fields that could explain a refusal - never the whole record.
+            row.info = { name: d.name, status: d.status, optin_whatsapp: d.optin_whatsapp,
+                         optin_phone: d.optin_phone, optin_email: d.optin_email,
+                         whatsapp_phone: d.whatsapp_phone ? String(d.whatsapp_phone).slice(-4) : null,
+                         phone: d.phone ? String(d.phone).slice(-4) : null,
+                         subscribed: d.subscribed, last_input_text: String(d.last_input_text || '').slice(0, 40),
+                         last_interaction: d.last_interaction, is_followup_enabled: d.is_followup_enabled,
+                         live_chat_url: !!d.live_chat_url, tags: (d.tags || []).map(t => t && t.name).slice(0, 8) };
+          } catch (_) { row.info = { parse: txt.slice(0, 160) }; }
+          break;
+        }
+        row.lastError = { status: g.status, body: txt.slice(0, 160) };
+      } catch (e) { row.lastError = { status: 0, body: String(e).slice(0, 120) }; }
+    }
+    out[sub] = row;
+  }
+  res.json({ tokensTried: toks.length, subscribers: out });
+});
 app.get('/last', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   /* 🗂️ /last?sub=NNN — this customer's OWN trail, 300 events deep and across restarts,
