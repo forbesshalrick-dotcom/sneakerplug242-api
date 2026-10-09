@@ -2167,7 +2167,16 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
    * repeats is an alarm he stops reading. */
   try {
     const _k = String(subscriberId);
-    const _hard = !/not active|Something went wrong|timed out|abort/i.test(String(body || ''));
+    /* 🚩 AND A BROWSER-CARRIED LINE IS NOT A FAILURE AT ALL (Rodney 2026-10-09, within hours
+     * of shipping this). His app came up with a red "📵 NOT DELIVERING" on nearly every
+     * thread - including Mob Boss and Stumble, whose messages I had just watched land.
+     * Foot Fetish has no ManyChat account, so EVERY send there is offered to ManyChat first,
+     * refused with "ycloud line - ManyChat has no subscriber", and then carried perfectly
+     * well by the browser. My counter read each of those refusals as a hard failure, hit
+     * three, and branded a working line as broken. An alarm that cries on healthy chats is
+     * worse than no alarm: he stops reading it, and then it is silent about Mr.Ebk too. */
+    const _hard = !/not active|Something went wrong|timed out|abort|ycloud line|no subscriber for this number|queued for the browser|text parked/i.test(String(body || ''))
+      && !(ycloudStore.has(String(subscriberId)) || waChannel.get(String(subscriberId)));
     if (_hard) {
       const _h = subHardFails.get(_k) || { n: 0, first: Date.now(), told: 0 };
       if (Date.now() - _h.first > 10 * 60 * 1000) { _h.n = 0; _h.first = Date.now(); }
