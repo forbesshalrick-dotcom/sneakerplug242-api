@@ -3627,7 +3627,16 @@ function aliasTokens(s) {
   // testing all 80 models the way a customer says them: "tns" and "dn" both returned nothing.
   if (name.includes('air max plus')) out.push('tn', 'tns', 'tn3', 'plus', 'pluses');
   if (/\bair max dn\b/.test(name)) out.push('dn', 'dns');
-  if (name.includes('vapormax') || name.includes('vapor max')) out.push('vapor', 'vapormax', 'vapormaxes', 'vm');
+  /* 👟 "VAPORMAX PLUS" IS WHAT PEOPLE CALL IT. WE NEVER WROTE "PLUS" ON ONE.
+   * Rodney 2026-10-09, on Iyanla M. asking for "air max 97 and air vapormax plus" in a 10:
+   * the VaporMax search returned ZERO while we hold three in her size - All Black, Utility
+   * Khaki and Utility All Black. Our rows are "Air VaporMax" and "Air VaporMax Utility";
+   * not one of the 28 says "plus". The word pushed the search at the Air Max Plus instead
+   * and then matched nothing, so she was never told either way.
+   * Same shape as "tn"/"dn" in 2026-09-25 and the slides in 2026-08: the island's name for a
+   * shoe is not the name we typed into the catalogue, and the search can only ever find what
+   * it is told about. */
+  if (name.includes('vapormax') || name.includes('vapor max')) out.push('vapor', 'vapormax', 'vapormaxes', 'vm', 'vapormax plus', 'vapormaxplus', 'vmp');
   if (name.includes('vomero')) out.push('vomero', 'v5', 'zoom vomero');
   if (name.includes('huarache')) out.push('huaraches', 'hurache', 'huraches');
   if (name.includes('scorpion')) out.push('scorpions', 'scorpio');
