@@ -607,6 +607,21 @@ function scoreShoe(shoe, tokens, sizeFilter) {
   for (const at of aliasTokens(shoe)) {
     if (at.length >= 2 && tokenHas(tokens, at)) { score += 2; break; }
   }
+  /* ⌨️ AND THE SPACES LEFT OUT (2026-10-09). Same sweep that found tn/dn in September, run
+   * again across all 80 models and 415 phrasings: 26 came back with ZERO while we held
+   * stock, and every one was the spaces missing - "airmaxplus" (18 pairs), "nikeairmaxplus"
+   * (19), "airvapormax" (10), "nikescorpion" (6), "dunklow", "dunkhigh", "asicsgel".
+   * Nobody typing on a phone puts them in. Both matchers needed it: searchInventory is what
+   * Kiki uses, this one is what /lookup and the ManyChat flow use, and a gap in either is a
+   * customer told we have nothing. */
+  try {
+    const squashed = `${shoe.name || ''} ${shoe.brand || ''} ${shoe.nickname || ''}`
+      .toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const t of tokens) {
+      const ts = String(t).replace(/[^a-z0-9]/g, '');
+      if (ts.length >= 6 && squashed.includes(ts)) { score += 2; break; }
+    }
+  } catch (_) {}
 
   if (shoe.nickname) {
     // A nickname word only earns the big bonus when it's DISTINCTIVE — the actual
