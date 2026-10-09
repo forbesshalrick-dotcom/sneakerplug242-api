@@ -11233,7 +11233,25 @@ and it must NEVER be answered with a question back.`;
           for (const sg of segs) {
             let rows = [];
             try { rows = searchInventory({ query: sg, size: knownSize.split('/')[0] }) || []; } catch (_) {}
-            if (!rows.length || rows.length > 25) continue;
+            /* 🕳️ A SHOE WE CANNOT FIND IS STILL A SHOE THEY ASKED FOR.
+             * Rodney 2026-10-09: "why the fuck didn't Kiki say anything about the Vapor Max?
+             * She didn't say nothing. Even if we didn't have it in stock, she didn't even say
+             * we didn't have it."
+             * Iyanla M. (TK, 11:21): "I was looking at your air max 97 and air vapormax plus
+             * ... size 10". The trail shows both searches: 97 found 1, vapormax plus found 0.
+             * She sent the 97 twice and never mentioned the VaporMax at all - so the woman
+             * reads it as being ignored.
+             * This line is why. A segment with no rows was skipped, so it never counted as one
+             * of the two shoes named, the "they named two" guard saw only one, and nothing
+             * ever made her account for the other. The shoe she could not find was the one
+             * shoe she was never required to mention.
+             * Now it is carried through as NOT FOUND - it still counts, and she has to say so.
+             * (A zero-row segment only counts if it actually names a brand or model; random
+             * words must not become phantom shoes.) */
+            const _tooMany = rows.length > 25;
+            const _missing = !rows.length;
+            if (_tooMany) continue;
+            if (_missing && !BRAND_WORD_RE.test(sg)) continue;
             /* A SHOE, OR JUST A COLOUR? "black and white" is one request, not two, and reading
              * it as two would put the whole shop on somebody's phone. A half made only of
              * colour words is never a shoe ask. */
@@ -11243,7 +11261,9 @@ and it must NEVER be answered with a question back.`;
             const key = r => String(r.name || '').toLowerCase()
               .replace(/\b(all|triple)\b/g, ' ')
               .replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 3).join(' ');
-            groups.push({ seg: sg, model: key(rows[0]), rows: rows.slice(0, 10) });
+            groups.push(_missing
+              ? { seg: sg, model: sg.toLowerCase().trim(), rows: [], missing: true }
+              : { seg: sg, model: key(rows[0]), rows: rows.slice(0, 10) });
           }
         }
         const distinct = [];
@@ -11281,7 +11301,15 @@ and it must NEVER be answered with a question back.`;
             twoModelAsks++;
             let sentNow = 0;
             const names = [];
+            /* 🗣️ AND SAY IT OUT LOUD WHEN WE HAVEN'T GOT ONE OF THEM.
+             * Rodney 2026-10-09, on Iyanla M.: "even if we didn't have it in stock, she didn't
+             * even say we didn't have it. She didn't say anything." Silence about a shoe
+             * somebody asked for reads as being ignored, and he is right that it is worse than
+             * a no. The shoes we HAVE go out as pictures; the ones we could not find get named
+             * in one honest line. Never one without the other. */
+            const _notFound = [];
             for (const g of missing) {
+              if (g.missing || !g.rows.length) { _notFound.push(g.seg); continue; }
               try {
                 const _lead = 'And the ' + g.seg + ' I got in your ' + knownSize + ' 👟';
                 const _r = await sendShoePhotos(sub, g.rows.map(r => r.id), token, true, null,
@@ -11289,6 +11317,15 @@ and it must NEVER be answered with a question back.`;
                 const n = (_r && _r.sent) || 0;
                 if (n > 0) { sentNow += n; photosSentRun = true; names.push(g.seg); }
               } catch (_) {}
+            }
+            if (_notFound.length) {
+              const _say = 'We aint got the ' + _notFound.join(' or the ')
+                         + (knownSize ? ' in a ' + knownSize : '') + ' right now \u{1f64f}';
+              turnText = turnText && turnText.trim()
+                ? (turnText.trim() + '\n\n' + _say)
+                : _say;
+              record(req, { endpoint: 'named-shoe-we-dont-have-said', sub, store: ctx.store || '',
+                            shoes: _notFound.join(' + '), size: knownSize });
             }
             record(req, { endpoint: 'second-shoe-dropped', sub, store: ctx.store || '',
                           asked: _raw.slice(0, 60), had: distinct.map(g => g.model).join(' + '),
