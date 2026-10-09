@@ -1830,6 +1830,7 @@ function stripThinking(s) {
 // Subs whose sends only work with a token OTHER than the one their webhook suggested —
 // learned by the fallback below so future sends go straight to the right account.
 const subTokenFix = new Map();
+const subHardFails = new Map();  // sub -> {n, first, told} - see customer-cannot-receive
 // 👤 PROOF A SUBSCRIBER IS REAL. ManyChat regularly answers a perfectly good send with
 // 400 "Subscriber does not exist" — and then DELIVERS the message anyway (proven live
 // 2026-08-04 on Neily: F2 and F9 each went out twice, a minute apart, because that lie
@@ -1911,6 +1912,15 @@ function noteComposeSub(sub) {
 }
 async function sendChunk(subscriberId, messages, token, logOpts) {
   messages = splitLongText(messages);
+  /* 🔴 THE INBOX WAS SHOWING FAILED SENDS AS DELIVERED (M5 session, 2026-10-09).
+   * TK Zion Stuart (sub 803608823): every send to him came back 400 "Validation error" -
+   * fifteen of them - and Rodney's app showed "That's a clean pair..." and "Nah, the Bred
+   * doesn't come in a 10..." sitting in the thread as though the man had read them. He had
+   * received nothing, and there was no way to tell from the app.
+   * Rodney's OWN sends have been logged only after acceptance since 2026-07-24, for exactly
+   * this reason. Kiki's never were - they are written here, before the send is even
+   * attempted. So the rows are kept and corrected once we know. */
+  let _loggedOutRows = [];
   const _sink = composeSink.get(String(subscriberId));
   /* 🚧 THE LAST DOOR. If this is a compose/drill sub and its sink has already been torn
    * down, the send is DROPPED - never handed to ManyChat or the YCloud browser outbox.
@@ -1940,15 +1950,16 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       const t = sidx ? inboxThreads.get(sidx) : null;
       const account = (logOpts && logOpts.account) || (t && t.account) || '';
       const who = (logOpts && logOpts.sender) || 'kiki';
+      _loggedOutRows = [];
       for (const mm of (messages || [])) {
         // HUMAN sends (the Inbox composer): logged by /inbox/send ONLY after ManyChat/Meta accepts
         // the send — logging up-front here painted failed sends as delivered (Rodney 2026-07-24:
         // "I'm here" / "in the Nissan" showed in the thread but never reached the customer).
         if (who === 'rodney') continue;
-        if (mm && mm.type === 'image' && mm.url) { inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: '', img: mm.url }); continue; }
+        if (mm && mm.type === 'image' && mm.url) { _loggedOutRows.push(inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: '', img: mm.url })); continue; }
         if (mm && mm.type === 'audio') continue; // a voice note is logged by /inbox/send ONLY after it actually sends, so it never shows as "sent" when it failed
         const txt = (mm && mm.text) ? String(mm.text) : '';
-        if (txt) inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: txt });
+        if (txt) _loggedOutRows.push(inboxRecord(account, subscriberId, { dir: 'out', sender: who, text: txt }));
       }
     }
   } catch (_) {}
@@ -2096,6 +2107,50 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   try { lastSendFail = { at: new Date().toISOString(), status: r.status, body: String(body || '').slice(0, 200) }; } catch (_) {}
   saveRecent(); recent.unshift({ at: new Date().toISOString(), endpoint: 'send-fail', sub: subscriberId, status: r.status, body: body.slice(0, 300), tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 120)).join(' | ').slice(0, 400) });
   noteSendFailure(subscriberId, body, token);   // 🚨 watchdog — pings Rodney when the pipe starts failing
+  /* 🔴 AND SAY SO IN THE INBOX. See the note at the top of sendChunk: these rows were written
+   * before the send was attempted, so without this Rodney reads a conversation that never
+   * happened. Marked now, with the reason. */
+  try { markOutFailed(subscriberId, _loggedOutRows, body); } catch (_) {}
+  /* 📵 A CUSTOMER THE BOT SIMPLY CANNOT REACH, SAID ONCE.
+   * Zion Stuart (TK, sub 803608823, 2026-10-09): fifteen straight 400 "Validation error" -
+   * every one of Kiki's texts, the Jordan 13 card six times, and three of Rodney's own
+   * sends - while the man was messaging us normally and finally asked "may I speak with
+   * Rodney?". The 24h window was open and other customers on that same line were fine, so
+   * nothing upstream treated it as broken. It is subscriber-specific, which no existing
+   * alarm looks for.
+   * Three hard failures to ONE person inside ten minutes is not a blip, and Rodney can fix
+   * it in seconds from his phone if he is told. Once an hour per customer - an alarm that
+   * repeats is an alarm he stops reading. */
+  try {
+    const _k = String(subscriberId);
+    const _hard = !/not active|Something went wrong|timed out|abort/i.test(String(body || ''));
+    if (_hard) {
+      const _h = subHardFails.get(_k) || { n: 0, first: Date.now(), told: 0 };
+      if (Date.now() - _h.first > 10 * 60 * 1000) { _h.n = 0; _h.first = Date.now(); }
+      _h.n++;
+      if (_h.n >= 3 && Date.now() - (_h.told || 0) > 60 * 60 * 1000) {
+        _h.told = Date.now();
+        const _t = inboxThreads.get(inboxSubIndex.get(_k) || '');
+        const _who = (_t && (_t.name || _t.phone)) || ('id ' + _k);
+        try {
+          require('./shop').addAlert(
+            '\u{1f4f5} *THIS CUSTOMER CANNOT RECEIVE FROM THE BOT* — ' + _who + '\n'
+            + _h.n + ' sends in a row were refused: ' + String(body || '').slice(0, 90) + '\n'
+            + 'They ARE messaging us, and other customers on this line are fine - it is just '
+            + 'them. Anything Kiki "said" to them did not arrive.\n'
+            + '➡️ Reply to them from your phone.', 'Kiki \u{1f916}',
+            { sub: _k, account: (_t && _t.account) || '',
+              pushTitle: '\u{1f4f5} ' + _who + ' is not receiving',
+              pushBody: 'Reply from your phone - the bot cannot reach them' });
+        } catch (_) {}
+        try { if (_t) { _t.pinned = true; _t.label = { text: '\u{1f4f5} NOT DELIVERING', color: '#ff3b5c' }; inboxRev++; saveInbox(); } } catch (_) {}
+        recent.unshift({ at: new Date().toISOString(), endpoint: 'customer-cannot-receive', sub: _k, fails: _h.n, body: String(body || '').slice(0, 90) });
+        if (recent.length > 120) recent.length = 120;
+      }
+      subHardFails.set(_k, _h);
+      if (subHardFails.size > 300) subHardFails.delete(subHardFails.keys().next().value);
+    }
+  } catch (_) {}
   // 🚨 THE CUSTOMER CAME IN ON YCLOUD AND MANYCHAT CANNOT ANSWER THEM.
   // Rodney 2026-09-23: the Foot Fetish line went silent for hours and nobody could see why.
   // Messages arrive through YCloud, where the subscriber id IS the phone number, but the
@@ -6257,7 +6312,23 @@ function inboxRecord(account, sub, m) {
         require('./shop').sendPush(`💬 ${who} replied`, body, '/inbox?sub=' + encodeURIComponent(String(sub)), 'plug242-chat-' + sub).catch(() => {});
       } catch (_) {}
     }
+    return msg;   // so a caller can mark it NOT DELIVERED once the send answers - see markOutFailed
   } catch (_) {}
+}
+/* 🔴 Mark rows the customer never actually received. The inbox is the only place Rodney can
+ * see what Kiki said, so a row he cannot trust is worse than no row. See sendChunk. */
+function markOutFailed(sub, rows, why) {
+  try {
+    let n = 0;
+    for (const r of (rows || [])) {
+      if (!r || r.failed) continue;
+      r.failed = true;
+      r.failReason = String(why || '').slice(0, 80);
+      n++;
+    }
+    if (n) { inboxRev++; saveInbox(); }
+    return n;
+  } catch (_) { return 0; }
 }
 // Has this exact line already been filed? Guards the replay in /voice/msg-log: running the
 // backfill twice would otherwise duplicate every message in his history. Same thread, same
@@ -14725,6 +14796,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
      well under 460px wide, so this cap never engages there — desktop-only in practice. */
   @media (min-width:820px){ .brow{max-width:min(82%,460px)} }
   .brow.out{align-self:flex-end;flex-direction:row-reverse}
+  .b.failed{opacity:.62;border:1.5px dashed rgba(255,59,92,.85)}
+  .nodel{margin-top:5px;font-size:10.5px;font-weight:700;letter-spacing:.3px;color:#ff6b84;
+         text-transform:uppercase;line-height:1.3;word-break:break-word}
   .brow.inb{align-self:flex-start}
   @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   /* neon glowing bubbles — Kiki = purple, customer = cyan, You = account colour */
@@ -16045,7 +16119,10 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
         // 🌐 English line under a non-English message, so Rodney can read his own inbox
         // (a whole Haitian-Creole conversation went by unreadable — 2026-07-28).
         var trl = x.tr ? '<div class="trl">🌐 '+escB(x.tr)+'</div>' : '';
-        return sep+'<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+trl+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
+        // 🔴 NOT DELIVERED. The thread is the only place he can see what Kiki said, so a line
+        // the customer never received has to look different from one they read. See markOutFailed.
+        var fail = x.failed ? '<div class="nodel">⚠️ NOT DELIVERED'+(x.failReason?' · '+escB(String(x.failReason).slice(0,60)):'')+'</div>' : '';
+        return sep+'<div class="brow '+row+'"><div class="b '+cls+(x.img?' hasimg':'')+(x.failed?' failed':'')+tap+'"'+dq+bimg+'>'+(who?'<div class="who">'+who+'</div>':'')+body+trl+fail+'<div class="tm">'+clock(x.ts)+'</div></div></div>';
       }).join('') || '<div class="empty">No messages in this thread yet.</div>';
       // tap a customer message to quote it in your reply
       Array.prototype.forEach.call(m.querySelectorAll('.b.tap'), function(el){ el.onclick=function(){ setQuote(el.getAttribute('data-q')||''); }; });
