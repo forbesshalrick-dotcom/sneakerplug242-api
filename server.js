@@ -8566,6 +8566,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // invisible. A pointer can also carry the question with it ("how much for dis one"), which
   // is still a pointer - the words around it do not tell us which picture either.
   const _P = '(?:this|that|dis|dat|dese|dose|these|those)';
+  /* 🙅 "THAT'S ALL??" IS NOT POINTING AT ANYTHING (Rodney 2026-10-09, found in the M5
+   * session's 48-hour audit). FF Bruce Wayne, 03:30:23: he had just been sent every Jordan 4
+   * we have in a women's 8, and asked "That's all??" - meaning "is that the whole lot?". The
+   * word "that" put it through the pointer machinery, and pointer-named-a-shoe-blocked then
+   * replaced a perfectly correct "That's all our Jordan 4s in women's 8 right now" with
+   * "Yes we got it 👟 you want it now?" - an answer to a question he never asked.
+   * These phrasings point at the CONVERSATION, not at a picture. */
+  const _NOT_A_POINTER = /\b(?:that|this|is that|thats|that'?s|dat)\s*(?:'?s|is)?\s*(?:all|it|everything|the lot|you (?:have|got)|y'?all (?:have|got))\b|\bthat'?s\s+all\b|\bis\s+that\s+it\b|\bnothing\s+else\b/i;
   // 👆 A POINTING FINGER IS A POINTER. Rodney 2026-09-28, on a customer who tapped one of
   // our size-11 photos and replied with nothing but 👆 - and was told "Got you 👟 Air Force 1
   // (All Black) — $120" for a shoe that is not in that picture: "kiki picked the wrong shoe".
@@ -8574,9 +8582,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // and she was left to guess out of fifty-two shoes. It is the commonest way people point.
   const _POINT_EMOJI = /^[\s.!?]*(?:[\u{1F446}\u{1F447}\u{1F448}\u{1F449}\u{261D}\u{2B06}\u{1F53C}][\u{FE0F}\u{1F3FB}-\u{1F3FF}]*)+[\s.!?]*$/u;
   const _pointedWithEmoji = _POINT_EMOJI.test(String(userText || ''));
-  const _pointerOnly = _pointedWithEmoji || new RegExp(
+  const _notPointer = _NOT_A_POINTER.test(String(userText || ''));
+  const _pointerOnly = !_notPointer && (_pointedWithEmoji || new RegExp(
     '^\\s*(?:' + _P + '|' + _P + ' one|the one|i want ' + _P + '(?: one)?|want ' + _P + '|'
-    + _P + ' (?:would|will) do)\\s*[.!?]*\\s*$', 'i').test(String(userText || ''));
+    + _P + ' (?:would|will) do)\\s*[.!?]*\\s*$', 'i').test(String(userText || '')));
   // A pointer with a question wrapped round it - "how much for dis one", "what size dis come
   // in" - is the same problem and the album note answers it just as well.
   // "👆 how much" is the same thing with a question wrapped round it - see _pointerAsk below.
@@ -8593,7 +8602,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const _AVAIL_NO_SHOE = /\b(?:still\s+)?(?:available|in stock|got (?:it|any)|have (?:it|any))\b/i
     .test(String(userText || ''))
     && !BRAND_WORD_RE.test(String(userText || ''));
-  const _pointerAsk = !_pointerOnly
+  const _pointerAsk = !_pointerOnly && !_notPointer
     && (new RegExp('\\b' + _P + '(?: one)?\\b', 'i').test(String(userText || ''))
         || _POINT_EMOJI_ANY.test(String(userText || ''))
         || _AVAIL_NO_SHOE)
@@ -10461,11 +10470,17 @@ and it must NEVER be answered with a question back.`;
     try {
       const _notes = (ownerNotes.get(sub) || []).map(n => String((n && n.text) || n || ''));
       const _tagResolved = _notes.some(t => /TAGGED one of our photos/i.test(t));
-      const ASSERTS_SHOE = /\b(that'?s|thats|that is|this is|those are|these are|you'?re looking at|your looking at|it'?s|its)\b[^.!?\n]{0,28}\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|1000|530|550|574|327|990|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|tns?|blazer|cortez|panda)\b/i;
+      /* 🗣️ AND A SUMMARY IS NOT AN IDENTIFICATION. "That's all our Jordan 4s in women's 8
+       * right now" names no particular pair - it is the honest end of a browse, and this
+       * guard rewrote it into "Yes we got it 👟 you want it now?" (Bruce Wayne, 03:30).
+       * An identification says THIS shoe; a summary says all of them. */
+      const _SUMMARY = /\b(?:that'?s|thats|that is)\s+(?:all|everything|the lot|what)\b|\ball (?:our|the|we)\b|\bthat'?s\s+(?:them|those)\s+all\b/i;
+      const ASSERTS_SHOE = !_SUMMARY.test(turnText)
+        && /\b(that'?s|thats|that is|this is|those are|these are|you'?re looking at|your looking at|it'?s|its)\b[^.!?\n]{0,28}\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|1000|530|550|574|327|990|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|tns?|blazer|cortez|panda)\b/i.test(turnText);
       if (turnText && !staffName && pointerNamedAShoe < 1
           && (_pointerOnly || _pointerAsk) && !_sentUsAPicture
           && !_tagResolved && !lockedShoeFor(sub)
-          && ASSERTS_SHOE.test(turnText)) {
+          && ASSERTS_SHOE) {
         pointerNamedAShoe++;
         const _was = turnText;
         const _apb = albumShown.get(String(sub));
@@ -11414,6 +11429,21 @@ and it must NEVER be answered with a question back.`;
     try {
       if (turnText && !staffName && image && !didSearch && namedFromAirs < 1) {
         const _said = lastModelNamed(turnText);
+        /* 🎯 WHY THIS STAYS, EVEN THOUGH IT BLOCKS CORRECT ANSWERS (2026-10-09).
+         * The M5 session's audit lists this as a misfire: TK +1 (242) 803-3254 forwarded
+         * three shoes, Kiki named all three right off the picture, and every one was blocked
+         * and re-run. I tried to narrow it to "only when the name is already in the recent
+         * chat" - the Pasyans shape, where a sage-green New Balance got called "1906 Navy
+         * Blue" after twenty minutes of talking about blue.
+         * Then I followed what actually happens when it does NOT fire: no block means no
+         * retry, no retry means no search, and no search means PHOTO-COMPARE NEVER RUNS. That
+         * is the step that puts our own cards beside the customer's photo. Letting her name
+         * shoes straight off vision with nothing checked against our catalogue is the exact
+         * wrong-shoe failure we have spent the week killing - she would be right most of the
+         * time and confidently wrong the rest, with nothing to catch it.
+         * So it costs one extra generation per photo turn and it buys a check against real
+         * stock. The damage on 803-3254 was never this guard; it was the album top-up bolting
+         * four, then twenty, more shoes onto the right answer, and that is fixed. */
         if (_said) {
           namedFromAirs++;
           record(req, { endpoint: 'named-a-shoe-without-looking', sub, store: ctx.store || '',
