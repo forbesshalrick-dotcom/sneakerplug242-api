@@ -2120,6 +2120,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
        * itself becomes furniture, and then he stops seeing the one that is real. */
       try {
         const _sk = String(subscriberId);
+        try { const _st2 = (recentCustomers.get(_sk) && recentCustomers.get(_sk).store) || ''; if (_st2) markLineAlive(_st2); } catch (_) {}
         if (subHardFails.has(_sk)) {
           subHardFails.delete(_sk);
           const _t = inboxThreads.get(inboxSubIndex.get(_sk) || '');
@@ -6910,9 +6911,57 @@ const PIPE_ALERT_GAP_MS = 30 * 60 * 1000;
 // their own alert, on their own cooldown, whatever the shop-wide counter is doing.
 const subAlertAt = new Map();           // sub -> when we last warned about THIS customer
 const SUB_FAIL_THRESHOLD = 3;           // this many rejections for one person = their record is bad
+/* 💳 AN EMPTY MANYCHAT WALLET LOOKS EXACTLY LIKE A BROKEN BOT.
+ * Rodney found this himself on 2026-10-09, after a morning of "KIKI KEEPS FUCKING TRIPPING
+ * AND IGNORING CUSTOMERS" - "needs money in wallet". He was right and I was looking in the
+ * wrong place all morning.
+ * Meta bills per WhatsApp conversation and ManyChat pays it out of a wallet. When that
+ * wallet empties, every send comes back 400 {"status":"error","message":"Validation error"}
+ * - no mention of money anywhere - while the contacts stay active and opted in, the AI keeps
+ * writing perfect replies, and the inbox fills with messages nobody receives. Measured that
+ * morning: 137 photos requested, 0 delivered, 59 refusals, ZERO AI errors.
+ * He found out from screenshots because nothing here was watching the LINE, only individual
+ * customers. So: when a whole shop stops delivering, say so once, loudly, and say the most
+ * likely reason - because topping up a wallet takes a minute and guessing takes a morning. */
+const lineFail = new Map();    // store -> {n, first, told}
+const LINE_DEAD_AFTER = 8;     // consecutive refusals to one shop with nothing getting through
+function noteLineDown(store, body, token) {
+  try {
+    const k = String(store || 'unknown');
+    const now = Date.now();
+    const r = lineFail.get(k) || { n: 0, first: now, told: 0 };
+    if (now - r.first > 15 * 60 * 1000) { r.n = 0; r.first = now; }
+    r.n++;
+    lineFail.set(k, r);
+    if (r.n < LINE_DEAD_AFTER || now - (r.told || 0) < 60 * 60 * 1000) return;
+    r.told = now;
+    const money = /validation error|insufficient|balance|wallet|billing|payment|quota|limit/i.test(String(body || ''));
+    waSendManager('\u{1f6a8} *' + k.toUpperCase() + ' IS NOT DELIVERING ANYTHING*\n'
+      + r.n + ' sends in a row refused by ManyChat in the last few minutes. Customers are '
+      + 'messaging and Kiki is answering — none of it is reaching them.\n\n'
+      + (money
+          ? '\u{1f4b3} MOST LIKELY: THE MANYCHAT WALLET IS EMPTY. Meta charges per conversation '
+            + 'and ManyChat pays it from the wallet; when it runs out every send fails with '
+            + '"Validation error" and nothing mentions money.\n➡️ Open ManyChat → '
+            + 'Settings → Billing / WhatsApp wallet and top it up. It comes straight back.\n\n'
+          : '')
+      + '\u{1f4f1} Until then, answer anyone urgent from your phone.', token).catch(() => {});
+    try { record({ method: 'INTERNAL', path: '/send' }, { endpoint: 'line-not-delivering', store: k, fails: r.n, body: String(body || '').slice(0, 80) }); } catch (_) {}
+  } catch (_) {}
+}
+function markLineAlive(store) {
+  try { if (store && lineFail.has(String(store))) lineFail.delete(String(store)); } catch (_) {}
+}
 function noteSendFailure(sub, body, token) {
   try {
     const now = Date.now();
+    // 🚨 Is the whole SHOP down, not just this customer? See noteLineDown.
+    try {
+      const _st = (recentCustomers.get(String(sub)) && recentCustomers.get(String(sub)).store) || '';
+      if (_st && !/ycloud line|no subscriber for this number|queued for the browser|text parked/i.test(String(body || ''))) {
+        noteLineDown(_st, body, token);
+      }
+    } catch (_) {}
     sendFailTimes.push(now);
     while (sendFailTimes.length && now - sendFailTimes[0] > PIPE_WINDOW_MS) sendFailTimes.shift();
     if (sendFailTimes.length > 400) sendFailTimes.splice(0, sendFailTimes.length - 400);
