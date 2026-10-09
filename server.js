@@ -10944,7 +10944,26 @@ and it must NEVER be answered with a question back.`;
     try {
       const _picks = [];
       const _seenPick = new Set();
-      for (const id of ourCardIdsFrom(sub, 3 * 60 * 1000)) {
+      /* 🖼️ THEY DON'T ALWAYS COME AS CARDS. WhatsApp RE-UPLOADS a forwarded picture, so what
+       * reaches us is manybot-files.s3.../original_<hash>.jpeg - our shoe id is gone. The
+       * filename route only ever worked in the drill, which is exactly the sort of thing a
+       * drill hides. Found by the M5 session on TK +1 (242) 803-3254, 2026-10-09: he sent
+       * three shoes one at a time, Kiki NAMED all three correctly off the picture, and Rule B
+       * still could not see a single pick.
+       * What she names after looking is just as good an identification as a filename - better,
+       * because it survives the re-upload. Those names are already written to the order table
+       * by tableLearn, so the table is the other half of this: ids when we have them, and what
+       * she recognised when we do not. */
+      const _ids = ourCardIdsFrom(sub, 3 * 60 * 1000).slice();
+      try {
+        const _row = onTheTable.get(String(sub));
+        if (_row && Date.now() - (_row.ts || 0) < 60 * 60 * 1000) {
+          for (const it of (_row.items || [])) {
+            if (it && it.id && _ids.indexOf(String(it.id)) === -1) _ids.push(String(it.id));
+          }
+        }
+      } catch (_) {}
+      for (const id of _ids) {
         const sh = shoeByAnyId(id, liveShoeMap());
         if (!sh) continue;
         const k = String(sh.id != null ? sh.id : id);
