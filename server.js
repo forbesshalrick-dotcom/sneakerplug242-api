@@ -8245,6 +8245,44 @@ function trimHistory(h, maxLen = 24) {
   return start < h.length ? h.slice(start) : h.slice(-2);
 }
 
+/* 🖼️ OLD PICTURES MUST NOT RIDE ALONG FOREVER - THEY KILL THE WHOLE TURN.
+ * Rodney 2026-10-09 ("im tired of all these corrections every dam day"), TK +1 (242)
+ * 803-3254, 11:58:32 and 11:58:40 - two turns died outright with
+ *   400 messages.20.content.10.image.source.base64.data:
+ *       At least one of the image dimensions exceed...
+ * He had forwarded three shoes one after another. Each photo turn keeps its picture in the
+ * history AND photo-compare attaches ten to twelve of our cards beside it, so by the third
+ * shoe the request carried well over twenty images. Anthropic allows 8000px a side normally
+ * but drops to 2000 once a request has that many - and every card we make is 2048 wide. So
+ * it is not a stray oversized photo; it is arithmetic, and it was always going to happen on
+ * the third picture.
+ * Resizing needs a library this server does not have. It does not need one: a picture from
+ * four messages ago has already been looked at and named, and carrying it again buys nothing
+ * while costing money on every single turn. Only the newest images stay; older ones become a
+ * line of text saying what was there. */
+function stripOldImages(h) {
+  try {
+    /* Keep THIS turn's pictures - all of them. photo-compare puts ten or twelve of our own
+     * cards beside the customer's photo in the current message and that is the whole point
+     * of it; stripping those would blind the comparison instead of fixing the crash.
+     * Everything from earlier turns goes: it has already been looked at and named. */
+    let newest = -1;
+    for (let i = h.length - 1; i >= 0; i--) {
+      const m = h[i];
+      if (m && Array.isArray(m.content) && m.content.some(c => c && c.type === 'image')) { newest = i; break; }
+    }
+    if (newest < 0) return h;
+    for (let i = 0; i < newest; i++) {
+      const m = h[i];
+      if (!m || !Array.isArray(m.content)) continue;
+      if (!m.content.some(c => c && c.type === 'image')) continue;
+      h[i] = { ...m, content: m.content.map(c => (c && c.type === 'image')
+        ? { type: 'text', text: '(a photo from earlier in this chat - already looked at)' } : c) };
+    }
+  } catch (_) {}
+  return h;
+}
+
 // Repair a history whose tool calls got orphaned (e.g. by the old interrupt bug or a
 // mid-turn crash): every assistant tool_use must be followed by matching tool_results,
 // else the API rejects the WHOLE conversation with a 400 forever. Strip anything broken.
@@ -9105,7 +9143,9 @@ and it must NEVER be answered with a question back.`;
     // when the turn was LOADED, but this loop calls the model again for every tool, appending as
     // it goes, so a tool block that goes dangling mid-turn was never cleaned before the next call.
     // Cheap to run, and it turns a dead conversation into a reply.
-    const { ok, status, data } = await callClaude(sanitizeHistory(history), system, staffPhotoTools ? undefined : forceTool, staffPhotoTools, !!image && !staffName);
+    // 🖼️ Drop the pictures from earlier turns before the call - see stripOldImages. Two
+    // turns died on this today, and it costs money on every turn it does not kill.
+    const { ok, status, data } = await callClaude(stripOldImages(sanitizeHistory(history)), system, staffPhotoTools ? undefined : forceTool, staffPhotoTools, !!image && !staffName);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
       // Only reached after the auto-retries above ALL failed. Keep the sale warm instead of
@@ -11800,7 +11840,25 @@ and it must NEVER be answered with a question back.`;
         // Everything below still applies afterwards (colour, model, size, the 40 cap), so this
         // can only add shoes the same search already matched.
         try {
-          if (!staffName && lastSearchIds.length) {
+          /* 🖼️ A PHOTO SHE HAS JUST IDENTIFIED IS AN ANSWER, NOT THE START OF A BROWSE.
+           * Rodney 2026-10-09: "im tired of all these corrections every dam day." TK
+           * +1 (242) 803-3254 forwarded three shoes, one at a time. Kiki got every one of
+           * them RIGHT - "That's the Jordan 3 Pine Green 🔥 $180 — you want that one in your
+           * 11?" - and then this top-up bolted the other four search hits onto it, and the
+           * next time the other TWENTY, and the customer got his own picture echoed back
+           * under "Those are the size 11 options". Three times.
+           * He did not ask what else we have. He pointed at one shoe and we answered with a
+           * catalogue. When she has looked at their photo and picked ONE pair out of it,
+           * that single picture is the whole reply. */
+          const _idPhotoAnswer = photoCompareSent
+            && ((Array.isArray(inp.ids) ? inp.ids.length : 0)
+              + (Array.isArray(inp.groups) ? inp.groups.reduce((n, g) => n + ((g && g.ids) || []).length, 0) : 0)) === 1;
+          if (_idPhotoAnswer) {
+            turnTopUpMerged = true;   // and nothing appends a second batch after it either
+            record(req, { endpoint: 'identified-photo-not-topped-up', sub, store: ctx.store || '',
+                          wouldHaveAdded: Math.max(0, lastSearchIds.length - 1) });
+          }
+          if (!staffName && !_idPhotoAnswer && lastSearchIds.length) {
             const have = new Set([].concat(inp.ids || [],
               ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).map(String));
             const missing = lastSearchIds.filter(id => !have.has(id));
