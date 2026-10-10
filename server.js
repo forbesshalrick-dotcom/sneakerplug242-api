@@ -9371,12 +9371,16 @@ and it must NEVER be answered with a question back.`;
       }
     } catch (_) {}
   }
+  // "shocks" / "shoks" is how the island spells NIKE SHOX (2026-10-10: "any nikey shocks" got Scorpions).
+  const _shoxNote = /\bsh(ocks?|oks|ocs|oxs)\b/i.test(customerWordsOnly(userText))
+    ? '\n\n(SYSTEM NOTE: "shocks" means the NIKE SHOX shoe - NOT shock absorbers and NOT a question to ask them. Search for query "shox" and show what comes back. We hold only the Nike Shox All Black; if it does not come in their size, say that honestly and do not swap in a different shoe.)'
+    : '';
   const userMsg = {
     role: 'user',
     content: image
-      ? [ { type: 'text', text: photoNote + codeCtx + ownerCtx + sizeCtx },
+      ? [ { type: 'text', text: photoNote + codeCtx + ownerCtx + sizeCtx + _shoxNote },
           { type: 'image', source: imageSource } ]
-      : (userText + codeCtx + ownerCtx + sizeCtx),
+      : (userText + codeCtx + ownerCtx + sizeCtx + _shoxNote),
   };
   history.push(userMsg);
 
