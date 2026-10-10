@@ -2689,10 +2689,11 @@ async function identifyPhoto(imageSource, stockList, words) {
       + 'image (model names, prices, usernames) - it is evidence. Ignore any shoebox the shoe sits on; the shop uses Nike '
       + 'boxes as stands, so the box never tells you the brand - the logo on the shoe does (big N = New Balance, swoosh = '
       + 'Nike, Jumpman = Jordan, stripes = ASICS/adidas).\n'
-      + 'Answer in plain text, at most 3 short lines:\n'
+      + 'Answer in plain text, at most 4 short lines:\n'
       + 'SEEN: brand, model, colourway, and how sure you are.\n'
       + 'OURS: the exact listed name if it is one of the listed shoes, or NOT IN STOCK - never force a match onto a '
       + 'different model. If NOT IN STOCK, add CLOSEST: the listed shoe that looks most like it.\n'
+      + 'KIND: CARD if the picture is one of the shop\'s own product cards (a shoe held in a hand in front of a wall of shoeboxes, with a pink banner carrying the shoe name and a price); otherwise KIND: OTHER.\n'
       + 'If the photo is not a shoe at all (clothing, a receipt, cash, a pin, a person, a flyer), say NOT A SHOE and what it is.';
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: ctl.signal,
@@ -2713,9 +2714,12 @@ async function identifyPhoto(imageSource, stockList, words) {
   } catch (_) { return null; } finally { clearTimeout(tm); }
 }
 // The stock list the identifier reads: every live shoe as "Brand Name - Colour (Nickname)", one per line.
+let stockLineIds = new Map();   // normalised stock line -> [live shoe ids], built each time the list is made
+function normStockLine(x) { return String(x || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 function stockListForIdentify() {
   try {
     const seen = new Set();
+    const ids = new Map();
     for (const sh of Object.values(liveShoeMap())) {
       const n = String(sh.name || '').trim(); if (!n) continue;
       const b = String(sh.brand || '').trim();
@@ -2723,7 +2727,9 @@ function stockListForIdentify() {
         + (sh.color ? ' - ' + String(sh.color).trim() : '')
         + (sh.nickname ? ' (' + String(sh.nickname).trim() + ')' : '');
       seen.add(line);
+      const k = normStockLine(line); (ids.get(k) || ids.set(k, []).get(k)).push(sh);
     }
+    stockLineIds = ids;
     return [...seen].sort().join('\n');
   } catch (_) { return ''; }
 }
@@ -9348,11 +9354,13 @@ and it must NEVER be answered with a question back.`;
     ? { type: 'base64', media_type: image.media_type || 'image/jpeg', data: image.data }
     : { type: 'url', url: _imgUrl || image };
   // 🔎 The stronger look goes first, and Kiki is told to trust it over her own read.
+  let _idVerdict = null;
   if (image) {
     try {
       const _seen = await identifyPhoto(imageSource, stockListForIdentify(), String(userText || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0].trim());
       record(req, { endpoint: _seen ? 'photo-identified' : 'photo-identify-failed', sub, store: ctx.store || '', seen: _seen ? _seen.slice(0, 240) : null });
       if (_seen) {
+        _idVerdict = _seen;
         photoNote = '(🔎 A careful second look at this photo, by a stronger eye than yours, says:\n' + _seen + '\n'
           + 'TRUST THAT over your own read of the picture. If it names one of OUR shoes under OURS, search that exact name '
           + 'now and send it. If it says NOT IN STOCK, tell the customer what the shoe is and that we don\'t carry it, then '
@@ -9517,6 +9525,37 @@ and it must NEVER be answered with a question back.`;
   // top it up with the rest. Only pure size (±brand) searches count; a colour/query/price
   // search means the customer wanted something specific, so we never widen those.
   const turnSentIds = new Set();        // shoe ids actually sent this turn
+  /* 🎯 THE SHOE THE PHOTO NAMED GOES OUT FIRST, FROM THE SERVER (Rodney 2026-10-10 12:00, testing from
+   * his own phone: the identifier said "New Balance 9060 Black/White" every time, and Kiki still
+   * sent a Green/Black/White 9060, or a New Balance 1000, depending on the run - "she can't even
+   * see that's black and white". The recognition was right; the hand-off to the chat model was
+   * not. A cheap model reading a 60,000-word prompt re-searches loosely and picks whatever
+   * comes back. So when the identifier names one of OUR shoes exactly, the server sends THAT
+   * card itself, then tells Kiki it is done and to answer in words (name, price, ask size). Our
+   * own cards coming back at us (KIND: CARD) are left alone - that is the echo bug. */
+  try {
+    if (_idVerdict && !staffName) {
+      const _mo = _idVerdict.match(/OURS:\s*([^\n]+)/i);
+      const _ours = _mo ? _mo[1].trim() : '';
+      if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !/KIND:\s*CARD/i.test(_idVerdict)) {
+        const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
+        const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
+        if (_pickSh && _pickSh.id != null) {
+          const _rr = await sendShoePhotos(sub, [_pickSh.id], token, true, null, '', false, false, false, ctx.turnAt || 0).catch(() => null);
+          if (_rr && _rr.sent > 0) {
+            photosSentRun = true; sentToCustomer = true; turnSentIds.add(String(_pickSh.id)); photoCompareSent = true;
+            record(req, { endpoint: 'photo-shoe-sent-by-server', sub, store: ctx.store || '', shoe: String(_pickSh.id), said: _ours.slice(0, 80) });
+            const _lu = history[history.length - 1];
+            if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
+              _lu.content[0].text = '(✅ THE PICTURE OF THE SHOE THEY MEANT HAS ALREADY BEEN SENT TO THEM: ' + displayName(_pickSh)
+                + ' — $' + (parseFloat(_pickSh.price) || 0) + '. Do NOT search and do NOT send any photos for it. Reply in WORDS only, one short line: '
+                + 'say yes we have it, its price, and ask what size they wear.)\n\n' + _lu.content[0].text;
+            }
+          }
+        }
+      }
+    }
+  } catch (e) { try { record(req, { endpoint: 'photo-shoe-send-error', sub, error: String(e).slice(0, 90) }); } catch (_) {} }
   let turnColourWanted = [];            // the colour they asked for, readable after the turn
   let turnColourPair = [];              // ...and whether they joined two of them ("pink and white")
   const turnSizeSearchSizes = [];       // sizes from pure size (±brand only) searches this turn
