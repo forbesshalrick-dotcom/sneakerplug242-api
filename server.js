@@ -955,9 +955,32 @@ function leadsWithColour(sh, wanted) {
 function customerWordsOnly(t) {
   return String(t || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0];
 }
+/* 🏷️ "RED THUNDER" IS A SHOE, NOT THE COLOUR RED (Rodney 2026-10-10, FF +1 242 814-4410: "why can't Kiki
+ * understand shoe names?"). The colour guard read the word "red" out of "Red thunder" and went to
+ * show every red shoe we own. A nickname the catalogue carries is the shoe's identity - cut it out
+ * of what is read for colours, so "Red Thunder", "Wet Cement", "Pine Green" and "Cozy Girl" never
+ * become a colour ask. A colour typed outside a nickname still counts. */
+let _nickPhrases = null;
+function nicknamePhrases() {
+  if (_nickPhrases) return _nickPhrases;
+  const set = new Set();
+  try {
+    for (const sh of catalog) {
+      const n = String(sh.nickname || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (n.length >= 5 && n.indexOf(' ') !== -1) set.add(n);
+    }
+  } catch (_) {}
+  _nickPhrases = [...set].sort((x, y) => y.length - x.length);
+  return _nickPhrases;
+}
+function stripNicknames(t) {
+  let out = ' ' + String(t || '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  for (const n of nicknamePhrases()) { if (out.indexOf(' ' + n + ' ') !== -1) out = out.split(' ' + n + ' ').join('  '); }
+  return out;
+}
 function colourWanted(said) {
   for (const raw of (said || [])) {
-    const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
+    const t = stripNicknames(String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey'));
     if (!t.trim()) continue;
     if (ANY_COLOUR_RE.test(t)) return [];          // they opened it back up - newest wins
     let hits = COLOUR_WORDS.filter(c => new RegExp('\\b' + c + '\\b').test(t));
@@ -6251,6 +6274,12 @@ function tableLearn(sub, text) {
   try {
     const said = String(text || '').toLowerCase();
     if (!sub || said.length < 8) return;
+    /* 🚫 A MENU IS NOT AN ORDER (FF +1 242 814-4410, 2026-10-10). "We got plenty - just pick one: Red
+     * Thunder, Cozy Girl, Lightning, SB Navy, Red Toro, Wet Cement or Pine Green" put all six on the
+     * table as if he had chosen them, and three messages later he was handed a "$1080 for the 6,
+     * I'll do $1020" total for shoes he never picked. Options she OFFERS are not shoes he PICKED. */
+    if (/\b(pick one|pick a|pick any|which (one|shoe)|choose|your choice)\b/.test(said)
+        || (said.match(/,/g) || []).length >= 3 && /\bor\b/.test(said) && /\?/.test(said)) return;
     const szm = said.match(/\b(?:in a |in your |size |sz )(\d{1,2}(?:\.5)?)\b/);
     const lm = liveShoeMap();
     const flat = said.replace(/\s*\/\s*/g, '/');
