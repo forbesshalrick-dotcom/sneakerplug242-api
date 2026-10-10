@@ -14009,6 +14009,12 @@ and it must NEVER be answered with a question back.`;
                                                   _sz ? { size: _sz } : {})) || [])
             .filter(r => !turnSentIds.has(r.id))
             .filter(r => wearsColour(r, turnColourWanted, turnColourPair))
+            .filter(r => {   // "white FORCES" is a model AND a colour - never fill the gap with other shoes
+              try {
+                const _mw = modelWanted([customerWordsOnly(userText)]);
+                return !_mw || _mw.test(String(r.name || '') + ' ' + String(r.nickname || '') + ' ' + String(r.id || ''));
+              } catch (_) { return true; }
+            })
             .slice(0, 10);
         } catch (_) {}
         record(req, { endpoint: 'colour-missing-from-album', sub, store: ctx.store || '',
