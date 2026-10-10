@@ -4601,7 +4601,16 @@ const stoppedAt = new Map();   // sub -> when they last told us to stop
 function noteStopWord(sub, text) {
   const t = String(text || '');
   if (/\b(stop|enough|no more|don'?t send|dont send)\b/i.test(t)) stoppedAt.set(String(sub), Date.now());
-  else if (/\b(send|show|see|pics?|pictures?|photos?|more)\b/i.test(t)) stoppedAt.delete(String(sub));
+  else if (/\b(send|show|see|pics?|pictures?|photos?|more)\b/i.test(t)) {
+    stoppedAt.delete(String(sub));
+    /* 🔓 THE OWNER'S STOP STOPS AN ALBUM DUMP, NOT THE CUSTOMER'S NEXT REQUEST (Rodney 2026-10-10 17:20,
+     * TK +1 242 814-6832: "I don't see anything" / "nothing"). Four albums in a row came back empty
+     * in two seconds with no failure anywhere, and Kiki kept saying "here it is 👇" over nothing:
+     * sendShoePhotos refused them silently because the 30-minute owner STOP was still on the chat.
+     * A customer who types "can I see..." AFTER the stop has made a fresh request. Give the stop
+     * two minutes to do its job of killing the dump, then let his own ask lift it. */
+    try { const own = ownerStoppedAt.get(String(sub)); if (own && Date.now() - own > 2 * 60 * 1000) ownerStoppedAt.delete(String(sub)); } catch (_) {}
+  }
 }
 // 🔒 THEY PICKED A SHOE - STOP SENDING PICTURES OF OTHER ONES.
 // Rodney 2026-09-25: "sending the customer too many photos. he picked a shoe a long time ago."
@@ -4693,7 +4702,7 @@ function orderIsLocked(sub) {
 // until 09:16, another 36 photos. This is the same failure as "200 photos after 4 stop
 // presses" - the customer-word path was fixed with stoppedAt, the owner's button never was.
 const ownerStoppedAt = new Map();   // sub -> when a human pressed STOP on this chat
-const OWNER_STOP_HOLD = 30 * 60 * 1000;
+const OWNER_STOP_HOLD = 10 * 60 * 1000;
 function recentlyToldUsToStop(sub) {
   const at = stoppedAt.get(String(sub));
   if (at && Date.now() - at < 5 * 60 * 1000) return true;
@@ -4795,6 +4804,9 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
   // The customer asked us to stop inside the last five minutes. Answer them in words.
   if (recentlyToldUsToStop(sub) && !isStaff) {
     try { console.error('[photos] blocked - customer said stop', sub); } catch (_) {}
+    try { recent.unshift({ at: new Date().toISOString(), endpoint: 'photos-blocked-by-stop', sub: String(sub),
+                           owner: !!ownerStoppedAt.get(String(sub)), customer: !!stoppedAt.get(String(sub)) });
+          if (recent.length > 120) recent.length = 120; } catch (_) {}
     return { sent: 0, blocked: 'the customer asked us to stop sending pictures' };
   } // fresh send — clear any stale stop flag so it isn't halted before it starts
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
