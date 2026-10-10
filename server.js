@@ -10383,6 +10383,27 @@ and it must NEVER be answered with a question back.`;
         const _cardIds = ourCardIdsFrom(sub, 3 * 60 * 1000);
         if (_cardIds.length === 1) _inPlay = shoeByAnyId(_cardIds[0], liveShoeMap());
       }
+      /* "THE SECOND ONE COST PLZ" NAMES A SHOE (Rodney 2026-10-09 21:37 screenshot, OSC
+       * +1 (242) 544-6000). Two pictures had just gone out; she pointed at the second and asked
+       * its price, and because the album held two shoes nothing below could name one, so the
+       * bare-price rule sent her the whole PRICE LIST. An ordinal against the album we just
+       * showed is as good as a name: first/second/third/last = that position, in send order. */
+      if (!_inPlay) {
+        try {
+          const _a = albumShown.get(String(sub));
+          const _t = String(userText || '').split('(SYSTEM NOTE')[0].toLowerCase();
+          const _ord = _t.match(/\b(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|last)\b/);
+          if (_ord && _a && Date.now() - _a.at < 30 * 60 * 1000 && (_a.shoes || []).length >= 2) {
+            const _idx = { first: 0, '1st': 0, second: 1, '2nd': 1, third: 2, '3rd': 2, fourth: 3, '4th': 3, fifth: 4, '5th': 4 };
+            const _i = _ord[1] === 'last' ? _a.shoes.length - 1 : _idx[_ord[1]];
+            const _pick = (_i != null && _i < _a.shoes.length) ? _a.shoes[_i] : null;
+            if (_pick) {
+              _inPlay = shoeByAnyId(_pick.id, liveShoeMap()) || _pick;
+              record(req, { endpoint: 'ordinal-picked-from-album', sub, store: ctx.store || '', which: _ord[1], shoe: String(_pick.id || _pick.name || '') });
+            }
+          }
+        } catch (_) {}
+      }
       if (!_inPlay) {
         try {
           const _a = albumShown.get(String(sub));
