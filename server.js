@@ -2648,6 +2648,7 @@ async function askAnthropic(system, user, maxTokens) {
       body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: maxTokens || 300, system, messages: [{ role: 'user', content: String(user).slice(0, 1200) }] }),
     });
     const j = await r.json();
+    usageNote('claude-haiku-4-5-20251001', j, 'small-helper');
     return ((j && j.content && j.content[0] && j.content[0].text) || '').trim() || null;
   } catch (_) { return null; } finally { clearTimeout(tm); }
 }
@@ -2691,6 +2692,7 @@ async function identifyPhoto(imageSource, stockList) {
           { type: 'image', source: imageSource } ] }] }),
     });
     const j = await r.json();
+    usageNote('claude-opus-5-5', j, 'photo-identify');
     const txt = (Array.isArray(j && j.content) ? j.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '').trim();
     return txt ? txt.slice(0, 600) : null;
   } catch (_) { return null; } finally { clearTimeout(tm); }
@@ -5539,6 +5541,51 @@ const redactOwnerName = (s) => String(s || '')
   .replace(/\bRon'?s\b/g, "the team's")
   .replace(/\bRon\b/g, 'the team');
 
+/* 💰 WHAT THE API ACTUALLY COSTS, MEASURED (Rodney 2026-10-10: "why does the API usage go down so
+ * fast? what's the cost of it now?"). The credit has run out four times in ten days and nobody
+ * could say what was eating it, because nothing here ever read the `usage` block Anthropic
+ * returns with every answer. Every call now adds its tokens and an estimated dollar cost to a
+ * per-day, per-model, per-purpose tally. Read it at /usage?key=DEBUG_KEY. In memory, so a
+ * deploy resets it - the day total only covers since the last restart (shown as `since`).
+ * Prices are $ per million tokens: input / output; cache reads bill at 0.1x input, cache
+ * writes at 1.25x input. */
+const USAGE_PRICE = {
+  'claude-haiku-4-5-20251001': [1, 5], 'claude-haiku-4-5': [1, 5],
+  'claude-sonnet-5': [2, 10], 'claude-sonnet-5-5': [2, 10],
+  'claude-opus-5-5': [4, 20], 'claude-opus-5': [5, 25],
+};
+const usageTally = { since: new Date().toISOString(), days: {} };
+function usageNote(model, data, label) {
+  try {
+    const u = data && data.usage; if (!u) return;
+    const day = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);   // Nassau (EDT) day
+    const pr = USAGE_PRICE[model] || [1, 5];
+    const inTok = u.input_tokens || 0, outTok = u.output_tokens || 0;
+    const cr = u.cache_read_input_tokens || 0, cw = u.cache_creation_input_tokens || 0;
+    const usd = (inTok * pr[0] + outTok * pr[1] + cr * pr[0] * 0.1 + cw * pr[0] * 1.25) / 1e6;
+    const key = model + ' | ' + (label || 'chat');
+    const d = usageTally.days[day] || (usageTally.days[day] = {});
+    const e = d[key] || (d[key] = { calls: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0, usd: 0 });
+    e.calls++; e.input += inTok; e.cacheRead += cr; e.cacheWrite += cw; e.output += outTok; e.usd += usd;
+    const days = Object.keys(usageTally.days).sort(); while (days.length > 7) delete usageTally.days[days.shift()];
+  } catch (_) {}
+}
+app.get('/usage', (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const out = { since: usageTally.since, note: 'estimated from the usage block of every answer; resets on deploy', days: {} };
+  for (const [day, rows] of Object.entries(usageTally.days)) {
+    let total = 0, calls = 0; const by = {};
+    for (const [k, e] of Object.entries(rows)) {
+      total += e.usd; calls += e.calls;
+      by[k] = { calls: e.calls, usd: +e.usd.toFixed(3), perCall: +(e.usd / Math.max(1, e.calls)).toFixed(4),
+                avgInput: Math.round(e.input / e.calls), avgCacheRead: Math.round(e.cacheRead / e.calls),
+                avgCacheWrite: Math.round(e.cacheWrite / e.calls), avgOutput: Math.round(e.output / e.calls) };
+    }
+    out.days[day] = { totalUsd: +total.toFixed(2), calls, by };
+  }
+  res.json(out);
+});
+
 async function callClaude(messages, system, toolChoice, toolsOverride, webSearch) {
   // 💰 CACHE THE PART THAT NEVER CHANGES. Rodney 2026-09-29, looking at his Anthropic
   // invoices: "im already being charged many times" - credit grants several times a day.
@@ -5600,7 +5647,7 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
         signal: AbortSignal.timeout(30000),
       });
       const data = await r.json().catch(() => ({}));
-      if (r.ok) return { ok: true, status: r.status, data };
+      if (r.ok) { usageNote(AI_MODEL, data, 'chat-turn'); return { ok: true, status: r.status, data }; }
       last = { ok: false, status: r.status, data };
       if (!RETRIABLE.has(r.status)) return last;   // permanent error — don't waste retries
     } catch (e) {
