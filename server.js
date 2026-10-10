@@ -10987,8 +10987,16 @@ and it must NEVER be answered with a question back.`;
        * was empty. Requiring ids meant the guard only worked when she had already half done
        * the right thing. Nothing in hand is not a reason to let the question through - it is
        * a reason to go and look first. */
+      /* 🛑 AN HONEST SIZE GAP IS NOT AN OFFER TO WIDEN (Rodney 2026-10-10 16:20, TK +1 242 431-2280:
+       * "Any white forces 11". We hold the white Air Force 1 but not in an 11, and she said so,
+       * ending "want me to send...". This guard then ordered a fresh search, and the search had
+       * lost the model - it came back with EVERY white shoe in an 11 and 20 pictures of Jordan 5s,
+       * Jordan 4s and Dunks went to a man who asked for Air Force. "The guy only asked for Air
+       * Force." When the reply is telling him the shoe he named is not in his size, the honest
+       * line stands as it is; pictures of other shoes are not what he asked for. */
+      const _sizeGapHonest = /\b(just )?not in (an?|your) \d|\b(does ?n'?t|do ?n'?t|dont|does not|did ?n'?t) (come|have)[^.!?]{0,20}\b(in )?(an?|your)? ?\d{1,2}(\.5)?\b|\bno \d{1,2}(\.5)? (right now|in)|\bonly (comes|come|left) in\b/i.test(turnText);
       if (turnText && !staffName && !photosSentRun && askedPermission < 1
-          && ASK_TO_SEND.test(turnText)) {
+          && ASK_TO_SEND.test(turnText) && !_sizeGapHonest) {
         const _haveIds = Array.isArray(lastSearchIds) && lastSearchIds.length;
         askedPermission++;
         record(req, { endpoint: 'asked-permission-to-send', sub, store: ctx.store || '',
@@ -11006,6 +11014,8 @@ and it must NEVER be answered with a question back.`;
           + (ctx.personal ? 'This is a Messenger/Instagram chat - the pictures do NOT download '
              + 'into their phone or use their storage, so there is no reason at all to be careful '
              + 'with them. ' : '')
+          + 'Send ONLY the model and colour the customer asked for - never widen to other brands or '
+          + 'other models to fill the album. '
           + 'Keep whatever honest line you wrote, drop the question, and let the pictures do the '
           + 'rest.)' });
         if (_haveIds) forcePhotosNext = true; else forceSearchNext = true;
