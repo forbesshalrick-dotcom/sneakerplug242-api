@@ -14156,7 +14156,23 @@ function handleChat(req, res) {
     userText = MEDIA_GREET_NOTE;
   }
   const sub = getContactId(req);
-  const token = getToken(req);
+  let token = getToken(req);
+  /* 🔁 REPLAY A TURN AFTER AN OUTAGE (Rodney 2026-10-10, "this is emergency... you might just need
+   * a new deploy"). The API credit ran out at 00:38 and sixteen customers got "One sec, my end
+   * running slow" and nothing else, even after he paid. Nothing re-answers a customer who has
+   * already written; the only way back in is this webhook, which needs the ManyChat token
+   * ManyChat sends. A placeholder token is worse than none (rememberCustomer would store it as
+   * the shop's key). So: with ?key=DEBUG_KEY and {replay:true}, and ONLY for a customer this
+   * server already has a thread for, borrow the token it already holds for that subscriber or
+   * shop. Recorded as 'replay'. Used by hand after an outage. */
+  if (!token && sub && req.query && req.query.key === DEBUG_KEY && req.body && req.body.replay
+      && inboxSubIndex.get(String(sub))) {
+    try {
+      token = subTokenFix.get(String(sub)) || storeTokens.get(getStore(req)) || null;
+    } catch (_) { token = null; }
+    if (token) { try { lastIncoming.delete(sub); lastIncomingText.delete(sub); } catch (_) {} }   // not a WhatsApp re-delivery of old words
+    record(req, { endpoint: 'replay', sub, store: getStore(req), hasToken: !!token });
+  }
 
   /* 📢 THE AD THEY TAPPED, ON THE MANYCHAT LINE TOO.
    * Rodney 2026-09-29: a customer came off a Click-to-WhatsApp ad for the all-black VaporMax,
