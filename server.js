@@ -820,9 +820,14 @@ function modelWanted(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '');
     if (!t.trim()) continue;
-    if (/\b(any(thing)?|whatever|everything|all of (it|them)|surprise me|no preference)\b/i.test(t)) return null;
     const hits = [];
     for (const [asked, matches] of MODEL_RULES) if (asked.test(t)) hits.push(matches);
+    /* "ANY WHITE FORCES 11" NAMES A MODEL (Rodney 2026-10-10, TK +1 242 431-2280: "the guy only asked
+     * for Air Force" - and got 20 pictures of Jordan 5s, Dunks and Vomeros). The word "any" at the
+     * front used to cancel the whole guard before the model was even read. "Any" only means
+     * no-preference when no model came with it. Anything/whatever/surprise me still always does. */
+    if (/\b(anything|whatever|everything|all of (it|them)|surprise me|no preference)\b/i.test(t)) return null;
+    if (!hits.length && /\bany\b/i.test(t)) return null;
     if (hits.length === 1) return hits[0];
     if (hits.length > 1) {
       try { return new RegExp(hits.map(r => r.source).join('|'), 'i'); }
