@@ -983,11 +983,21 @@ function colourWanted(said) {
        * plainly meant as a word stays a word. */
       const NOT_A_COLOUR = new Set(['what', 'deal', 'real', 'dream', 'bread', 'break', 'brand',
         'clean', 'clear', 'great', 'wheel', 'steal', 'meal', 'heal', 'they', 'them', 'then',
-        'that', 'this', 'with', 'want', 'need', 'send', 'size', 'have', 'here', 'wear']);
-      for (const w of (t.match(/[a-z]{4,}/g) || [])) {
+        'that', 'this', 'with', 'want', 'need', 'send', 'size', 'have', 'here', 'wear',
+        'while', 'write', 'block', 'blank', 'slack', 'crown', 'drown', 'greet', 'cream', 'dream']);
+      /* ⛔ NO TYPO-MATCHING ON A FOUR-LETTER WORD (Rodney 2026-10-10, 11:24 screenshot, TK +1 (242)
+       * 553-8615 "Can i see all js"). She opened with "Good day". "good" is one edit from GOLD, so
+       * she was silently treated as asking for gold: 79 of 80 shoes were dropped, the Jordans
+       * album came to nothing, and Kiki typed the list out instead of sending pictures. Every
+       * customer who starts "Good morning" has been getting this since the typo-reader went in
+       * on 10-08. Four-letter colours (blue, pink, grey, navy, gold, volt) sit one edit from
+       * far too many ordinary words - good, cold, hold, told, gone, pick, pine, link, grew,
+       * wavy, vote. So a typo is only read for a colour AND a word of five letters or more
+       * ("grenn", "balck", "yelow" - the case it was built for). */
+      for (const w of (t.match(/[a-z]{5,}/g) || [])) {
         if (hits.indexOf(w) !== -1 || NOT_A_COLOUR.has(w)) continue;
         for (const c of COLOUR_WORDS) {
-          if (c.length < 4 || hits.indexOf(c) !== -1) continue;
+          if (c.length < 5 || hits.indexOf(c) !== -1) continue;
           if (new RegExp('\\b' + c + '\\b').test(t)) continue;   // spelled right elsewhere
           if (near(w, c)) { hits = hits.concat([c]); break; }
         }
