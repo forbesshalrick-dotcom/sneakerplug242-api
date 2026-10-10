@@ -5659,6 +5659,12 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
       return blocks;
     })(),
     tools: _tools, messages };
+  /* 💰 CACHE THE CONVERSATION TOO (Rodney 2026-10-10: "cut the price as much as possible"). Each
+   * customer turn runs the tool loop 2-3 times and every call re-sent the whole chat history and
+   * the tool results at full price (~4,700 uncached tokens a call). Automatic caching marks the
+   * last block, so the next call in the loop reads everything before it at a tenth of the price.
+   * Verified on the API: call 2 read the first call's history and wrote only the new part. */
+  body.cache_control = { type: 'ephemeral' };
   if (/haiku-5/.test(_model)) body.thinking = { type: 'disabled' };   // Haiku 5.5 thinks by default; a chat reply should not pay for it
   if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
   // AUTO-RETRY transient failures (overloaded 529 / rate-limit 429 / 5xx / network blips).
