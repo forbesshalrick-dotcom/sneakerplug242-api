@@ -2913,7 +2913,25 @@ function adsBlock(store) {
       + `\u2022 Never name a shoe that is not on that list as "the one from the ad".`;
   } catch (_) { return ''; }
 }
-function buildSystemPrompt({ store, name, greet = true, phone = null, personal = false } = {}) {
+/* 💰 THE CACHE WAS NEVER HITTING (Rodney 2026-10-10: "why does the API usage go down so fast?").
+ * Measured with the new /usage tally on live traffic: every chat call WROTE ~32,000 tokens to
+ * the cache (billed at 1.25x) instead of reading them (0.1x) - $0.047 a call instead of about
+ * $0.006. The system prompt was marked cacheable as ONE block, but a line is appended to it on
+ * every turn - "(Current Bahamas date & time: 2026-10-10 09:41)", changing every minute - plus
+ * the customer's name and phone number, the closed-hours notice, the ads block and so on. Any
+ * byte that differs makes the whole block a fresh write. So the prompt is now split at a marker:
+ * everything above it is identical for every customer (cached and shared, read at a tenth of the
+ * price), everything at or below it is per-turn and rides uncached. Nothing she is told changes. */
+const SYS_SPLIT = '\n\n␞-PER-TURN-␞\n';
+function buildSystemPrompt(opts = {}) {
+  const raw = buildSystemPromptRaw(opts);
+  const who = opts.name && String(opts.name).trim() ? String(opts.name).trim() : '';
+  let det = '';
+  if (who) det += 'Saved name: ' + who + '\n';
+  if (opts.phone) det += 'Phone number (already on our screen - never ask for it): ' + opts.phone + '\n';
+  return raw + SYS_SPLIT + (det ? '--- CUSTOMER DETAILS FOR THIS CHAT ONLY ---\n' + det : '');
+}
+function buildSystemPromptRaw({ store, name, greet = true, phone = null, personal = false } = {}) {
   const storeName = store || STORE_DEFAULT;
   const who = name && name.trim() ? name.trim() : '';
 
@@ -3072,7 +3090,7 @@ on WhatsApp we always do, so asking just tells them they are talking to a machin
 on a call with you, tell them the same and let the call end - somebody rings back from the message.
 
 ${phone
-  ? `📱 YOU ALREADY HAVE THEIR NUMBER (it is ${phone}) — NEVER ASK FOR IT. Rodney 2026-09-30:
+  ? `📱 YOU ALREADY HAVE THEIR NUMBER (it is in the CUSTOMER DETAILS block at the very end) — NEVER ASK FOR IT. Rodney 2026-09-30:
 "you don't want to ask a WhatsApp customer what's their number because that's pretty dumb. The
 number is already shown for each WhatsApp customer." Asking a person for something already on
 our screen is exactly how somebody works out they are talking to a machine. If they want a
@@ -3514,7 +3532,7 @@ BAHAMIAN "COMING" PHRASING (IMPORTANT — locals often ask questions with no que
 
 SPECIAL CONTACTS:
 - If the customer's message is just the name "Rodney" (spelled R-O-D-N-E-Y), it's probably Rodney's mom. First reply ONLY with: "Hey! Is this Mommy? 😊" If she replies yes, then reply warmly: "Hi Mo! How are you doing? Love you. Hope everything is okay! 💛"
-${who ? `- The customer's saved name is "${who}".\n` : ''}- If the customer's saved name is exactly "Deashinique", greet her with: "Hey Deashinique! What's up? 👟" (always spell it exactly "Deashinique").
+${who ? `- The customer has a saved name - it is in the CUSTOMER DETAILS block at the very end.\n` : ''}- If the customer's saved name is exactly "Deashinique", greet her with: "Hey Deashinique! What's up? 👟" (always spell it exactly "Deashinique").
 
 FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get sorted?" and they reply: if they say NO / nothing caught their eye → reply "Okay, no worries! Maybe next time. Have a good day! 👟". If they say YES / they liked something → ask them for the NAME on the picture, e.g. "Nice! 😍 Which one was it? The name's printed on the pic 👟" — then look it up and help them order. ⛔ NEVER ask for a code; there are none.
 
@@ -5625,7 +5643,14 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
                       'nicekicks.com', 'stockx.com', 'goat.com', 'flightclub.com', 'ebay.com',
                       'hypebeast.com', 'kicksonfire.com', 'complex.com'] });
   const body = { model: AI_MODEL, max_tokens: 1024,
-    system: [{ type: 'text', text: _sysText, cache_control: { type: 'ephemeral' } }],
+    system: (function () {
+      const i = _sysText.indexOf(SYS_SPLIT);
+      if (i < 0) return [{ type: 'text', text: _sysText, cache_control: { type: 'ephemeral' } }];
+      const tail = _sysText.slice(i + SYS_SPLIT.length).trim();
+      const blocks = [{ type: 'text', text: _sysText.slice(0, i), cache_control: { type: 'ephemeral' } }];
+      if (tail) blocks.push({ type: 'text', text: tail });
+      return blocks;
+    })(),
     tools: _tools, messages };
   if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
   // AUTO-RETRY transient failures (overloaded 529 / rate-limit 429 / 5xx / network blips).
