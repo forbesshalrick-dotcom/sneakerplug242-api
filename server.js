@@ -9548,8 +9548,9 @@ and it must NEVER be answered with a question back.`;
             const _lu = history[history.length - 1];
             if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
               _lu.content[0].text = '(✅ THE PICTURE OF THE SHOE THEY MEANT HAS ALREADY BEEN SENT TO THEM: ' + displayName(_pickSh)
-                + ' — $' + (parseFloat(_pickSh.price) || 0) + '. Do NOT search and do NOT send any photos for it. Reply in WORDS only, one short line: '
-                + 'say yes we have it, its price, and ask what size they wear.)\n\n' + _lu.content[0].text;
+                + ' — $' + (parseFloat(_pickSh.price) || 0) + '. Do NOT search and do NOT send any photos for it. Reply with EXACTLY this one line and nothing before or after it: '
+                + '"That\'s the ' + displayName(_pickSh) + ' \u{1f45f} $' + (parseFloat(_pickSh.price) || 0) + ' — what size you wear?" '
+                + '(If they already told you their size, say we have it in that size instead of asking.))\n\n' + _lu.content[0].text;
             }
           }
         }
