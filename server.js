@@ -935,6 +935,16 @@ function leadsWithColour(sh, wanted) {
   const lead = col.split(/[\/,]/)[0].replace(/\ball\b/g, '').trim();
   return (wanted || []).some(w => lead === w || lead.startsWith(w + ' ') || lead.endsWith(' ' + w));
 }
+/* ONLY THE CUSTOMER'S OWN WORDS (Rodney 2026-10-09, OSC +1 (242) 544-6000 "need a all white", size
+ * 13 for her grandson -> got a Bred Jordan 1 and a Panda Dunk under "Here's what we have in white").
+ * The colour guard had wanted "black": she never typed it. Every user turn is stored WITH the
+ * private blocks we append to it - "[YOUR PRIVATE RECORD OF THE PICTURES YOU SENT...]" (shoe names
+ * like "Air Jordan 1 Black/Red"), "[PRIVATE OWNER CONTEXT...]", the remembered size - so a colour
+ * from our own photo-code map read as her ask. Same leak that made "gold/black" for TK Mike and
+ * FF 458-3143 earlier today. Cut everything from the first private block or system note. */
+function customerWordsOnly(t) {
+  return String(t || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0];
+}
 function colourWanted(said) {
   for (const raw of (said || [])) {
     const t = String(raw || '').toLowerCase().replace(/\bgray\b/g, 'grey');
@@ -10101,9 +10111,9 @@ and it must NEVER be answered with a question back.`;
     if (turnText && knownSize && CONFUSED_RE.test(turnText) && confusedBlocks < 1) {
       let _askedColour = [], _askedModel = null;
       try {
-        const said = [String(userText || '').split('(SYSTEM NOTE')[0]].concat(   // customer words only - see _custOnly
+        const said = [customerWordsOnly(userText)].concat(   // customer words only - see customerWordsOnly
           history.filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\s*\(SYSTEM NOTE/.test(m.content))
-            .slice(-6).reverse().map(m => m.content.split('(SYSTEM NOTE')[0]));
+            .slice(-6).reverse().map(m => customerWordsOnly(m.content)));
         _askedColour = colourWanted(said); _askedModel = modelWanted(said);
       } catch (_) {}
       if (_askedColour.length || _askedModel) {
@@ -12460,9 +12470,9 @@ and it must NEVER be answered with a question back.`;
         // 👟 MODEL GUARD - "don't send no mixed shoes". See modelWanted.
         const droppedWrongModel = [];
         try {
-          const said = [String(userText || '')].concat(
+          const said = [customerWordsOnly(userText)].concat(
             history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
-              .slice(-6).reverse().map(m => m.content));
+              .slice(-6).reverse().map(m => customerWordsOnly(m.content)));
           const want = modelWanted(said);
           if (want) {
             const liveM2 = liveShoeMap();
@@ -12503,7 +12513,7 @@ and it must NEVER be answered with a question back.`;
            * says '"navy" also means "navy blue"'. Read as customer words they invent a colour
            * nobody asked for: FF 458-3143 never typed a colour, yet "Send me what u have in
            * women's size 8" was filtered to wanted:"gold/black" and 78 of 81 shoes dropped. */
-          const _custOnly = t => String(t || '').split('(SYSTEM NOTE')[0];
+          const _custOnly = customerWordsOnly;   // customer words only - never our own private blocks
           const recentSaid2 = [_custOnly(userText)].concat(
             history.slice(_cFrom).filter(m => m && m.role === 'user' && typeof m.content === 'string'
                                            && !/^\s*\(SYSTEM NOTE/.test(m.content))
