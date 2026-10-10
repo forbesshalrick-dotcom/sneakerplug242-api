@@ -9373,7 +9373,7 @@ and it must NEVER be answered with a question back.`;
   }
   // "shocks" / "shoks" is how the island spells NIKE SHOX (2026-10-10: "any nikey shocks" got Scorpions).
   const _shoxNote = /\bsh(ocks?|oks|ocs|oxs)\b/i.test(customerWordsOnly(userText))
-    ? '\n\n(SYSTEM NOTE: "shocks" means the NIKE SHOX shoe - NOT shock absorbers and NOT a question to ask them. Search for query "shox" and show what comes back. We hold only the Nike Shox All Black; if it does not come in their size, say that honestly and do not swap in a different shoe.)'
+    ? '\n\n(SYSTEM NOTE: "shocks" means the NIKE SHOX shoe - NOT shock absorbers and NOT a question to ask them. Search for query "shox" and show what comes back. We hold only the Nike Shox All Black; if it does not come in their size, say that honestly and do not swap in a different shoe. The sizes on the shoe are MENS sizes: a woman asking for womens 5 or 6 is a mens 3.5 or 4.5, so never read the mens numbers back to her as if they were womens - just say it does not come in her size.)'
     : '';
   const userMsg = {
     role: 'user',
