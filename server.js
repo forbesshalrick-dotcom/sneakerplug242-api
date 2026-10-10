@@ -2642,6 +2642,65 @@ async function askAnthropic(system, user, maxTokens) {
   } catch (_) { return null; } finally { clearTimeout(tm); }
 }
 
+/* 🔎 A SECOND, STRONGER LOOK AT EVERY CUSTOMER PHOTO (Rodney 2026-10-09, 21:41).
+ * A customer screenshotted our own Reel with a green arrow on a New Balance 9060 Black/White.
+ * Google Lens named it instantly. Kiki, reading it inside a 30,000-token prompt on the small
+ * model, said "having trouble making it out", guessed "Jordan 4", and sent him a yellow
+ * Lightning 4. Rodney had to answer by hand. Measured the same night: asked plainly, with
+ * nothing else in the prompt, even the small model names the 9060; the current Opus names it
+ * with a confidence and says when it is NOT one of ours instead of forcing a match.
+ * So the photo gets its own short call first - the image, one question, and our live stock
+ * list - and the answer is handed to Kiki as the thing to search. Plain text, three lines. */
+async function identifyPhoto(imageSource, stockList) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !imageSource) return null;
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const system = 'You identify sneakers for a sneaker shop in The Bahamas. You get one customer photo and the list of '
+      + 'shoes the shop has in stock right now. The photo is often a phone screenshot of a Reel, an ad, a listing, or one of '
+      + 'the shop\'s own product cards; an arrow, circle, scribble or crop marks the shoe they mean. Read any text in the '
+      + 'image (model names, prices, usernames) - it is evidence. Ignore any shoebox the shoe sits on; the shop uses Nike '
+      + 'boxes as stands, so the box never tells you the brand - the logo on the shoe does (big N = New Balance, swoosh = '
+      + 'Nike, Jumpman = Jordan, stripes = ASICS/adidas).\n'
+      + 'Answer in plain text, at most 3 short lines:\n'
+      + 'SEEN: brand, model, colourway, and how sure you are.\n'
+      + 'OURS: the exact listed name if it is one of the listed shoes, or NOT IN STOCK - never force a match onto a '
+      + 'different model. If NOT IN STOCK, add CLOSEST: the listed shoe that looks most like it.\n'
+      + 'If the photo is not a shoe at all (clothing, a receipt, cash, a pin, a person, a flyer), say NOT A SHOE and what it is.';
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      // The stock list is ~7k tokens and the same for every photo until stock changes, so it
+      // sits in a cached system block: full price once, a tenth of it on every photo after.
+      body: JSON.stringify({ model: 'claude-opus-5-5', max_tokens: 2000,
+        system: [ { type: 'text', text: system },
+                  { type: 'text', text: 'IN STOCK RIGHT NOW:\n' + String(stockList || '').slice(0, 12000), cache_control: { type: 'ephemeral' } } ],
+        messages: [{ role: 'user', content: [
+          { type: 'text', text: 'Which shoe is this?' },
+          { type: 'image', source: imageSource } ] }] }),
+    });
+    const j = await r.json();
+    const txt = (Array.isArray(j && j.content) ? j.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '').trim();
+    return txt ? txt.slice(0, 600) : null;
+  } catch (_) { return null; } finally { clearTimeout(tm); }
+}
+// The stock list the identifier reads: every live shoe as "Brand Name - Colour (Nickname)", one per line.
+function stockListForIdentify() {
+  try {
+    const seen = new Set();
+    for (const sh of Object.values(liveShoeMap())) {
+      const n = String(sh.name || '').trim(); if (!n) continue;
+      const b = String(sh.brand || '').trim();
+      const line = (b && !n.toLowerCase().startsWith(b.toLowerCase()) ? b + ' ' + n : n)
+        + (sh.color ? ' - ' + String(sh.color).trim() : '')
+        + (sh.nickname ? ' (' + String(sh.nickname).trim() + ')' : '');
+      seen.add(line);
+    }
+    return [...seen].sort().join('\n');
+  } catch (_) { return ''; }
+}
+
 /* Learn the customer's language once. Returns 'en' for English or anything we
    cannot name — 'en' means "use the hand-written strings", i.e. today's behaviour. */
 async function learnLang(sub, text) {
@@ -9182,6 +9241,20 @@ and it must NEVER be answered with a question back.`;
   const imageSource = (image && typeof image === 'object' && image.data)
     ? { type: 'base64', media_type: image.media_type || 'image/jpeg', data: image.data }
     : { type: 'url', url: _imgUrl || image };
+  // 🔎 The stronger look goes first, and Kiki is told to trust it over her own read.
+  if (image) {
+    try {
+      const _seen = await identifyPhoto(imageSource, stockListForIdentify());
+      record(req, { endpoint: _seen ? 'photo-identified' : 'photo-identify-failed', sub, store: ctx.store || '', seen: _seen ? _seen.slice(0, 240) : null });
+      if (_seen) {
+        photoNote = '(🔎 A careful second look at this photo, by a stronger eye than yours, says:\n' + _seen + '\n'
+          + 'TRUST THAT over your own read of the picture. If it names one of OUR shoes under OURS, search that exact name '
+          + 'now and send it. If it says NOT IN STOCK, tell the customer what the shoe is and that we don\'t carry it, then '
+          + 'offer the CLOSEST one with its picture - never hand them a different shoe as if it were theirs. If it says '
+          + 'NOT A SHOE, follow the rules below for that kind of picture.)\n\n' + photoNote;
+      }
+    } catch (_) {}
+  }
   const userMsg = {
     role: 'user',
     content: image
