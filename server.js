@@ -793,7 +793,7 @@ const MODEL_RULES = [
   [/\bdunks?\b/i,                                           /dunk/i],
   [/\bair\s*force(s)?\s*(1|one)?\b|\baf1s?\b|\bforces\b/i, /air force/i],
   [/\bscorpions?\b/i,                                       /scorpion/i],
-  [/\bshox\b/i,                                             /shox/i],
+  [/\bsh(ox|ocks?|oks|ocs)\b/i,                               /shox/i],
   [/\bhuaraches?\b/i,                                       /huarache/i],
   [/\b9060\b/i, /9060/i], [/\b1906\b/i, /1906/i], [/\b2002\b|\b2000\b/i, /200[02]/i],
   [/\b550\b/i, /550/i],   [/\b530\b/i, /530/i],   [/\b740\b/i, /740/i], [/\b1000\b/i, /1000/i],
@@ -3798,6 +3798,8 @@ function aliasTokens(s) {
   if (name.includes('vapormax') || name.includes('vapor max')) out.push('vapor', 'vapormax', 'vapormaxes', 'vm', 'vapormax plus', 'vapormaxplus', 'vmp');
   if (name.includes('vomero')) out.push('vomero', 'v5', 'zoom vomero');
   if (name.includes('huarache')) out.push('huaraches', 'hurache', 'huraches');
+  // Nike SHOX: the island says "shocks" - 2026-10-10 a customer asked "any nikey shocks" and was shown Scorpions.
+  if (name.includes('shox')) out.push('shoxs', 'shocks', 'shock', 'shoks', 'shocs', 'shox');
   if (name.includes('scorpion')) out.push('scorpions', 'scorpio');
   if (name.includes('duck')) out.push('duckboot', 'duck boot', 'duckboots');
   if (name.includes('tatum')) out.push('tatums');
@@ -4386,7 +4388,7 @@ function clusterShoesByModel(arr) {
   const brandRank = (s) => {
     const t = ((s.brand || '') + ' ' + (s.name || '') + ' ' + (s.model || '') + ' ' + (s.nickname || '')).toLowerCase();
     if (/jordan|retro|\baj ?\d/.test(t)) return 0;
-    if (/air ?max|vapor|\bnike\b|air ?force|af1|dunk|shox|huarache|scorpion/.test(t)) return 1;
+    if (/air ?max|vapor|\bnike\b|air ?force|af1|dunk|shox|shocks?|huarache|scorpion/.test(t)) return 1;
     if (/new ?balance|\bnb\b|9060|1906|990|550/.test(t)) return 2;
     if (/yeezy|adidas/.test(t)) return 3;
     if (/asics/.test(t)) return 4;
@@ -4968,7 +4970,7 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
    * not 95, not 270, not 9060. Half the island names a shoe by its number.
    * Sizes are 4-14 and these are all far outside that, so a number here cannot be misread as
    * a size. Written with the plural optional because "97s" and "97" are the same ask. */
-  const REDIRECT = /\b(i meant|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|new balance|jordans?|jays?|j'?s|nikes?|asics|dunks?|vapou?r ?max(es)?|vm|air ?max(es)?|air ?force|af1s?|uptowns?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|shox|mules?|yeezys?|scorpions?|balenciagas?|vomeros?|terrascapes?|roshes?|blazers?|cortez|tns?|dns?|97s?|95s?|90s?|270s?|720s?|9060s?|1906s?|2000s?|990s?|991s?|530s?|550s?|574s?|327s?|2021)\b/i;
+  const REDIRECT = /\b(i meant|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|new balance|jordans?|jays?|j'?s|nikes?|asics|dunks?|vapou?r ?max(es)?|vm|air ?max(es)?|air ?force|af1s?|uptowns?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|shox|shocks?|mules?|yeezys?|scorpions?|balenciagas?|vomeros?|terrascapes?|roshes?|blazers?|cortez|tns?|dns?|97s?|95s?|90s?|270s?|720s?|9060s?|1906s?|2000s?|990s?|991s?|530s?|550s?|574s?|327s?|2021)\b/i;
   // "that's it / that's all / i'm good / thank you" mid-album are polite Bahamian
   // wrap-ups, not browsing chatter — a customer said "ok that's it" then "thank you",
   // the album kept rolling, and they BLOCKED the account (2026-07-13). Better to halt
@@ -6929,7 +6931,7 @@ const DEFER_RE = /\b(get(ting)?\s*back\s*to\s*(you|u|ya|yah)|i'?ll?\s*(let|lmk)\
 // Plurals matter: bare "jordan\b" does NOT match "jordans" (the \b fails between the 'n'
 // and the plural 's', both word chars) — a customer saying "you got jordans?" was ALSO
 // silently missed before this fix, same bug class as the "j's" gap above.
-const BRAND_WORD_RE = /\b(jordans?|j'?s|jays?|nike|air ?max|air ?force|af1s?|dunks?|vapor|scorpion|shox|huaraches?|new ?balance|\bnb\b|9060|1906|990|550|yeezys?|adidas|asics|crocs?|puma|reebok|slippers?|mules?|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i;
+const BRAND_WORD_RE = /\b(jordans?|j'?s|jays?|nike|air ?max|air ?force|af1s?|dunks?|vapor|scorpion|shox|shocks?|huaraches?|new ?balance|\bnb\b|9060|1906|990|550|yeezys?|adidas|asics|crocs?|puma|reebok|slippers?|mules?|mind|foam|thunder|bred|panda|chicago|toro|cement|lightning|valentine|military|black|white|red|blue|green|grey|gray|pink|yellow|navy|brown|tan|beige|cream|purple|orange|gold|silver|volt)\b/i;
 
 // 📸 "PICS ONLY" IS A RULE, NOT A JUDGEMENT CALL (Rodney 2026-08-13).
 // photos_only was left entirely to Kiki's discretion from the prompt. On 13 Aug Rodney sent
@@ -10502,7 +10504,7 @@ and it must NEVER be answered with a question back.`;
           && /\b(price|prices|pricing|price ?list|price ?listing|cost|costs)\b/i.test(_priceAskText)
           && /\b(list|listing|have|got|send|share|see|what(?:'|\u2019)?s|whats|any|your|for your|items|everything|all)\b/i.test(_priceAskText)
           // but NOT a price question about one named shoe - that gets THAT shoe's price
-          && !/\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97|95|90|270|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|huarache|shox|tn|blazer|cortez|panda)\b/i.test(_priceAskText));
+          && !/\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97|95|90|270|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|huarache|shox|shocks?|tn|blazer|cortez|panda)\b/i.test(_priceAskText));
     /* 💲 "HOW MUCH?" ABOUT A SHOE WE ARE ALREADY TALKING ABOUT IS NOT A PRICE-LIST ASK.
      * Rodney 2026-10-08 ("kiki is retarded?"), TK +1 (242) 437-7841, 19:08. He quote-replied
      * HER OWN line about the Black/White 9060 and typed "How much?" - and got the entire
@@ -10792,7 +10794,7 @@ and it must NEVER be answered with a question back.`;
      * their prices and nothing else. */
     try {
       const PRICE_Q = /\b(price|prices|how much|cost|wat.{0,3}s the price|what.{0,3}s the price)\b/i;
-      const NAMES_A_SHOE = /\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97s?|95s?|90s?|270s?|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|tn|tns|blazer|cortez)\b/i;
+      const NAMES_A_SHOE = /\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|530|550|574|327|97s?|95s?|90s?|270s?|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|shocks?|tn|tns|blazer|cortez)\b/i;
       const HAS_PRICE = /\$\s?\d{2,4}|\b\d{2,4}\s?(?:dollars|bucks)\b/i;
       /* ⛔ READ THE CUSTOMER, NOT OUR OWN NOTES. Any per-turn note that mentions a shoe and a
        * price satisfies both tests on its own, and then this guard tells her she ignored a
@@ -10883,7 +10885,7 @@ and it must NEVER be answered with a question back.`;
        * An identification says THIS shoe; a summary says all of them. */
       const _SUMMARY = /\b(?:that'?s|thats|that is)\s+(?:all|everything|the lot|what)\b|\ball (?:our|the|we)\b|\bthat'?s\s+(?:them|those)\s+all\b/i;
       const ASSERTS_SHOE = !_SUMMARY.test(turnText)
-        && /\b(that'?s|thats|that is|this is|those are|these are|you'?re looking at|your looking at|it'?s|its)\b[^.!?\n]{0,28}\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|1000|530|550|574|327|990|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|tns?|blazer|cortez|panda)\b/i.test(turnText);
+        && /\b(that'?s|thats|that is|this is|those are|these are|you'?re looking at|your looking at|it'?s|its)\b[^.!?\n]{0,28}\b(jordan|air ?force|af1|air ?max|vapou?r ?max|dunk|9060|1906|2000|1000|530|550|574|327|990|new balance|asics|yeezy|foam|croc|roshe|scorpion|vomero|terrascape|huarache|shox|shocks?|tns?|blazer|cortez|panda)\b/i.test(turnText);
       if (turnText && !staffName && pointerNamedAShoe < 1
           && (_pointerOnly || _pointerAsk) && !_sentUsAPicture
           && !_tagResolved && !lockedShoeFor(sub)
