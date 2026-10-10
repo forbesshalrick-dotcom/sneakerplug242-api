@@ -1,4 +1,9 @@
 const express = require('express');
+const { AsyncLocalStorage } = require('async_hooks');
+/* A practice chat (/social/reply) may name a different model, so a cheaper one can be drilled
+ * against the real prompt without touching a live customer: the choice lives only inside that
+ * one async call chain. */
+const modelCtx = new AsyncLocalStorage();
 const SI = require('./sneaker-inventory');
 const NS = require('./nightshift');            // the web/bot agency — see nightshift.js
 const { HOUSE_RULES } = require('./bot-core');
@@ -5568,7 +5573,7 @@ const redactOwnerName = (s) => String(s || '')
  * Prices are $ per million tokens: input / output; cache reads bill at 0.1x input, cache
  * writes at 1.25x input. */
 const USAGE_PRICE = {
-  'claude-haiku-4-5-20251001': [1, 5], 'claude-haiku-4-5': [1, 5],
+  'claude-haiku-4-5-20251001': [1, 5], 'claude-haiku-4-5': [1, 5], 'claude-haiku-5-5': [0.1, 0.5],
   'claude-sonnet-5': [2, 10], 'claude-sonnet-5-5': [2, 10],
   'claude-opus-5-5': [4, 20], 'claude-opus-5': [5, 25],
 };
@@ -5643,7 +5648,8 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
     allowed_domains: ['nike.com', 'sneakernews.com', 'soleretriever.com', 'sneakerbardetroit.com',
                       'nicekicks.com', 'stockx.com', 'goat.com', 'flightclub.com', 'ebay.com',
                       'hypebeast.com', 'kicksonfire.com', 'complex.com'] });
-  const body = { model: AI_MODEL, max_tokens: 1024,
+  const _model = (modelCtx.getStore() || {}).model || AI_MODEL;
+  const body = { model: _model, max_tokens: 1024,
     system: (function () {
       const i = _sysText.indexOf(SYS_SPLIT);
       if (i < 0) return [{ type: 'text', text: _sysText, cache_control: { type: 'ephemeral', ttl: '1h' } }];
@@ -5653,6 +5659,7 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
       return blocks;
     })(),
     tools: _tools, messages };
+  if (/haiku-5/.test(_model)) body.thinking = { type: 'disabled' };   // Haiku 5.5 thinks by default; a chat reply should not pay for it
   if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
   // AUTO-RETRY transient failures (overloaded 529 / rate-limit 429 / 5xx / network blips).
   // These are common with vision and used to drop STRAIGHT to the "hiccup" message on the
@@ -5673,7 +5680,7 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
         signal: AbortSignal.timeout(30000),
       });
       const data = await r.json().catch(() => ({}));
-      if (r.ok) { usageNote(AI_MODEL, data, 'chat-turn'); return { ok: true, status: r.status, data }; }
+      if (r.ok) { usageNote(_model, data, _model === AI_MODEL ? 'chat-turn' : 'chat-turn-test'); return { ok: true, status: r.status, data }; }
       last = { ok: false, status: r.status, data };
       if (!RETRIABLE.has(r.status)) return last;   // permanent error — don't waste retries
     } catch (e) {
@@ -18453,7 +18460,9 @@ app.post('/social/reply', async (req, res) => {
         .replace(/\s{2,}/g, ' ').trim().slice(0, 160),
     };
     const shim = { method: 'POST', path: '/social/reply', headers: {}, query: {}, body: {}, rawBody: null };
-    await runChat(shim, sub, text, '', ctx, b.image ? String(b.image) : null);
+    const _tm = ['claude-haiku-5-5', 'claude-sonnet-5-5'].includes(String(b.model || '')) ? String(b.model) : '';
+    if (_tm) await modelCtx.run({ model: _tm }, () => runChat(shim, sub, text, '', ctx, b.image ? String(b.image) : null));
+    else await runChat(shim, sub, text, '', ctx, b.image ? String(b.image) : null);
 
     const messages = sink.map(m => (m && m.type === 'image')
       ? { type: 'image', url: (m.url || (m.payload && m.payload.url) || '') }
