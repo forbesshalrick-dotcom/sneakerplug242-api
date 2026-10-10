@@ -8754,6 +8754,7 @@ function isOurOwnLine(sub, req) {
   return cand.some(c => OWN_LINE_NUMS.some(n => c.endsWith(n.slice(-10))));
 }
 
+const picksTotalledSig = new Map();   // sub -> {sig, ts}: the multi-pick total goes out once per set of picks
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // Every door, not just the front one. See isOurOwnLine above.
   if (isOurOwnLine(sub, req)) {
@@ -11483,10 +11484,21 @@ and it must NEVER be answered with a question back.`;
        * ANY next message was priced as an order for them. Somebody rejecting a shoe, correcting
        * which one they meant, or asking about the shoe on the left or right has picked nothing. */
       const _saidNow = String(userText || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0].trim();
-      const _notAPick = /^\s*(no|nah|nope|naw|not|wrong|different|another|other|neither|none|nothing|never ?mind)\b|\b(no,? )?not (that|this|those|these|it|the)\b|\b(on|at) the (left|right)\b|\bthe (left|right|other|second|first|third|last) (one|shoe|pair|side)\b|\bwhich (one|shoe)\b|\?\s*$/i.test(_saidNow);
+      const _notAPick = /^\s*(no|nah|nope|naw|not|wrong|different|another|other|neither|none|nothing|never ?mind)\b|\b(no,? )?not (that|this|those|these|it|the)\b|\b(on|at) the (left|right)\b|\bthe (left|right|other|second|first|third|last) (one|shoe|pair|side)\b|\bwhich (one|shoe)\b|\btysm\b|\bthank(s| you)\b|^\s*(ok|okay|alr|alright|yes|yeah|yep|ty)\W*$|\?\s*$/i.test(_saidNow);
+      /* ONCE IS ENOUGH (Rodney 2026-10-10 16:16, customer +1 242 828-9315): the four Jordan 4s stayed
+       * "on the table" for an hour, so EVERY later message - "Ok tysm", "Yes", "I only want the price
+       * of one tho" - was priced as the same order again, three identical "$720 ... I'll do $680"
+       * walls. The total goes out once per set of picks; and asking for the price of ONE shoe, or
+       * "how much are those", is a question, not an order. */
+      const _pickSig = _picks.map(x => String(x.id)).sort().join(',');
+      const _lastTot = picksTotalledSig.get(String(sub));
+      const _alreadyTotalled = !!(_lastTot && _lastTot.sig === _pickSig && Date.now() - _lastTot.ts < 60 * 60 * 1000);
+      const _askingOne = /\b(only|just)\b[^.!?]{0,30}\b(one|1|single)\b|\bprice (of|for) (one|1|the|each|that|this)\b|\bhow much\b|\beach\b|\bone (of|tho|though)\b/i.test(_saidNow);
+      if (_picks.length >= 2 && (_alreadyTotalled || _askingOne) && !_notAPick) { try { record(req, { endpoint: 'picks-deal-skipped-' + (_alreadyTotalled ? 'already-totalled' : 'asking-one'), sub, said: _saidNow.slice(0, 60) }); } catch (_) {} }
       if (_notAPick && _picks.length >= 2) { try { record(req, { endpoint: 'picks-deal-skipped-not-a-pick', sub, said: _saidNow.slice(0, 60) }); } catch (_) {} }
-      if (!staffName && multiPickPriced < 1 && _picks.length >= 2 && !_notAPick) {
+      if (!staffName && multiPickPriced < 1 && _picks.length >= 2 && !_notAPick && !_alreadyTotalled && !_askingOne) {
         multiPickPriced++;
+        picksTotalledSig.set(String(sub), { sig: _pickSig, ts: Date.now() });
         const _line = _picks.map(sh => '• ' + displayName(sh) + ' — $' + (parseFloat(sh.price) || 0));
         const _total = _picks.reduce((n, sh) => n + (parseFloat(sh.price) || 0), 0);
         const _deal = _total - (10 * _picks.length);
