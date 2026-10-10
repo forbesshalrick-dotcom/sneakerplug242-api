@@ -960,18 +960,20 @@ function customerWordsOnly(t) {
  * show every red shoe we own. A nickname the catalogue carries is the shoe's identity - cut it out
  * of what is read for colours, so "Red Thunder", "Wet Cement", "Pine Green" and "Cozy Girl" never
  * become a colour ask. A colour typed outside a nickname still counts. */
-let _nickPhrases = null;
+let _nickPhrases = null, _nickAt = 0;
 function nicknamePhrases() {
-  if (_nickPhrases) return _nickPhrases;
+  // Nicknames live in the shelf overrides ("Cozy Girl", "Red Toro" are not in catalog.json), so read
+  // the merged live rows - and again every ten minutes, because shoes are added during the day.
+  if (_nickPhrases && Date.now() - _nickAt < 10 * 60 * 1000) return _nickPhrases;
   const set = new Set();
   try {
-    for (const sh of catalog) {
-      const n = String(sh.nickname || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+    for (const sh of Object.values(liveShoeMap())) {
+      const n = String((sh && sh.nickname) || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
       if (n.length >= 5 && n.indexOf(' ') !== -1) set.add(n);
     }
   } catch (_) {}
-  _nickPhrases = [...set].sort((x, y) => y.length - x.length);
-  return _nickPhrases;
+  if (set.size) { _nickPhrases = [...set].sort((x, y) => y.length - x.length); _nickAt = Date.now(); }
+  return _nickPhrases || [];
 }
 function stripNicknames(t) {
   let out = ' ' + String(t || '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ') + ' ';
