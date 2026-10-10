@@ -2677,7 +2677,7 @@ async function askAnthropic(system, user, maxTokens) {
  * with a confidence and says when it is NOT one of ours instead of forcing a match.
  * So the photo gets its own short call first - the image, one question, and our live stock
  * list - and the answer is handed to Kiki as the thing to search. Plain text, three lines. */
-async function identifyPhoto(imageSource, stockList) {
+async function identifyPhoto(imageSource, stockList, words) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key || !imageSource) return null;
   const ctl = new AbortController();
@@ -2703,7 +2703,7 @@ async function identifyPhoto(imageSource, stockList) {
         system: [ { type: 'text', text: system },
                   { type: 'text', text: 'IN STOCK RIGHT NOW:\n' + String(stockList || '').slice(0, 12000), cache_control: { type: 'ephemeral' } } ],
         messages: [{ role: 'user', content: [
-          { type: 'text', text: 'Which shoe is this?' },
+          { type: 'text', text: 'Which shoe is this?' + (words ? '\n\nThe customer then said: "' + String(words).slice(0, 160) + '". If they point (left, right, the other one, second...) choose THAT shoe in the photo, and never one they have just said no to.' : '') },
           { type: 'image', source: imageSource } ] }] }),
     });
     const j = await r.json();
@@ -9350,7 +9350,7 @@ and it must NEVER be answered with a question back.`;
   // 🔎 The stronger look goes first, and Kiki is told to trust it over her own read.
   if (image) {
     try {
-      const _seen = await identifyPhoto(imageSource, stockListForIdentify());
+      const _seen = await identifyPhoto(imageSource, stockListForIdentify(), String(userText || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0].trim());
       record(req, { endpoint: _seen ? 'photo-identified' : 'photo-identify-failed', sub, store: ctx.store || '', seen: _seen ? _seen.slice(0, 240) : null });
       if (_seen) {
         photoNote = '(🔎 A careful second look at this photo, by a stronger eye than yours, says:\n' + _seen + '\n'
@@ -11431,7 +11431,15 @@ and it must NEVER be answered with a question back.`;
         _seenPick.add(k);
         _picks.push(sh);
       }
-      if (!staffName && multiPickPriced < 1 && _picks.length >= 2) {
+      /* A "NO" IS NOT A PICK (Rodney 2026-10-10 11:49, testing from his own phone: he sent the Reel,
+       * Kiki showed the 9060, he said "no not that 1" and then "no" - and TWICE got "Good picks
+       * 👌 ... $260 for the 2, I'll do $240". The shoes she had just named were on the table, so
+       * ANY next message was priced as an order for them. Somebody rejecting a shoe, correcting
+       * which one they meant, or asking about the shoe on the left or right has picked nothing. */
+      const _saidNow = String(userText || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0].trim();
+      const _notAPick = /^\s*(no|nah|nope|naw|not|wrong|different|another|other|neither|none|nothing|never ?mind)\b|\b(no,? )?not (that|this|those|these|it|the)\b|\b(on|at) the (left|right)\b|\bthe (left|right|other|second|first|third|last) (one|shoe|pair|side)\b|\bwhich (one|shoe)\b|\?\s*$/i.test(_saidNow);
+      if (_notAPick && _picks.length >= 2) { try { record(req, { endpoint: 'picks-deal-skipped-not-a-pick', sub, said: _saidNow.slice(0, 60) }); } catch (_) {} }
+      if (!staffName && multiPickPriced < 1 && _picks.length >= 2 && !_notAPick) {
         multiPickPriced++;
         const _line = _picks.map(sh => '• ' + displayName(sh) + ' — $' + (parseFloat(sh.price) || 0));
         const _total = _picks.reduce((n, sh) => n + (parseFloat(sh.price) || 0), 0);
@@ -14211,6 +14219,24 @@ function handleChat(req, res) {
         pendingPhoto.set(String(_sub0), { url: imageUrl, at: Date.now() });
         noteInboundPhoto(_sub0, imageUrl);
         if (pendingPhoto.size > 300) pendingPhoto.delete(pendingPhoto.keys().next().value);
+      }
+    }
+  } catch (_) {}
+  /* 👉 "THE SHOE ON THE RIGHT" ABOUT A PICTURE THEY SENT (Rodney 2026-10-10 11:49): he sent the Reel
+   * with two shoes in it, then said "the shoe on the right" - and she had no picture to look at, so
+   * she sent a New Balance 1000. A pointing follow-up gets their last photo (not one of our own
+   * cards) back for ten minutes, so she can look at it again. */
+  try {
+    if (!imageUrl && !audioUrl && /\b(left|right|other|second|first|third|middle)\b/i.test(String(userText || '').split('(SYSTEM NOTE')[0])) {
+      const _s1 = getContactId(req);
+      const _arr = (_s1 && inboundPhotos.get(String(_s1))) || [];
+      for (let _i = _arr.length - 1; _i >= 0; _i--) {
+        const _x = _arr[_i];
+        if (Date.now() - _x.at > 10 * 60 * 1000) break;
+        if (/-(card|thumb)\.(jpg|jpeg|png|webp)/i.test(_x.url)) continue;
+        imageUrl = _x.url;
+        try { record(req, { endpoint: 'photo-reattached-for-pointing', sub: String(_s1), said: String(userText || '').slice(0, 50) }); } catch (_) {}
+        break;
       }
     }
   } catch (_) {}
