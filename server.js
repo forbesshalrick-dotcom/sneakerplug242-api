@@ -5580,7 +5580,8 @@ function usageNote(model, data, label) {
     const pr = USAGE_PRICE[model] || [1, 5];
     const inTok = u.input_tokens || 0, outTok = u.output_tokens || 0;
     const cr = u.cache_read_input_tokens || 0, cw = u.cache_creation_input_tokens || 0;
-    const usd = (inTok * pr[0] + outTok * pr[1] + cr * pr[0] * 0.1 + cw * pr[0] * 1.25) / 1e6;
+    const cw1h = (u.cache_creation && u.cache_creation.ephemeral_1h_input_tokens) || 0;
+    const usd = (inTok * pr[0] + outTok * pr[1] + cr * pr[0] * 0.1 + (cw - cw1h) * pr[0] * 1.25 + cw1h * pr[0] * 2) / 1e6;
     const key = model + ' | ' + (label || 'chat');
     const d = usageTally.days[day] || (usageTally.days[day] = {});
     const e = d[key] || (d[key] = { calls: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0, usd: 0 });
@@ -5618,7 +5619,7 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
   // Nothing about her behaviour changes - the model sees the identical prompt either way.
   const _sysText = redactOwnerName(system || buildSystemPrompt());
   const _tools = (toolsOverride || AI_TOOLS).map((t, i, a) =>
-    (i === a.length - 1) ? Object.assign({}, t, { cache_control: { type: 'ephemeral' } }) : t);
+    (i === a.length - 1) ? Object.assign({}, t, { cache_control: { type: 'ephemeral', ttl: '1h' } }) : t);   // 1h, not 5 min: a quiet shop let the 5-minute cache lapse between customers and re-paid ~$0.07 to write it each time
   /* 🔎 LOOK IT UP, THE WAY GOOGLE DOES. Rodney 2026-10-02, after Lens named four shoes in a
    * row that Kiki could not: "she needs to identify the shoe first".
    * Comparing against our own pictures tells her whether WE have it. It cannot tell her what
@@ -5645,9 +5646,9 @@ async function callClaude(messages, system, toolChoice, toolsOverride, webSearch
   const body = { model: AI_MODEL, max_tokens: 1024,
     system: (function () {
       const i = _sysText.indexOf(SYS_SPLIT);
-      if (i < 0) return [{ type: 'text', text: _sysText, cache_control: { type: 'ephemeral' } }];
+      if (i < 0) return [{ type: 'text', text: _sysText, cache_control: { type: 'ephemeral', ttl: '1h' } }];
       const tail = _sysText.slice(i + SYS_SPLIT.length).trim();
-      const blocks = [{ type: 'text', text: _sysText.slice(0, i), cache_control: { type: 'ephemeral' } }];
+      const blocks = [{ type: 'text', text: _sysText.slice(0, i), cache_control: { type: 'ephemeral', ttl: '1h' } }];
       if (tail) blocks.push({ type: 'text', text: tail });
       return blocks;
     })(),
