@@ -9552,6 +9552,7 @@ and it must NEVER be answered with a question back.`;
   let soldSizeClaims = 0;      // confirming a shoe in a size that is not on the shelf
   let metaLeaks = 0;           // her draft talked about her own notes - blocked, retried once
   let _showAllDone = false;    // 'show me all in size N' answered with pictures (once)
+  let _matchPairSizes = null;   // set when a matching pair was asked: the two sizes every shoe sent must come in
   let _matchPairDone = false;  // 'match / matching' + two sizes answered with shoes in BOTH sizes (once)
   let _namedShowDone = false;  // named shoe, few in stock: shown instead of asking size (once)
   let textListed = 0;          // typing shoes out instead of sending the pictures
@@ -10813,6 +10814,7 @@ and it must NEVER be answered with a question back.`;
           if (_nums.length >= 2) {
             _matchPairDone = true;
             const _two = _nums.slice(-2);
+            _matchPairSizes = _two.slice();
             record(req, { endpoint: 'match-pair-forced-photos', sub, store: ctx.store || '', sizes: _two.join('+'), said: turnText.slice(0, 80) });
             history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: they want a MATCHING PAIR - the SAME shoe in two sizes (' + _two.join(' and ')
               + '). Call search_inventory with sizes = ["' + _two.join('","') + '"] and size_match = "all" (only shoes that come in BOTH), add their colour if they gave one, '
@@ -12668,6 +12670,27 @@ and it must NEVER be answered with a question back.`;
       }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
+        /* 👯 A MATCHING-PAIR ALBUM CONTAINS ONLY SHOES THAT COME IN BOTH SIZES. The prompt asked
+         * for it and the top-up still widened it: in a practice chat "Need matches" after sizes
+         * 5.5 and 11 sent 67 pictures. Enforced here, and the lead-in says what it is. */
+        if (_matchPairSizes && !staffName) {
+          try {
+            const _lmM = liveShoeMap();
+            const _both = id => { const sh = shoeByAnyId(id, _lmM); const raw = ((sh && (sh.sizesRaw || sh.sizes)) || []).map(String);
+                                  return _matchPairSizes.every(z => raw.includes(z)); };
+            const _n0 = (Array.isArray(inp.ids) ? inp.ids.length : 0)
+              + (Array.isArray(inp.groups) ? inp.groups.reduce((n, g) => n + ((g && g.ids) || []).length, 0) : 0);
+            const _ids2 = Array.isArray(inp.ids) ? inp.ids.filter(_both) : inp.ids;
+            const _grp2 = Array.isArray(inp.groups) ? inp.groups.map(g => Object.assign({}, g, { ids: (g.ids || []).filter(_both) })).filter(g => g.ids.length) : inp.groups;
+            const _n1 = (Array.isArray(_ids2) ? _ids2.length : 0) + (Array.isArray(_grp2) ? _grp2.reduce((n, g) => n + g.ids.length, 0) : 0);
+            if (_n1 > 0) {
+              inp.ids = _ids2; if (Array.isArray(_grp2)) inp.groups = _grp2;
+              lastSearchIds = lastSearchIds.filter(_both);
+              inp.lead_in = 'These come in BOTH ' + _matchPairSizes.join(' and ') + ' so they match \u{1F447} Ready to Order!';
+              record(req, { endpoint: 'match-pair-album-filtered', sub, store: ctx.store || '', sizes: _matchPairSizes.join('+'), was: _n0, now: _n1 });
+            }
+          } catch (_) {}
+        }
         /* 🚫 NO SIZE, NO PILE — IN CODE THIS TIME (Rodney 2026-10-04).
          * Two customers came off an ad, asked only "Prices?", and got nine Jordans each. The
          * ad they tapped is never passed to us by ManyChat, so the search had nothing to
