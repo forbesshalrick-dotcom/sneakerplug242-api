@@ -2582,6 +2582,7 @@ function smallestSizeWeCarry() {
   } catch (_) { return null; }
 }
 const BRAND_QUESTION_RE = /\b(?:which|what|any particular|something)\s+(?:brand|model|make)\b|\bspecific\s+(?:shoe\s+)?(?:brand|model|style)\b|\bacross all brands\b|\blooking for (?:a|any) (?:specific|particular)\b|\bwhat (?:kind|type) of (?:shoe|sneaker)\b|\bwhat\s+(?:\w+\s+)?(?:shoe|shoes|sneakers?|kicks)\s+(?:you|are you|u)\s+(?:looking for|after|want)\b|\bwhich one (?:you|are you) (?:looking for|after)\b/i;
+const META_LEAK_RE = /\b(?:system notes?|the notes? (?:above|says?|said|from)|i (?:don'?t|do not|can'?t) see a note|a note from (?:them|you|the customer)|my reply stands|reply stands as written|as written:|looking at the (?:system )?notes?|per the (?:system )?note|the customer cannot see|the instructions? (?:say|said|above))\b/i;
 const PIN_ASK_RE = /\blocation pin\b|\bdrop (?:your|ur|a|the|that|dat|it|me)\b[^.?!]{0,20}?\b(?:location|pin)\b|\b(?:send|share|text)(?: me)?(?: your| ur| the| that| a)?\s+(?:whatsapp\s+)?(?:current\s+)?(?:location|pin)\b|\bpin for me\b|→\s*location\s*→/i;
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
@@ -3493,6 +3494,11 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - ⛔ NOT "where should I send it". That assumes a delivery and assumes they are home. "You available now?" settles the TIMING first — if they are not free they say so and it becomes a scheduled order — and offering the pin OR a meet-up gives them both roads at once instead of one they might not want.
 - The only thing missing at that point is WHEN and WHERE. Everything else is agreed. Get those and the order is done.
 - Then file it (notify_manager) and follow the location rules below — never say a driver is moving before you have the where.
+
+🧾 GIVE THEM A SMALL HUMAN REASON, AND TELL THEM WHAT YOU RECEIVED (Rodney 2026-10-11, a green/white Asics customer left a bad review of the AI: "he had to send the location 3 times because she never seen it"). People follow instructions when they understand why - same as when Rodney says "sorry, I had to stop for gas" instead of just "sorry".
+- WHENEVER YOU ASK FOR THE LOCATION, give the reason and the tip in the same breath, short: "Send your location 📍 so the driver can find you - and once you send it, text me 'sent' so I can check it, sometimes the pin doesn't pop up on my side 🙏". (First ask only - never repeat the whole thing a second time.)
+- WHEN A LOCATION ARRIVES - you are told "customer dropped a LOCATION PIN", or you see "Shared a location", or they type "sent" / "sent it" / "i sent" - ALWAYS answer straight away, every time, with a plain confirmation: "Got your location 📍 thank you - I'm passing it to the driver now." If they only typed "sent": "Thank you 🙏 checking it on my side now." NEVER ask for it again after they have said they sent it, and never go quiet - silence is exactly why customers send it three times.
+- WHEN SOMETHING IS LATE OR TAKING LONG and a customer asks about it, say sorry WITH a small believable reason, one short line, in your own words: traffic on the road, a quick stop for gas, a busy stretch coming this way. Do NOT invent that a driver has left or is a certain number of minutes away unless the owner has told you (that rule stands) - the reason only explains a delay that is already real.
 
 🌍 ANY SIZE FROM 35 UP IS EUROPEAN — CONVERT IT (Rodney 2026-09-25: "41 is size 8, but Kiki is sending the guy everything is 5 and a half"). A Spanish-speaking customer said 42, then 41; both were read as US sizes, judged to be near our smallest, and he was sent 5s and 5.5s. NOBODY WEARS A US 41.
 - 40=7 • 40.5=7.5 • 41=8 • 42=8.5 • 42.5=9 • 43=9.5 • 44=10 • 44.5=10.5 • 45=11 • 45.5=11.5 • 46=12 • 47=12.5 • 47.5=13
@@ -9540,6 +9546,7 @@ and it must NEVER be answered with a question back.`;
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let cardLinkMisses = 0;      // they said card and the reply had no link in it
   let soldSizeClaims = 0;      // confirming a shoe in a size that is not on the shelf
+  let metaLeaks = 0;           // her draft talked about her own notes - blocked, retried once
   let _showAllDone = false;    // 'show me all in size N' answered with pictures (once)
   let _namedShowDone = false;  // named shoe, few in stock: shown instead of asking size (once)
   let textListed = 0;          // typing shoes out instead of sending the pictures
@@ -12284,9 +12291,14 @@ and it must NEVER be answered with a question back.`;
         // on a customer who has already told us when he wants it.
         let _laterDay = false;
         try {
-          _laterDay = saidLaterDay([String(userText || '')].concat(
+          /* customer words only. The history also holds OUR SYSTEM NOTES, and one of them (the
+           * after-hours "first thing tomorrow morning" note) contains "tomorrow" - so a customer who
+           * never mentioned a later day tripped the later-day branch, and Kiki answered the NOTE:
+           * "I don't see a note from them about a later day earlier in this chat" (Rodney 2026-10-11,
+           * +1 242 812-3969). */
+          _laterDay = saidLaterDay([customerWordsOnly(userText)].concat(
             history.filter(m => m && m.role === 'user' && typeof m.content === 'string')
-              .slice(-8).reverse().map(m => m.content)));
+              .slice(-8).reverse().map(m => customerWordsOnly(m.content))));
         } catch (_) {}
         if (pinAskCount.size > 500) { const f = pinAskCount.keys().next().value; pinAskCount.delete(f); }
         history.push({ role: 'user', content: somethingArrived
@@ -12324,6 +12336,22 @@ and it must NEVER be answered with a question back.`;
       pinAsked.set(sub, Date.now());
       pinAskCount.set(sub, (pinAskCount.get(sub) || 0) + 1);
       if (pinAsked.size > 500) { const f = pinAsked.keys().next().value; pinAsked.delete(f); }
+    }
+    /* 🙊 NEVER LET HER TALK ABOUT HER OWN INSTRUCTIONS. Rodney 2026-10-11: a customer who had just sent
+     * his location was told "I don't see a note from them about a later day earlier in this chat - they
+     * haven't mentioned one yet. So my reply stands as written:" and then the same message again; at
+     * 15:43 another one got "Looking at the system notes, I see you're a new customer". The model
+     * answered the SYSTEM NOTE instead of the customer. Whatever guard caused it, a reply that talks
+     * about notes, instructions or "my reply" must never reach a customer: one clean retry, then silence
+     * from this draft (the normal fallback takes over). */
+    if (turnText && !staffName && META_LEAK_RE.test(turnText)) {
+      metaLeaks++;
+      record(req, { endpoint: 'meta-leak-blocked', sub, store: ctx.store || '', attempt: metaLeaks, text: turnText.slice(0, 160) });
+      if (metaLeaks === 1) {
+        history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: your last draft talked about notes, instructions or your own reply. The customer has seen NONE of that and must never read it. Write ONLY what you would say to the customer, in your own short words, answering what THEY just said. Do not mention this note, any note, or what you can or cannot see in the chat history.)' });
+        continue;
+      }
+      turnText = '';
     }
     // It has survived every guard above, so it is safe for the safety net to fall back on.
     if (turnText) lastText = turnText;
