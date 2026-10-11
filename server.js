@@ -4324,8 +4324,40 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
      * mixed ones come in behind them rather than leaving someone with nothing. Nothing is
      * hidden when we are thin, and nothing is mislabelled when we are not. */
     if (!STRICT_COLOUR) {
-      const _pureRows = rows.filter(isPureColour);
-      if (_pureRows.length >= 6) rows = _pureRows;
+      /* ⬛ MAJORITY COLOUR, JUDGED BY EYE (Rodney 2026-10-11, in full: "Black shoes must be
+       * majority black with maybe another color. It can have like a red sometimes, but mostly
+       * it's all black. All black is all black. People that ask for black shoes normally ask
+       * for work or for school ... white and black, red and black, green and black, orange and
+       * black - sometimes they have too much red, too much orange for folks. They can't wear
+       * it to work.")
+       * The colourway string cannot say HOW MUCH of the shoe is a colour: "Black/Red" is a
+       * black 95 with red lace loops AND the Infrared 90 that is grey and white. So every
+       * black-named colourway was looked at on 2026-10-11 and each catalogue row now carries
+       *   dominant   - the one colour the shoe reads as from across the room
+       *   blackShare - all | mostly | half | accent | none
+       * A bare colour ask is answered with the rows whose DOMINANT colour is that colour; for
+       * black that means blackShare all/mostly (a red lace loop is fine, a red midsole is not).
+       * Rows without the field (new shoes) fall back to the lead colour of the name, which is
+       * how our colourways are written. The mixed ones are still the FALLBACK when we are thin
+       * (fewer than 3 true matches), never the filling - see the pink complaint above. */
+      const _wantC = cWords.filter(w => COLOUR_WORDS.includes(w));
+      const _isDominant = ({ s }) => {
+        if (!_wantC.length) return false;
+        const d = String(s.dominant || '').toLowerCase();
+        if (d) {
+          if (!_wantC.includes(d)) return false;
+          if (d === 'black') return ['all', 'mostly'].includes(String(s.blackShare || 'mostly'));
+          return true;
+        }
+        return leadsWithColour(s, _wantC) || isPureColour({ s });
+      };
+      const _domRows = rows.filter(_isDominant);
+      if (_domRows.length >= 3) rows = _domRows;
+      else {
+        const _pureRows = rows.filter(isPureColour);
+        if (_pureRows.length >= 6) rows = _pureRows;
+        else rows = [..._domRows, ...rows.filter(r => !_domRows.includes(r))];
+      }
     }
   }
   // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
