@@ -10704,6 +10704,7 @@ and it must NEVER be answered with a question back.`;
             if (_h.length && (!_hits.length || _h.length < _hits.length)) _hits = _h;
           }
         }
+        try { record(req, { endpoint: 'nsd3-size' + _hasSize + '-hits' + _hits.length + '-' + _hits.map(x => x.id).join('_').slice(0, 60), sub }); } catch (_) {}
         if (_hits.length >= 1 && _hits.length <= 3) {
           _namedShowDone = true;
           record(req, { endpoint: 'named-shoe-shown-not-asked', sub, store: ctx.store || '', n: _hits.length,
