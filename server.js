@@ -6775,6 +6775,10 @@ function inboxRecord(account, sub, m) {
  * see what Kiki said, so a row he cannot trust is worse than no row. See sendChunk. */
 function markOutFailed(sub, rows, why) {
   try {
+    // Foot Fetish customers have no ManyChat subscriber ON PURPOSE - their text goes out through
+    // the browser outbox (kiki-waoutbox). 'SKIPPED: YCLOUD LINE' is the hand-off, not a failure;
+    // marking it NOT DELIVERED made Rodney think good messages never arrived (Precious, 10:31).
+    if (/YCLOUD LINE/i.test(String(why || ''))) return 0;
     let n = 0;
     for (const r of (rows || [])) {
       if (!r || r.failed) continue;
