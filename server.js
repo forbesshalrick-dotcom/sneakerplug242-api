@@ -12695,6 +12695,7 @@ and it must NEVER be answered with a question back.`;
             if (_n1 > 0) {
               inp.ids = _ids2; if (Array.isArray(_grp2)) inp.groups = _grp2;
               lastSearchIds = lastSearchIds.filter(_both);
+              turnTopUpMerged = true;   // nothing appends a bigger batch after a matching album
               inp.lead_in = 'These come in BOTH ' + _matchPairSizes.join(' and ') + ' so they match \u{1F447} Ready to Order!';
               record(req, { endpoint: 'match-pair-album-filtered', sub, store: ctx.store || '', sizes: _matchPairSizes.join('+'), was: _n0, now: _n1 });
             }
