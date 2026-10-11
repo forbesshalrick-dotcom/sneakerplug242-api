@@ -12109,7 +12109,7 @@ and it must NEVER be answered with a question back.`;
       const ETA_ASK = /\b(how far|any update|still coming|you reaching|how long|where.{0,14}driver|driver.{0,14}(where|far|coming|reach|now)|what time.{0,18}(get here|come|reach|arrive))\b/i;
       const OFFER = /\b(what size|everything we have in|want me to send|which one you like|what(?:'|\u2019)?s good|right here)\b/i;
       if (turnText && !staffName && etaDeflected < 1 && !photosSentRun
-          && ETA_ASK.test(String(userText || '')) && OFFER.test(turnText)) {
+          && ETA_ASK.test(customerWordsOnly(userText)) && OFFER.test(turnText)) {   // customer's own words only: the appended SYSTEM NOTE says "where the driver is" and used to trip this on its own (Rodney 2026-10-11: JC + Precious got "Let me call the driver now")
         etaDeflected++;
         record(req, { endpoint: 'eta-question-deflected', sub, store: ctx.store || '',
                       asked: String(userText || '').slice(0, 60), said: turnText.slice(0, 90) });
