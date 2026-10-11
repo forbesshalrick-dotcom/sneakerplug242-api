@@ -7033,8 +7033,20 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
   // fires, so this used to become a real send to an invented subscriber id.
   if (isComposeSub(sub)) return;
   clearFollowUp(sub);
+  const _schedAt = Date.now();
   const handle = setTimeout(async () => {
     followUps.delete(sub);
+    /* 🗣 THEY SPOKE SINCE THIS WAS QUEUED - IT DIES. Rodney 2026-10-11, two Foot Fetish customers:
+     * JC said "size 13" twice, was shown the 13s, and four minutes later was asked "What size you
+     * looking for?"; Precious (who had already given hers) got the same line. The welcome nudge is
+     * queued five minutes out with its words fixed at that moment, and "a reply cancels it" was only
+     * wired into the ManyChat door (clearFollowUp in /send-chat). The YCloud webhook goes straight to
+     * runChat, so nothing ever cancelled it - one more guard on one entrance. Whatever door they come
+     * in by, a customer message after the nudge was queued means the nudge is stale. */
+    if ((lastIncoming.get(String(sub)) || lastIncoming.get(sub) || 0) > _schedAt) {
+      try { record({ method: 'POST', path: '/nudge', headers: {}, query: {}, body: {} }, { endpoint: 'nudge-skipped-customer-spoke', sub: String(sub), text: String(typeof text === 'string' ? text : '').slice(0, 40) }); } catch (_) {}
+      return;
+    }
     // 🛑 A human took this chat over via the Inbox — drop the queued nudge so Kiki
     // never talks over them while they're mid-conversation with the customer.
     if (isHumanPaused(sub)) return;
@@ -15114,6 +15126,7 @@ app.post('/ycloud/webhook', async (req, res) => {
 
     waLastInboundAt = new Date().toISOString();
     const shimReq = { method: 'POST', path: '/ycloud/webhook', headers: {}, query: {}, rawBody: null, body: {} };
+    clearFollowUp(from);   // they're talking to us again - cancel any pending nudge (the ManyChat door already did)
     lastIncoming.set(from, Date.now());
     lastIncomingText.set(from, text || '');
     await runChat(shimReq, from, text, '', { store, name: profileName, turnAt: Date.now(),
