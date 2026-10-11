@@ -13559,7 +13559,31 @@ and it must NEVER be answered with a question back.`;
         }
         // FUTURE ORDER → also re-alert the owner when the day the customer named arrives
         // (Rodney's design 2026-07-13: heads-up now + a ⏰ reminder at the time it's for).
-        const remindH = Number(inp.remind_in_hours);
+        let remindH = Number(inp.remind_in_hours);
+        /* 🌅 A MORNING ORDER'S REMINDER IS 7:30 AM, COMPUTED IN CODE. Rodney 2026-10-11: "when
+         * was I gonna get the reminder for this morning deliveries? that's why I lose sales."
+         * The model does the hours-until-7:30 arithmetic and gets it wrong: a white AF1 7 booked
+         * at ~10:50 PM for "tomorrow morning" got remind_in_hours=12, i.e. 10:54 AM, three hours
+         * after the 8 AM run should have left; another fired at 7:49. Same lesson as the closed
+         * flag above: when it matters, decide it in code. Any order marked morning (and not for
+         * a named clock time) reminds at 7:30 Nassau time the next morning, whatever the model
+         * said. */
+        try {
+          if (/morning|first thing|first run/i.test(String(inp.location || ''))
+              && !/\b(1[0-2]|[1-9])(:\d\d)?\s?(am|pm)\b/i.test(String(inp.location || '').replace(/8\s?AM/gi, ''))) {
+            const _bah = new Date(Date.now() - 4 * 3600 * 1000);
+            const _t = new Date(Date.UTC(_bah.getUTCFullYear(), _bah.getUTCMonth(), _bah.getUTCDate(), 7, 30));
+            if (_t.getTime() <= _bah.getTime() + 5 * 60 * 1000) {
+              if (_bah.getUTCHours() < 8) throw new Error('already morning');   // 7:30-8:00: leave the model's number
+              _t.setUTCDate(_t.getUTCDate() + 1);
+            }
+            const _h = (_t.getTime() - _bah.getTime()) / 3600000;
+            if (_h > 0.05 && _h < 24) {
+              record(req, { endpoint: 'morning-reminder-pinned-0730', sub, was: remindH || null, now: Math.round(_h * 100) / 100 });
+              remindH = _h;
+            }
+          }
+        } catch (_) {}
         if (remindH > 0 && remindH < 24 * 60) {
           const detail = lines.split('\n').slice(1).join('\n');
           scheduleOrderReminder(remindH * 3600 * 1000, ctx.store,
