@@ -10579,8 +10579,16 @@ and it must NEVER be answered with a question back.`;
             const COLW = /^(black|white|grey|gray|red|blue|green|pink|purple|orange|yellow|brown|cream|navy|gold|silver|tan|teal|aqua|mint|burgundy|beige|sail)$/;
             const saidCols = words.filter(w => COLW.test(w)).sort().join(' ');
             if (saidCols) {
-              const exact = named.filter(sh => String(sh.color || '').toLowerCase()
-                .replace(/\//g, ' ').split(/\s+/).filter(Boolean).sort().join(' ') === saidCols);
+              // "ALL BLACK" IS BLACK (Rodney 2026-10-11, +1 242 825-0237). She sent the Air Force 1
+              // All Black card for a 10.5 we HAVE, wrote "Air Force 1 All Black in a 10.5", and this
+              // tie-break threw that shoe away: "all" is a stop-word above, so her colour words were
+              // just "black", and "all black" !== "black" - the only exact match left was the Air
+              // Force 1 High in Black, which comes in a 7. Three closes in a row were rewritten into
+              // "My bad, the High Top only comes in a 7" while the right shoe sat in her size.
+              // Strip the quantity words from the shoe's colour before comparing.
+              const _normCol = (c) => String(c || '').toLowerCase().replace(/\//g, ' ')
+                .replace(/\b(all|triple|full|solid)\b/g, ' ').split(/\s+/).filter(Boolean).sort().join(' ');
+              const exact = named.filter(sh => _normCol(sh.color) === saidCols);
               if (exact.length) named = exact;
             }
           } catch (_) {}
@@ -12364,7 +12372,7 @@ and it must NEVER be answered with a question back.`;
         } catch (_) {}
         if (pinAskCount.size > 500) { const f = pinAskCount.keys().next().value; pinAskCount.delete(f); }
         history.push({ role: 'user', content: somethingArrived
-          ? '(SYSTEM NOTE — the customer cannot see this: do NOT ask for their location pin again. Something non-text just landed in this thread, so they have almost certainly sent it and it simply cannot be shown to you. A human has been asked to open this chat and read it. Write your reply again WITHOUT any pin instructions: acknowledge warmly that you have got it and someone is sorting the drop-off. If they typed an ADDRESS anywhere in this conversation, use that and call notify_manager with stage "delivery_ready" and location = the address, starting it with "ADDRESS (no pin): ". Do not mention this note.)'
+          ? '(SYSTEM NOTE — the customer cannot see this: do NOT ask for their location pin again, and do NOT say you have received a location - nobody here can see one, and a repeated "Yes" or "Ok" is just as likely to be them answering your question. A human has been asked to open this chat and look. Write your reply again WITHOUT any pin instructions and WITHOUT claiming you got anything: keep the order confirmed in one line (shoe, size, price), then say that if they already sent the location you are checking it now, and if not they can send it whenever they are ready. Do not say anyone is heading out. If they typed an ADDRESS anywhere in this conversation, use that and call notify_manager with stage "delivery_ready" and location = the address, starting it with "ADDRESS (no pin): ". Do not mention this note.)'
           : (_laterDay
             ? '(SYSTEM NOTE \u2014 the customer cannot see this: they have already told you they want it on a LATER DAY, so do NOT chase them for a location tonight and do NOT say anyone is getting shoes ready or heading out \u2014 nothing is happening until that day. Do not repeat the pin instructions. Confirm the day back to them warmly and tell them once, relaxed, that they can send their location whenever they are ready, even on the day itself. Then let it go. Do not mention this note.)'
           : pinAsks <= 2
@@ -15027,7 +15035,16 @@ function handleChat(req, res) {
     _openOrderReplay = !!(prevTxt && prevTxt === nowTxt && !_pinWindow
       && prevAt && (Date.now() - prevAt) < 5 * 60 * 1000
       && (Date.now() - (pinAsked.get(sub) || 0)) < 36 * 60 * 60 * 1000);
-    if (prevTxt && prevTxt === nowTxt && !_sawPictureRecently && (_pinWindow || (withinReplayWindow && !POINTER_REPEAT.test(nowTxt)))) {
+    // A REPEATED "YES" IS USUALLY AN ANSWER, NOT A PIN (Rodney 2026-10-11, +1 242 825-0237).
+    // Kiki asked "you good with the All Black Low in 10.5?" twice, he answered "Yes" twice, 39 s
+    // apart - and because we were waiting on a pin, the second "Yes" was read as a ManyChat
+    // replay of a location. She asked "did that come through as your location?", he said "Huh",
+    // and the order was filed with no address. The replay signature is a burst: the re-delivery
+    // lands seconds after the original. A one-word answer that arrives at a human's pace inside
+    // the pin window is him talking. Real pins still reach a person through the re-ask guard.
+    const _humanPaced = !!(prevAt && (Date.now() - prevAt) > 20 * 1000);
+    const _pinReplay = _pinWindow && !(POINTER_REPEAT.test(nowTxt) && _humanPaced);
+    if (prevTxt && prevTxt === nowTxt && !_sawPictureRecently && (_pinReplay || (withinReplayWindow && !POINTER_REPEAT.test(nowTxt)))) {
       nonTextReplay = true; lastReplayAt.set(sub, Date.now());
       if (_pinWindow) record(req, { endpoint: 'replay-while-waiting-on-pin', sub, q: nowTxt.slice(0, 30) });
     }
