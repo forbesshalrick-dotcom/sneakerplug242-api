@@ -9208,6 +9208,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (FIT_QUESTION_RE.test(String(userText || ''))) {
       system += `\n\n👟 THEY JUST ASKED ABOUT FIT. Never send them to friends, reviews or Google, and never explain that sneakers vary. ONE short sizing line is fine and welcome if you have one ("it runs a touch small so an 8 wears like a 7.5") — then ALWAYS land on the try-on: in Nassau we bring BOTH sizes to the door, they try both and keep the one that fits. Say it confidently, then ask their size. (Island shipments are pay-first with no try-on: there, tell them the sizes that shoe comes in and help them pick.)`;
     }
+    /* 🛒 ADD-ON TO AN ORDER IN PROGRESS (Rodney 2026-10-11, TK +1 242 809-2583): "bring this for me
+     * too" went to the search and the pictures instead of onto the order. When the words are an
+     * add-on and the customer is already buying, THIS turn is put in front of her again. */
+    try {
+      const _cwA = customerWordsOnly(String(userText || ''));
+      const _addon = /\b(too|also|as well|add (?:it|that|this|them|on)|and (?:this|the|bring)|bring (?:this|that|the)|say (?:he|she|they) need|him too|her too)\b/i.test(_cwA);
+      const _buying = orderIsLocked(sub) || (Array.isArray(history) && history.some(h => h && h.role === 'assistant' && typeof h.content === 'string'
+        && /\$\s?\d{2,3}/.test(h.content) && /(free delivery|location|where (?:you|can we)|driver|meet up)/i.test(h.content)));
+      if (_addon && _buying && !/\b(show|send|pictures?|pics|photos?|options|what (?:do )?you (?:have|got))\b/i.test(_cwA)) {
+        system += `\n\n🛒 THIS TURN IS AN ADD-ON. The customer is already buying and just added another shoe to the same order. Do NOT call search_inventory or send_photos, do NOT say "hiccup on the pics", do NOT mention 242plug.com, do NOT offer other shoes. Reply in this shape and nothing else: "Add it on 👌" then the WHOLE order so far, one line per item with its price (a matching pair is ONE line with both sizes and both prices together, e.g. "White 9060 matching, 5.5 + 11 - $260"), the TOTAL, then "Is that right? Want the driver now or is it for tomorrow?" (if they already said tomorrow or a time, say that day/time back instead). Use the shoes and sizes named earlier in this chat; a picture they sent is the shoe it shows. If you truly cannot tell which shoe or size the new item is, ask ONE short question about just that.`;
+        record(req, { endpoint: 'order-addon-turn', sub, store: ctx.store || '', said: String(userText || '').slice(0, 80) });
+      }
+    } catch (_) {}
     system += `\n\n(Current Bahamas date & time: ${bah.toISOString().slice(0, 10)} ${bah.toISOString().slice(11, 16)} — 24h clock.)`;
 
     /*
