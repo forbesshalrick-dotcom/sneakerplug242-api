@@ -15036,6 +15036,19 @@ app.post('/ycloud/webhook', async (req, res) => {
     record(req, { endpoint: 'ycloud-in', sub: from, to: toNum, kind: kind,
                   msgType: t, q: String(text).slice(0, 60) });
 
+    /* 📭 AN "UNSUPPORTED" FIRST MESSAGE IS A CUSTOMER, NOT NOISE. Rodney 2026-10-11 ("kiki
+     * ignoring messages"): on Foot Fetish a customer's first message often arrives from YCloud as
+     * type "unsupported" (WhatsApp's "Waiting for this message. Check your phone." notice - what
+     * a click-to-WhatsApp ad opener becomes when the line has no session with them yet). The text
+     * was empty so this handler returned in silence: Precious asked for black Air Force 7 at
+     * 7:05 PM and was never answered, and two ad openers (00:57 and 04:04) sat the same way. We
+     * cannot read what they typed, but we can answer them. First contact only (no earlier
+     * inbound from this number), and it gets the normal ad opener - the same line a clicked ad
+     * produces - so they simply say what they want. */
+    if (!String(text).trim() && t === 'unsupported' && !lastIncoming.has(from)) {
+      text = 'Hello! Can I get more info on this?';
+      record(req, { endpoint: 'ycloud-unsupported-answered-as-opener', sub: from });
+    }
     if (!String(text).trim()) return;   // nothing usable yet - media handled once mapped
 
     /* WHICH STORE. YCloud carries the receiving number in `to`; map it the same way
