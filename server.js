@@ -18052,6 +18052,26 @@ function accountTag(account) {
 }
 
 // Thread list — recent conversations across ALL accounts, newest first.
+/* 📇 EVERY CUSTOMER WE HAVE A NUMBER FOR, UNCAPPED. Rodney 2026-10-11: "save all of my contacts, top
+ * to bottom, Trendy Kicks, then OSC, then Foot Fetish, so everyone saved can see my status."
+ * /inbox/threads stops at 100 for the app; this is the whole list, only for making contact files. */
+app.get('/inbox/contacts', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const out = [];
+  const seen = new Set();
+  for (const t of inboxThreads.values()) {
+    const tag = accountTag(t.account);
+    if (!['TK', 'OSC', 'FF'].includes(tag)) continue;
+    const digits = String(t.phone || '').replace(/[^0-9]/g, '');
+    if (digits.length < 10 || digits.length > 15) continue;
+    if (/^drill/i.test(String(t.sub || '')) || (!t.name && !t.msgs.some(m => m.sender === 'customer'))) continue;
+    if (t.msgs && !t.msgs.some(m => m.dir === 'in' && m.sender === 'customer')) continue;   // we only ever wrote to them
+    const k = tag + '|' + digits;
+    if (seen.has(k)) continue; seen.add(k);
+    out.push({ tag, account: t.account, name: t.name || '', phone: '+' + digits, lastTs: t.lastTs || 0 });
+  }
+  res.json({ ok: true, count: out.length, contacts: out });
+});
 app.get('/inbox/threads', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const list = [...inboxThreads.values()]
