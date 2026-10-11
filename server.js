@@ -10692,7 +10692,7 @@ and it must NEVER be answered with a question back.`;
       if (turnText && !staffName && !photosSentRun && !forcePhotosNext && !_namedShowDone
           && /\b(what|which) size\b|\bsize (you|are you)\b|\byour size\b/i.test(turnText)) {
         const _cw = customerWordsOnly(userText);
-        const _hasSize = /\b(size|sz|siz)\s*\d|\b\d{1,2}(\.5)?\s*(men|women|ladies|mens|womens|m|w)?\b\s*$|\b(1[0-4]|[4-9])(\.5)?\b/i.test(_cw);
+        const _hasSize = /\b(size|sz|siz)\s*\d|\b(1[0-4]|[4-9])(\.5)?\b/i.test(_cw.replace(/\b(air ?max|am|jordan|dunk|yeezy|nb|new balance)\s*\d{1,3}s?\b/gi, ''));
         const _model = !_hasSize ? modelWanted([_cw]) : null;
         if (_model) {
           const _hits = searchInventory({ query: _cw }).filter(x => _model.test(String(x.name || '')));
