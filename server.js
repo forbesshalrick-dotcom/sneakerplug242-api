@@ -828,6 +828,11 @@ function modelWanted(said) {
      * no-preference when no model came with it. Anything/whatever/surprise me still always does. */
     if (/\b(anything|whatever|everything|all of (it|them)|surprise me|no preference)\b/i.test(t)) return null;
     if (!hits.length && /\bany\b/i.test(t)) return null;
+    /* "SHOW ME ALL OPTIONS IN SIZE 13" AFTER "I WANT SOME ASICS" (Rodney 2026-10-11, JC): the newest
+     * words win, and "all options" with no model in it means the customer has WIDENED. Without this the
+     * loop walked on to the older message, found "asics", and dropped 35 of 35 shoes - he got one
+     * shoe, or a hand-off. */
+    if (!hits.length && /\b(show|send)\s+(me\s+)?(all|everything|every)\b|\ball\s+(the\s+)?(options|you\s+(have|got))\b|\beverything\s+(you\s+)?(have|got)\b|\bwhat\s+else\b|\bother\s+(shoes|options|kinds)\b/i.test(t)) return null;
     if (hits.length === 1) return hits[0];
     if (hits.length > 1) {
       try { return new RegExp(hits.map(r => r.source).join('|'), 'i'); }
