@@ -10693,21 +10693,26 @@ and it must NEVER be answered with a question back.`;
           && /\b(what|which) size\b|\bsize (you|are you)\b|\byour size\b/i.test(turnText)) {
         const _cw = customerWordsOnly(userText);
         const _hasSize = /\b(size|sz|siz)\s*\d|\b(1[0-4]|[4-9])(\.5)?\b/i.test(_cw.replace(/\b(air ?max|am|jordan|dunk|yeezy|nb|new balance)\s*\d{1,3}s?\b/gi, ''));
-        const _model = !_hasSize ? modelWanted([_cw]) : null;
-        try { record(req, { endpoint: 'nsd-size' + _hasSize + '-model' + String(_model).replace(/[^a-z0-9]/gi, '').slice(0, 20), sub }); } catch (_) {}
-        if (_model) {
-          const _hits = liveCatalog().filter(r => (r.s.sizesRaw || []).length > 0 && _model.test(displayName(r.s))).map(r => ({ id: r.s.id, name: displayName(r.s) }));
-          try { record(req, { endpoint: 'nsd-hits' + _hits.length, sub }); } catch (_) {}
-          if (_hits.length >= 1 && _hits.length <= 3) {
-            _namedShowDone = true;
-            record(req, { endpoint: 'named-shoe-shown-not-asked', sub, store: ctx.store || '', n: _hits.length,
-                          said: turnText.slice(0, 80) });
-            history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: they NAMED a shoe and we hold only '
-              + _hits.length + ' of it (' + _hits.map(x => x.name).join('; ').slice(0, 200) + '). Do not ask their size first. Call send_photos NOW with '
-              + 'exactly those shoes (every size, no size filter), ONE short lead-in line, then ask their size on the end. Do not mention this note.)' });
-            forcePhotosNext = true;
-            continue;
+        /* the MOST SPECIFIC model rule that matches: "air max 97" also trips the broad "air max"
+         * rule (149 shoes), so take the matching rule that holds the fewest live pairs. */
+        let _hits = [];
+        if (!_hasSize && !/\b(anything|whatever|everything|all of (it|them)|surprise me|no preference)\b/i.test(_cw)) {
+          const _live = liveCatalog().filter(r => (r.s.sizesRaw || []).length > 0);
+          for (const [_asked, _matches] of MODEL_RULES) {
+            if (!_asked.test(_cw)) continue;
+            const _h = _live.filter(r => _matches.test(displayName(r.s))).map(r => ({ id: r.s.id, name: displayName(r.s) }));
+            if (_h.length && (!_hits.length || _h.length < _hits.length)) _hits = _h;
           }
+        }
+        if (_hits.length >= 1 && _hits.length <= 3) {
+          _namedShowDone = true;
+          record(req, { endpoint: 'named-shoe-shown-not-asked', sub, store: ctx.store || '', n: _hits.length,
+                        said: turnText.slice(0, 80) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: they NAMED a shoe and we hold only '
+            + _hits.length + ' of it (' + _hits.map(x => x.name).join('; ').slice(0, 200) + '). Do not ask their size first. Call send_photos NOW with '
+            + 'exactly those shoes (every size, no size filter), ONE short lead-in line, then ask their size on the end. Do not mention this note.)' });
+          forcePhotosNext = true;
+          continue;
         }
       }
     } catch (_) {}
