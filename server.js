@@ -11764,7 +11764,9 @@ and it must NEVER be answered with a question back.`;
        * "how much are those", is a question, not an order. */
       const _pickSig = _picks.map(x => String(x.id)).sort().join(',');
       const _lastTot = picksTotalledSig.get(String(sub));
-      const _alreadyTotalled = !!(_lastTot && _lastTot.sig === _pickSig && Date.now() - _lastTot.ts < 60 * 60 * 1000);
+      const _readBackDone = (Array.isArray(history) ? history : []).slice(-6).some(h => h && h.role === 'assistant' && typeof h.content === 'string'
+        && /\btotal\b[^.\n]{0,24}\$\s?\d{2,4}|is that (?:right|correct)\?/i.test(h.content));   // she already read the order back - do not re-price it as a fresh set of picks
+      const _alreadyTotalled = _readBackDone || !!(_lastTot && _lastTot.sig === _pickSig && Date.now() - _lastTot.ts < 60 * 60 * 1000);
       const _askingOne = /\b(only|just)\b[^.!?]{0,30}\b(one|1|single)\b|\bprice (of|for) (one|1|the|each|that|this)\b|\bhow much\b|\beach\b|\bone (of|tho|though)\b/i.test(_saidNow);
       if (_picks.length >= 2 && (_alreadyTotalled || _askingOne) && !_notAPick) { try { record(req, { endpoint: 'picks-deal-skipped-' + (_alreadyTotalled ? 'already-totalled' : 'asking-one'), sub, said: _saidNow.slice(0, 60) }); } catch (_) {} }
       if (_notAPick && _picks.length >= 2) { try { record(req, { endpoint: 'picks-deal-skipped-not-a-pick', sub, said: _saidNow.slice(0, 60) }); } catch (_) {} }
