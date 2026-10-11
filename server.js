@@ -10816,10 +10816,19 @@ and it must NEVER be answered with a question back.`;
             const _two = _nums.slice(-2);
             _matchPairSizes = _two.slice();
             record(req, { endpoint: 'match-pair-forced-photos', sub, store: ctx.store || '', sizes: _two.join('+'), said: turnText.slice(0, 80) });
+            /* The search is done HERE, in code - in a practice run the model's own search came back
+             * empty and she told the customer "we don't have a match" while 18 pairs came in both. */
+            let _mIds = [];
+            try {
+              const _colM = (_recent.toLowerCase().match(/\b(black|white|red|blue|green|grey|gray|pink|purple|yellow|orange|brown|tan|cream|navy|gold|silver)\b/g) || [])[0];
+              const _mf = searchInventory({ sizes: _two, size_match: 'all', color: _colM || undefined });
+              _mIds = (_mf || []).slice(0, 40).map(r => String(r.id));
+            } catch (_) {}
             history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: they want a MATCHING PAIR - the SAME shoe in two sizes (' + _two.join(' and ')
-              + '). Call search_inventory with sizes = ["' + _two.join('","') + '"] and size_match = "all" (only shoes that come in BOTH), add their colour if they gave one, '
-              + 'then send_photos with every id it returns and the lead_in "These come in BOTH ' + _two.join(' and ') + ' so they match 👇 Ready to Order!". '
-              + 'Do not close on one size, do not ask which brand, do not type a list. If nothing comes in both, say so plainly and offer the closest. Do not mention this note.)' });
+              + '). ' + (_mIds.length
+                ? 'These ' + _mIds.length + ' shoes come in BOTH sizes: call send_photos NOW with exactly these ids as one flat list: [' + _mIds.join(', ') + '] and the lead_in "These come in BOTH ' + _two.join(' and ') + ' so they match 👇 Ready to Order!". Do not search again, do not say we have no match. '
+                : 'Call search_inventory with sizes = ["' + _two.join('","') + '"] and size_match = "all"; if nothing comes in both, say so plainly and offer the closest. ')
+              + 'Do not close on one size, do not ask which brand, do not type a list. Do not mention this note.)' });
             forcePhotosNext = true;
             continue;
           }
