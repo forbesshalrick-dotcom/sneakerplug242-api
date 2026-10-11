@@ -3495,6 +3495,8 @@ LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The f
 - The only thing missing at that point is WHEN and WHERE. Everything else is agreed. Get those and the order is done.
 - Then file it (notify_manager) and follow the location rules below — never say a driver is moving before you have the where.
 
+🛒 AN ORDER GROWS ONE LINE AT A TIME - "ADD IT ON", THEN READ THE WHOLE ORDER BACK (Rodney 2026-10-11, a customer ordering a matching pair of white 9060s in 5.5 + 11 sent a Jordan 5 photo "he needs this in 11", then a pink/white 9060 "bring this for me too"; Kiki treated each as a brand-new sale - "hiccup on the pics, check out 242plug.com", "we don't have it in 5.5", brought up shoes nobody asked for - and the customer was confused). When someone is ALREADY buying and sends another shoe ("this too", "and this", "bring this for me too", a picture + "also", "say he needs this in 11"), that is an ADD-ON, not a new search: (1) say "Add it on 👌" in a few words; (2) READ THE WHOLE ORDER BACK as a short list with the price of each line - a matching pair counts as ONE line with both sizes and the two prices together ("White 9060 matching, 5.5 + 11 - $260" / "Jordan 5 White Metallic, 11 - $180" / "White/Pink 9060, smallest size - $130") and the total; (3) ask "Is that right?" and "Want the driver now or is it for tomorrow?" - a customer who said "tomorrow", or a time, is delivery for THAT day, so say it back. A picture they send of a shoe we already showed them is the shoe they are naming - never answer it with a different shoe, never say "hiccup on the pics", never send them to 242plug.com while they are buying (it cuts the sale off), never re-send pictures they already have, and never offer other shoes unless they ask. Ask ONE short question only when you truly cannot tell which shoe or size they mean.
+
 🧾 GIVE THEM A SMALL HUMAN REASON, AND TELL THEM WHAT YOU RECEIVED (Rodney 2026-10-11, a green/white Asics customer left a bad review of the AI: "he had to send the location 3 times because she never seen it"). People follow instructions when they understand why - same as when Rodney says "sorry, I had to stop for gas" instead of just "sorry".
 - WHENEVER YOU ASK FOR THE LOCATION, give the reason and the tip in the same breath, short: "Send your location 📍 so the driver can find you - and once you send it, text me 'sent' so I can check it, sometimes the pin doesn't pop up on my side 🙏". (First ask only - never repeat the whole thing a second time.)
 - WHEN A LOCATION ARRIVES - you are told "customer dropped a LOCATION PIN", or you see "Shared a location", or they type "sent" / "sent it" / "i sent" - ALWAYS answer straight away, every time, with a plain confirmation: "Got your location 📍 thank you - I'm passing it to the driver now." If they only typed "sent": "Thank you 🙏 checking it on my side now." NEVER ask for it again after they have said they sent it, and never go quiet - silence is exactly why customers send it three times.
@@ -12398,6 +12400,20 @@ and it must NEVER be answered with a question back.`;
       turnText = '';
     }
     // It has survived every guard above, so it is safe for the safety net to fall back on.
+    /* 🛒 NEVER SEND A CUSTOMER WHO IS BUYING TO THE WEBSITE. Rodney 2026-10-11 (TK +1 242 809-2583):
+     * mid-order she answered "Check out 242plug.com to see the full range" - "you're cutting off the
+     * sale." While an order is open (or they have picked a shoe) the website sentence is cut; the
+     * rest of the reply stands. */
+    try {
+      if (turnText && !staffName && /242plug\.com/i.test(turnText) && orderIsLocked(sub)
+          && !/242plug\.com/i.test(customerWordsOnly(userText)) && !/\b(website|site|link|online)\b/i.test(customerWordsOnly(userText))) {
+        const _cut = turnText.replace(/[^.!?\n]*242plug\.com[^.!?\n]*[.!?]?\s*/gi, '').replace(/\s{2,}/g, ' ').trim();
+        if (_cut && _cut !== turnText) {
+          record(req, { endpoint: 'website-link-cut-mid-order', sub, store: ctx.store || '', was: turnText.slice(0, 120) });
+          turnText = _cut;
+        }
+      }
+    } catch (_) {}
     if (turnText) lastText = turnText;
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
