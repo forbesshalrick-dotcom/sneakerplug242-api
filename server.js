@@ -6669,6 +6669,15 @@ function inboxRecord(account, sub, m) {
     // 🤫 `quiet` = this exchange was ALREADY handled somewhere else and is being filed for the
     // record. It must not raise an unread badge and must not buzz his phone — a backfill would
     // otherwise fire one WhatsApp alert per historical message.
+    /* ✅ HE ANSWERED IT, SO THE RED FLAG GOES (Rodney 2026-10-10: "dealt with all already, not sure why they're
+     * still on top like that"). A NOT DELIVERING / PIN THE SHOE label and its pin only ever cleared when a
+     * send by Kiki landed, so threads Rodney handled himself stayed pinned in red for days. A reply
+     * from Rodney is the clearest "this is handled" there is. */
+    try {
+      if (m.dir === 'out' && m.sender === 'rodney' && t.label && /NOT DELIVERING|PIN THE SHOE/i.test(String(t.label.text || ''))) {
+        t.label = ''; t.pinned = false;
+      }
+    } catch (_) {}
     if (m.dir === 'in' && !m.quiet) t.unread = (t.unread || 0) + 1; // cleared when Rodney opens the thread or replies
     inboxSubIndex.set(String(sub), key);
     if (inboxThreads.size > INBOX_MAX_THREADS) {
