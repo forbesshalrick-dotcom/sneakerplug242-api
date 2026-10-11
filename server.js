@@ -9214,8 +9214,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     try {
       const _cwA = customerWordsOnly(String(userText || ''));
       const _addon = /\b(too|also|as well|add (?:it|that|this|them|on)|and (?:this|the|bring)|bring (?:this|that|the)|say (?:he|she|they) need|him too|her too)\b/i.test(_cwA);
-      const _buying = orderIsLocked(sub) || (Array.isArray(history) && history.some(h => h && h.role === 'assistant' && typeof h.content === 'string'
-        && /\$\s?\d{2,3}/.test(h.content) && /(free delivery|location|where (?:you|can we)|driver|meet up)/i.test(h.content)));
+      const _buying = orderIsLocked(sub) || (Array.isArray(history) && history.some(h => { const _t = h && h.role === 'assistant' ? (typeof h.content === 'string' ? h.content : (Array.isArray(h.content) ? h.content.map(b => (b && b.text) || '').join(' ') : '')) : '';
+        return /\$\s?\d{2,3}/.test(_t) && /(free delivery|location|where (?:you|can we)|driver|meet up)/i.test(_t); }));
       if (_addon && _buying && !/\b(show|send|pictures?|pics|photos?|options|what (?:do )?you (?:have|got))\b/i.test(_cwA)) {
         system += `\n\n🛒 THIS TURN IS AN ADD-ON. The customer is already buying and just added another shoe to the same order. Do NOT call search_inventory or send_photos, do NOT say "hiccup on the pics", do NOT mention 242plug.com, do NOT offer other shoes. Reply in this shape and nothing else: "Add it on 👌" then the WHOLE order so far, one line per item with its price (a matching pair is ONE line with both sizes and both prices together, e.g. "White 9060 matching, 5.5 + 11 - $260"), the TOTAL, then "Is that right? Want the driver now or is it for tomorrow?" (if they already said tomorrow or a time, say that day/time back instead). Use the shoes and sizes named earlier in this chat; a picture they sent is the shoe it shows. If you truly cannot tell which shoe or size the new item is, ask ONE short question about just that.`;
         record(req, { endpoint: 'order-addon-turn', sub, store: ctx.store || '', said: String(userText || '').slice(0, 80) });
@@ -11764,8 +11764,8 @@ and it must NEVER be answered with a question back.`;
        * "how much are those", is a question, not an order. */
       const _pickSig = _picks.map(x => String(x.id)).sort().join(',');
       const _lastTot = picksTotalledSig.get(String(sub));
-      const _readBackDone = (Array.isArray(history) ? history : []).slice(-6).some(h => h && h.role === 'assistant' && typeof h.content === 'string'
-        && /\btotal\b[^.\n]{0,24}\$\s?\d{2,4}|is that (?:right|correct)\?/i.test(h.content));   // she already read the order back - do not re-price it as a fresh set of picks
+      const _readBackDone = (Array.isArray(history) ? history : []).slice(-6).some(h => h && h.role === 'assistant'
+        && /\btotal\b[^.\n]{0,24}\$\s?\d{2,4}|is that (?:right|correct)\?/i.test(typeof h.content === 'string' ? h.content : (Array.isArray(h.content) ? h.content.map(b => (b && b.text) || '').join(' ') : '')));   // she already read the order back - do not re-price it as a fresh set of picks
       const _alreadyTotalled = _readBackDone || !!(_lastTot && _lastTot.sig === _pickSig && Date.now() - _lastTot.ts < 60 * 60 * 1000);
       const _askingOne = /\b(only|just)\b[^.!?]{0,30}\b(one|1|single)\b|\bprice (of|for) (one|1|the|each|that|this)\b|\bhow much\b|\beach\b|\bone (of|tho|though)\b/i.test(_saidNow);
       if (_picks.length >= 2 && (_alreadyTotalled || _askingOne) && !_notAPick) { try { record(req, { endpoint: 'picks-deal-skipped-' + (_alreadyTotalled ? 'already-totalled' : 'asking-one'), sub, said: _saidNow.slice(0, 60) }); } catch (_) {} }
