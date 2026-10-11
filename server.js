@@ -957,6 +957,24 @@ function leadsWithColour(sh, wanted) {
  * like "Air Jordan 1 Black/Red"), "[PRIVATE OWNER CONTEXT...]", the remembered size - so a colour
  * from our own photo-code map read as her ask. Same leak that made "gold/black" for TK Mike and
  * FF 458-3143 earlier today. Cut everything from the first private block or system note. */
+/* 📣 DID THIS CUSTOMER ASK ABOUT THE AD'S SHOE? Rodney 2026-10-11 (+1 242 556-4539): the opener asked
+ * "something specific, or do you want some pictures?", he said yes, gave size 8, and was sent only
+ * the ad's shoes with "These the ones on the ad in your 8". "He didn't mention the ad, so you didn't
+ * have to mention the ad unless he says how much." The ad shoes lead ONLY when the customer pointed
+ * at the ad's shoe, asked its price, or said "this one / that one / the ad". Otherwise it is a
+ * browse and gets the whole size, with no word about an ad. */
+const AD_INTENT_RE = /\[replying to|\bhow much\b|\bprice\b|\bhow many\b|\b(this|that) (one|shoe|pair|shoes)\b|\bthe ad\b|\bon the ad\b|\bin the (ad|post|picture|pic)\b|\bis (this|it|that) (still )?(available|in stock)\b|\bthe one (in|on) the\b/i;
+function adIntentShown(history, userText) {
+  try {
+    const parts = [customerWordsOnly(userText)];
+    for (const m of (history || [])) {
+      if (!m || m.role !== 'user') continue;
+      if (typeof m.content === 'string') parts.push(customerWordsOnly(m.content));
+      else if (Array.isArray(m.content)) for (const b of m.content) if (b && b.type === 'text') parts.push(customerWordsOnly(b.text));
+    }
+    return AD_INTENT_RE.test(parts.join(' \n '));
+  } catch (_) { return true; }   // unsure: keep the old behaviour
+}
 function customerWordsOnly(t) {
   return String(t || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0];
 }
@@ -13120,7 +13138,7 @@ and it must NEVER be answered with a question back.`;
          * nothing and the normal browse runs - saying nothing is still the worse mistake. */
         try {
           const _adSz = String(knownSize || '').split('/')[0].trim();
-          if (!staffName && turnAdShoes.length && _adSz && !namedModel
+          if (!staffName && turnAdShoes.length && _adSz && !namedModel && adIntentShown(history, userText)
               && !BRAND_WORD_RE.test(String(leadIn || ''))
               && !BRAND_WORD_RE.test(String(userText || '').split('(SYSTEM NOTE')[0])
               && !(turnColourWanted && turnColourWanted.length)) {
@@ -14258,7 +14276,7 @@ and it must NEVER be answered with a question back.`;
    * running an ad, the customer gave nothing but a size, and a general size album went out
    * anyway, the ad's shoes go on top of it in their size. They are the only thing somebody who
    * tapped that ad can be asking about. */
-  if (!staffName && turnAdShoes.length && turnGenericSizeAlbum && !turnAdShoesLed) {
+  if (!staffName && turnAdShoes.length && turnGenericSizeAlbum && !turnAdShoesLed && adIntentShown(history, userText)) {
     try {
       const _sz = String(knownSize || '').split('/')[0].trim();
       const _lm = liveShoeMap();
