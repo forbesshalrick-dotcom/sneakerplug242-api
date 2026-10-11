@@ -13941,6 +13941,15 @@ and it must NEVER be answered with a question back.`;
         // person can only be fetched once. Whoever is on the floor has already been told;
         // telling them again every second is how a real alert stops being read.
         // A second ask inside half an hour is answered without ringing anybody.
+        /* 🧪 A PRACTICE CHAT NEVER RINGS ANYONE. My own drill ("show me all options in size 13", 10:34
+         * 2026-10-11, store "THE PLUG 242") made the brain ask for a team member, and that went to
+         * Rodney's real alert threads on OSC, TK and FF as "photos aren't sending through" - the
+         * M5 Facebook session read it as a live outage. A drill is not a customer. */
+        if (isComposeSub(sub)) {
+          record(req, { endpoint: 'get-agent-practice-not-sent', sub, store: ctx.store });
+          toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify({ ok: true, practice: true, note: 'practice chat - nobody was alerted' }) });
+          continue;
+        }
         const _agentAt = agentCalledAt.get(String(sub)) || 0;
         if (Date.now() - _agentAt < 30 * 60 * 1000) {
           record(req, { endpoint: 'get-agent-throttled', sub, store: ctx.store,
