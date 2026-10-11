@@ -10651,7 +10651,14 @@ and it must NEVER be answered with a question back.`;
         continue;
       }
     } catch (_) {}
-    if (turnText && !staffName && !photosSentRun && textListed < 1 && !_barePriceAsk
+    /* 🚤 "BOAT $10, PLANE $35" IS NOT A SHOE LIST. Rodney 2026-10-10 (+1 242 802-7729, TK and
+     * OSC): "kiki ignoring messages". The customer asked "Do u ship to Eleuthera"; the model wrote
+     * the right answer (boat $10 / plane $35) and this guard saw two dollar amounts, called it a
+     * typed shoe list, threw it away and re-sent the same black/white pictures - three times on
+     * two lines. A shipping answer has shipping words and no shoe model names. */
+    const _shipAnswer = /\b(boat|plane|sail(s|ing)?|mail ?boat|freight|flight|ship(ping|s)?|deliver(y|ies)?)\b/i.test(turnText)
+      && !/\b(air ?force|af1|jordan|dunk|air ?max|vapor|yeezy|crocs?|roshe|asics|new balance|nb ?\d|vomero|shox)\b/i.test(turnText);
+    if (turnText && !staffName && !photosSentRun && textListed < 1 && !_barePriceAsk && !_shipAnswer
         && ((turnText.match(/\$\s?\d{2,3}/g) || []).length >= 2 || _colourListish)
         && !wholesale) {
       textListed++;
