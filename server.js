@@ -9152,6 +9152,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const bahHour = bah.getUTCHours(); // bah is already shifted to Nassau time
     if (bahHour >= 22 || bahHour < 8) {
       system += `\n\n🌙 WE ARE CLOSED RIGHT NOW (it is ${bah.toISOString().slice(11, 16)} in Nassau; we deliver 8 AM–10 PM). Do NOT promise a driver tonight and do NOT say anyone is heading out now. BUT DO NOT PUT THEM OFF EITHER — this is a real sale and you must finish it: still take the shoe, the size and the LOCATION right now, tell them warmly it goes out first thing in the morning from 8 AM ("I've got you down — first run is 8 AM and you're on it ⏰👟"), and still call notify_manager exactly as normal with the location prefixed "🌅 MORNING DELIVERY (8 AM) — " plus remind_in_hours set to the hours from now until about 7:30 AM. ⚠️ NEVER tell them to send their location later or in the morning — a customer who goes to sleep on it goes cold, and asking twice loses the sale.`;
+      /* 🌅 AFTER MIDNIGHT "TOMORROW MORNING" IS A LIE. Rodney 2026-10-11 07:58: "I'm telling the
+       * guy I'm coming now, and Kiki's telling them, oh, tomorrow morning." At 7:58 AM she asked a
+       * customer "You all set with your New Balance for tomorrow morning?" - the closed flag
+       * covers 00:00-08:00 as well as 22:00-24:00 and every example in her instructions says
+       * "tomorrow". From midnight to 8 it is the SAME day. */
+      if (bahHour < 8) {
+        system += `\n\n🌅 IT IS ALREADY THE MORNING OF THE DAY THEY WANT IT (${bah.toISOString().slice(11, 16)}). Never say "tomorrow morning" or "tomorrow" - say "THIS morning from 8 AM" (or "in a few minutes" if it is 7:30 or later). If the team or the owner has already told this customer they are coming, or the customer says someone is on the way, agree with that and do NOT contradict it with a schedule.`;
+      }
     }
   } catch (_) {}
   // 📣 SHOES CURRENTLY RUNNING AS ADS (Rodney tags each relaunched ad 2026-07-16):
@@ -9465,6 +9473,7 @@ and it must NEVER be answered with a question back.`;
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let cardLinkMisses = 0;      // they said card and the reply had no link in it
   let soldSizeClaims = 0;      // confirming a shoe in a size that is not on the shelf
+  let _namedShowDone = false;  // named shoe, few in stock: shown instead of asking size (once)
   let textListed = 0;          // typing shoes out instead of sending the pictures
   let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
   let colourListed = 0;        // answering "what colours" with words instead of pictures
@@ -10672,6 +10681,34 @@ and it must NEVER be answered with a question back.`;
       forcePhotosNext = true;
       continue;                       // one clean retry
     }
+    /* 📸 A NAMED SHOE WE BARELY HOLD IS SHOWN, NOT ASKED ABOUT. Rodney 2026-10-11: "someone asked
+     * for Air Max 97 and the only thing she sends is the black. Try and test her." In a practice
+     * chat "Do you have air max 97" got "Yes, we have Air Max 97 - what size you looking for?" and
+     * no picture, although we hold ONE 97 in stock. His rule: a named shoe sends its picture
+     * straight away; the size question is for the big piles. When the customer named a model, gave
+     * no size, and three or fewer shoes match it, a "what size" reply with no pictures is turned
+     * into the pictures (once). */
+    try {
+      if (turnText && !staffName && !photosSentRun && !forcePhotosNext && !_namedShowDone
+          && /\b(what|which) size\b|\bsize (you|are you)\b|\byour size\b/i.test(turnText)) {
+        const _cw = customerWordsOnly(userText);
+        const _hasSize = /\b(size|sz|siz)\s*\d|\b\d{1,2}(\.5)?\s*(men|women|ladies|mens|womens|m|w)?\b\s*$|\b(1[0-4]|[4-9])(\.5)?\b/i.test(_cw);
+        const _model = !_hasSize ? modelWanted([_cw]) : null;
+        if (_model) {
+          const _hits = searchInventory({ query: _cw }).filter(x => _model.test(String(x.name || '')));
+          if (_hits.length >= 1 && _hits.length <= 3) {
+            _namedShowDone = true;
+            record(req, { endpoint: 'named-shoe-shown-not-asked', sub, store: ctx.store || '', n: _hits.length,
+                          said: turnText.slice(0, 80) });
+            history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: they NAMED a shoe and we hold only '
+              + _hits.length + ' of it (' + _hits.map(x => x.name).join('; ').slice(0, 200) + '). Do not ask their size first. Call send_photos NOW with '
+              + 'exactly those shoes (every size, no size filter), ONE short lead-in line, then ask their size on the end. Do not mention this note.)' });
+            forcePhotosNext = true;
+            continue;
+          }
+        }
+      }
+    } catch (_) {}
     // 🤖 NO STALLING. See STALL_RE. She either has the answer or she asks a real question -
     // announcing that she is about to go and look is the most robotic thing she does.
     // The one exception is a genuine hand-over, where "someone will come back to you" is the
@@ -13275,9 +13312,20 @@ and it must NEVER be answered with a question back.`;
             // The size on the call if there is one, otherwise the size this customer already
             // gave us. Without this a browse with no size in the parameters - which is most of
             // them - queues nothing and the customer gets the apology again.
-            const fallbackSize = (inp && inp.size != null && String(inp.size).trim())
-              ? String(inp.size).trim()
-              : String(knownSize || '').split('/')[0].trim();
+            /* 📏 EVERY SIZE THEY GAVE, NOT THE FIRST ONE (Rodney 2026-10-11: Mr.Take 5 asked for
+             * "10.5-11", Kiki said "This is what we have in 10.5 and 11 rite now 👇" and nothing was
+             * ever sent: the call carried `sizes: [..]`, not `size`, so fallbackSize was empty and
+             * no job was queued - then he wrote "Ine see ntn" and bought off Facebook instead).
+             * Take the array, then the single size, then what we already know; split "a-b" and
+             * "a/b" and "a and b" into their numbers; queue each one (max 3). */
+            const _rawSizes = [];
+            if (inp && Array.isArray(inp.sizes)) _rawSizes.push(...inp.sizes.map(String));
+            if (inp && inp.size != null && String(inp.size).trim()) _rawSizes.push(String(inp.size));
+            if (!_rawSizes.length && knownSize) _rawSizes.push(String(knownSize));
+            const _nums = [];
+            for (const r of _rawSizes) for (const m of String(r).match(/\d{1,2}(?:\.5)?/g) || []) if (!_nums.includes(m)) _nums.push(m);
+            const _sizeList = _nums.slice(0, 3);
+            const fallbackSize = _sizeList[0] || '';
             // ☎️ A MANYCHAT SUBSCRIBER ID IS ALSO TEN DIGITS.
             // Rodney 2026-09-25: "pics taking to long to send." The FF line was tied up
             // forwarding albums to "+1 (190) 130-8605" and "+1 (159) 962-6055" - those are not
@@ -13287,7 +13335,7 @@ and it must NEVER be answered with a question back.`;
             // Only a customer who came in through YCloud has a sub that IS their number, and
             // ycloudStore is the register of exactly those.
             if (ycloudStore.has(String(sub)) && /^\d{10,15}$/.test(String(sub)) && fallbackSize) {
-              queueWaPhotos(String(sub), fallbackSize, outIdCount);
+              for (const _sz of _sizeList) queueWaPhotos(String(sub), _sz, outIdCount);
               _photosOnTheirWay = true;
             }
           } catch (_) {}
