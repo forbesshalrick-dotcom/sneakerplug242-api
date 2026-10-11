@@ -18153,6 +18153,31 @@ function accountTag(account) {
 /* 📇 EVERY CUSTOMER WE HAVE A NUMBER FOR, UNCAPPED. Rodney 2026-10-11: "save all of my contacts, top
  * to bottom, Trendy Kicks, then OSC, then Foot Fetish, so everyone saved can see my status."
  * /inbox/threads stops at 100 for the app; this is the whole list, only for making contact files. */
+/* 📇 CONTACT FILES FOR THE PHONES. Rodney 2026-10-11: the .vcf sent as a chat file never reached his
+ * phone ("says download but not coming in"). Store them here (kept in the data volume, never in git,
+ * because they are customers' numbers) and serve them behind the console key so a phone browser can
+ * download and open them. POST {line, vcf} stores; GET ?line=TK downloads. */
+function contactsVcfPath(line) {
+  const fs = require('fs'), path = require('path');
+  for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) if (fs.existsSync(d)) return path.join(d, 'contacts-' + String(line).replace(/[^A-Za-z0-9]/g, '') + '.vcf');
+  return null;
+}
+app.post('/inbox/contacts-vcf', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const f = contactsVcfPath(b.line || '');
+  if (!f || typeof b.vcf !== 'string' || !/^BEGIN:VCARD/.test(b.vcf)) return res.status(400).json({ ok: false, error: 'need line + vcf' });
+  require('fs').writeFileSync(f, b.vcf);
+  res.json({ ok: true, bytes: b.vcf.length, cards: (b.vcf.match(/BEGIN:VCARD/g) || []).length });
+});
+app.get('/inbox/contacts.vcf', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const f = contactsVcfPath(req.query.line || '');
+  if (!f || !require('fs').existsSync(f)) return res.status(404).send('no such file');
+  res.setHeader('Content-Type', 'text/x-vcard; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="customers-' + String(req.query.line).replace(/[^A-Za-z0-9]/g, '') + '.vcf"');
+  res.send(require('fs').readFileSync(f, 'utf8'));
+});
 app.get('/inbox/contacts', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const out = [];
