@@ -10695,7 +10695,7 @@ and it must NEVER be answered with a question back.`;
         const _hasSize = /\b(size|sz|siz)\s*\d|\b(1[0-4]|[4-9])(\.5)?\b/i.test(_cw.replace(/\b(air ?max|am|jordan|dunk|yeezy|nb|new balance)\s*\d{1,3}s?\b/gi, ''));
         const _model = !_hasSize ? modelWanted([_cw]) : null;
         if (_model) {
-          const _hits = searchInventory({ query: _cw }).filter(x => _model.test(String(x.name || '')));
+          const _hits = liveCatalog().filter(r => (r.s.sizesRaw || []).length > 0 && _model.test(displayName(r.s))).map(r => ({ id: r.s.id, name: displayName(r.s) }));
           if (_hits.length >= 1 && _hits.length <= 3) {
             _namedShowDone = true;
             record(req, { endpoint: 'named-shoe-shown-not-asked', sub, store: ctx.store || '', n: _hits.length,
