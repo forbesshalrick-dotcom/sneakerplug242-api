@@ -9485,6 +9485,7 @@ and it must NEVER be answered with a question back.`;
   let driverWalkBacks = 0;     // we promised a driver; refuse to take him back
   let cardLinkMisses = 0;      // they said card and the reply had no link in it
   let soldSizeClaims = 0;      // confirming a shoe in a size that is not on the shelf
+  let _showAllDone = false;    // 'show me all in size N' answered with pictures (once)
   let _namedShowDone = false;  // named shoe, few in stock: shown instead of asking size (once)
   let textListed = 0;          // typing shoes out instead of sending the pictures
   let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
@@ -10723,6 +10724,26 @@ and it must NEVER be answered with a question back.`;
           history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: they NAMED a shoe and we hold only '
             + _hits.length + ' of it (' + _hits.map(x => x.name).join('; ').slice(0, 200) + '). Do not ask their size first. Call send_photos NOW with '
             + 'exactly those shoes (every size, no size filter), ONE short lead-in line, then ask their size on the end. Do not mention this note.)' });
+          forcePhotosNext = true;
+          continue;
+        }
+      }
+    } catch (_) {}
+    /* 📸 "SHOW ME ALL OPTIONS IN SIZE 13" IS ANSWERED WITH THE PICTURES. Rodney 2026-10-11 (FF, JC
+     * +1 242 422-1961, and again in replays): after "Yes show me all options in size 13" she
+     * answered with a team-member hand-off, a single $70 Yeezy Foam, or "which shoe did you want and
+     * what's your delivery spot" - a different answer every time, none of them the pictures. Size
+     * given + "show me all / everything / all options" = the size's album, no questions. Once. */
+    try {
+      if (turnText && !staffName && !photosSentRun && !forcePhotosNext && !_showAllDone) {
+        const _cw2 = customerWordsOnly(userText);
+        if (/\b(show|send)\s+(me\s+)?(all|everything|every|them all)\b|\ball\s+(the\s+)?(options|you\s+(have|got))\b|\beverything\s+(you\s+)?(have|got)\b/i.test(_cw2)
+            && /\b(size|sz)\s*\d|\b(1[0-4]|[4-9])(\.5)?\b/i.test(_cw2)) {
+          _showAllDone = true;
+          record(req, { endpoint: 'show-all-in-size-forced-photos', sub, store: ctx.store || '', said: turnText.slice(0, 80) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: they asked to be SHOWN EVERYTHING in their size, and gave it. '
+            + 'Do not hand them to a team member, do not pick one shoe, do not ask a question first. Call send_photos NOW with their size '
+            + 'and no other filter - the whole size - ONE short lead-in line, nothing else. Do not mention this note.)' });
           forcePhotosNext = true;
           continue;
         }
