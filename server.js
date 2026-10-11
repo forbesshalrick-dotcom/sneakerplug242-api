@@ -9552,6 +9552,7 @@ and it must NEVER be answered with a question back.`;
   let soldSizeClaims = 0;      // confirming a shoe in a size that is not on the shelf
   let metaLeaks = 0;           // her draft talked about her own notes - blocked, retried once
   let _showAllDone = false;    // 'show me all in size N' answered with pictures (once)
+  let _matchPairDone = false;  // 'match / matching' + two sizes answered with shoes in BOTH sizes (once)
   let _namedShowDone = false;  // named shoe, few in stock: shown instead of asking size (once)
   let textListed = 0;          // typing shoes out instead of sending the pictures
   let stallLines = 0;          // "one sec", "hold on", "let me figure this out" - robot talk
@@ -10792,6 +10793,34 @@ and it must NEVER be answered with a question back.`;
             + 'exactly those shoes (every size, no size filter), ONE short lead-in line, then ask their size on the end. Do not mention this note.)' });
           forcePhotosNext = true;
           continue;
+        }
+      }
+    } catch (_) {}
+    /* 👯 "I NEED MATCHES" + TWO SIZES = THE SAME SHOE IN BOTH SIZES. Rodney 2026-10-11 (TK +1 242
+     * 809-2583, sizes 5.5 and 11, "Size 11 also" / "Need matches tennis"): Kiki heard only the 11
+     * and went to close the sale on one pair. A customer asking for matching shoes in two sizes
+     * wants a couple's pair - ONE shoe that comes in both sizes (search sizes = both, size_match
+     * "all"). The prompt already says so, but a prompt is a suggestion; this makes it happen,
+     * once. Not for clothes ("matches my jersey" is an outfit, handled elsewhere). */
+    try {
+      if (turnText && !staffName && !photosSentRun && !forcePhotosNext && !_matchPairDone) {
+        const _recent = history.filter(h => h && h.role === 'user' && typeof h.content === 'string').slice(-8)
+          .map(h => customerWordsOnly(h.content)).join(' | ') + ' | ' + customerWordsOnly(userText);
+        if (/\bmatch(?:es|ing)?\b/i.test(_recent)
+            && !/\b(jersey|shirt|dress|jacket|outfit|hoodie|pants|shorts|jeans|clothes|clothing|top|fit|uniform|hat|cap)\b/i.test(_recent)) {
+          const _nums = [...new Set((_recent.match(/(?<![\d.$])\d{1,2}(?:\.5)?(?![\d])/g) || [])
+            .filter(n => parseFloat(n) >= 3 && parseFloat(n) <= 15))];
+          if (_nums.length >= 2) {
+            _matchPairDone = true;
+            const _two = _nums.slice(-2);
+            record(req, { endpoint: 'match-pair-forced-photos', sub, store: ctx.store || '', sizes: _two.join('+'), said: turnText.slice(0, 80) });
+            history.push({ role: 'user', content: '(SYSTEM NOTE - the customer cannot see this: they want a MATCHING PAIR - the SAME shoe in two sizes (' + _two.join(' and ')
+              + '). Call search_inventory with sizes = ["' + _two.join('","') + '"] and size_match = "all" (only shoes that come in BOTH), add their colour if they gave one, '
+              + 'then send_photos with every id it returns and the lead_in "These come in BOTH ' + _two.join(' and ') + ' so they match 👇 Ready to Order!". '
+              + 'Do not close on one size, do not ask which brand, do not type a list. If nothing comes in both, say so plainly and offer the closest. Do not mention this note.)' });
+            forcePhotosNext = true;
+            continue;
+          }
         }
       }
     } catch (_) {}
