@@ -10694,10 +10694,10 @@ and it must NEVER be answered with a question back.`;
         const _cw = customerWordsOnly(userText);
         const _hasSize = /\b(size|sz|siz)\s*\d|\b(1[0-4]|[4-9])(\.5)?\b/i.test(_cw.replace(/\b(air ?max|am|jordan|dunk|yeezy|nb|new balance)\s*\d{1,3}s?\b/gi, ''));
         const _model = !_hasSize ? modelWanted([_cw]) : null;
-        try { record(req, { endpoint: 'nsd-debug', sub, hasSize: _hasSize, model: _model ? String(_model) : null, cw: _cw.slice(0, 60) }); } catch (_) {}
+        try { record(req, { endpoint: 'nsd-size' + _hasSize + '-model' + String(_model).replace(/[^a-z0-9]/gi, '').slice(0, 20), sub }); } catch (_) {}
         if (_model) {
           const _hits = liveCatalog().filter(r => (r.s.sizesRaw || []).length > 0 && _model.test(displayName(r.s))).map(r => ({ id: r.s.id, name: displayName(r.s) }));
-          try { record(req, { endpoint: 'nsd-debug2', sub, hits: _hits.length }); } catch (_) {}
+          try { record(req, { endpoint: 'nsd-hits' + _hits.length, sub }); } catch (_) {}
           if (_hits.length >= 1 && _hits.length <= 3) {
             _namedShowDone = true;
             record(req, { endpoint: 'named-shoe-shown-not-asked', sub, store: ctx.store || '', n: _hits.length,
