@@ -4370,6 +4370,17 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
       const _wantC = cWords.filter(w => COLOUR_WORDS.includes(w));
       const _isDominant = ({ s }) => {
         if (!_wantC.length) return false;
+        /* 🟢 A SHADE OF THE COLOUR IS THE COLOUR (Rodney 2026-10-12, +1 242 565-6752 got three green
+         * Asics and "the green Asics has another pair in green"). The catalogue's `dominant` is the
+         * FIRST word of the colourway, so "Sage Green/Cream/Silver" is dominant "sage", "Forest
+         * Green" is "forest", "Olive Green" is "olive", "Mint Green" is "mint", "Dark Blue" is
+         * "dark", "Light Blue" is "light" - and a bare green or blue ask threw every one of them
+         * away. If the lead colour phrase (before the first slash) NAMES the colour asked for, the
+         * shoe is that colour. Black keeps its own all/mostly rule below. */
+        if (!_wantC.includes('black')) {
+          const _lead = String(s.color || '').toLowerCase().split('/')[0].split(/[^a-z]+/);
+          if (_wantC.some(w => _lead.includes(w))) return true;
+        }
         const d = String(s.dominant || '').toLowerCase();
         if (d) {
           if (!_wantC.includes(d)) return false;
