@@ -11267,8 +11267,15 @@ and it must NEVER be answered with a question back.`;
        * Force." When the reply is telling him the shoe he named is not in his size, the honest
        * line stands as it is; pictures of other shoes are not what he asked for. */
       const _sizeGapHonest = /\b(just )?not in (an?|your) \d|\b(does ?n'?t|do ?n'?t|dont|does not|did ?n'?t) (come|have)[^.!?]{0,20}\b(in )?(an?|your)? ?\d{1,2}(\.5)?\b|\bno \d{1,2}(\.5)? (right now|in)|\bonly (comes|come|left) in\b/i.test(turnText);
+      /* 📸 BUT "...ONLY COMES IN A 13. WE GOT OTHER JORDAN 5s IN A 10.5 AND 11 - WANT TO SEE THEM?" IS
+       * A SIZE GAP THAT NAMES A SAME-MODEL OFFER (Rodney 2026-10-12, +1 242 375-9815: it read well,
+       * "but you can also send the picture afterwards"). The honest line stands; the offer gets
+       * answered with the pictures, searched on THAT model only (the 10-10 AF1 mistake was a
+       * search that lost the model, so the note names it). */
+      const _otherM = String(turnText || '').match(/\bother\s+((?:[A-Za-z0-9.'-]+\s+){0,3}?[A-Za-z0-9.'-]+?)s?\s+(?:in|that|we|i)\b/i);
+      const _otherModelOffer = !!(_sizeGapHonest && _otherM);
       if (turnText && !staffName && !photosSentRun && askedPermission < 1
-          && ASK_TO_SEND.test(turnText) && !_sizeGapHonest) {
+          && ASK_TO_SEND.test(turnText) && (!_sizeGapHonest || _otherModelOffer)) {
         const _haveIds = Array.isArray(lastSearchIds) && lastSearchIds.length;
         askedPermission++;
         record(req, { endpoint: 'asked-permission-to-send', sub, store: ctx.store || '',
@@ -11286,8 +11293,11 @@ and it must NEVER be answered with a question back.`;
           + (ctx.personal ? 'This is a Messenger/Instagram chat - the pictures do NOT download '
              + 'into their phone or use their storage, so there is no reason at all to be careful '
              + 'with them. ' : '')
-          + 'Send ONLY the model and colour the customer asked for - never widen to other brands or '
-          + 'other models to fill the album. '
+          + (_otherModelOffer
+            ? 'The pictures to send are the OTHER "' + _otherM[1].trim() + '" pairs in the size(s) the customer gave - search_inventory '
+              + 'with that model AND their size(s) (size_match any), send ONLY that model, nothing else. '
+            : 'Send ONLY the model and colour the customer asked for - never widen to other brands or '
+              + 'other models to fill the album. ')
           + 'Keep whatever honest line you wrote, drop the question, and let the pictures do the '
           + 'rest.)' });
         if (_haveIds) forcePhotosNext = true; else forceSearchNext = true;
