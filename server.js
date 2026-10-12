@@ -4478,7 +4478,29 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
 // order (Jordans → Nike/Air Max → New Balance → Yeezy/Adidas → ASICS → the rest) — Rodney
 // 2026-07-19: a "what you got in a 10" browse showed "2 Jordans then mixed brands", he wants
 // all the Jordans grouped like it used to be. Stable WITHIN a model so Kiki's order is kept.
-function clusterShoesByModel(arr) {
+/* 🤍 A COLOUR ASK LEADS WITH THE SHOES THAT ARE THAT COLOUR (Rodney 2026-10-12, hand-sent "white,
+ * sizes 7 & 7.5": the album opened with Jordan 11s that are white AND royal blue / white AND red,
+ * and the plain all-white pairs - Air Force 1, Air Max DN - came at the very end. The search had
+ * put them first; this regrouping by brand threw the order away). albumColourWant remembers the
+ * colour a customer's album was searched on; shoes whose WHOLE colourway is that colour form a
+ * tier above the brand grouping, and the brand/model grouping then runs inside each tier. */
+const albumColourWant = new Map();   // sub -> { words:[...], at }
+function noteAlbumColour(sub, colour) {
+  try {
+    const w = String(colour || '').toLowerCase().replace(/\bgray\b/g, 'grey').split(/[^a-z]+/)
+      .filter(x => x.length >= 3 && !/^(all|full|only|pure|solid|straight|triple|and|the)$/.test(x));
+    if (w.length) albumColourWant.set(String(sub), { words: w, at: Date.now() });
+    else albumColourWant.delete(String(sub));
+  } catch (_) {}
+}
+function clusterShoesByModel(arr, wantColour) {
+  const _wc = (wantColour && wantColour.words) || null;
+  const pureRank = (s) => {
+    if (!_wc) return 0;
+    const toks = String(s.color || '').toLowerCase().replace(/\bgray\b/g, 'grey').split(/[^a-z]+/)
+      .filter(w => w.length >= 3 && !/^(all|and|the)$/.test(w));
+    return (toks.length && toks.every(w => _wc.includes(w))) ? 0 : 1;
+  };
   const brandRank = (s) => {
     const t = ((s.brand || '') + ' ' + (s.name || '') + ' ' + (s.model || '') + ' ' + (s.nickname || '')).toLowerCase();
     if (/jordan|retro|\baj ?\d/.test(t)) return 0;
@@ -4498,6 +4520,8 @@ function clusterShoesByModel(arr) {
       const la = (leadModel && modelKey(a.s) === leadModel) ? 0 : 1;
       const lb = (leadModel && modelKey(b.s) === leadModel) ? 0 : 1;
       if (la !== lb) return la - lb; // the exact/named match leads
+      const pa = pureRank(a.s), pb = pureRank(b.s);
+      if (pa !== pb) return pa - pb;  // then the shoes that ARE the colour asked for
       const ra = brandRank(a.s), rb = brandRank(b.s);
       if (ra !== rb) return ra - rb;
       const ma = modelKey(a.s), mb = modelKey(b.s);
@@ -5347,7 +5371,8 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
     // Flat list (single size, range, or matching). Cluster by model so all the Jordans go
     // out together, then Air Max, then New Balance… instead of a mixed-up jumble (Rodney
     // 2026-07-19). Also clusters the size-album completeness top-up, which uses this path.
-    const chosen = clusterShoesByModel(dedupe(ids));
+    const _wcol = albumColourWant.get(String(sub));
+    const chosen = clusterShoesByModel(dedupe(ids), (_wcol && Date.now() - _wcol.at < 10 * 60 * 1000) ? _wcol : null);
     requested = (ids || []).length;
     for (const s of chosen) {
       await answerMidAlbum();
@@ -12521,7 +12546,16 @@ and it must NEVER be answered with a question back.`;
       const _notAShoePhoto =
             /\b(receipt|proof of payment|bank transfer|suncash|deposit|payment (?:received|confirmed|went through))\b/i.test(turnText || '')
          || /\b(got|see|read|that'?s)\b[^.!?]{0,24}\b(?:your\s+)?(?:location|pin|address)\b/i.test(turnText || '');
-      if (image && !didSearch && !photosSentRun && step === 0 && !_notAShoePhoto) {
+      /* 🪪 THE CLOSER LOOK ALREADY SAID "NOT A SHOE" - AND SHE ANSWERED IT. THAT'S THE END (Rodney
+       * 2026-10-12, +1 242 727-4987 sent a work ID badge: "the identifying message is fine alone").
+       * She answered "Ha, that's a work ID badge 👀 We only do sneakers here" - exactly right - and
+       * then this note went in ("you replied with words only"), she answered the note with
+       * "I cannot see the photo..." (blocked as a leak) and the retry went out as a SECOND message:
+       * "The picture is taking awhile to load - what is that you sent?". The note is for a photo
+       * she chatted about without knowing it was a shoe; when the stronger look has already ruled
+       * it a non-shoe, her words ARE the whole reply. */
+      const _verdictNotShoe = /^\s*NOT A SHOE/i.test(String(_idVerdict || ''));
+      if (image && !didSearch && !photosSentRun && step === 0 && !_notAShoePhoto && !_verdictNotShoe) {
         /* 🥦 LOOK AT THE PICTURE BEFORE YOU DECIDE IT IS A SHOE.
          * This note used to ASSERT "that photo was a SHOE, so you MUST now search", and it set
          * forceSearchNext — which then forces send_photos as soon as the search returns anything.
@@ -12658,6 +12692,7 @@ and it must NEVER be answered with a question back.`;
             : { shoes: [], error: 'search unavailable' };
         } else {
         found = searchInventory(p);
+        noteAlbumColour(sub, p && p.color);
         lastSearchCount = found.length;
         lastSearchIds = found.map(r => String(r.id));
         result = { shoes: found };
@@ -19504,6 +19539,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
   // Multi-brand: send across several brands at once (empty = all brands).
   const brands = Array.isArray(b.brands) ? b.brands.map(String).filter(Boolean) : null;
   let results = searchInventory({ size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query });
+  noteAlbumColour(sub, b.color);
   if (!results.length) return res.json({ ok: false, error: 'No shoes matched that — nothing sent.', found: 0 });
   // Skip shoes this customer already has (a follow-up send after a partial one), so the
   // rest of a size goes out without repeating a single picture.
@@ -19609,8 +19645,22 @@ app.post('/inbox/send-shoe', async (req, res) => {
     return res.json({ ok: false, busy: true, found: results.length, sent: 0,
       error: 'An album is still going out to this customer. Hit \u270b STOP first if you want to send something else.' });
   }
-  if (_lockedAt) record(req, { endpoint: 'album-lock-expired', sub, account,
-                               heldFor: Math.round((Date.now() - _lockedAt) / 1000) });
+  /* 🚦 A SECOND SEND WAITS ITS TURN - IT NEVER STARTS INSIDE THE FIRST (Rodney 2026-10-12, +1 242
+   * 433-0601: "text still sending in between pics"). He sent "white, 7 & 7.5" twice, ~30 s apart.
+   * The first album takes minutes, so the second one's header line ("This is what we have in white
+   * sizes 7 & 7.5...") and its photos landed in the middle of the first album's pictures. A
+   * deliberate re-send is still allowed (he is the one looking at the chat) - it just goes out
+   * AFTER the running one finishes. The app gets its answer straight away. */
+  if (_lockedAt) {
+    record(req, { endpoint: 'album-queued-behind-running', sub, account,
+                  heldFor: Math.round((Date.now() - _lockedAt) / 1000) });
+    if (!res.headersSent) res.json({ ok: true, queued: true, found: results.length, sent: 0,
+      note: 'Another album is still going out to this customer - this one starts right after it.' });
+    const _giveUp = Date.now() + ALBUM_LOCK_MAX;
+    while (albumInFlight.get(sub) && Date.now() - albumInFlight.get(sub) < ALBUM_LOCK_MAX && Date.now() < _giveUp) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
   albumInFlight.set(sub, Date.now());
   inboxAlbumSentAt.set(albumKey, Date.now());
   // 📸 SENDING PICTURES IS NOT TAKING OVER THE CONVERSATION.
@@ -19700,7 +19750,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
     // for half an hour that he already sent this.
     if (stoppedByOwner) inboxAlbumSentAt.delete(albumKey);
     const batchNote = batches.length > 1 ? ` (${batches.length} batches)` : '';
-    res.json({ ok: totalSent > 0, found: foundTotal, sent: totalSent, batches: batches.length,
+    if (!res.headersSent) res.json({ ok: totalSent > 0, found: foundTotal, sent: totalSent, batches: batches.length,
                capped: overflow ? ('sent the first ' + HAND_SEND_MAX + ' of ' + foundTotal + ' — ' + overflow + ' more not sent') : undefined,
                stopped: stoppedByOwner || undefined,
                error: stoppedByOwner ? ('Stopped \u2014 ' + totalSent + ' of ' + results.length + ' had already gone out.')
@@ -19708,7 +19758,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
   } catch (e) {
     albumInFlight.delete(sub);             // a throw must never leave this customer locked out
     inboxAlbumSentAt.delete(albumKey);     // same reason: nothing reached them, so let him try again
-    res.json({ ok: false, error: String(e).slice(0, 160) });
+    if (!res.headersSent) res.json({ ok: false, error: String(e).slice(0, 160) });
   }
 });
 
