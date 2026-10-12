@@ -12440,6 +12440,16 @@ and it must NEVER be answered with a question back.`;
         turnText = _fix;
       }
     } catch (_) {}
+    /* 🚗 NO ORDER, NO DRIVER. Rodney 2026-10-11 night (FF Ltd.woody): shown the size 9s he answered "Okay ." and
+     * got "Let me call the driver now to see how far he is!" - he had ordered nothing. The driver line is
+     * only for someone whose delivery is booked. For anyone else, a bare "ok/thanks" gets a thumbs up. */
+    try {
+      if (turnText && !staffName && !orderIsLocked(sub) && /call the driver|how far he is/i.test(turnText)
+          && /^\s*(ok(?:ay)?|k|thanks?|thank you|cool|yes|yh|yeah|alright|nice)\W*$/i.test(customerWordsOnly(userText))) {
+        record(req, { endpoint: 'driver-line-no-order-blocked', sub, store: ctx.store || '', was: turnText.slice(0, 100) });
+        turnText = '\u{1F44D}';
+      }
+    } catch (_) {}
     // It has survived every guard above, so it is safe for the safety net to fall back on.
     /* 🛒 NEVER SEND A CUSTOMER WHO IS BUYING TO THE WEBSITE. Rodney 2026-10-11 (TK +1 242 809-2583):
      * mid-order she answered "Check out 242plug.com to see the full range" - "you're cutting off the
