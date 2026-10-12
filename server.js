@@ -1845,6 +1845,24 @@ function getToken(req) {
   return null;
 }
 
+/* 🔑 THE YCLOUD KEY LIVES ON THE PERSISTENT VOLUME (no Railway CLI on the Mac, so it is set through
+ * POST /admin/ycloud-key with the console key, written to /data/ycloud.key and reloaded at boot). */
+function ycloudKeyFile() {
+  for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+    try { if (require('fs').existsSync(d)) return require('path').join(d, 'ycloud.key'); } catch (_) {}
+  }
+  return null;
+}
+try {
+  if (!process.env.YCLOUD_API_KEY) {
+    const f = ycloudKeyFile();
+    if (f && require('fs').existsSync(f)) {
+      const j = JSON.parse(require('fs').readFileSync(f, 'utf8'));
+      process.env.YCLOUD_API_KEY = String(j.k || '').trim();
+      if (j.from && !process.env.YCLOUD_FROM) process.env.YCLOUD_FROM = String(j.from);
+    }
+  }
+} catch (_) {}
 const ycloudFrom = new Map();   // customer phone -> the business number they wrote to (E.164, from the webhook)
 async function ycloudSendMessages(phoneDigits, messages) {
   try {
@@ -7574,6 +7592,19 @@ app.get('/wa-outbox', (req, res) => {
  * header texts went, the pictures never did. This hands the poller the same list the website
  * shows - the size AND the half size up, as Rodney's rule says - with each shoe's card image, so it
  * can send the cards itself when the forward fails. */
+app.post('/admin/ycloud-key', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  try {
+    const k = String((req.body || {}).apiKey || '').trim();
+    const from = String((req.body || {}).from || '').trim();
+    if (k.length < 20) return res.json({ ok: false, error: 'that does not look like a key' });
+    process.env.YCLOUD_API_KEY = k;
+    if (from) process.env.YCLOUD_FROM = from;
+    const f = ycloudKeyFile();
+    if (f) require('fs').writeFileSync(f, JSON.stringify({ k, from: from || process.env.YCLOUD_FROM || '' }), { mode: 0o600 });
+    res.json({ ok: true, savedTo: f ? 'volume' : 'memory only (no volume - will be lost on restart)', keyLen: k.length, from: from || null });
+  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 120) }); }
+});
 app.get('/wa-album', (req, res) => {
   if (!consoleAuth(req, res)) return;
   try {
