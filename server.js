@@ -5001,6 +5001,14 @@ async function sendShoePhotos(sub, ids, token, includeSizes = true, groups = nul
           if (recent.length > 120) recent.length = 120; } catch (_) {}
     return { sent: 0, blocked: 'the customer asked us to stop sending pictures' };
   } // fresh send — clear any stale stop flag so it isn't halted before it starts
+
+  // ⚠️ PHASE 1: CAP ALBUM AT 120 PICTURES (WhatsApp + ManyChat rate limit)
+  // Adaptive spacing works, but 165+ hits hard limits. 120 is safe proven.
+  if (ids && ids.length > 120) {
+    console.log(`[photos] capped ${ids.length} → 120 for ${sub}`);
+    ids = ids.slice(0, 120);
+  }
+
   // WhatsApp images carry NO caption (ManyChat drops it), so the label has to be
   // its own text bubble sent right after the photo. That also stops WhatsApp from
   // clumping the photos into one album, so each pic shows with its label beneath.
@@ -9934,6 +9942,34 @@ and it must NEVER be answered with a question back.`;
     // Cheap to run, and it turns a dead conversation into a reply.
     // 🖼️ Drop the pictures from earlier turns before the call - see stripOldImages. Two
     // turns died on this today, and it costs money on every turn it does not kill.
+
+    // ⚠️ PHASE 1 GUARDS: CRITICAL RULES ENFORCED IN CODE, NOT JUST PROMPT
+    // These guardrails stop hallucinations before they happen by adding hard rules to system
+
+    // GUARD 1: Never re-ask for size if customer already said it
+    if (knownSize && /\bwhat\s+size|size\s+are|size\s+you|what\s+sz|sz\s+you/i.test(String(userText || ''))) {
+      // Customer re-asserted their size or context reminds them - reinforce it
+      system += `\n\n🚨 GUARD 1 — CUSTOMER SIZE IS LOCKED: ${knownSize}. They already told you. NEVER ask "what size?" again on THIS turn. Use their size ${knownSize} on every search and send.`;
+    }
+
+    // GUARD 2: Lock on shoe when customer references sent image (not just asking to browse)
+    const codesList = cc && cc.map ? Object.keys(cc.map) : [];
+    const sentShoeNames = rs && rs.names ? rs.names : [];
+    if ((sentShoeNames.length || codesList.length) && /\b(?:this|that|dis|dat|these|those|that one|this one|stick|with|lock|get|want)\b/i.test(String(userText || ''))) {
+      const allShoeNames = [...sentShoeNames, ...codesList].slice(0, 3).join(', ');
+      system += `\n\n🚨 GUARD 2 — CUSTOMER LOCKED ON A SHOE: they referenced one of: ${allShoeNames}. Do NOT ask "which shoe?" or send other brands. Confirm the shoe by name and move to closing (location, price, size).`;
+    }
+
+    // GUARD 3: Don't send more albums if closing signals present (location + time = order ready)
+    const hasLocation = /\b(?:location|pin|position|coordinates|map|where|address|area|road|street|house|meet)\b/i.test(String(userText || ''))
+      || (driverNow(sub) && driverNow(sub).step >= 1); // location via map pin
+    const hasTime = /\b(?:time|when|minute|hour|clock|asap|now|soon|sec|second|shortly)\b/i.test(String(userText || ''));
+    const hasConfirmedShoe = knownSize && (sentShoeNames.length > 0 || custShoe.get(String(sub)));
+
+    if (hasLocation && hasTime && hasConfirmedShoe && !/search|send|pictures?|pics|photos?|show|album|more|other/i.test(String(userText || ''))) {
+      system += `\n\n🚨 GUARD 3 — ORDER IS CLOSING: Customer gave location + time + confirmed shoe + size. Do NOT send more albums or ask about other shoes. ONLY: confirm the shoe by name, confirm total price, ask "driver now or later?" — then notify_manager to dispatch. No more browsing.`;
+    }
+
     const { ok, status, data } = await callClaude(stripOldImages(sanitizeHistory(history)), system, staffPhotoTools ? undefined : forceTool, staffPhotoTools, !!image && !staffName);
     if (!ok) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
