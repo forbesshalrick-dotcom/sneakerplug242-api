@@ -1873,11 +1873,19 @@ async function ycloudSendMessages(phoneDigits, messages) {
     const fromE = String(from).startsWith('+') ? String(from) : '+' + String(from).replace(/\D/g, '');
     const to = '+' + String(phoneDigits).replace(/\D/g, '');
     let n = 0;
+    let i = 0;
     for (const m of (messages || [])) {
       let body = null;
       if (m && m.type === 'text' && String(m.text || '').trim()) body = { type: 'text', text: { body: String(m.text) } };
       else if (m && m.type === 'image' && (m.url || m.image_url)) body = { type: 'image', image: { link: String(m.url || m.image_url) } };
-      if (!body) continue;
+      if (!body) { i++; continue; }
+
+      // Adaptive spacing to respect WhatsApp rate limits: start fast, gradually slow down.
+      // Messages 0-9: 0.7s apart, Messages 10-19: 1.2s, Messages 20-29: 2.0s, etc.
+      const batchNum = Math.floor(i / 10);
+      const delayMs = Math.min(700 + (batchNum * 500), 5000); // 0.7s base, +0.5s per 10, capped at 5s
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
+
       const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 30000);
       try {
         const r = await fetch('https://api.ycloud.com/v2/whatsapp/messages/sendDirectly', {
@@ -1887,6 +1895,7 @@ async function ycloudSendMessages(phoneDigits, messages) {
         if (!r.ok) return { ok: false, why: r.status + ' ' + t.slice(0, 160), n };
         n++;
       } finally { clearTimeout(tm); }
+      i++;
     }
     return { ok: n > 0, n, why: n ? '' : 'nothing sendable in the message list' };
   } catch (e) { return { ok: false, why: String(e).slice(0, 120) }; }
