@@ -7528,6 +7528,34 @@ app.get('/wa-outbox', (req, res) => {
   waOutbox.length = 0; waOutbox.push(...live);
   res.json({ ok: true, items: live.slice().reverse().slice(0, 10) });
 });
+/* 📦 THE CARD LIST FOR A SIZE - FOR THE BROWSER POLLER'S FALLBACK (Rodney 2026-10-12, +1 242 808-8183:
+ * asked for a 9, got "Ready to Order!" three times and no pictures, then "bye bey because look like
+ * you wanna play". The poller's only road for pictures was forwarding an album out of the catalogue
+ * chat, and that forward failed "nothing selected" three times, so it gave up and acked the job: the
+ * header texts went, the pictures never did. This hands the poller the same list the website
+ * shows - the size AND the half size up, as Rodney's rule says - with each shoe's card image, so it
+ * can send the cards itself when the forward fails. */
+app.get('/wa-album', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  try {
+    const size = parseFloat(String((req.query || {}).size || '').replace(/[^0-9.]/g, ''));
+    if (isNaN(size)) return res.json({ ok: false, error: 'no size' });
+    const sizes = [String(size)];
+    if (String((req.query || {}).half || '1') !== '0') sizes.push(String(size + 0.5));
+    const rows = searchInventory({ sizes, size_match: 'any', exact_sizes: true }) || [];
+    const m = liveShoeMap();
+    const shoes = [];
+    for (const r of rows) {
+      const sh = shoeByAnyId(r.id, m);
+      if (!sh || !sh.id || !sh.image) continue;
+      shoes.push(sh);
+    }
+    const ordered = clusterShoesByModel(shoes);
+    res.json({ ok: true, size, sizes, count: ordered.length,
+      shoes: ordered.map(sh => ({ id: sh.id, name: sh.name, color: sh.color, price: sh.price,
+        image: String(sh.image).replace('-thumb', '-card') })) });
+  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 120) }); }
+});
 app.post('/wa-outbox/ack', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const ids = [].concat((req.body || {}).ids || (req.body || {}).id || []);
