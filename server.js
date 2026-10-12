@@ -1845,6 +1845,34 @@ function getToken(req) {
   return null;
 }
 
+const ycloudFrom = new Map();   // customer phone -> the business number they wrote to (E.164, from the webhook)
+async function ycloudSendMessages(phoneDigits, messages) {
+  try {
+    const key = process.env.YCLOUD_API_KEY;
+    const from = ycloudFrom.get(String(phoneDigits)) || process.env.YCLOUD_FROM || '';
+    if (!key) return { ok: false, why: 'no YCLOUD_API_KEY' };
+    if (!from) return { ok: false, why: 'no business number known yet (no inbound seen, YCLOUD_FROM unset)' };
+    const fromE = String(from).startsWith('+') ? String(from) : '+' + String(from).replace(/\D/g, '');
+    const to = '+' + String(phoneDigits).replace(/\D/g, '');
+    let n = 0;
+    for (const m of (messages || [])) {
+      let body = null;
+      if (m && m.type === 'text' && String(m.text || '').trim()) body = { type: 'text', text: { body: String(m.text) } };
+      else if (m && m.type === 'image' && (m.url || m.image_url)) body = { type: 'image', image: { link: String(m.url || m.image_url) } };
+      if (!body) continue;
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 30000);
+      try {
+        const r = await fetch('https://api.ycloud.com/v2/whatsapp/messages/sendDirectly', {
+          method: 'POST', headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({ from: fromE, to }, body)), signal: ctl.signal });
+        const t = await r.text();
+        if (!r.ok) return { ok: false, why: r.status + ' ' + t.slice(0, 160), n };
+        n++;
+      } finally { clearTimeout(tm); }
+    }
+    return { ok: n > 0, n, why: n ? '' : 'nothing sendable in the message list' };
+  } catch (e) { return { ok: false, why: String(e).slice(0, 120) }; }
+}
 async function sendChunkRaw(subscriberId, messages, token) {
   /* 📵 DO NOT ASK MANYCHAT ABOUT SOMEBODY IT HAS NEVER HEARD OF (Rodney 2026-10-07, watching
    * the alerts: "ALBUM CUT SHORT 0 photos went").
@@ -1862,6 +1890,17 @@ async function sendChunkRaw(subscriberId, messages, token) {
   try {
     const _phoneSub = ycloudStore.has(String(subscriberId || ''))
                    && /^\d{10,15}$/.test(String(subscriberId || ''));
+    /* 📡 THE REAL ROAD: SEND THROUGH THE YCLOUD API (Rodney 2026-10-12, the day 808-8183 asked for a
+     * 9 and got three headers and no pictures, because pictures on this line only ever travelled
+     * by driving WhatsApp Web, and its Attach menu stopped opening). With YCLOUD_API_KEY set, the
+     * words AND the pictures go straight out of the server - no browser in the loop. If the API
+     * refuses, fall through to the old browser road below so nothing is worse than before. */
+    if (_phoneSub && process.env.YCLOUD_API_KEY) {
+      const _r = await ycloudSendMessages(String(subscriberId), messages);
+      if (_r.ok) return { ok: true, status: 200, body: JSON.stringify({ ycloud: 'sent', n: _r.n }) };
+      try { recent.unshift({ at: new Date().toISOString(), endpoint: 'ycloud-api-send-failed',
+                             sub: String(subscriberId), why: String(_r.why || '').slice(0, 200) }); } catch (_) {}
+    }
     if (_phoneSub) {
       const _text = (messages || []).filter(m => m && m.type === 'text' && m.text)
                                     .map(m => String(m.text)).join('\n\n').trim();
@@ -15476,6 +15515,7 @@ app.post('/ycloud/webhook', async (req, res) => {
        another shop's line. */
     const store = (toNum && toNum.endsWith('4324406')) ? 'Foot Fetish' : waStoreFor(null);
     try { ycloudStore.set(from, store); } catch (_) {}   // so a failed reply knows whose WhatsApp Web to use
+    try { if (toNum) ycloudFrom.set(from, String(toNum)); } catch (_) {}
 
     waLastInboundAt = new Date().toISOString();
     const shimReq = { method: 'POST', path: '/ycloud/webhook', headers: {}, query: {}, rawBody: null, body: {} };
