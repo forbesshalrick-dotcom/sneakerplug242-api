@@ -12440,6 +12440,16 @@ and it must NEVER be answered with a question back.`;
         turnText = _fix;
       }
     } catch (_) {}
+    /* 🌙 NO NEW ORDERS AFTER 10 PM. Rodney 2026-10-11 23:30: "we cant take anymore orders after 10pm anymore".
+     * The close-the-sale script in the prompt ("You available now? Send the location...") beat the closed-hours
+     * note, so at 23:34 she was still taking an order. Decided in code: at night, a fresh sale talks like this. */
+    try {
+      if (turnText && !staffName && nassauIsClosed() && !hasOpenOrder(sub)
+          && /send (?:me )?(?:the |your )?(?:location|pin)|available now|where can we meet|meet ?up|first run|tomorrow morning|first thing|driver|on (?:the|its) way|heading out|lock(?:ing)? (?:it )?in|what(?:'|\u2019)?s the address/i.test(turnText)) {
+        record(req, { endpoint: 'order-after-hours-blocked', sub, store: ctx.store || '', was: turnText.slice(0, 120) });
+        turnText = "We stopped taking orders for tonight at 10 PM \u{1F64F} Message us from 8 AM tomorrow and we'll get you sorted \u{1F45F}";
+      }
+    } catch (_) {}
     /* 🚗 NO ORDER, NO DRIVER. Rodney 2026-10-11 night (FF Ltd.woody): shown the size 9s he answered "Okay ." and
      * got "Let me call the driver now to see how far he is!" - he had ordered nothing. The driver line is
      * only for someone whose delivery is booked. For anyone else, a bare "ok/thanks" gets a thumbs up. */
@@ -13631,6 +13641,8 @@ and it must NEVER be answered with a question back.`;
       else if (tu.name === 'notify_manager') {
         toldTheTeam = true;
         const inp = tu.input || {};
+        // 🌙 After 10 PM no new order is taken: file it quietly (early stage = no WhatsApp ping to the team), never wake anyone for it.
+        try { if (nassauIsClosed() && !hasOpenOrder(sub)) { inp.stage = 'order_confirmed'; record(req, { endpoint: 'order-after-hours-quiet', sub, store: ctx.store || '' }); } } catch (_) {}
         // Pull the customer's WhatsApp number so staff can call/message them for the
         // drop-off. Prefer what Kiki passed or the request field; else ask ManyChat.
         let custPhone = inp.customer_phone || getPhone(req);
