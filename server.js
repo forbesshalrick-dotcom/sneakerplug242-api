@@ -4517,11 +4517,11 @@ function clusterShoesByModel(arr, wantColour) {
   const leadModel = (arr && arr.length) ? modelKey(arr[0]) : null;
   return (arr || []).map((s, i) => ({ s, i }))
     .sort((a, b) => {
+      const pa = pureRank(a.s), pb = pureRank(b.s);
+      if (pa !== pb) return pa - pb;  // a colour ask: the shoes that ARE that colour go first
       const la = (leadModel && modelKey(a.s) === leadModel) ? 0 : 1;
       const lb = (leadModel && modelKey(b.s) === leadModel) ? 0 : 1;
       if (la !== lb) return la - lb; // the exact/named match leads
-      const pa = pureRank(a.s), pb = pureRank(b.s);
-      if (pa !== pb) return pa - pb;  // then the shoes that ARE the colour asked for
       const ra = brandRank(a.s), rb = brandRank(b.s);
       if (ra !== rb) return ra - rb;
       const ma = modelKey(a.s), mb = modelKey(b.s);
