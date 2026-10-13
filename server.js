@@ -891,8 +891,8 @@ function getStore(req) {
   // from the account id embedded in the token ("3732738:..." = Trendy Kicks).
   const tok = req.headers && req.headers['x-mc-token'] ? String(req.headers['x-mc-token']) : '';
   const acct = tok.split(':')[0];
-  if (acct === '3732738') return 'Trendy Kicks';
-  if (acct === '3732170') return 'Official Sneaker Crew';
+  if (acct === '3732738' || acct === '5595630') return 'Trendy Kicks';
+  if (acct === '5476640' || acct === '3732170') return 'Official Sneaker Crew';   // 5476640 = the Pro OSC account (2026-09-15), holds 803-3126
   if (SI.isOurAccount(acct)) return SI.STORE;   // accepts the new account AND the old one — see MANYCHAT_ACCOUNTS
   if (NS.isOurAccount(acct)) return NS.STORE;  // Nightshift, the web/bot agency
   // ⚠️ AN UNRECOGNISED ACCOUNT FALLS THROUGH TO THE RETAIL BRAIN, and that is the single
@@ -1084,7 +1084,69 @@ function getToken(req) {
   return null;
 }
 
+const ycloudStore = new Map();   // customer phone -> store, for numbers that came in through YCloud
+/* 📡 FOOT FETISH RUNS ON YCLOUD (ported 2026-10-13 - the Sep 3 reset dropped it and the line went
+ * silent for 17 hours). Inbound arrives at /ycloud/webhook; replies and pictures go straight out
+ * through the YCloud API, no browser in the loop. The key lives on the /data volume. */
+function ycloudKeyFile() {
+  for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+    try { if (require('fs').existsSync(d)) return require('path').join(d, 'ycloud.key'); } catch (_) {}
+  }
+  return null;
+}
+try {
+  if (!process.env.YCLOUD_API_KEY) {
+    const f = ycloudKeyFile();
+    if (f && require('fs').existsSync(f)) {
+      const j = JSON.parse(require('fs').readFileSync(f, 'utf8'));
+      process.env.YCLOUD_API_KEY = String(j.k || '').trim();
+      if (j.from && !process.env.YCLOUD_FROM) process.env.YCLOUD_FROM = String(j.from);
+    }
+  }
+} catch (_) {}
+const ycloudFrom = new Map();   // customer phone -> the business number they wrote to
+async function ycloudSendMessages(phoneDigits, messages) {
+  try {
+    const key = process.env.YCLOUD_API_KEY;
+    const from = ycloudFrom.get(String(phoneDigits)) || process.env.YCLOUD_FROM || '';
+    if (!key) return { ok: false, why: 'no YCLOUD_API_KEY' };
+    if (!from) return { ok: false, why: 'no business number known yet (no inbound seen, YCLOUD_FROM unset)' };
+    const fromE = String(from).startsWith('+') ? String(from) : '+' + String(from).replace(/\D/g, '');
+    const to = '+' + String(phoneDigits).replace(/\D/g, '');
+    let n = 0, i = 0;
+    for (const m of (messages || [])) {
+      let body = null;
+      if (m && m.type === 'text' && String(m.text || '').trim()) body = { type: 'text', text: { body: String(m.text) } };
+      else if (m && m.type === 'image' && (m.url || m.image_url)) body = { type: 'image', image: { link: String(m.url || m.image_url) } };
+      if (!body) { i++; continue; }
+      // Adaptive spacing for WhatsApp rate limits: 0.7s, +0.5s per ten messages, capped at 5s.
+      const delayMs = Math.min(700 + (Math.floor(i / 10) * 500), 5000);
+      if (i > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
+      const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 30000);
+      try {
+        const r = await fetch('https://api.ycloud.com/v2/whatsapp/messages/sendDirectly', {
+          method: 'POST', headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({ from: fromE, to }, body)), signal: ctl.signal });
+        const t = await r.text();
+        if (!r.ok) return { ok: false, why: r.status + ' ' + t.slice(0, 160), n };
+        n++;
+      } finally { clearTimeout(tm); }
+      i++;
+    }
+    return { ok: n > 0, n, why: n ? '' : 'nothing sendable in the message list' };
+  } catch (e) { return { ok: false, why: String(e).slice(0, 120) }; }
+}
 async function sendChunkRaw(subscriberId, messages, token) {
+  // A phone-shaped id that came in through YCloud never goes to ManyChat (which has no such subscriber).
+  try {
+    const _phoneSub = ycloudStore.has(String(subscriberId || '')) && /^\d{10,15}$/.test(String(subscriberId || ''));
+    if (_phoneSub) {
+      const _r = await ycloudSendMessages(String(subscriberId), messages);
+      if (_r.ok) return { ok: true, status: 200, body: JSON.stringify({ ycloud: 'sent', n: _r.n }) };
+      try { recent.unshift({ at: new Date().toISOString(), endpoint: 'ycloud-api-send-failed', sub: String(subscriberId), why: String(_r.why || '').slice(0, 200) }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+      return { ok: false, status: 0, body: JSON.stringify({ skipped: 'ycloud line - API send failed: ' + String(_r.why || '').slice(0, 120) }) };
+    }
+  } catch (_) {}
   // HARD TIMEOUT (2026-07-16: a size-9 album froze silently at shoe E8 — one
   // ManyChat call hung forever with no error, and the whole album hung with it).
   // 20s was too tight for PHOTO sends: ManyChat regularly takes longer than that and
@@ -8903,6 +8965,87 @@ app.post('/social/reply', async (req, res) => {
     res.json({ ok: false, error: String(e).slice(0, 200) });
   } finally {
     composeSink.delete(sub);
+  }
+});
+const waSeen = new Map();
+function waClaim(id) {
+  if (!id) return true;
+  const now = Date.now();
+  if (waSeen.size > 4000) { for (const [k, t] of waSeen) if (now - t > 86400000) waSeen.delete(k); }
+  if (waSeen.has(id)) return false;
+  waSeen.set(id, now); return true;
+}
+function waStoreFor() { return 'Foot Fetish'; }
+let waLastInboundAt = null, waLastOutboundAt = null;
+app.post('/admin/ycloud-key', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  try {
+    const k = String((req.body || {}).apiKey || '').trim();
+    const from = String((req.body || {}).from || '').trim();
+    if (k.length < 20) return res.json({ ok: false, error: 'that does not look like a key' });
+    process.env.YCLOUD_API_KEY = k;
+    if (from) process.env.YCLOUD_FROM = from;
+    const f = ycloudKeyFile();
+    if (f) require('fs').writeFileSync(f, JSON.stringify({ k, from: from || process.env.YCLOUD_FROM || '' }), { mode: 0o600 });
+    res.json({ ok: true, savedTo: f ? 'volume' : 'memory only', keyLen: k.length, from: from || null });
+  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 120) }); }
+});
+app.get('/admin/ycloud-status', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  res.json({ keyLoaded: !!process.env.YCLOUD_API_KEY, from: process.env.YCLOUD_FROM || null, knownCustomers: ycloudStore.size, lastInboundAt: waLastInboundAt, lastOutboundAt: waLastOutboundAt });
+});
+function ycloudPickMessage(body) {
+  const cand = body.whatsappInboundMessage || body.inboundMessage || body.message ||
+               (body.data && (body.data.whatsappInboundMessage || body.data.message)) || null;
+  if (cand && (cand.from || cand.wa_id)) return cand;
+  return null;
+}
+app.post('/ycloud/webhook', async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const kind = String(body.type || body.event || '');
+    if (/status|sent|delivered|read|failed/i.test(kind) && !/inbound|received/i.test(kind)) return;
+    const m = ycloudPickMessage(body);
+    if (!m) { record(req, { endpoint: 'ycloud-unmapped', kind, keys: Object.keys(body).slice(0, 12).join(','), sample: JSON.stringify(body).slice(0, 400) }); return; }
+    const id = m.id || m.messageId || body.id;
+    if (!waClaim(id)) { record(req, { endpoint: 'ycloud-duplicate-ignored' }); return; }
+    const from = String(m.from || m.wa_id || '').replace(/[^0-9]/g, '');
+    const toNum = String(m.to || '').replace(/[^0-9]/g, '');
+    const profileName = (m.customerProfile && m.customerProfile.name) || m.profileName || '';
+    let text = '';
+    const t = String(m.type || '').toLowerCase();
+    if (t === 'text') text = (m.text && (m.text.body || m.text)) || '';
+    else if (t === 'image') text = (m.image && m.image.caption) || '';
+    else if (t === 'button') text = (m.button && (m.button.text || m.button.payload)) || '';
+    else if (t === 'interactive' && m.interactive) {
+      const it = m.interactive;
+      text = (it.buttonReply && it.buttonReply.title) || (it.listReply && it.listReply.title) || '';
+    } else if (t === 'location' && m.location) {
+      const L = m.location;
+      text = `(SYSTEM: customer dropped a LOCATION PIN — ${L.latitude},${L.longitude} — maps: https://maps.google.com/?q=${L.latitude},${L.longitude})`;
+    } else {
+      text = String((m.text && m.text.body) || '');
+    }
+    record(req, { endpoint: 'ycloud-in', sub: from, to: toNum, kind, msgType: t, q: String(text).slice(0, 60) });
+    // A first message of type "unsupported" is a click-to-WhatsApp ad opener we cannot read: answer it as one.
+    if (!String(text).trim() && t === 'unsupported' && !lastIncoming.has(from)) {
+      text = 'Hello! Can I get more info on this?';
+      record(req, { endpoint: 'ycloud-unsupported-answered-as-opener', sub: from });
+    }
+    if (!String(text).trim()) return;
+    const store = (toNum && toNum.endsWith('4324406')) ? 'Foot Fetish' : waStoreFor(null);
+    try { ycloudStore.set(from, store); } catch (_) {}
+    try { if (toNum) ycloudFrom.set(from, String(toNum)); } catch (_) {}
+    waLastInboundAt = new Date().toISOString();
+    const shimReq = { method: 'POST', path: '/ycloud/webhook', headers: {}, query: {}, rawBody: null, body: {} };
+    clearFollowUp(from);
+    lastIncoming.set(from, Date.now());
+    lastIncomingText.set(from, text || '');
+    await runChat(shimReq, from, text, '', { store, name: profileName, turnAt: Date.now(), chatUrl: null, ycloud: true, toNumber: toNum }, null);
+    waLastOutboundAt = new Date().toISOString();
+  } catch (e) {
+    try { record(req, { endpoint: 'ycloud-error', error: String(e).slice(0, 200) }); } catch (_) {}
   }
 });
 app.get('/inbox/rev', (req, res) => { if (!consoleAuth(req, res)) return; res.json({ rev: inboxRev }); });
