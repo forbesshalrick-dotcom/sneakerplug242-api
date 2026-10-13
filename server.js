@@ -1222,8 +1222,37 @@ function splitLongText(messages) {
   }
   return out;
 }
+/* 🧪 COMPOSE MODE (ported 2026-10-13 from the Oct brain). /social/reply lets the Mac-side
+ * Facebook/TikTok bot ask THIS brain for a reply: everything Kiki would have sent is collected
+ * in a sink and handed back instead of delivered, so one brain serves every line. A compose sub
+ * is remembered for a day: no inbox row, no nudge, and no send can leave this server for it
+ * even after its sink is gone (2026-10-08: a drill's follow-up nudge went out as a real
+ * ManyChat send to an invented subscriber id). */
+const composeSink = new Map();   // sub -> array collecting what WOULD have been sent
+const composeSubs = new Map();   // sub -> when we last saw it as a compose/drill thread
+function isComposeSub(sub) {
+  const k = String(sub || '');
+  const at = composeSubs.get(k);
+  if (!at) return false;
+  if (Date.now() - at > 24 * 60 * 60 * 1000) { composeSubs.delete(k); return false; }
+  return true;
+}
+function noteComposeSub(sub) {
+  composeSubs.set(String(sub), Date.now());
+  if (composeSubs.size > 500) composeSubs.delete(composeSubs.keys().next().value);
+}
 async function sendChunk(subscriberId, messages, token, logOpts) {
   messages = splitLongText(messages);
+  const _sink = composeSink.get(String(subscriberId));
+  if (!_sink && isComposeSub(subscriberId)) {
+    try {
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'compose-send-blocked', sub: String(subscriberId),
+                       text: String((messages || []).map(m => m && m.text).filter(Boolean).join(' ')).slice(0, 80) });
+      if (recent.length > 120) recent.length = 120;
+    } catch (_) {}
+    return { ok: true, sent: 0, blocked: 'compose sub - no real customer behind this id' };
+  }
+  if (_sink) { for (const m of (messages || [])) if (m) _sink.push(m); return { ok: true, sent: (messages || []).length, composed: true }; }
   // 📥 INBOX LOG: record outbound text into the customer's thread — Kiki's auto-replies
   // AND a human's manual replies (logOpts.sender='rodney'). Only for KNOWN customer
   // threads (an inbound created one) so manager alerts / staff blasts never spawn phantom
@@ -3228,6 +3257,7 @@ function clearHumanPause(sub) { if (humanPaused.delete(String(sub))) { inboxRev+
 function inboxRecord(account, sub, m) {
   try {
     if (!sub) return;
+    if (isComposeSub(sub)) return;   // a compose/drill turn is not a customer
     const text = (m.text == null ? '' : String(m.text)).slice(0, 4000);
     const img = m.img ? String(m.img).slice(0, 1500) : '';
     const loc = m.loc ? String(m.loc).slice(0, 500) : '';
@@ -3505,6 +3535,7 @@ const FIT_QUESTION_RE = new RegExp(
     '|\\b(?:will|would|do|does|they|these|it)\\b[^.!?\\n]{0,20}\\bfit\\b' +
   ')', 'i');
 function scheduleNudge(sub, token, text, ms, next, isCloser) {
+  if (isComposeSub(sub)) return;   // the Mac bot owns follow-ups on its lines
   clearFollowUp(sub);
   const handle = setTimeout(async () => {
     followUps.delete(sub);
@@ -3559,6 +3590,7 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
 function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS, isCloser: true }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token, wholesale) {
+  if (isComposeSub(sub)) return;
   scheduleNudge(sub, token, wholesale ? L(WS_ASKME_T, sub) : L(ASKME_T, sub), WELCOME_NUDGE_MS);
 }
 
@@ -4789,6 +4821,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // Greet ONLY on the very first message of the chat — decided here in code, not by Kiki —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
   let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo, phone: getPhone(req) });
+  if (ctx.personal) {
+    system += '\n\n🙋 PERSONAL ACCOUNT (Rodney 2026-09-07: "personal accounts dont need introducing just sell"): this conversation is on a personal Facebook/Instagram/TikTok account, not a shop page. Never introduce a shop, never say a shop name, no welcome script - just answer and sell as a person. The pictures you send arrive as Messenger images.';
+  }
+  if (ctx.listingPrice) {
+    userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: they messaged from a Facebook listing priced at $' + ctx.listingPrice
+      + (ctx.listingTitle ? ' — "' + ctx.listingTitle + '"' : '') + '. THAT is the price for this shoe, and it is the number on their screen right now. ⚠️ NEVER read a size off that title - those are what the advert says we stock, not what THIS customer wears; ask. Quote $' + ctx.listingPrice
+      + ' and nothing else for it — the catalogue/shop price is NOT what they were offered. If they move on to a DIFFERENT shoe, this price no longer applies: price that one normally and say which is which.)';
+  }
   // Kiki needs the clock for the after-hours (11 PM+) morning-delivery rule.
   try {
     const bah = new Date(Date.now() - 4 * 3600 * 1000); // Nassau summer time (UTC-4)
@@ -8803,6 +8843,67 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
 // ── 📥 UNIFIED INBOX API ──────────────────────────────────────────────────────
 // Cheap change-poll (mirrors /shop/rev): the Inbox polls this every few seconds and
 // only reloads the thread list when the number changed.
+/* 🧠 ONE BRAIN FOR EVERY LINE (ported 2026-10-13). The Mac-side Facebook/TikTok bot posts a
+ * turn here (msgbot.py _ask_server_brain, gated per line by one-brain-lines.txt); Kiki composes
+ * exactly as she would for WhatsApp and the messages come back in send order. Thread ids are
+ * hashed to a 9-prefixed sub so they can never collide with a real ManyChat subscriber. */
+app.post('/social/reply', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const text = String(b.text || '').trim();
+  const threadKeyIn = String(b.thread || b.line || '').trim();
+  if (!text && !b.image) return res.status(400).json({ ok: false, error: 'need text or image' });
+  if (!threadKeyIn) return res.status(400).json({ ok: false, error: 'need a stable thread id' });
+  let h = 5381;
+  for (let i = 0; i < threadKeyIn.length; i++) h = ((h * 33) ^ threadKeyIn.charCodeAt(i)) >>> 0;
+  const sub = '9' + String(h).padStart(10, '0');
+  const sink = [];
+  composeSink.set(sub, sink);
+  noteComposeSub(sub);
+  try {
+    if (Array.isArray(b.history) && b.history.length && !convos.has(sub)) {
+      const seeded = b.history
+        .filter(m => m && (m.role === 'user' || m.role === 'assistant') && String(m.content || '').trim())
+        .slice(-20)
+        .map(m => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+      if (seeded.length) convos.set(sub, seeded);
+    }
+    const ctx = {
+      store: b.store || STORE_DEFAULT,
+      name: String(b.name || '').slice(0, 60),
+      turnAt: Date.now(),
+      chatUrl: null,
+      personal: b.personal === true,
+      social: String(b.line || '').slice(0, 40),
+      compose: true,
+      // The listing price outranks the catalogue: a Facebook customer is reading it while they type.
+      listingPrice: (function () {
+        const v = (b.listing && b.listing.price != null) ? b.listing.price : b.listing_price;
+        const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
+        return (!isNaN(n) && n > 0) ? n : null;
+      })(),
+      // Sizes come out of the title before she sees it: a title's sizes are stock, not the customer's size.
+      listingTitle: String((b.listing && b.listing.title) || b.listing_title || '')
+        .replace(/\bsizes?\s*[:\-]?\s*[\d.,\s/&+]+/ig, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 160),
+    };
+    const shim = { method: 'POST', path: '/social/reply', headers: {}, query: {}, body: {}, rawBody: null };
+    await runChat(shim, sub, text, '', ctx, b.image ? String(b.image) : null);
+    const messages = sink.map(m => (m && m.type === 'image')
+      ? { type: 'image', url: (m.url || (m.payload && m.payload.url) || '') }
+      : { type: 'text', text: String((m && m.text) || '') })
+      .filter(m => (m.type === 'image' ? m.url : m.text));
+    record(req, { endpoint: 'social-reply', sub, line: ctx.social, personal: ctx.personal, asked: text.slice(0, 60), composed: messages.length });
+    res.json({ ok: true, messages,
+               texts: messages.filter(m => m.type === 'text').map(m => m.text),
+               images: messages.filter(m => m.type === 'image').map(m => m.url),
+               composed: messages.length, thread: threadKeyIn });
+  } catch (e) {
+    record(req, { endpoint: 'social-reply-error', sub, error: String(e).slice(0, 200) });
+    res.json({ ok: false, error: String(e).slice(0, 200) });
+  } finally {
+    composeSink.delete(sub);
+  }
+});
 app.get('/inbox/rev', (req, res) => { if (!consoleAuth(req, res)) return; res.json({ rev: inboxRev }); });
 
 // Custom Inbox assets — Kiki's avatar + the chat backdrop. Filled in from the images
