@@ -3367,6 +3367,26 @@ function setHumanPause(sub, ms) {
 }
 function clearHumanPause(sub) { if (humanPaused.delete(String(sub))) { inboxRev++; saveInbox(); } }
 // Append one message to a customer's thread. Best-effort — never throws into the send path.
+function inboxHas(account, sub, ts, text) { return inboxFind(account, sub, ts, text).exact; }
+const DUP_WINDOW_MS = 10 * 60 * 1000;
+function inboxFind(account, sub, ts, text, window) {
+  const out = { exact: false, sameText: false };
+  const win = window == null ? DUP_WINDOW_MS : window;
+  try {
+    const t = inboxThreads.get(threadKey(account, sub));
+    if (!t || !t.msgs || !t.msgs.length) return out;
+    const want = String(text == null ? '' : text).slice(0, 4000);
+    if (!want) return out;
+    for (let i = t.msgs.length - 1, seen = 0; i >= 0 && seen < 200; i--, seen++) {
+      const m = t.msgs[i];
+      if (!m || m.text !== want) continue;
+      const gap = Math.abs((m.ts || 0) - ts);
+      if (gap <= 1000) { out.exact = true; return out; }
+      if (gap <= win) out.sameText = true;
+    }
+  } catch (_) {}
+  return out;
+}
 function inboxRecord(account, sub, m) {
   try {
     if (!sub) return;
@@ -5305,6 +5325,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let lastSearchIds = [];    // the ids that search matched — our pictures go to Kiki beside the customer's photo
+  let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
@@ -5476,6 +5497,33 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       turnText = '';                    // it did it twice — say nothing rather than leak
     }
+    /* 📏 SIZE-CLAIM GUARD (2026-10-13, the 10-04 failure again: "we've got it in a 10 and an 11" for a
+     * shoe that comes in 5.5/6.5/7). A size she names in words is checked against the shelf for the
+     * shoe in play before it goes out; a wrong one is blocked and she is told the real sizes. Guards
+     * that remove the choice hold; guards that ask nicely do not. */
+    if (turnText && !staffName && sizeClaimBlocks < 1) {
+      try {
+        const lm = liveShoeMap();
+        let cands = lastSearchIds.map(id => lm[id]).filter(Boolean).slice(0, 6);
+        if (!cands.length && ctx.listingTitle) cands = searchInventory({ query: ctx.listingTitle }).slice(0, 3).map(r => lm[r.id]).filter(Boolean);
+        if (cands.length) {
+          const shelf = new Set(); cands.forEach(s => (s.sizesRaw || []).forEach(x => shelf.add(String(parseFloat(x)))));
+          const okSize = (n) => shelf.has(String(n)) || shelf.has(String(n - 1.5));   // men's, or a women's number
+          const claimed = [];
+          const re = /\b(?:got|have|has|comes?|available|carry|stock)(?:\s+(?:it|that|those|them|one))?\s+(?:in|at)\s+(?:a|an|the|size|sizes)?\s*((?:\d{1,2}(?:\.5)?)(?:\s*(?:,|and|&|\/|or)\s*(?:a|an|the)?\s*\d{1,2}(?:\.5)?)*)/gi;
+          let m; while ((m = re.exec(turnText))) (m[1].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); });
+          const wrong = [...new Set(claimed.filter(n => !okSize(n)))];
+          const saysOut = /\b(out of stock|sold out|we(?:'re| are) out of (?:that|it|those|them)(?!\s+(?:one\s+)?in\b)|don'?t have (?:it|that|those) (?:any ?more|right now|in stock))\b/i.test(turnText) && shelf.size > 0;
+          if (wrong.length || saysOut) {
+            sizeClaimBlocks++;
+            const real = cands.map(s => `${displayName(s)}: ${sizesOf(s) || 'none'}`).join('; ');
+            record(req, { endpoint: 'size-claim-blocked', sub, store: ctx.store || '', wrong, saysOut, text: turnText.slice(0, 120), real: real.slice(0, 160) });
+            history.push({ role: 'user', content: `(SYSTEM NOTE — the customer cannot see this: your last reply ${wrong.length ? 'claimed size(s) ' + wrong.join(', ') + ' that we do NOT have' : 'said we are out of stock while we have pairs on the shelf'}. The ONLY sizes on the shelf right now: ${real}. Rewrite your reply using ONLY those sizes — if their size is not there, say exactly which sizes it comes in and offer the nearest. Never name a size that is not in this list.)` });
+            continue;
+          }
+        }
+      } catch (_) {}
+    }
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
@@ -5567,6 +5615,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         lastSearchCount = found.length;
         lastSearchIds = found.map(x => x && x.id).filter(x => x != null);
         result = { shoes: found };
+        // 🧯 ZERO IN THAT SIZE IS NOT "OUT OF STOCK" (Facebook1/2, 2026-10-13: Jordan 11 Gamma Blue,
+        // shelf 5.5/6.5/7, customer asked 10.5 → "out of stock" on the next turn). When a sized search
+        // finds nothing, look the same model up WITHOUT the size and hand back what it really comes in,
+        // so the honest answer is in the tool result and never has to be guessed.
+        if (!found.length && (p.size != null || (Array.isArray(p.sizes) && p.sizes.length)) && (p.query || p.brand || p.color)) {
+          try {
+            const q2 = Object.assign({}, p); delete q2.size; delete q2.sizes; delete q2.size_match; delete q2.exact_sizes;
+            const anySize = searchInventory(q2).slice(0, 4);
+            if (anySize.length) {
+              result.same_model_other_sizes = anySize.map(s => ({ id: s.id, name: s.name, price: s.price, sizes: s.sizes }));
+              result.note = 'NOTHING in the size asked. We DO carry this model — the ONLY sizes it comes in are listed in same_model_other_sizes. Tell the customer exactly those sizes ("that one only comes in 5.5, 6.5 and 7 right now"). NEVER say "out of stock", NEVER name any other size, NEVER offer a size that is not in that list.';
+              lastSearchIds = anySize.map(x => x && x.id).filter(x => x != null);
+            }
+          } catch (_) {}
+        }
         }
         // Remember the customer's size (a single concrete size search = their size) so we can
         // reuse it later without re-asking. Skip "all"/ranges/matching (sizes array).
@@ -10318,7 +10381,7 @@ app.get('/console', (req, res) => {
 // uses; a voice agent with its own copy of the stock would drift within a day.
 // Wrapped because a fault in the phone line must never take the shop's WhatsApp down.
 try {
-  require('./voice').mountVoice(app, { searchInventory, record, waSendManager });
+  require('./voice').mountVoice(app, { searchInventory, record, waSendManager, inboxRecord, inboxHas, inboxFind });
   console.log('[voice] phone-call brain mounted on /voice/fn');
 } catch (e) {
   console.error('[voice] NOT mounted:', e && e.message);
