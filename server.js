@@ -2308,16 +2308,22 @@ async function identifyPhoto(imageSource, stockList, words) {
   } catch (_) { return null; } finally { clearTimeout(tm); }
 }
 // The stock list the identifier reads: every live shoe as "Brand Name - Colour (Nickname)", one per line.
+let stockLineIds = new Map();   // normalised stock line -> [live shoes], rebuilt each time the list is made
+function normStockLine(x) { return String(x || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 function stockListForIdentify() {
   try {
     const seen = new Set();
+    const ids = new Map();
     for (const sh of Object.values(liveShoeMap())) {
       const n = String(sh.name || '').trim(); if (!n) continue;
       const b = String(sh.brand || '').trim();
-      seen.add((b && !n.toLowerCase().startsWith(b.toLowerCase()) ? b + ' ' + n : n)
+      const line = (b && !n.toLowerCase().startsWith(b.toLowerCase()) ? b + ' ' + n : n)
         + (sh.color ? ' - ' + String(sh.color).trim() : '')
-        + (sh.nickname ? ' (' + String(sh.nickname).trim() + ')' : ''));
+        + (sh.nickname ? ' (' + String(sh.nickname).trim() + ')' : '');
+      seen.add(line);
+      const k = normStockLine(line); (ids.get(k) || ids.set(k, []).get(k)).push(sh);
     }
+    stockLineIds = ids;
     return [...seen].sort().join('\n');
   } catch (_) { return ''; }
 }
@@ -4970,6 +4976,36 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // top it up with the rest. Only pure size (±brand) searches count; a colour/query/price
   // search means the customer wanted something specific, so we never widen those.
   const turnSentIds = new Set();        // shoe ids actually sent this turn
+  /* 🎯 THE SHOE THE PHOTO NAMED GOES OUT FIRST, FROM THE SERVER (ported 2026-10-13 from the Oct 10
+   * brain). The identifier said "New Balance 9060 Black/White" every time and the chat model
+   * still sent a different 9060, or a 1000, depending on the run: the recognition was right,
+   * the hand-off was not. So when the first look names one of OUR shoes exactly, the server
+   * sends THAT card itself and tells Kiki to answer in words (name, price, ask size). Our own
+   * cards coming back at us (KIND: CARD) are left to the normal flow - that is the echo case. */
+  try {
+    if (_idVerdict && !staffName) {
+      const _mo = _idVerdict.match(/OURS:\s*([^\n]+)/i);
+      const _ours = _mo ? _mo[1].trim() : '';
+      if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !/KIND:\s*CARD/i.test(_idVerdict)) {
+        const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
+        const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
+        if (_pickSh && _pickSh.id != null) {
+          const _rr = await sendShoePhotos(sub, [_pickSh.id], token, null, '', false, false, ctx.turnAt || 0).catch(() => null);
+          if (_rr && _rr.sent > 0) {
+            photosSentRun = true; sentToCustomer = true; turnSentIds.add(String(_pickSh.id)); photoCompareSent = true;
+            record(req, { endpoint: 'photo-shoe-sent-by-server', sub, store: ctx.store || '', shoe: String(_pickSh.id), said: _ours.slice(0, 80) });
+            const _lu = history[history.length - 1];
+            if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
+              _lu.content[0].text = '(✅ THE PICTURE OF THE SHOE THEY MEANT HAS ALREADY BEEN SENT TO THEM: ' + displayName(_pickSh)
+                + ' — $' + (parseFloat(_pickSh.price) || 0) + '. Do NOT search and do NOT send any photos for it. Reply with EXACTLY this one line and nothing before or after it: '
+                + '"That\'s the ' + displayName(_pickSh) + ' 👟 $' + (parseFloat(_pickSh.price) || 0) + ' — what size you wear?" '
+                + '(If they already told you their size, say we have it in that size instead of asking.))\n\n' + _lu.content[0].text;
+            }
+          }
+        }
+      }
+    }
+  } catch (e) { try { record(req, { endpoint: 'photo-shoe-send-error', sub, error: String(e).slice(0, 90) }); } catch (_) {} }
   const turnSizeSearchSizes = [];       // sizes from pure size (±brand only) searches this turn
   const turnSizeSearchBrands = [];      // the brand filter on each of those searches ('' = none)
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
