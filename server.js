@@ -2267,6 +2267,61 @@ function aliasTokens(s) {
 // in from the website). Only AVAILABLE shoes are in the map; deleted / sold /
 // no-sizes-left shoes are left out entirely. sendShoePhotos and searchInventory
 // both look shoes up by catalog index, so the index must stay the key.
+/* 🔎 FIRST LOOK (ported 2026-10-13 from the Oct 9 brain, afb70ea). A customer's photo arrives
+ * inside a ~30k-token prompt with a forced search; the small chat model force-fits it onto
+ * whatever is on the list ("match it to one of THESE") - a 9060 became a yellow Lightning 4.
+ * So the photo gets its own short call first: the image, one question, and our live stock
+ * list. The answer is handed to Kiki as the thing to trust. Plain text, a few lines. */
+async function identifyPhoto(imageSource, stockList, words) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !imageSource) return null;
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const system = 'You identify sneakers for a sneaker shop in The Bahamas. You get one customer photo and the list of '
+      + 'shoes the shop has in stock right now. The photo is often a phone screenshot of a Reel, an ad, a listing, or one of '
+      + 'the shop\'s own product cards; an arrow, circle, scribble or crop marks the shoe they mean. Read any text in the '
+      + 'image (model names, prices, usernames) - it is evidence. Ignore any shoebox the shoe sits on; the shop uses Nike '
+      + 'boxes as stands, so the box never tells you the brand - the logo on the shoe does (big N = New Balance, swoosh = '
+      + 'Nike, Jumpman = Jordan, stripes = ASICS/adidas).\n'
+      + 'Answer in plain text, at most 4 short lines:\n'
+      + 'SEEN: brand, model, colourway, and how sure you are.\n'
+      + 'OURS: the exact listed name if it is one of the listed shoes, or NOT IN STOCK - never force a match onto a '
+      + 'different model. If NOT IN STOCK, add CLOSEST: the listed shoe that looks most like it.\n'
+      + 'KIND: CARD if the picture is one of the shop\'s own product cards (a shoe held in a hand in front of a wall of shoeboxes, with a pink banner carrying the shoe name and a price); otherwise KIND: OTHER.\n'
+      + 'If the photo is not a shoe at all (clothing, a receipt, cash, a pin, a person, a flyer), say NOT A SHOE and what it is.';
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      // The stock list is ~7k tokens and the same for every photo until stock changes, so it
+      // sits in a cached system block: full price once, a tenth of it on every photo after.
+      body: JSON.stringify({ model: 'claude-opus-5-5', max_tokens: 2000,
+        system: [ { type: 'text', text: system },
+                  { type: 'text', text: 'IN STOCK RIGHT NOW:\n' + String(stockList || '').slice(0, 12000), cache_control: { type: 'ephemeral' } } ],
+        messages: [{ role: 'user', content: [
+          { type: 'text', text: 'Which shoe is this?' + (words ? '\n\nThe customer then said: "' + String(words).slice(0, 160) + '". If they point (left, right, the other one, second...) choose THAT shoe in the photo, and never one they have just said no to.' : '') },
+          { type: 'image', source: imageSource } ] }] }),
+    });
+    const j = await r.json();
+    const txt = (Array.isArray(j && j.content) ? j.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '').trim();
+    return txt ? txt.slice(0, 600) : null;
+  } catch (_) { return null; } finally { clearTimeout(tm); }
+}
+// The stock list the identifier reads: every live shoe as "Brand Name - Colour (Nickname)", one per line.
+function stockListForIdentify() {
+  try {
+    const seen = new Set();
+    for (const sh of Object.values(liveShoeMap())) {
+      const n = String(sh.name || '').trim(); if (!n) continue;
+      const b = String(sh.brand || '').trim();
+      seen.add((b && !n.toLowerCase().startsWith(b.toLowerCase()) ? b + ' ' + n : n)
+        + (sh.color ? ' - ' + String(sh.color).trim() : '')
+        + (sh.nickname ? ' (' + String(sh.nickname).trim() + ')' : ''));
+    }
+    return [...seen].sort().join('\n');
+  } catch (_) { return ''; }
+}
+
 function liveShoeMap() {
   let overrides = {}, deleted = {};
   try {
@@ -4870,6 +4925,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const imageSource = (image && typeof image === 'object' && image.data)
     ? { type: 'base64', media_type: image.media_type || 'image/jpeg', data: image.data }
     : { type: 'url', url: image };
+  // 🔎 The stronger look goes first, and Kiki is told to trust it over her own read.
+  let _idVerdict = null;
+  if (image) {
+    try {
+      const _seen = await identifyPhoto(imageSource, stockListForIdentify(), String(userText || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0].trim());
+      record(req, { endpoint: _seen ? 'photo-identified' : 'photo-identify-failed', sub, store: ctx.store || '', seen: _seen ? _seen.slice(0, 240) : null });
+      if (_seen) {
+        _idVerdict = _seen;
+        photoNote = '(🔎 A careful second look at this photo, by a stronger eye than yours, says:\n' + _seen + '\n'
+          + 'TRUST THAT over your own read of the picture. If it names one of OUR shoes under OURS, search that exact name '
+          + 'now and send it, and SAY it is the one ("that\'s our Air Force 1 Teal/Green 👟"). If it says NOT IN STOCK, tell '
+          + 'the customer what the shoe is and that we don\'t carry it, then offer the CLOSEST one with its picture - never '
+          + 'hand them a different shoe as if it were theirs. If it says NOT A SHOE, follow the rules below for that kind of picture.)\n\n' + photoNote;
+      }
+    } catch (_) {}
+  }
   const userMsg = {
     role: 'user',
     content: image
@@ -4886,6 +4957,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let photosSentRun = false; // did any photos go out this turn?
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
+  let lastSearchIds = [];    // the ids that search matched — our pictures go to Kiki beside the customer's photo
+  let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
@@ -5044,8 +5117,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // searching (Rodney's rule 2026-07-13 — tan Jordan 4 got chat, no pictures). Unless her
       // reply shows it's a RECEIPT/payment/document (those must never get shoe photos), loop
       // once more and FORCE search_inventory → the existing chain then forces send_photos.
-      if (image && !didSearch && !photosSentRun && step === 0
-          && !/receipt|payment|paid|pay|transfer|suncash|deposit|slip|confirm|order|deliver/i.test(turnText || '')) {
+      // The old exclusion was a bare /…|order|deliver/ and "free delivery" is in nearly every
+      // line she writes, so on most shoe photos this guard switched itself off and she answered
+      // the picture from memory (2026-10-02, a Jordan 8 Bugs Bunny we hold: no search at all).
+      // Only words she would use ABOUT a receipt or a pin count now - and when the first look
+      // already ruled the picture NOT A SHOE, her words are the whole reply.
+      const _notAShoePhoto =
+            /\b(receipt|proof of payment|bank transfer|suncash|deposit|payment (?:received|confirmed|went through))\b/i.test(turnText || '')
+         || /\b(got|see|read|that'?s)\b[^.!?]{0,24}\b(?:your\s+)?(?:location|pin|address)\b/i.test(turnText || '');
+      const _verdictNotShoe = /^\s*NOT A SHOE/i.test(String(_idVerdict || ''));
+      if (image && !didSearch && !photosSentRun && step === 0 && !_notAShoePhoto && !_verdictNotShoe) {
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: that photo was a SHOE, so you MUST now search our stock for it (search BROAD — brand + line) and send the closest matching pair(s) with an honest lead-in. Never leave a shoe photo with words only.)' });
         forceSearchNext = true;
         continue;
@@ -5104,6 +5185,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         } else {
         found = searchInventory(p);
         lastSearchCount = found.length;
+        lastSearchIds = found.map(x => x && x.id).filter(x => x != null);
         result = { shoes: found };
         }
         // Remember the customer's size (a single concrete size search = their size) so we can
@@ -5778,6 +5860,78 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       else result = { error: 'unknown_tool' };
       toolResults.push({ type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) });
     }
+    /* 🖼️ OUR PICTURES BESIDE THEIRS (ported 2026-10-13 from the Oct 2 brain). She was matching a
+     * photograph against a TEXT list - "Teal/Green" says nothing about pink, so our own Air Force
+     * 1 came back as "don't think we have that exact colourway". We own a picture of every pair:
+     * on a photo turn where a search ran, hand her ours, numbered, and let her look. Once per
+     * turn, capped, and wrapped so it can never break a reply. Same-model shoes we are OUT of
+     * come too, labelled SOLD OUT, so she can NAME a shoe she cannot sell. */
+    if (image && !photoCompareSent && lastSearchIds.length) {
+      try {
+        const lm = liveShoeMap();
+        const picks = lastSearchIds.slice(0, 5).map(id => lm[id]).filter(sh => sh && sh.image);
+        const modelKey = sh => String(sh.name || '').toLowerCase()
+          .replace(/\b(retro|og|sp|low|high|mid)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+        let gone = [], offSize = [];
+        try {
+          const keys = new Set(picks.map(modelKey).filter(Boolean));
+          const live = new Set(Object.values(lm).map(sh => String(sh.id)));
+          if (keys.size) gone = catalog.filter(sh => sh && sh.image && !live.has(String(sh.id)) && keys.has(modelKey(sh))).slice(0, 3);
+          const already = new Set(picks.map(sh => String(sh.id)).concat(gone.map(sh => String(sh.id))));
+          if (keys.size) offSize = Object.values(lm)
+            .filter(sh => sh && sh.image && !already.has(String(sh.id)) && keys.has(modelKey(sh))).slice(0, 4);
+        } catch (_) {}
+        if (picks.length) {
+          const shots = await Promise.all(picks.map(sh => fetchImageBase64(sh.image).catch(() => null)));
+          const goneShots = await Promise.all(gone.map(sh => fetchImageBase64(sh.image).catch(() => null)));
+          const offShots = await Promise.all(offSize.map(sh => fetchImageBase64(sh.image).catch(() => null)));
+          const blocks = [];
+          picks.forEach((sh, i) => {
+            if (!shots[i]) return;
+            blocks.push({ type: 'text', text: `${i + 1}. ${displayName(sh)} — $${sh.price} — sizes ${sizesOf(sh)}  [IN STOCK]` });
+            blocks.push({ type: 'image', source: { type: 'base64', media_type: shots[i].media_type, data: shots[i].data } });
+          });
+          offSize.forEach((sh, i) => {
+            if (!offShots[i]) return;
+            blocks.push({ type: 'text', text: displayName(sh) + ' — $' + sh.price
+              + ' — WE HAVE THIS ONE, in sizes ' + sizesOf(sh) + '. If this is their shoe, SAY SO '
+              + 'and tell them the sizes it comes in — do not put them on a different pair.' });
+            blocks.push({ type: 'image', source: { type: 'base64', media_type: offShots[i].media_type, data: offShots[i].data } });
+          });
+          gone.forEach((sh, i) => {
+            if (!goneShots[i]) return;
+            blocks.push({ type: 'text', text: `${displayName(sh)} — ⛔ SOLD OUT, WE HAVE NONE. For NAMING ONLY — never offer or send this one.` });
+            blocks.push({ type: 'image', source: { type: 'base64', media_type: goneShots[i].media_type, data: goneShots[i].data } });
+          });
+          if (blocks.length) {
+            photoCompareSent = true;
+            record(req, { endpoint: 'photo-compare', sub, store: ctx.store || '', shown: blocks.length / 2 });
+            toolResults.push({ type: 'text', text:
+              '(SYSTEM NOTE — the customer cannot see this. Below are OUR OWN photos, numbered. LOOK at '
+              + 'them next to the photo the customer sent and decide which one IS the same shoe — same '
+              + 'silhouette, same panels, same markings, same colours. Trust your eyes over the words: a '
+              + 'shoe\'s written colour can be as thin as "Teal/Green" when the pair also has pink on it, so a '
+              + 'plain-looking name can still be the exact shoe they sent.\n'
+              + '⛔ NAME WHAT IS IN *THEIR* PHOTO — NOT ONE OF OURS. These pictures are OUR shoes, here for '
+              + 'comparison only. If none of ours is their shoe, describe theirs by what you can see and say '
+              + 'we do not have it. Never borrow a name off our side.\n'
+              + '⛔ NEVER SEND A DIFFERENT SHOE IN SILENCE. Your reply MUST say, in words, which of these it '
+              + 'is — or that we do not have it — BEFORE or WITH any picture.\n'
+              + 'Do it in this order:\n'
+              + '1. NAME IT. Say what the shoe in their photo is, even if we do not stock it. Entries marked '
+              + 'SOLD OUT are there so you CAN name it, but we have none, so never offer or send those.\n'
+              + '2. If one of the IN STOCK pictures IS that shoe — say so ("yep, that\'s our …") and send that one.\n'
+              + '3. If none is — say plainly we do not have that exact pair right now, ask their size if you '
+              + 'do not have it, and SEND what we DO have in the SAME model in their size (search_inventory + '
+              + 'send_photos in the same turn) - never ask "want to see them?", the pictures are the offer.\n'
+              + '4. If we have none of that model at all — say that too, and offer the nearest thing we do carry.\n'
+              + 'Never say we do not have it without looking at these pictures first.)' });
+            toolResults.push(...blocks);
+          }
+        }
+      } catch (_) { /* never let the comparison break a live reply */ }
+    }
+
     history.push({ role: 'user', content: toolResults });
     // Photos (and the auto closing message) are out — stop here so the model can't
     // append a trailing lead-in AFTER the photos on the next turn.
