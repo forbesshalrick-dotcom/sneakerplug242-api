@@ -9239,6 +9239,70 @@ app.post('/ycloud/webhook', async (req, res) => {
     try { record(req, { endpoint: 'ycloud-error', error: String(e).slice(0, 200) }); } catch (_) {}
   }
 });
+// Inbox routes restored 2026-10-13 (the Sep 3 reset dropped them): driver dispatch flag, thread prune, contacts list.
+const driverDispatchedAt = new Map();   // sub -> when a human pressed "driver dispatched"
+app.post('/inbox/dispatch', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  const off = b.off === true;
+  if (off) driverDispatchedAt.delete(sub); else driverDispatchedAt.set(sub, Date.now());
+  if (driverDispatchedAt.size > 500) { const f = driverDispatchedAt.keys().next().value; driverDispatchedAt.delete(f); }
+  // Tell Kiki in her own words so the very next reply can use it.
+  try {
+    const note = off
+      ? '(SYSTEM NOTE - the customer cannot see this: the driver is NO LONGER on the way to this customer. Do not say anyone is coming or how far they are.)'
+      : '(SYSTEM NOTE - the customer cannot see this: a driver has NOW genuinely been dispatched to this customer - a human pressed the button, so this one is true. You may say the driver is on his way. You still do NOT know where he is, so never give a number of minutes, never say traffic and never say almost there. If they ask how far, say you are checking with the driver and come straight back.)';
+    const cur = ownerNotes.get(sub) || [];
+    cur.push(note); ownerNotes.set(sub, cur.slice(-4));
+  } catch (_) {}
+  record(req, { endpoint: 'driver-dispatched', sub, off });
+  res.json({ ok: true, dispatched: !off });
+});
+app.post('/inbox/prune', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const apply = String(req.query.apply || '') === '1';
+  const JUNK = /^\s*\((?:not answered|not read|no reply|skipped|suppressed)\b|\bhourly ceiling\b|\bdirection unknown\b|\bnot composing another\b/i;
+  let removed = 0, collapsed = 0, touched = 0;
+  for (const [key, t] of inboxThreads) {
+    if (!t || !Array.isArray(t.msgs)) continue;
+    const before = t.msgs.length;
+    const kept = [];
+    for (const m of t.msgs) {
+      const txt = String((m && m.text) || '');
+      if (JUNK.test(txt)) { removed++; continue; }
+      const prev = kept.length ? kept[kept.length - 1] : null;
+      if (prev && String(prev.text || '') === txt && String(prev.img || '') === String((m && m.img) || '')
+          && (prev.sender || prev.dir) === (m.sender || m.dir)) { collapsed++; continue; }
+      kept.push(m);
+    }
+    if (kept.length !== before) {
+      touched++;
+      if (apply) { t.msgs = kept; t.lastTs = kept.length ? (kept[kept.length - 1].ts || t.lastTs) : t.lastTs; }
+    }
+  }
+  if (apply) { inboxRev++; saveInbox(); }
+  record(req, { endpoint: 'inbox-prune', apply, removed, collapsed, threads: touched });
+  res.json({ ok: true, apply, removed, collapsed, threadsTouched: touched });
+});
+app.get('/inbox/contacts', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const out = [];
+  const seen = new Set();
+  for (const t of inboxThreads.values()) {
+    const tag = accountTag(t.account);
+    if (!['TK', 'OSC', 'FF'].includes(tag)) continue;
+    const digits = String(t.phone || '').replace(/[^0-9]/g, '');
+    if (digits.length < 10 || digits.length > 15) continue;
+    if (/^drill/i.test(String(t.sub || '')) || (!t.name && !t.msgs.some(m => m.sender === 'customer'))) continue;
+    if (t.msgs && !t.msgs.some(m => m.dir === 'in' && m.sender === 'customer')) continue;   // we only ever wrote to them
+    const k = tag + '|' + digits;
+    if (seen.has(k)) continue; seen.add(k);
+    out.push({ tag, account: t.account, name: t.name || '', phone: '+' + digits, lastTs: t.lastTs || 0 });
+  }
+  res.json({ ok: true, count: out.length, contacts: out });
+});
 app.get('/inbox/rev', (req, res) => { if (!consoleAuth(req, res)) return; res.json({ rev: inboxRev }); });
 
 // Custom Inbox assets — Kiki's avatar + the chat backdrop. Filled in from the images
