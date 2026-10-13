@@ -1494,9 +1494,9 @@ const WEBSITE = (process.env.WEBSITE || '242plug.com').replace(/^https?:\/\//, '
 const SITE_LIVE = !/^(0|false|no|off)$/i.test(String(process.env.SITE_LIVE || '').trim());
 const SITE_TAIL = SITE_LIVE ? ` Want more options? Search our site 👉 ${WEBSITE}` : '';
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
-const END_OF_PHOTOS_MSG = `There's the photos! 👟 See one you like? Just send me which one 👇👟`;
+const END_OF_PHOTOS_MSG = ``;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
-const FOLLOWUP_MSG = "Hey! Just following up 😊 See one you like? Just let me know which one and I'll get you sorted fast 👟 (And if you replied already and I went quiet — my bad, send it one more time 🙏)";
+const FOLLOWUP_MSG = "";
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
 const CLOSER_MS = Number(process.env.CLOSER_MS) || 10 * 60 * 1000; // 10 min after the nudge
