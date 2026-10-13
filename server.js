@@ -6964,6 +6964,10 @@ const CONSOLE_KEY = process.env.CONSOLE_KEY || 'sp242-jess-b297063c5dd791125b5dc
 // Ask ManyChat for a subscriber's saved WhatsApp/phone number by their id.
 async function getSubscriberPhone(sub, token) {
   const id = String(sub || '').replace(/[^0-9]/g, '');
+  // A Foot Fetish (YCloud) or Cloud API customer's id IS their WhatsApp number. Asking ManyChat
+  // about it returned nothing, so delivery alerts on that line went out with no number to call
+  // (2026-10-13, a $130 NB 1000 order: pin came, number didn't).
+  try { if (id && (isYcloudSub(id) || (typeof waChannel !== 'undefined' && waChannel.get(id)))) return id; } catch (_) {}
   if (!id || !token) return null;
   try {
     const f = await fetch('https://api.manychat.com/fb/subscriber/getInfo?subscriber_id=' + encodeURIComponent(id),
