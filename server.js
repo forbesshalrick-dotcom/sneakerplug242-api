@@ -3342,6 +3342,8 @@ const inboxSubIndex = new Map();  // sub -> threadKey (so an outbound send finds
 // in POST /inbox/send-shoe. Keyed `sub|id,id,id` so a different album is never blocked.
 const inboxAlbumSentAt = new Map();
 const INBOX_ALBUM_REPEAT_MS = 3 * 60 * 1000;
+// sub -> { what, total, batch, batches, startedAt } while an inbox album is still draining.
+const inboxAlbumInFlight = new Map();
 // Shoe Box (SB, the direct Meta line) is hidden from the Inbox until it's verified with Meta.
 // Threads/locations are still recorded in the background; this just hides them from the list +
 // the New-chat picker. Flip on with SHOW_SHOE_BOX=1 in Railway (or change the default) once verified.
@@ -8205,15 +8207,15 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     // Close the picker RIGHT AWAY and send in the background — no countdown, no waiting on it.
     closeShoe(); clearSel();
     toast('📤 Sending '+label+' to '+who+'… (hit ✋ in the chat to stop)');
-    var done=0, sent=0, ok=0, lastErr='';
+    var done=0, sent=0, ok=0, lastErr='', queued=false;
     function finish(){
-      if(ok>0 && sent>0){ toast('✅ Sent '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' 👟'); if(cur) loadThread(true); }
+      if(ok>0 && sent>0){ toast(queued?('📤 Sending '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' — ✋ in the chat to stop'):('✅ Sent '+sent+' in '+label+' to '+ok+' contact'+(ok==1?'':'s')+' 👟')); if(cur) loadThread(true); }
       else toast('⚠️ '+(lastErr||('No '+label+' in stock right now — nothing sent')));
     }
     targets.forEach(function(tg){
       post('/inbox/send-shoe', Object.assign({sub:tg.sub, account:tg.account}, filter)).then(function(d){
-        done++; if(d&&d.ok){ sent+=(d.sent||0); ok++; } else if(d&&d.error){ lastErr=d.error; } if(done===targets.length) finish();
-      }).catch(function(){ done++; if(done===targets.length) finish(); });
+        done++; if(d&&d.ok){ sent+=(d.sent||d.found||0); ok++; if(d.queued) queued=true; } else if(d&&d.error){ lastErr=d.error; } if(done===targets.length) finish();
+      }).catch(function(){ done++; lastErr='Lost the connection — the photos may still be going out. Check the chat before sending again.'; if(done===targets.length) finish(); });
     });
   }
   function shrinkSquare(file, size, cb){
@@ -10041,6 +10043,19 @@ app.post('/inbox/send-shoe', async (req, res) => {
   // same album to the same person inside the window; a genuinely different album still goes.
   const albumKey = sub + '|' + results.map(x => x.id).join(',');
   const lastFired = inboxAlbumSentAt.get(albumKey) || 0;
+  // 🔒 ONE ALBUM PER CUSTOMER WHILE IT IS STILL GOING OUT (Rodney 2026-10-13). A 206-shoe
+  // "sizes 7 & 7.5" album to Clubby took 20 minutes to drain. This request stayed open the
+  // whole time, so the phone's browser gave up on it and the app told Rodney NOTHING had
+  // gone out — he pressed Send again at 5:13 PM, the 3-minute window above had long passed,
+  // and the same album started a second time on top of the first (customer got the header
+  // and the pictures twice). Now: while ANY album to this customer is in flight, a new one
+  // is refused with where the first one is — Stop (✋) ends it if he really wants another.
+  const live = inboxAlbumInFlight.get(sub);
+  if (live) {
+    record(req, { endpoint: 'inbox-send-shoe-duplicate-blocked', sub, account, what, found: results.length, inFlight: live.what, batch: live.batch, batches: live.batches });
+    return res.json({ ok: false, duplicate: true, found: results.length, sent: 0,
+      error: 'Still sending ' + live.total + ' photos (' + live.what + ') to this customer — batch ' + live.batch + ' of ' + live.batches + '. Hit ✋ in the chat to stop that first.' });
+  }
   if (Date.now() - lastFired < INBOX_ALBUM_REPEAT_MS) {
     const waited = Math.round((INBOX_ALBUM_REPEAT_MS - (Date.now() - lastFired)) / 1000);
     record(req, { endpoint: 'inbox-send-shoe-duplicate-blocked', sub, account, what, found: results.length, agoSec: Math.round((Date.now() - lastFired) / 1000) });
@@ -10049,31 +10064,48 @@ app.post('/inbox/send-shoe', async (req, res) => {
   }
   inboxAlbumSentAt.set(albumKey, Date.now());
   setHumanPause(sub); clearFollowUp(sub);
-  try {
-    const allIds = results.map(x => x.id);
-    let totalSent = 0;
-    const batches = [];
-    for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
-      batches.push(allIds.slice(i, i + BATCH_SIZE));
+  const allIds = results.map(x => x.id);
+  const batches = [];
+  for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
+    batches.push(allIds.slice(i, i + BATCH_SIZE));
+  }
+  inboxAlbumInFlight.set(sub, { what: what || 'that', total: allIds.length, batch: 1, batches: batches.length, startedAt: Date.now() });
+  sendAbort.delete(sub); // a ✋ pressed earlier with nothing running must not cancel this fresh album
+  // Answer the phone RIGHT NOW — the album drains in the background (a 200-photo one takes
+  // 15-20 minutes; no browser keeps a request open that long). The app shows "sending N in
+  // K batches" and the ✋ button is the way to stop it.
+  res.json({ ok: true, queued: true, found: allIds.length, batches: batches.length });
+  (async () => {
+    let totalSent = 0, stopped = false;
+    try {
+      // Send lead-in once, outside the photos
+      const leadMsg = [{ type: 'text', text: leadIn }];
+      await sendChunk(sub, leadMsg, token).catch(() => {});
+      // Auto-batch: send photos in chunks with delays between
+      for (let i = 0; i < batches.length; i++) {
+        // ✋ A Stop pressed during the 8-second gap used to be LOST: sendShoePhotos wipes the
+        // stop flag when it starts, so the next batch went out as if nothing happened (Clubby
+        // 2026-10-13: 17 presses, batch 10 stopped at 4 photos, batch 11 sent all 6 anyway).
+        if (sendAbort.has(sub)) { sendAbort.delete(sub); stopped = true; break; }
+        const batchIds = batches[i];
+        const isLast = (i === batches.length - 1);
+        inboxAlbumInFlight.set(sub, { what: what || 'that', total: allIds.length, batch: i + 1, batches: batches.length, startedAt: Date.now() });
+        // Last batch gets the lead-in built into sendShoePhotos; earlier ones are photos-only
+        const batchLeadIn = isLast ? leadIn : '';
+        const r = await sendShoePhotos(sub, batchIds, token, null, batchLeadIn, i > 0);
+        totalSent += r.sent;
+        // A stop inside a batch ends the WHOLE album, not just that batch.
+        if (r.interrupted) { stopped = true; break; }
+        // Wait before the next batch (but not after the last one)
+        if (i < batches.length - 1) await new Promise(rs => setTimeout(rs, BATCH_DELAY_MS));
+      }
+    } catch (e) {
+      try { recent.unshift({ at: new Date().toISOString(), endpoint: 'inbox-send-shoe-error', sub, error: String(e).slice(0, 160) }); } catch (_) {}
+    } finally {
+      inboxAlbumInFlight.delete(sub);
+      record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: allIds.length, sent: totalSent, batches: batches.length, stopped });
     }
-    // Send lead-in once, outside the photos
-    const leadMsg = [{ type: 'text', text: leadIn }];
-    await sendChunk(sub, leadMsg, token).catch(() => {});
-    // Auto-batch: send photos in chunks with delays between
-    for (let i = 0; i < batches.length; i++) {
-      const batchIds = batches[i];
-      const isLast = (i === batches.length - 1);
-      // Last batch gets the lead-in built into sendShoePhotos; earlier ones are photos-only
-      const batchLeadIn = isLast ? leadIn : '';
-      const r = await sendShoePhotos(sub, batchIds, token, null, batchLeadIn, i > 0);
-      totalSent += r.sent;
-      // Wait before the next batch (but not after the last one)
-      if (i < batches.length - 1) await new Promise(rs => setTimeout(rs, BATCH_DELAY_MS));
-    }
-    record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: results.length, sent: totalSent, batches: batches.length });
-    const batchNote = batches.length > 1 ? ` (${batches.length} batches)` : '';
-    res.json({ ok: totalSent > 0, found: results.length, sent: totalSent, batches: batches.length, error: totalSent > 0 ? undefined : ('Found ' + results.length + ' but none went out') });
-  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 160) }); }
+  })();
 });
 
 // 🗣 SPEAK-TO-TYPE fallback — transcribe a recorded clip with Whisper (same engine that
