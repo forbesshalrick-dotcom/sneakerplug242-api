@@ -1791,15 +1791,15 @@ const ASKME_T = {
 };
 const FOLLOWUP_T = {
   en: FOLLOWUP_MSG,
-  es: "¡Hola! Solo dando seguimiento 😊 ¿Viste algo que te gustó? Solo dime cuál te gusta y te ayudo rápido 👟",
-  ht: "Alo! M ap tcheke avè w 😊 Èske w wè yon bagay ou renmen? Senpleman di m ki pou w epi m ap ede w vit 👟",
-  fr: "Salut ! Petit suivi 😊 Tu as vu quelque chose qui te plaît ? Réponds-moi juste avec le *code* sous la photo (comme *C1* ou *D2*) et je m'occupe de toi vite 👟",
+  es: "",
+  ht: "",
+  fr: "",
 };
 const CLOSER_T = {
   en: CLOSER_MSG,
-  es: "Aquí sigo cuando estés listo 🙂 Abrimos todos los días de 8 AM a 10 PM. Mándame el *código* de cualquier par — o tu talla — y te ayudo 👟 (Si ya respondiste y no me llegó, mándalo otra vez 🙏)",
-  ht: "M la toujou lè ou pare 🙂 Nou louvri chak jou depi 8 AM rive 10 PM. Voye *kòd* ki anba nenpòt pè — oswa gwosè w — epi m ap ede w 👟 (Si ou te deja reponn e li pa rive m, voye l yon fwa ankò 🙏)",
-  fr: "Je suis là quand tu es prêt 🙂 On est ouverts tous les jours de 7h à 23h. Envoie-moi le *code* sous n'importe quelle paire — ou ta pointure — et je m'occupe de toi 👟 (Si tu as déjà répondu et que je ne l'ai pas reçu, renvoie-le 🙏)",
+  es: "Aquí sigo cuando estés listo 🙂 Abrimos todos los días de 8 AM a 10 PM. Dime qué par te gusta — o tu talla — y te ayudo 👟",
+  ht: "M la toujou lè ou pare 🙂 Nou louvri chak jou depi 8 AM rive 10 PM. Di m ki pè ou renmen — oswa gwosè w — epi m ap ede w 👟",
+  fr: "Je suis là quand tu es prêt 🙂 On est ouverts tous les jours de 8h à 22h. Dis-moi quelle paire te plaît — ou ta pointure — et je m'occupe de toi 👟",
 };
 const END_OF_PHOTOS_T = {
   en: END_OF_PHOTOS_MSG,
@@ -2078,12 +2078,11 @@ ${modelList}
 - If nothing matches, say so kindly and offer to show something similar we DO have (same brand, colour or size).
 - ⚠️ NAMED COLORWAYS — DON'T FALSELY SAY "NOT IN STOCK" (this loses sales): Customers name shoes by their colorway NICKNAME — "Toro Bravo", "Bred", "Chicago", "Royal", "Thunder", "Cool Grey", "Cactus Jack", "Cherry", "Pizza", "Panda", "Oreo", etc. Our catalog often lists that SAME shoe under a plain name (e.g. just "Air Jordan 4 Retro"), so a search for the nickname can come back EMPTY even when we HAVE the shoe. So NEVER flatly tell a customer "we don't have that" based on a name search. If a named-colorway search returns nothing, DO NOT declare it out of stock — instead SILENTLY search the MODEL alone (e.g. "Jordan 4", "Jordan 1", "Air Max") in their size and send_photos of those, so the customer can SPOT the exact pair in the pics (the colours are right there). A nickname like "Toro Bravo" = a red/black Air Jordan 4 — so show the Jordan 4s. Only say we're genuinely out if the whole MODEL is empty in their size. And NEVER repeat "we don't have the [shoe]" more than once — if you'd say it again, show the model's photos or get a team member instead.
 
-PHOTOS — every photo always carries a label (handled automatically, you don't set a flag):
-- EVERY photo we send — no matter how many — automatically gets a little note right under it that STARTS WITH A SHORT ORDER CODE (*A1*, *A2*, *A3*… then *B1*…), followed by the shoe's NAME, price and sizes. This always happens, for one shoe or fifty. So every pic the customer sees has its own code in plain sight.
-- Just call send_photos with ALL the matches; the codes + labels are added for you.
-- 🔢 CUSTOMERS ORDER BY THE CODE — push this, it's the easy way: after you show photos, the customer just REPLIES WITH THE CODE (like *A1*) to pick a pair — no typing the shoe name, no sending a picture back. When their message IS or CONTAINS a code (A1, a2, "the b3", "how much for A5"), the [PHOTO CODES] note in their message tells you EXACTLY which shoe → confirm it and go straight to their size / order. Do NOT ask them to type the shoe's name — always steer them to the code (the name is still on the label as a backup).
-- 🎯 A CODE IS A COMMITMENT SIGNAL — MOVE THE SALE FORWARD (Rodney 2026-07-19, codes go up past A9 to B/C/D…H, e.g. *F6*, *H9*, *C1*): the moment a customer sends ANY code — a lone "F6", "h9", "c1", or inside a sentence — treat it as "I want THIS one". On that same turn: (1) confirm the exact shoe by name from the [PHOTO CODES] note, (2) if you don't already have their size, ask it (and check it against that code's real sizes), (3) then move straight into closing — get their delivery area / location and fire notify_manager stage="order_confirmed". Payment stays pay-on-arrival by default (don't push it unless they ask). NEVER answer a code with "what shoe?" or by re-asking them to describe it — the code already told you.
-- Every photo WE send is labelled with the shoe's name. ⚠️ PHOTO-READING IS OFF: you canNOT see pictures a customer sends. When they send one, don't pretend to look and don't tell them to resend it — warmly say you can't open pics here and ask them to TYPE the shoe's name + colour so you can find it (keep any size they gave). (You can still SEND photos to a customer who asks to see a shoe — that always works.)
+PHOTOS — what a customer actually receives (Rodney 2026-10-13, there are NO order codes any more):
+- Every picture goes out bare: the shoe's name and price are printed ON the card. When the customer has not given a size, a short "📏 Sizes: …" line follows each picture; when their size is known, nothing follows. After the last picture ONE closing line goes out automatically ("let me know if you need a delivery"). You add nothing after an album — no "which one caught your eye?", no "give me the code", no "want to see more?".
+- A customer picks by NAME, by COLOUR, by position ("the second one", "the blue one"), or by quote-replying a picture (then all you see is "this" — see the rule above). Never ask for a code, never say "which code was it?"; if you genuinely cannot tell which pair, ask "which one — the name on the picture?" once.
+- If they reply "ok" / "thanks" / "👍" after an album, answer "👍" or "Respect ✊" and wait — do not re-sell. The moment they name a pair, confirm it by name with its price and move to size → delivery.
+- You CAN see every picture a customer sends (the rules above tell you how to answer each kind). Never say you can't open pictures.
 
 SIZES — when a customer gives TWO OR MORE sizes (IMPORTANT — never send the same shoe twice, and never make them pick just one):
 - However they write the sizes — "7, 8", "7 8", "7.8", "7 and 8", "9 or 10", "9/10", "9-10", "9.5 to 10", "between 9 and 10" — read it as TWO sizes (NOT one uncertain size). They want to SEE what we've got in those sizes. Do NOT ask "are you a 7 or an 8?" and do NOT make them choose just one. Use the SHOW-BOTH-SIZES flow below.
@@ -2958,6 +2957,9 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
   // mid-album redirect (they changed the request — answered next turn), photos-only mode, or a
   // staff chat suppress it now.
   if (sent > 0 && !manualStopped && !redirectedMidAlbum && !photosOnly && !isStaff) {
+    // ManyChat lands separate sends out of order: the closing line was arriving BEFORE the last
+    // picture's sizes bubble (Rodney 2026-10-13). Give the last label a moment to land first.
+    if (showSizes) await new Promise(r => setTimeout(r, 3000));
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
