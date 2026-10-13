@@ -80,7 +80,9 @@
       "13"
     ],
     "nickname": "Wet Cement",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0644-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0644-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0646",
@@ -95,7 +97,9 @@
       "12"
     ],
     "nickname": "White Cement",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0646-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0646-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0647",
@@ -122,7 +126,9 @@
       "13"
     ],
     "nickname": "Black University Blue",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0647-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0647-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "jordan4pizza001",
@@ -141,7 +147,9 @@
       "7.5"
     ],
     "nickname": "Pizza",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pizza001-thumb.jpg",
+    "dominant": "tan",
+    "blackShare": "accent"
   },
   {
     "id": "jordan4purple001",
@@ -168,7 +176,9 @@
       "10.5"
     ],
     "nickname": "Lakers",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4purple001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4purple001-thumb.jpg",
+    "dominant": "purple",
+    "blackShare": "accent"
   },
   {
     "id": "jordan4red001",
@@ -213,7 +223,9 @@
       "12"
     ],
     "nickname": "Valentine's Day",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4red001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4red001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan4green001",
@@ -230,7 +242,9 @@
       "10"
     ],
     "nickname": "Metallic Green",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4green001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4green001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan4yellow001",
@@ -283,7 +297,9 @@
       "13"
     ],
     "nickname": "Lightning",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4yellow001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4yellow001-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "none"
   },
   {
     "id": "jordan11red001",
@@ -312,7 +328,9 @@
       "13"
     ],
     "nickname": "Cherry",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11red001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11red001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan4redcement001",
@@ -329,7 +347,9 @@
       "8"
     ],
     "nickname": "Red Cement",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4redcement001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4redcement001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan4blackwhite001",
@@ -348,7 +368,9 @@
       "10.5"
     ],
     "nickname": "White Thunder",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackwhite001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackwhite001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "jordan14black001",
@@ -359,7 +381,9 @@
     "sizes": [],
     "sizesRaw": [],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan14black001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan14black001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "accent"
   },
   {
     "id": "jordan13red001",
@@ -386,7 +410,9 @@
       "13"
     ],
     "nickname": "Chicago / True Red",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan13red001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan13red001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan4blackred001",
@@ -435,13 +461,15 @@
       "13"
     ],
     "nickname": "Bred Reimagined",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackred001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackred001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "accent"
   },
   {
     "id": "jordan4military001",
     "brand": "Jordan",
     "name": "Air Jordan 4 Retro",
-    "color": "White/Black/Gold",
+    "color": "White/Black/Grey",
     "price": 180,
     "sizes": [
       "7",
@@ -461,8 +489,10 @@
       "12",
       "13"
     ],
-    "nickname": "Military Blue",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4military001-thumb.jpg"
+    "nickname": "Military Black",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4military001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "jordan11grey001",
@@ -485,7 +515,9 @@
       "13"
     ],
     "nickname": "Cool Grey",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11grey001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11grey001-thumb.jpg",
+    "dominant": "cool",
+    "blackShare": "none"
   },
   {
     "id": "jordan4taupe001",
@@ -540,7 +572,9 @@
       "13"
     ],
     "nickname": "Cave Stone",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4taupe001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4taupe001-thumb.jpg",
+    "dominant": "taupe",
+    "blackShare": "none"
   },
   {
     "id": "jordan11tan001",
@@ -563,7 +597,9 @@
       "13"
     ],
     "nickname": "H Town",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11tan001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11tan001-thumb.jpg",
+    "dominant": "tan",
+    "blackShare": "none"
   },
   {
     "id": "jordan4purple002",
@@ -590,7 +626,9 @@
       "9.5"
     ],
     "nickname": "Hyper Violet",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4purple002-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4purple002-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan4blackcat001",
@@ -617,7 +655,9 @@
       "12"
     ],
     "nickname": "Black Cat",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackcat001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackcat001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "jordan5blue001",
@@ -634,7 +674,9 @@
       "10.5"
     ],
     "nickname": "SB Navy",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5blue001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5blue001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "accent"
   },
   {
     "id": "jordan5white001",
@@ -655,7 +697,9 @@
       "13"
     ],
     "nickname": "White Metallic",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5white001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5white001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan4thunder001",
@@ -700,7 +744,9 @@
       "13"
     ],
     "nickname": "Thunder",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4thunder001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4thunder001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "jordan4pink001",
@@ -717,7 +763,9 @@
       "5.5"
     ],
     "nickname": "Orchid",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pink001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4pink001-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "jordan4blackred002",
@@ -772,7 +820,9 @@
       "13"
     ],
     "nickname": "Red Thunder",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackred002-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4blackred002-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "jordan4allred001",
@@ -795,7 +845,9 @@
       "13"
     ],
     "nickname": "Brick by Brick",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4allred001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4allred001-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "jordan11white001",
@@ -816,7 +868,9 @@
       "12"
     ],
     "nickname": "Legend Blue",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11white001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11white001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan5grey001",
@@ -849,7 +903,9 @@
       "11"
     ],
     "nickname": "Wolf Grey",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5grey001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5grey001-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "jordan11volt001",
@@ -876,7 +932,9 @@
       "13"
     ],
     "nickname": "Black Barely Volt",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11volt001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11volt001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "jordan4milblue001",
@@ -935,7 +993,9 @@
       "13"
     ],
     "nickname": "Military Blue",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4milblue001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4milblue001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan4gum001",
@@ -1008,7 +1068,9 @@
       "13"
     ],
     "nickname": "SB Navy",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4gum001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4gum001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan11black001",
@@ -1035,7 +1097,9 @@
       "8"
     ],
     "nickname": "Gamma Blue",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11black001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11black001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "jordan3peach001",
@@ -1054,7 +1118,9 @@
       "6.5"
     ],
     "nickname": "Treat Yourself",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan3peach001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan3peach001-thumb.jpg",
+    "dominant": "peach",
+    "blackShare": "none"
   },
   {
     "id": "jordan5wblack001",
@@ -1071,7 +1137,9 @@
       "8.5"
     ],
     "nickname": "White and Black",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5wblack001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan5wblack001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "jordan14blue001",
@@ -1092,7 +1160,9 @@
       "13"
     ],
     "nickname": "Black/University Blue",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan14blue001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan14blue001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "jordan3green001",
@@ -1119,7 +1189,9 @@
       "13"
     ],
     "nickname": "Pine Green",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan3green001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan3green001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "jordan11royalblue001",
@@ -1140,7 +1212,9 @@
       "13"
     ],
     "nickname": "Rare Air",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11royalblue001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan11royalblue001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "jordan12black001",
@@ -1159,7 +1233,9 @@
       "7"
     ],
     "nickname": "Winter",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan12black001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan12black001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "jordan13blackred001",
@@ -1182,7 +1258,9 @@
       "9.5"
     ],
     "nickname": "Bred",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan13blackred001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan13blackred001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "jordan4bblured001",
@@ -1211,7 +1289,9 @@
       "9.5"
     ],
     "nickname": "Rare Air",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4bblured001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan4bblured001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "jordan6blackred001",
@@ -1228,7 +1308,9 @@
       "8"
     ],
     "nickname": "Infrared",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan6blackred001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan6blackred001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "nikemuleblack001",
@@ -1275,7 +1357,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemuleblack001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemuleblack001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "vapormax2020grey001",
@@ -1290,7 +1374,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormax2020grey001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormax2020grey001-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "airmaxplus3001",
@@ -1305,7 +1391,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplus3001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplus3001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "airmax97bkrbow001",
@@ -1320,7 +1408,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97bkrbow001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97bkrbow001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "airmax97white001",
@@ -1337,7 +1427,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97white001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97white001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "airmaxpluspurp001",
@@ -1352,7 +1444,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluspurp001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluspurp001-thumb.jpg",
+    "dominant": "purple",
+    "blackShare": "none"
   },
   {
     "id": "airmaxpluswstr001",
@@ -1367,13 +1461,15 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswstr001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswstr001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "airmaxterr001",
     "brand": "Nike",
-    "name": "Air Max Terrascape",
-    "color": "Black/Green",
+    "name": "Air Max Terrascape Plus",
+    "color": "Black/Grey",
     "price": 120,
     "sizes": [
       "8"
@@ -1382,7 +1478,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxterr001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxterr001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "vapormaxevo001",
@@ -1397,7 +1495,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxevo001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxevo001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "airtrainer001",
@@ -1412,7 +1512,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airtrainer001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airtrainer001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "nikedunkhigh001",
@@ -1427,12 +1529,14 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikedunkhigh001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikedunkhigh001-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "airmaxpluswpur001",
     "brand": "Nike",
-    "name": "Air Max Plus",
+    "name": "Air Max Plus Drift",
     "color": "White/Purple",
     "price": 120,
     "sizes": [
@@ -1448,7 +1552,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswpur001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswpur001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "airmax95bkyel001",
@@ -1467,7 +1573,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkyel001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkyel001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "airmax97cheet001",
@@ -1484,7 +1592,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97cheet001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97cheet001-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "airmaxplusgrb001",
@@ -1503,7 +1613,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusgrb001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusgrb001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "airmaxplusptn001",
@@ -1522,12 +1634,14 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusptn001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusptn001-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "nikescorpion001",
     "brand": "Nike",
-    "name": "Scorpion",
+    "name": "Air Max Scorpion",
     "color": "Khaki",
     "price": 70,
     "sizes": [
@@ -1541,7 +1655,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikescorpion001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikescorpion001-thumb.jpg",
+    "dominant": "khaki",
+    "blackShare": "none"
   },
   {
     "id": "airmaxplusblue001",
@@ -1556,12 +1672,14 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusblue001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusblue001-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "newbalance001",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Blue/Brown",
     "price": 130,
     "sizes": [
@@ -1571,12 +1689,14 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/newbalance001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/newbalance001-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "asics001",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-1130",
     "color": "Green/White",
     "price": 130,
     "sizes": [
@@ -1586,7 +1706,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asics001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asics001-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "airmax90grn001",
@@ -1601,7 +1723,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90grn001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90grn001-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "vapormaxtealbk001",
@@ -1616,7 +1740,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxtealbk001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxtealbk001-thumb.jpg",
+    "dominant": "teal",
+    "blackShare": "accent"
   },
   {
     "id": "vapormaxbkgrn001",
@@ -1631,13 +1757,15 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxbkgrn001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxbkgrn001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "jordan1grn001",
     "brand": "Jordan",
-    "name": "Air Jordan 1",
-    "color": "Green/Orange/Blue",
+    "name": "Air Jordan 1 Mid",
+    "color": "Navy/Orange/Green/Multi",
     "price": 120,
     "sizes": [
       "7"
@@ -1646,7 +1774,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan1grn001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordan1grn001-thumb.jpg",
+    "dominant": "navy",
+    "blackShare": "none"
   },
   {
     "id": "airmax90brn001",
@@ -1663,7 +1793,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90brn001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90brn001-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "half"
   },
   {
     "id": "airmaxplusbkbr001",
@@ -1680,12 +1812,14 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusbkbr001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusbkbr001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "vapormaxbkred001",
     "brand": "Nike",
-    "name": "Air VaporMax",
+    "name": "Air VaporMax Plus",
     "color": "Black/Red",
     "price": 120,
     "sizes": [
@@ -1697,7 +1831,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxbkred001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxbkred001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "airmax95yel001",
@@ -1716,7 +1852,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95yel001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95yel001-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "none"
   },
   {
     "id": "jordanorwht001",
@@ -1731,7 +1869,9 @@
       "13"
     ],
     "nickname": "Shattered Backboard",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordanorwht001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/jordanorwht001-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "none"
   },
   {
     "id": "airmax97crm001",
@@ -1746,7 +1886,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97crm001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97crm001-thumb.jpg",
+    "dominant": "cream",
+    "blackShare": "none"
   },
   {
     "id": "airmax97burg001",
@@ -1761,7 +1903,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97burg001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97burg001-thumb.jpg",
+    "dominant": "burgundy",
+    "blackShare": "accent"
   },
   {
     "id": "airmax90whtpnk001",
@@ -1776,7 +1920,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90whtpnk001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90whtpnk001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "airmax90bkyel001",
@@ -1799,13 +1945,15 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90bkyel001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax90bkyel001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "vapormaxutil001",
     "brand": "Nike",
-    "name": "Air VaporMax Utility",
-    "color": "Khaki",
+    "name": "Air VaporMax Plus",
+    "color": "Olive/Khaki",
     "price": 120,
     "sizes": [
       "7",
@@ -1822,13 +1970,15 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxutil001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxutil001-thumb.jpg",
+    "dominant": "olive",
+    "blackShare": "none"
   },
   {
     "id": "huarache001",
     "brand": "Nike",
-    "name": "Huarache",
-    "color": "White",
+    "name": "Air Huarache Ultra",
+    "color": "Triple White",
     "price": 120,
     "sizes": [
       "5.5",
@@ -1843,7 +1993,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/huarache001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/huarache001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "vapormaxpurp001",
@@ -1866,7 +2018,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxpurp001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/vapormaxpurp001-thumb.jpg",
+    "dominant": "purple",
+    "blackShare": "none"
   },
   {
     "id": "airmax95bkwht001",
@@ -1886,8 +2040,10 @@
       "7",
       "11"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkwht001-thumb.jpg"
+    "nickname": "Sketch With The Past",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkwht001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "airmax95gryorg001",
@@ -1906,7 +2062,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95gryorg001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95gryorg001-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "accent"
   },
   {
     "id": "airmaxpluspkwht001",
@@ -1927,12 +2085,14 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluspkwht001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluspkwht001-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "airmaxpluswpkbk001",
     "brand": "Nike",
-    "name": "Air Max Plus",
+    "name": "Air Max Plus x Patta",
     "color": "Pink/Black",
     "price": 120,
     "sizes": [
@@ -1948,13 +2108,15 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswpkbk001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluswpkbk001-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "accent"
   },
   {
     "id": "airmax270001",
     "brand": "Nike",
-    "name": "Air Max 270",
-    "color": "Black/White",
+    "name": "Air Max 270 React",
+    "color": "White/Black",
     "price": 120,
     "sizes": [
       "8",
@@ -1967,7 +2129,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax270001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax270001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "half"
   },
   {
     "id": "airmax95bkbl001",
@@ -1990,13 +2154,15 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkbl001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95bkbl001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "nikemulewhite001",
     "brand": "Nike",
-    "name": "Nike mind 001",
-    "color": "White/Orange",
+    "name": "Nike Calm Mule",
+    "color": "White",
     "price": 120,
     "sizes": [
       "5",
@@ -2044,8 +2210,10 @@
       "13",
       "13"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemulewhite001-thumb.jpg"
+    "nickname": "Mind 001",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nikemulewhite001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "p41",
@@ -2074,7 +2242,9 @@
       "12"
     ],
     "nickname": "Bugs Bunny",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p41-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p41-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "p42",
@@ -2091,12 +2261,14 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p42-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p42-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "p43",
     "brand": "Nike",
-    "name": "Vapormax",
+    "name": "Air VaporMax Plus",
     "color": "Pink",
     "price": 120,
     "sizes": [
@@ -2107,8 +2279,10 @@
       "5.5",
       "5.5"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p43-thumb.jpg"
+    "nickname": "Bleached Coral",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p43-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "p44",
@@ -2123,7 +2297,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p44-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p44-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "p45",
@@ -2140,7 +2316,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p45-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p45-thumb.jpg",
+    "dominant": "peach",
+    "blackShare": "none"
   },
   {
     "id": "p46",
@@ -2157,7 +2335,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p46-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p46-thumb.jpg",
+    "dominant": "teal",
+    "blackShare": "none"
   },
   {
     "id": "p47",
@@ -2174,13 +2354,15 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p47-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p47-thumb.jpg",
+    "dominant": "teal",
+    "blackShare": "none"
   },
   {
     "id": "p48",
     "brand": "Jordan",
-    "name": "Air Jordan 1",
-    "color": "Orange/White/Forest Green",
+    "name": "Air Jordan 1 Low",
+    "color": "Orange/Olive/White",
     "price": 120,
     "sizes": [
       "9"
@@ -2189,7 +2371,9 @@
       "9"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p48-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p48-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "none"
   },
   {
     "id": "p49",
@@ -2204,7 +2388,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p49-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p49-thumb.jpg",
+    "dominant": "light",
+    "blackShare": "none"
   },
   {
     "id": "p50",
@@ -2219,7 +2405,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p50-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p50-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "p51",
@@ -2234,7 +2422,9 @@
       "7.5"
     ],
     "nickname": "Metallic",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p51-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p51-thumb.jpg",
+    "dominant": "metallic",
+    "blackShare": "none"
   },
   {
     "id": "p52",
@@ -2249,13 +2439,15 @@
       "10"
     ],
     "nickname": "Dune Red",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p52-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p52-thumb.jpg",
+    "dominant": "dune",
+    "blackShare": "none"
   },
   {
     "id": "p53",
     "brand": "Nike",
     "name": "Air Max Plus TN",
-    "color": "Black/White",
+    "color": "White/Black",
     "price": 120,
     "sizes": [
       "7"
@@ -2264,7 +2456,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p53-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p53-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "p54",
@@ -2279,13 +2473,15 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p54-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p54-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "half"
   },
   {
     "id": "p55",
     "brand": "Nike",
     "name": "Air Max 95",
-    "color": "Pink/Black",
+    "color": "White/Grey/Pink",
     "price": 130,
     "sizes": [
       "5.5"
@@ -2294,7 +2490,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p55-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p55-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "p56",
@@ -2309,7 +2507,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p56-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p56-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "p57",
@@ -2324,7 +2524,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p57-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p57-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "p58",
@@ -2339,7 +2541,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p58-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p58-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "p59",
@@ -2354,7 +2558,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p59-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p59-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "p60",
@@ -2369,7 +2575,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p60-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p60-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "p61",
@@ -2384,13 +2592,15 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p61-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p61-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "p62",
     "brand": "Nike",
-    "name": "Dunk",
-    "color": "Burgundy/White",
+    "name": "Dunk Low",
+    "color": "Team Red/White",
     "price": 120,
     "sizes": [
       "13"
@@ -2399,7 +2609,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p62-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p62-thumb.jpg",
+    "dominant": "team",
+    "blackShare": "none"
   },
   {
     "id": "p63",
@@ -2414,7 +2626,9 @@
       "13"
     ],
     "nickname": "Bred",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p63-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p63-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "half"
   },
   {
     "id": "p64",
@@ -2429,7 +2643,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p64-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p64-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "none"
   },
   {
     "id": "p65",
@@ -2444,12 +2660,14 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p65-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p65-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "p66",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-Kayano 14",
     "color": "Silver",
     "price": 130,
     "sizes": [
@@ -2459,7 +2677,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p66-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p66-thumb.jpg",
+    "dominant": "silver",
+    "blackShare": "none"
   },
   {
     "id": "p67",
@@ -2474,7 +2694,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p67-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p67-thumb.jpg",
+    "dominant": "tan",
+    "blackShare": "none"
   },
   {
     "id": "p68",
@@ -2489,7 +2711,9 @@
       "10.5"
     ],
     "nickname": "Blueberry",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p68-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p68-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "p69",
@@ -2504,7 +2728,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p69-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p69-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "p70",
@@ -2519,7 +2745,9 @@
       "4Y"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p70-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p70-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "accent"
   },
   {
     "id": "p71",
@@ -2534,7 +2762,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p71-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p71-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "p72",
@@ -2549,7 +2779,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p72-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p72-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "p73",
@@ -2564,7 +2796,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p73-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p73-thumb.jpg",
+    "dominant": "2021",
+    "blackShare": "none"
   },
   {
     "id": "p74",
@@ -2579,13 +2813,15 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p74-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/p74-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "asicsgrywht001",
     "brand": "Asics",
-    "name": "Asics",
-    "color": "Grey/White",
+    "name": "Asics Gel-Kayano 14",
+    "color": "Silver/Grey",
     "price": 130,
     "sizes": [
       "7",
@@ -2604,12 +2840,14 @@
       "10.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrywht001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrywht001-thumb.jpg",
+    "dominant": "silver",
+    "blackShare": "none"
   },
   {
     "id": "asicsgrnsil001",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-Kayano 14",
     "color": "Green/White/Silver",
     "price": 130,
     "sizes": [
@@ -2627,12 +2865,14 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrnsil001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrnsil001-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "asicsbrnwht001",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-1130",
     "color": "Brown/White",
     "price": 130,
     "sizes": [
@@ -2646,12 +2886,14 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsbrnwht001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsbrnwht001-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "none"
   },
   {
     "id": "asicsgnsuede001",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-NYC",
     "color": "Green Suede",
     "price": 130,
     "sizes": [
@@ -2665,13 +2907,15 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgnsuede001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgnsuede001-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "asicsbkwht001",
     "brand": "Asics",
-    "name": "Asics",
-    "color": "Black/White",
+    "name": "Asics Gel-Kayano 14",
+    "color": "White/Black",
     "price": 130,
     "sizes": [
       "6",
@@ -2690,13 +2934,15 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsbkwht001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsbkwht001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "asicsgrncream001",
     "brand": "Asics",
-    "name": "Asics",
-    "color": "Green/Cream",
+    "name": "Asics Gel-1130",
+    "color": "Sage Green/Cream/Silver",
     "price": 130,
     "sizes": [
       "5.5",
@@ -2715,12 +2961,14 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrncream001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsgrncream001-thumb.jpg",
+    "dominant": "sage",
+    "blackShare": "none"
   },
   {
     "id": "asicsdkblue001",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-Kayano 14",
     "color": "Dark Blue",
     "price": 130,
     "sizes": [
@@ -2730,12 +2978,14 @@
       "11.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsdkblue001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsdkblue001-thumb.jpg",
+    "dominant": "dark",
+    "blackShare": "none"
   },
   {
     "id": "asicswhtblk001",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-1130",
     "color": "White/Black",
     "price": 130,
     "sizes": [
@@ -2767,7 +3017,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicswhtblk001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicswhtblk001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "asicspink001",
@@ -2782,12 +3034,14 @@
       "11.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicspink001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicspink001-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "asicspnksuede001",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-NYC",
     "color": "Pink Suede",
     "price": 130,
     "sizes": [
@@ -2799,12 +3053,14 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicspnksuede001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicspnksuede001-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "asicsred001",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-Kayano 14",
     "color": "Red",
     "price": 130,
     "sizes": [
@@ -2816,13 +3072,15 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsred001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsred001-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "asicsblk001",
     "brand": "Asics",
-    "name": "Asics",
-    "color": "All Black",
+    "name": "Asics Gel-1130",
+    "color": "Black/Silver",
     "price": 130,
     "sizes": [
       "5.5",
@@ -2869,7 +3127,9 @@
       "11.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsblk001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsblk001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "nb1906black001",
@@ -2886,7 +3146,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1906black001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1906black001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "nb1000fgreen001",
@@ -2907,7 +3169,9 @@
       "7.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1000fgreen001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1000fgreen001-thumb.jpg",
+    "dominant": "forest",
+    "blackShare": "none"
   },
   {
     "id": "nb9060white001",
@@ -2930,7 +3194,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb9060white001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb9060white001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "nb1906navy001",
@@ -2953,7 +3219,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1906navy001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb1906navy001-thumb.jpg",
+    "dominant": "navy",
+    "blackShare": "none"
   },
   {
     "id": "nb740pinksilv001",
@@ -2982,7 +3250,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb740pinksilv001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb740pinksilv001-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "nb550white001",
@@ -3001,7 +3271,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb550white001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb550white001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0448",
@@ -3020,7 +3292,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0448-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0448-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "c0461",
@@ -3035,13 +3309,15 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0461-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0461-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0463",
     "brand": "Nike",
-    "name": "Nike Scorpion",
-    "color": "Grey",
+    "name": "Air Max Scorpion",
+    "color": "Grey/Volt",
     "price": 70,
     "sizes": [
       "5.5",
@@ -3056,13 +3332,15 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0463-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0463-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0465",
     "brand": "Nike",
-    "name": "Air VaporMax Utility",
-    "color": "Grey",
+    "name": "Air VaporMax 2019 Utility",
+    "color": "Grey/Orange",
     "price": 120,
     "sizes": [
       "7",
@@ -3073,7 +3351,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0465-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0465-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0467",
@@ -3092,7 +3372,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0467-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0467-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "c0459",
@@ -3107,13 +3389,15 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0459-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0459-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0435",
     "brand": "Nike",
     "name": "Air VaporMax",
-    "color": "Black/White",
+    "color": "Black/Grey/Orange",
     "price": 120,
     "sizes": [
       "7"
@@ -3122,7 +3406,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0435-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0435-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0406",
@@ -3143,7 +3429,9 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0406-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0406-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0412",
@@ -3164,7 +3452,9 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0412-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0412-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0411",
@@ -3185,7 +3475,9 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0411-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0411-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "none"
   },
   {
     "id": "c0424",
@@ -3204,7 +3496,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0424-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0424-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0429",
@@ -3223,7 +3517,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0429-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0429-thumb.jpg",
+    "dominant": "purple",
+    "blackShare": "none"
   },
   {
     "id": "c0438",
@@ -3238,7 +3534,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0438-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0438-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "c0423",
@@ -3255,13 +3553,15 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0423-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0423-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "c0417",
     "brand": "Nike",
-    "name": "Nike Scorpion",
-    "color": "All Black",
+    "name": "Air Max Scorpion",
+    "color": "Black/White",
     "price": 70,
     "sizes": [
       "5.5",
@@ -3278,7 +3578,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0417-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0417-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0418",
@@ -3299,7 +3601,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0418-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0418-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "none"
   },
   {
     "id": "c0432",
@@ -3314,7 +3618,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0432-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0432-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "c0426",
@@ -3331,13 +3637,15 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0426-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0426-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "none"
   },
   {
     "id": "c0425",
     "brand": "Nike",
-    "name": "Air Max Terrascape",
-    "color": "White/Black/Green",
+    "name": "Air Max Terrascape Plus",
+    "color": "White/Mint/Black",
     "price": 120,
     "sizes": [
       "7",
@@ -3348,7 +3656,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0425-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0425-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "c0430",
@@ -3367,7 +3677,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0430-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0430-thumb.jpg",
+    "dominant": "purple",
+    "blackShare": "none"
   },
   {
     "id": "c0431",
@@ -3386,7 +3698,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0431-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0431-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "c0427",
@@ -3405,7 +3719,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0427-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0427-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0440",
@@ -3422,7 +3738,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0440-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0440-thumb.jpg",
+    "dominant": "forest",
+    "blackShare": "none"
   },
   {
     "id": "c0442",
@@ -3439,13 +3757,15 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0442-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0442-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0439",
     "brand": "Nike",
-    "name": "Nike Scorpion",
-    "color": "White",
+    "name": "Air Max Scorpion",
+    "color": "White/Cream",
     "price": 70,
     "sizes": [
       "5.5",
@@ -3456,7 +3776,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0439-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0439-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0434",
@@ -3475,7 +3797,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0434-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0434-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "c0436",
@@ -3502,7 +3826,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0436-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0436-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "none"
   },
   {
     "id": "c0441",
@@ -3519,13 +3845,15 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0441-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0441-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0437",
     "brand": "Nike",
-    "name": "Air VaporMax",
-    "color": "Red",
+    "name": "Air VaporMax Plus",
+    "color": "Triple Red",
     "price": 120,
     "sizes": [
       "5.5",
@@ -3536,7 +3864,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0437-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0437-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "c0445",
@@ -3555,7 +3885,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0445-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0445-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "half"
   },
   {
     "id": "c0444",
@@ -3572,7 +3904,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0444-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0444-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0446",
@@ -3589,13 +3923,15 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0446-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0446-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "accent"
   },
   {
     "id": "c0443",
     "brand": "Nike",
     "name": "Nike Drift",
-    "color": "Black/White",
+    "color": "White/Black",
     "price": 120,
     "sizes": [
       "5.5",
@@ -3608,7 +3944,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0443-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0443-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "c0447",
@@ -3631,13 +3969,15 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0447-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0447-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "c0449",
     "brand": "Nike",
-    "name": "Air Force 1",
-    "color": "Green/White",
+    "name": "Air Force 1 Low x KidSuper",
+    "color": "White/Green/Yellow",
     "price": 120,
     "sizes": [
       "8"
@@ -3645,14 +3985,16 @@
     "sizesRaw": [
       "8"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0449-thumb.jpg"
+    "nickname": "KidSuper",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0449-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0451",
     "brand": "Nike",
-    "name": "Air VaporMax",
-    "color": "All Black",
+    "name": "Air VaporMax Plus",
+    "color": "Triple Black",
     "price": 120,
     "sizes": [
       "5.5",
@@ -3665,7 +4007,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0451-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0451-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0458",
@@ -3682,13 +4026,15 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0458-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0458-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0453",
     "brand": "Nike",
     "name": "Air Max Plus",
-    "color": "Black/Blue",
+    "color": "Blue/Black",
     "price": 120,
     "sizes": [
       "7",
@@ -3701,7 +4047,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0453-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0453-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "half"
   },
   {
     "id": "c0455",
@@ -3718,7 +4066,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0455-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0455-thumb.jpg",
+    "dominant": "purple",
+    "blackShare": "none"
   },
   {
     "id": "c0454",
@@ -3735,7 +4085,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0454-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0454-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "accent"
   },
   {
     "id": "c0457",
@@ -3752,13 +4104,15 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0457-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0457-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "none"
   },
   {
     "id": "c0456",
     "brand": "Nike",
     "name": "Air Max Plus",
-    "color": "Black/Blue/White",
+    "color": "Blue/Black/White",
     "price": 120,
     "sizes": [
       "7",
@@ -3775,7 +4129,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0456-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0456-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "accent"
   },
   {
     "id": "c0452",
@@ -3800,13 +4156,15 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0452-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0452-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "accent"
   },
   {
     "id": "c0464",
     "brand": "Nike",
     "name": "Air Max Plus",
-    "color": "Green",
+    "color": "Teal/Black",
     "price": 120,
     "sizes": [
       "7",
@@ -3822,14 +4180,16 @@
       "9.5",
       "10"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0464-thumb.jpg"
+    "nickname": "Hyper Jade",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0464-thumb.jpg",
+    "dominant": "teal",
+    "blackShare": "accent"
   },
   {
     "id": "c0466",
     "brand": "Nike",
     "name": "Air Max 90",
-    "color": "Black/Red",
+    "color": "White/Grey/Infrared",
     "price": 120,
     "sizes": [
       "7",
@@ -3850,7 +4210,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0466-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0466-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "accent"
   },
   {
     "id": "c0460",
@@ -3869,7 +4231,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0460-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0460-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0384",
@@ -3886,14 +4250,16 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0384-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0384-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0468",
     "brand": "Nike",
     "name": "Nike Shox",
     "color": "All Black",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "5.5",
       "6.5",
@@ -3915,7 +4281,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0468-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0468-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0407",
@@ -3940,7 +4308,9 @@
       "10.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0407-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0407-thumb.jpg",
+    "dominant": "midnight",
+    "blackShare": "none"
   },
   {
     "id": "c0401",
@@ -3959,7 +4329,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0401-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0401-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "c0403",
@@ -3996,7 +4368,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0403-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0403-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0388",
@@ -4033,7 +4407,9 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0388-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0388-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "half"
   },
   {
     "id": "c0390",
@@ -4052,7 +4428,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0390-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0390-thumb.jpg",
+    "dominant": "aqua",
+    "blackShare": "none"
   },
   {
     "id": "c0385",
@@ -4067,7 +4445,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0385-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0385-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0391",
@@ -4084,7 +4464,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0391-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0391-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0402",
@@ -4117,7 +4499,9 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0402-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0402-thumb.jpg",
+    "dominant": "cream",
+    "blackShare": "none"
   },
   {
     "id": "c0395",
@@ -4136,7 +4520,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0395-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0395-thumb.jpg",
+    "dominant": "purple",
+    "blackShare": "none"
   },
   {
     "id": "c0400",
@@ -4161,7 +4547,9 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0400-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0400-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "c0399",
@@ -4184,7 +4572,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0399-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0399-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0394",
@@ -4205,7 +4595,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0394-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0394-thumb.jpg",
+    "dominant": "light",
+    "blackShare": "none"
   },
   {
     "id": "c0397",
@@ -4220,7 +4612,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0397-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0397-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0396",
@@ -4245,7 +4639,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0396-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0396-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "c0405",
@@ -4270,7 +4666,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0405-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0405-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "c0408",
@@ -4291,7 +4689,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0408-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0408-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0404",
@@ -4316,7 +4716,9 @@
       "10.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0404-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0404-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "half"
   },
   {
     "id": "c0409",
@@ -4337,13 +4739,15 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0409-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0409-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "accent"
   },
   {
     "id": "c0421",
     "brand": "New Balance",
     "name": "New Balance 1000",
-    "color": "Black/Silver",
+    "color": "Silver/Black",
     "price": 130,
     "sizes": [
       "5.5",
@@ -4364,14 +4768,16 @@
       "10.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0421-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0421-thumb.jpg",
+    "dominant": "silver",
+    "blackShare": "accent"
   },
   {
     "id": "c0414",
     "brand": "Nike",
     "name": "Dunk",
     "color": "Silver/White",
-    "price": 120,
+    "price": 60,
     "sizes": [
       "9",
       "10"
@@ -4381,7 +4787,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0414-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0414-thumb.jpg",
+    "dominant": "silver",
+    "blackShare": "none"
   },
   {
     "id": "c0433",
@@ -4398,7 +4806,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0433-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0433-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0413",
@@ -4415,7 +4825,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0413-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0413-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "none"
   },
   {
     "id": "c0420",
@@ -4432,7 +4844,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0420-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0420-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "half"
   },
   {
     "id": "c0422",
@@ -4449,7 +4863,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0422-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0422-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0415",
@@ -4486,7 +4902,9 @@
       "13"
     ],
     "nickname": "Panda",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0415-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0415-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "half"
   },
   {
     "id": "c0361",
@@ -4501,7 +4919,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0361-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0361-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0358",
@@ -4516,7 +4936,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0358-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0358-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0364",
@@ -4531,7 +4953,9 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0364-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0364-thumb.jpg",
+    "dominant": "beige",
+    "blackShare": "none"
   },
   {
     "id": "c0369",
@@ -4546,13 +4970,15 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0369-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0369-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "c0366",
     "brand": "Nike",
-    "name": "Air VaporMax",
-    "color": "Blue/Green/Black",
+    "name": "Air VaporMax Plus",
+    "color": "Volt/Blue/Black",
     "price": 120,
     "sizes": [
       "7"
@@ -4561,7 +4987,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0366-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0366-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "accent"
   },
   {
     "id": "c0365",
@@ -4576,7 +5004,9 @@
       "12"
     ],
     "nickname": "Concord",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0365-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0365-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "accent"
   },
   {
     "id": "c0368",
@@ -4591,7 +5021,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0368-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0368-thumb.jpg",
+    "dominant": "gta",
+    "blackShare": "none"
   },
   {
     "id": "c0379",
@@ -4606,7 +5038,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0379-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0379-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0377",
@@ -4621,13 +5055,15 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0377-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0377-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "c0371",
     "brand": "Nike",
     "name": "Air Max 97",
-    "color": "White/Rainbow",
+    "color": "Rainbow Glitter/Sail",
     "price": 130,
     "sizes": [
       "6.5"
@@ -4636,7 +5072,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0371-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0371-thumb.jpg",
+    "dominant": "rainbow",
+    "blackShare": "none"
   },
   {
     "id": "c0372",
@@ -4651,12 +5089,14 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0372-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0372-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0381",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-1130",
     "color": "Blue/White",
     "price": 130,
     "sizes": [
@@ -4682,13 +5122,15 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0381-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0381-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "c0380",
     "brand": "Asics",
-    "name": "Asics",
-    "color": "Green/White",
+    "name": "Asics Gel-Kayano 14",
+    "color": "White/Silver/Green",
     "price": 130,
     "sizes": [
       "5.5",
@@ -4707,7 +5149,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0380-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0380-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0382",
@@ -4730,13 +5174,15 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0382-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0382-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0410",
     "brand": "New Balance",
     "name": "New Balance 9060",
-    "color": "Pink/Purple",
+    "color": "White/Grey",
     "price": 130,
     "sizes": [
       "5.5",
@@ -4747,7 +5193,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0410-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0410-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0383",
@@ -4774,7 +5222,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0383-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0383-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0386",
@@ -4791,7 +5241,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0386-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0386-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "c0389",
@@ -4814,7 +5266,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0389-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0389-thumb.jpg",
+    "dominant": "light",
+    "blackShare": "none"
   },
   {
     "id": "c0392",
@@ -4845,7 +5299,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0392-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0392-thumb.jpg",
+    "dominant": "wavy",
+    "blackShare": "none"
   },
   {
     "id": "c0393",
@@ -4878,12 +5334,14 @@
       "9"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0393-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0393-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "c0327",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 1906R",
     "color": "Silver",
     "price": 130,
     "sizes": [
@@ -4893,7 +5351,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0327-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0327-thumb.jpg",
+    "dominant": "silver",
+    "blackShare": "none"
   },
   {
     "id": "c0332",
@@ -4908,7 +5368,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0332-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0332-thumb.jpg",
+    "dominant": "olive",
+    "blackShare": "none"
   },
   {
     "id": "c0331",
@@ -4923,7 +5385,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0331-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0331-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "c0334",
@@ -4938,7 +5402,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0334-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0334-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0335",
@@ -4953,12 +5419,14 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0335-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0335-thumb.jpg",
+    "dominant": "purple",
+    "blackShare": "none"
   },
   {
     "id": "c0337",
     "brand": "Asics",
-    "name": "Asics",
+    "name": "Asics Gel-NYC",
     "color": "Cream/Grey",
     "price": 130,
     "sizes": [
@@ -4968,7 +5436,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0337-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0337-thumb.jpg",
+    "dominant": "cream",
+    "blackShare": "none"
   },
   {
     "id": "c0336",
@@ -4983,12 +5453,14 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0336-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0336-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0338",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Pink/Green/Blue",
     "price": 130,
     "sizes": [
@@ -4998,7 +5470,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0338-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0338-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "c0340",
@@ -5013,7 +5487,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0340-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0340-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "c0339",
@@ -5028,7 +5504,9 @@
       "13"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0339-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0339-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "c0342",
@@ -5043,13 +5521,15 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0342-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0342-thumb.jpg",
+    "dominant": "teal",
+    "blackShare": "none"
   },
   {
     "id": "c0347",
     "brand": "Nike",
     "name": "Air Max Plus",
-    "color": "Black/Grey",
+    "color": "Black/Silver",
     "price": 120,
     "sizes": [
       "7"
@@ -5058,12 +5538,14 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0347-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0347-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "c0344",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Blue/White",
     "price": 130,
     "sizes": [
@@ -5073,7 +5555,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0344-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0344-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "c0343",
@@ -5088,7 +5572,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0343-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0343-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "half"
   },
   {
     "id": "c0348",
@@ -5103,12 +5589,14 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0348-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0348-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0357",
     "brand": "Nike",
-    "name": "Air VaporMax",
+    "name": "Air VaporMax Plus",
     "color": "Pink/Black",
     "price": 120,
     "sizes": [
@@ -5118,13 +5606,15 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0357-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0357-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "accent"
   },
   {
     "id": "c0356",
     "brand": "Nike",
     "name": "Air VaporMax Evo",
-    "color": "White/Metallic",
+    "color": "White/Black/Multi",
     "price": 120,
     "sizes": [
       "8"
@@ -5133,13 +5623,15 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0356-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0356-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "c0354",
     "brand": "Nike",
     "name": "Air Max 270",
-    "color": "Pink/Black",
+    "color": "Pink/Orange",
     "price": 120,
     "sizes": [
       "7"
@@ -5148,7 +5640,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0354-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0354-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "accent"
   },
   {
     "id": "c0355",
@@ -5163,7 +5657,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0355-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0355-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "c0363",
@@ -5178,7 +5674,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0363-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0363-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "c0359",
@@ -5193,12 +5691,14 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0359-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0359-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "c0360",
     "brand": "Nike",
-    "name": "Duckboot",
+    "name": "Nike Lunar Force 1 Duckboot",
     "color": "Cream",
     "price": 120,
     "sizes": [
@@ -5208,7 +5708,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0360-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0360-thumb.jpg",
+    "dominant": "cream",
+    "blackShare": "none"
   },
   {
     "id": "c0462",
@@ -5235,7 +5737,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0462-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0462-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "c0367",
@@ -5250,7 +5754,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0367-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0367-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0341",
@@ -5265,7 +5771,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0341-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0341-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "accent"
   },
   {
     "id": "c0349",
@@ -5280,7 +5788,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0349-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0349-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "c0378",
@@ -5295,7 +5805,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0378-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0378-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "c0416",
@@ -5314,7 +5826,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0416-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0416-thumb.jpg",
+    "dominant": "multicolor",
+    "blackShare": "none"
   },
   {
     "id": "c0419",
@@ -5333,7 +5847,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0419-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0419-thumb.jpg",
+    "dominant": "lavender",
+    "blackShare": "none"
   },
   {
     "id": "c0362",
@@ -5348,14 +5864,16 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0362-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/c0362-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "co481",
     "brand": "Nike",
     "name": "Nike Air Max 97",
     "color": "Blue/White",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "5.5"
     ],
@@ -5363,7 +5881,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co481-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co481-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co485",
@@ -5380,7 +5900,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co485-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co485-thumb.jpg",
+    "dominant": "olive",
+    "blackShare": "none"
   },
   {
     "id": "co486",
@@ -5395,7 +5917,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co486-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co486-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co487",
@@ -5410,7 +5934,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co487-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co487-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co489",
@@ -5425,7 +5951,9 @@
       "4"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co489-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co489-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co490",
@@ -5440,13 +5968,15 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co490-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co490-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co491",
     "brand": "Jordan",
     "name": "Air Jordan 13 Retro",
-    "color": "Black Aqua",
+    "color": "Black/Mint",
     "price": 180,
     "sizes": [
       "7"
@@ -5454,14 +5984,16 @@
     "sizesRaw": [
       "7"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co491-thumb.jpg"
+    "nickname": "Island Green",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co491-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co492",
     "brand": "Jordan",
-    "name": "Air Jordan 1 Retro",
-    "color": "Black/Red",
+    "name": "Air Jordan 1 Mid",
+    "color": "Black/Red/White",
     "price": 120,
     "sizes": [
       "13"
@@ -5469,8 +6001,10 @@
     "sizesRaw": [
       "13"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co492-thumb.jpg"
+    "nickname": "Bred Toe",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co492-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "co493",
@@ -5485,7 +6019,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co493-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co493-thumb.jpg",
+    "dominant": "lime",
+    "blackShare": "none"
   },
   {
     "id": "co494",
@@ -5500,7 +6036,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co494-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co494-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co495",
@@ -5515,7 +6053,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co495-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co495-thumb.jpg",
+    "dominant": "",
+    "blackShare": "none"
   },
   {
     "id": "co496",
@@ -5530,12 +6070,14 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co496-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co496-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co497",
     "brand": "Nike",
-    "name": "Nike Duck Boot",
+    "name": "Nike Lunar Force 1 Duckboot",
     "color": "",
     "price": 120,
     "sizes": [
@@ -5545,7 +6087,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co497-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co497-thumb.jpg",
+    "dominant": "",
+    "blackShare": "none"
   },
   {
     "id": "co498",
@@ -5560,14 +6104,16 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co498-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co498-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co499",
     "brand": "Nike",
     "name": "Nike Air Max 97",
     "color": "Blue Green",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "7"
     ],
@@ -5575,13 +6121,15 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co499-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co499-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co500",
     "brand": "Nike",
-    "name": "Nike Air VaporMax",
-    "color": "Purple",
+    "name": "Nike Air VaporMax Plus",
+    "color": "Pink/Purple/Black",
     "price": 120,
     "sizes": [
       "7"
@@ -5589,8 +6137,10 @@
     "sizesRaw": [
       "7"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co500-thumb.jpg"
+    "nickname": "Reverse Grape",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co500-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "accent"
   },
   {
     "id": "co501",
@@ -5605,7 +6155,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co501-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co501-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "accent"
   },
   {
     "id": "co502",
@@ -5620,7 +6172,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co502-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co502-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co503",
@@ -5635,7 +6189,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co503-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co503-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co488",
@@ -5650,7 +6206,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co488-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co488-thumb.jpg",
+    "dominant": "aqua",
+    "blackShare": "none"
   },
   {
     "id": "co504",
@@ -5665,7 +6223,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co504-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co504-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "none"
   },
   {
     "id": "co505",
@@ -5680,14 +6240,16 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co505-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co505-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "co506",
     "brand": "Nike",
     "name": "Nike Air Max 97",
     "color": "Pink",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "5.5"
     ],
@@ -5695,12 +6257,14 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co506-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co506-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "co507",
     "brand": "Nike",
-    "name": "Nike Dunk",
+    "name": "Nike Dunk Low",
     "color": "Grey/White",
     "price": 120,
     "sizes": [
@@ -5709,8 +6273,10 @@
     "sizesRaw": [
       "10"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co507-thumb.jpg"
+    "nickname": "Neutral Grey",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co507-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co509",
@@ -5725,7 +6291,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co509-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co509-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co510",
@@ -5740,7 +6308,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co510-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co510-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co511",
@@ -5757,7 +6327,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co511-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co511-thumb.jpg",
+    "dominant": "mint",
+    "blackShare": "none"
   },
   {
     "id": "co512",
@@ -5772,14 +6344,16 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co512-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co512-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co513",
     "brand": "Nike",
     "name": "Nike Air Max 97",
     "color": "Golf Green",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "9.5"
     ],
@@ -5787,13 +6361,15 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co513-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co513-thumb.jpg",
+    "dominant": "golf",
+    "blackShare": "none"
   },
   {
     "id": "co514",
     "brand": "Nike",
-    "name": "Nike Air Max Terrascape",
-    "color": "Black Green",
+    "name": "Nike Air Max Terrascape Plus",
+    "color": "Black/Grey",
     "price": 120,
     "sizes": [
       "7"
@@ -5802,7 +6378,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co514-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co514-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co515",
@@ -5817,14 +6395,16 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co515-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co515-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co516",
     "brand": "Nike",
     "name": "Nike Air Max 97",
-    "color": "White/Rainbow",
-    "price": 120,
+    "color": "Rainbow Glitter/Sail",
+    "price": 130,
     "sizes": [
       "6.5"
     ],
@@ -5832,7 +6412,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co516-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co516-thumb.jpg",
+    "dominant": "rainbow",
+    "blackShare": "none"
   },
   {
     "id": "co518",
@@ -5847,7 +6429,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co518-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co518-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "co522",
@@ -5862,7 +6446,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co522-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co522-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "co523",
@@ -5877,7 +6463,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co523-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co523-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co524",
@@ -5892,7 +6480,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co524-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co524-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co525",
@@ -5907,7 +6497,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co525-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co525-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "half"
   },
   {
     "id": "co528",
@@ -5924,7 +6516,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co528-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co528-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "none"
   },
   {
     "id": "co529",
@@ -5939,12 +6533,14 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co529-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co529-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co531",
     "brand": "Nike",
-    "name": "Nike Dunk",
+    "name": "Nike Dunk Low",
     "color": "Green/White",
     "price": 120,
     "sizes": [
@@ -5953,15 +6549,17 @@
     "sizesRaw": [
       "7"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co531-thumb.jpg"
+    "nickname": "Green Paisley",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co531-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "co532",
     "brand": "Nike",
     "name": "Nike Air Max 97",
     "color": "Blue/Brown/White",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "6.5"
     ],
@@ -5969,7 +6567,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co532-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co532-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co533",
@@ -5984,14 +6584,16 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co533-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co533-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "co534",
     "brand": "Nike",
     "name": "Nike Air Max 97",
     "color": "",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "6.5",
       "5.5"
@@ -6001,7 +6603,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co534-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co534-thumb.jpg",
+    "dominant": "",
+    "blackShare": "none"
   },
   {
     "id": "co550",
@@ -6018,7 +6622,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co550-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co550-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "accent"
   },
   {
     "id": "co552",
@@ -6035,12 +6641,14 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co552-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co552-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co557",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Navy Blue/Grey",
     "price": 130,
     "sizes": [
@@ -6056,12 +6664,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co557-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co557-thumb.jpg",
+    "dominant": "navy",
+    "blackShare": "none"
   },
   {
     "id": "co560",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Maroon/Peach/Cream",
     "price": 130,
     "sizes": [
@@ -6079,12 +6689,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co560-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co560-thumb.jpg",
+    "dominant": "maroon",
+    "blackShare": "none"
   },
   {
     "id": "co562",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Beige/Brown/Cream",
     "price": 130,
     "sizes": [
@@ -6102,12 +6714,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co562-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co562-thumb.jpg",
+    "dominant": "beige",
+    "blackShare": "none"
   },
   {
     "id": "co565",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Beige/Cream/Grey",
     "price": 130,
     "sizes": [
@@ -6127,12 +6741,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co565-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co565-thumb.jpg",
+    "dominant": "beige",
+    "blackShare": "none"
   },
   {
     "id": "co567",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Tan/Cream",
     "price": 130,
     "sizes": [
@@ -6150,12 +6766,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co567-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co567-thumb.jpg",
+    "dominant": "tan",
+    "blackShare": "none"
   },
   {
     "id": "co571",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Beige/Grey/Green",
     "price": 130,
     "sizes": [
@@ -6175,12 +6793,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co571-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co571-thumb.jpg",
+    "dominant": "beige",
+    "blackShare": "none"
   },
   {
     "id": "co569",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Cream/Tan/Grey",
     "price": 130,
     "sizes": [
@@ -6200,13 +6820,15 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co569-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co569-thumb.jpg",
+    "dominant": "cream",
+    "blackShare": "none"
   },
   {
     "id": "co578",
     "brand": "New Balance",
-    "name": "New Balance",
-    "color": "Pink/Peach/Tan",
+    "name": "New Balance 9060 x Joe Freshgoods",
+    "color": "Pink/Tan/Green",
     "price": 130,
     "sizes": [
       "12",
@@ -6218,8 +6840,10 @@
       "12.5",
       "12.5"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co578-thumb.jpg"
+    "nickname": "Penny Cookie",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co578-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "co580",
@@ -6236,7 +6860,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co580-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co580-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "co581",
@@ -6253,13 +6879,15 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co581-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co581-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "co582",
     "brand": "Nike",
     "name": "Nike Air Max 95",
-    "color": "Black/Brown/Red",
+    "color": "Brown/Black/Red",
     "price": 130,
     "sizes": [
       "7",
@@ -6270,7 +6898,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co582-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co582-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "accent"
   },
   {
     "id": "co583",
@@ -6287,7 +6917,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co583-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co583-thumb.jpg",
+    "dominant": "aqua",
+    "blackShare": "none"
   },
   {
     "id": "co585",
@@ -6304,7 +6936,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co585-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co585-thumb.jpg",
+    "dominant": "mint",
+    "blackShare": "none"
   },
   {
     "id": "co586",
@@ -6321,7 +6955,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co586-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co586-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "accent"
   },
   {
     "id": "co588",
@@ -6338,7 +6974,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co588-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co588-thumb.jpg",
+    "dominant": "multicolor",
+    "blackShare": "none"
   },
   {
     "id": "co590",
@@ -6355,7 +6993,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co590-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co590-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "co592",
@@ -6372,7 +7012,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co592-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co592-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "co593",
@@ -6389,7 +7031,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co593-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co593-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "co594",
@@ -6406,13 +7050,15 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co594-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co594-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co595",
     "brand": "Nike",
-    "name": "Nike Air VaporMax",
-    "color": "Black/Blue/Red",
+    "name": "Nike Air VaporMax Plus",
+    "color": "Blue/Black/Red",
     "price": 120,
     "sizes": [
       "7",
@@ -6423,7 +7069,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co595-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co595-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "accent"
   },
   {
     "id": "co596",
@@ -6458,7 +7106,9 @@
       "9"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co596-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co596-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "co598",
@@ -6485,7 +7135,9 @@
       "6"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co598-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co598-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "none"
   },
   {
     "id": "co599",
@@ -6520,7 +7172,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co599-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co599-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "co600",
@@ -6547,7 +7201,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co600-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co600-thumb.jpg",
+    "dominant": "cream",
+    "blackShare": "none"
   },
   {
     "id": "co602",
@@ -6562,7 +7218,9 @@
       "6"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co602-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co602-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "none"
   },
   {
     "id": "co603",
@@ -6583,7 +7241,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co603-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co603-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "none"
   },
   {
     "id": "co604",
@@ -6600,12 +7260,14 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co604-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co604-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "half"
   },
   {
     "id": "co605",
     "brand": "Nike",
-    "name": "Nike Air VaporMax",
+    "name": "Nike Air VaporMax Plus",
     "color": "Black/Orange",
     "price": 120,
     "sizes": [
@@ -6619,7 +7281,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co605-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co605-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co606",
@@ -6640,14 +7304,16 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co606-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co606-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "co479",
     "brand": "Nike",
     "name": "Air Max 97",
     "color": "Yellow/Black",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "5.5"
     ],
@@ -6655,7 +7321,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co479-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co479-thumb.jpg",
+    "dominant": "yellow",
+    "blackShare": "accent"
   },
   {
     "id": "co483",
@@ -6670,7 +7338,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co483-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co483-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co484",
@@ -6685,14 +7355,16 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co484-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co484-thumb.jpg",
+    "dominant": "navy",
+    "blackShare": "none"
   },
   {
     "id": "co520",
     "brand": "Nike",
     "name": "Nike Air Max 97",
     "color": "White/Pink/Purple/Blue",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "5.5"
     ],
@@ -6700,7 +7372,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co520-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co520-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co536",
@@ -6715,7 +7389,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co536-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co536-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "co539",
@@ -6730,7 +7406,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co539-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co539-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co541",
@@ -6745,7 +7423,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co541-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co541-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "co544",
@@ -6760,7 +7440,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co544-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co544-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co545",
@@ -6775,13 +7457,15 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co545-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co545-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co549",
     "brand": "Nike",
-    "name": "Nike Air VaporMax",
-    "color": "Grey/Black/Orange",
+    "name": "Nike Air VaporMax Plus",
+    "color": "White/Grey/Burgundy",
     "price": 120,
     "sizes": [
       "8",
@@ -6792,7 +7476,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co549-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co549-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "accent"
   },
   {
     "id": "co554",
@@ -6809,14 +7495,16 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co554-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co554-thumb.jpg",
+    "dominant": "cream",
+    "blackShare": "none"
   },
   {
     "id": "co555",
     "brand": "Nike",
     "name": "Nike Air Max 97",
     "color": "White/Multicolor",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "5.5",
       "5.5"
@@ -6826,12 +7514,14 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co555-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co555-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co556",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Blue/Pink/Yellow/Black",
     "price": 130,
     "sizes": [
@@ -6851,12 +7541,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co556-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co556-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "accent"
   },
   {
     "id": "co558",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Brown/Cream/Grey",
     "price": 130,
     "sizes": [
@@ -6872,12 +7564,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co558-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co558-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "none"
   },
   {
     "id": "co559",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Green/Grey/Cream",
     "price": 130,
     "sizes": [
@@ -6897,12 +7591,14 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co559-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co559-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "co563",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 9060",
     "color": "Grey/Brown/Cream",
     "price": 130,
     "sizes": [
@@ -6920,7 +7616,9 @@
       "12.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co563-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co563-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "co576",
@@ -6983,13 +7681,15 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co576-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co576-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co577",
     "brand": "Jordan",
     "name": "Air Jordan 1 Retro",
-    "color": "Grey/White/Black",
+    "color": "White/Grey/Black",
     "price": 120,
     "sizes": [
       "4",
@@ -7000,7 +7700,9 @@
       "5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co577-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co577-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "half"
   },
   {
     "id": "co579",
@@ -7017,7 +7719,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co579-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co579-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co584",
@@ -7034,7 +7738,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co584-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co584-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co574",
@@ -7081,7 +7787,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co574-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co574-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "co548",
@@ -7098,7 +7806,9 @@
       "9"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co548-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co548-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "co601",
@@ -7121,7 +7831,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co601-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co601-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co612",
@@ -7198,7 +7910,9 @@
       "5.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co612-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co612-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co617",
@@ -7265,12 +7979,14 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co617-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co617-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "co618",
     "brand": "New Balance",
-    "name": "New Balance",
+    "name": "New Balance 530",
     "color": "White/Pink/Silver",
     "price": 130,
     "sizes": [
@@ -7290,7 +8006,9 @@
       "6.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co618-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co618-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "co619",
@@ -7309,7 +8027,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co619-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co619-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "co621",
@@ -7324,7 +8044,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co621-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co621-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "none"
   },
   {
     "id": "co622",
@@ -7339,7 +8061,9 @@
       "5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co622-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co622-thumb.jpg",
+    "dominant": "cream",
+    "blackShare": "none"
   },
   {
     "id": "co623",
@@ -7354,7 +8078,9 @@
       "5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co623-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co623-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "half"
   },
   {
     "id": "co624",
@@ -7373,13 +8099,15 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co624-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co624-thumb.jpg",
+    "dominant": "green",
+    "blackShare": "none"
   },
   {
     "id": "co630",
     "brand": "Jordan",
     "name": "Air Jordan 4 Retro",
-    "color": "Red/Black/Grey",
+    "color": "Fire Red/Black/Cement",
     "price": 180,
     "sizes": [
       "7",
@@ -7415,8 +8143,10 @@
       "13",
       "13"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co630-thumb.jpg"
+    "nickname": "Toro Bravo",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co630-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "accent"
   },
   {
     "id": "co632",
@@ -7482,15 +8212,17 @@
       "13",
       "13"
     ],
-    "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co632-thumb.jpg"
+    "nickname": "Cozy Girl",
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co632-thumb.jpg",
+    "dominant": "tan",
+    "blackShare": "none"
   },
   {
     "id": "co633",
-    "brand": "Asics",
+    "brand": "ASICS",
     "name": "Asics Gel-1130",
     "color": "Pink/White/Silver",
-    "price": 120,
+    "price": 130,
     "sizes": [
       "7.5",
       "7.5",
@@ -7516,7 +8248,9 @@
       "8"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co633-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co633-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "none"
   },
   {
     "id": "co634",
@@ -7581,7 +8315,9 @@
       "8.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co634-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/co634-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "airmax97black001",
@@ -7666,7 +8402,9 @@
       "7"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97black001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax97black001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "asicswhtblu001",
@@ -7719,7 +8457,9 @@
       "11.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicswhtblu001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicswhtblu001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "asicsblkpnksil001",
@@ -7780,7 +8520,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsblkpnksil001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/asicsblkpnksil001-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "accent"
   },
   {
     "id": "vomero5black001",
@@ -7801,7 +8543,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5black001-thumb.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5black001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "vomero5blackpink001",
@@ -7822,7 +8566,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5blackpink001-thumb.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5blackpink001-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "vomero5white001",
@@ -7841,7 +8587,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5white001-thumb.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5white001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "vomero5whitegreen001",
@@ -7860,7 +8608,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5whitegreen001-thumb.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5whitegreen001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "vomero5whitesilver001",
@@ -7881,7 +8631,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5whitesilver001-thumb.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5whitesilver001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "accent"
   },
   {
     "id": "airmax95brown001",
@@ -7896,13 +8648,15 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95brown001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmax95brown001-thumb.jpg",
+    "dominant": "brown",
+    "blackShare": "none"
   },
   {
     "id": "airmaxplusblkorg001",
     "brand": "Nike",
     "name": "Nike Air Max Plus",
-    "color": "Black/Orange",
+    "color": "Orange/Black",
     "price": 120,
     "sizes": [
       "9.5",
@@ -7913,13 +8667,15 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusblkorg001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusblkorg001-thumb.jpg",
+    "dominant": "orange",
+    "blackShare": "half"
   },
   {
     "id": "airmaxplusblkred001",
     "brand": "Nike",
     "name": "Nike Air Max Plus",
-    "color": "Black/Red",
+    "color": "Red/Black",
     "price": 120,
     "sizes": [
       "9.5",
@@ -7930,7 +8686,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusblkred001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusblkred001-thumb.jpg",
+    "dominant": "red",
+    "blackShare": "half"
   },
   {
     "id": "airmaxpluspnkblk002",
@@ -7947,13 +8705,15 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluspnkblk002-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxpluspnkblk002-thumb.jpg",
+    "dominant": "pink",
+    "blackShare": "accent"
   },
   {
     "id": "airmaxplusylwblk002",
     "brand": "Nike",
     "name": "Nike Air Max Plus",
-    "color": "Yellow/Black",
+    "color": "Black/Yellow",
     "price": 120,
     "sizes": [
       "9.5",
@@ -7964,7 +8724,9 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusylwblk002-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusylwblk002-thumb.jpg",
+    "dominant": "black",
+    "blackShare": "mostly"
   },
   {
     "id": "airmaxplusgryorg001",
@@ -7979,7 +8741,9 @@
       "9.5"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusgryorg001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/airmaxplusgryorg001-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "none"
   },
   {
     "id": "nb2000black001",
@@ -8012,7 +8776,9 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/nb2000black001-card.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/nb2000black001-card.jpg",
+    "dominant": "black",
+    "blackShare": "all"
   },
   {
     "id": "vomero5whitered001",
@@ -8031,7 +8797,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5whitered001-thumb.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/vomero5whitered001-thumb.jpg",
+    "dominant": "white",
+    "blackShare": "none"
   },
   {
     "id": "nb2000bluegrey001",
@@ -8050,13 +8818,15 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb2000bluegrey001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb2000bluegrey001-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "nb2000blackwhite001",
     "brand": "New Balance",
     "name": "New Balance 2000",
-    "color": "Black/White",
+    "color": "Grey/White/Black",
     "price": 130,
     "sizes": [
       "8.5",
@@ -8071,13 +8841,15 @@
       "12"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb2000blackwhite001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb2000blackwhite001-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "accent"
   },
   {
     "id": "nb2000blkwhtred001",
     "brand": "New Balance",
     "name": "New Balance 2000",
-    "color": "Black/White/Red",
+    "color": "Grey/White/Black/Red",
     "price": 130,
     "sizes": [
       "8.5",
@@ -8094,7 +8866,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb2000blkwhtred001-thumb.jpg"
+    "image": "https://cdn.jsdelivr.net/gh/forbesshalrick-dotcom/Sp242-frames@master/nb2000blkwhtred001-thumb.jpg",
+    "dominant": "grey",
+    "blackShare": "accent"
   },
   {
     "id": "airmax97bluewhite001",
@@ -8113,7 +8887,9 @@
       "11"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/airmax97bluewhite001-thumb.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/airmax97bluewhite001-thumb.jpg",
+    "dominant": "blue",
+    "blackShare": "none"
   },
   {
     "id": "airmax97silver001",
@@ -8132,6 +8908,8 @@
       "10"
     ],
     "nickname": "",
-    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/airmax97silver001-thumb.jpg"
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/airmax97silver001-thumb.jpg",
+    "dominant": "silver",
+    "blackShare": "none"
   }
 ]
