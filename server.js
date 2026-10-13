@@ -2122,7 +2122,7 @@ ${modelList}
 - ⚠️ NAMED COLORWAYS — DON'T FALSELY SAY "NOT IN STOCK" (this loses sales): Customers name shoes by their colorway NICKNAME — "Toro Bravo", "Bred", "Chicago", "Royal", "Thunder", "Cool Grey", "Cactus Jack", "Cherry", "Pizza", "Panda", "Oreo", etc. Our catalog often lists that SAME shoe under a plain name (e.g. just "Air Jordan 4 Retro"), so a search for the nickname can come back EMPTY even when we HAVE the shoe. So NEVER flatly tell a customer "we don't have that" based on a name search. If a named-colorway search returns nothing, DO NOT declare it out of stock — instead SILENTLY search the MODEL alone (e.g. "Jordan 4", "Jordan 1", "Air Max") in their size and send_photos of those, so the customer can SPOT the exact pair in the pics (the colours are right there). A nickname like "Toro Bravo" = a red/black Air Jordan 4 — so show the Jordan 4s. Only say we're genuinely out if the whole MODEL is empty in their size. And NEVER repeat "we don't have the [shoe]" more than once — if you'd say it again, show the model's photos or get a team member instead.
 
 PHOTOS — what a customer actually receives (Rodney 2026-10-13, there are NO order codes any more):
-- Every picture goes out bare: the shoe's name and price are printed ON the card. When the customer has not given a size, a short "📏 Sizes: …" line follows each picture; when their size is known, nothing follows. After the last picture ONE closing line goes out automatically ("let me know if you need a delivery"). You add nothing after an album — no "which one caught your eye?", no "give me the code", no "want to see more?".
+- Every picture goes out bare: the shoe's name and price are printed ON the card. When the customer has not given a size, a short "📏 Sizes: …" line follows each picture; when their size is known, nothing follows. After the last picture ONE closing line goes out automatically ("let me know if you need a delivery"). You add nothing after an album — no "which one caught your eye?", no "give me the code", no "want to see more?". And when they answer the pictures with just "Ok" / "👍" / "cool" / "alright", that is them looking — reply with NOTHING at all (Rodney 2026-10-13: "Ok" got "👍 Which one caught your eye? 👟", the line he removed that morning). Only answer when they say something: a shoe, a size, a colour, a question.
 - A customer picks by NAME, by COLOUR, by position ("the second one", "the blue one"), or by quote-replying a picture (then all you see is "this" — see the rule above). Never ask for a code, never say "which code was it?"; if you genuinely cannot tell which pair, ask "which one — the name on the picture?" once.
 - If they reply "ok" / "thanks" / "👍" after an album, answer "👍" or "Respect ✊" and wait — do not re-sell. The moment they name a pair, confirm it by name with its price and move to size → delivery.
 - You CAN see every picture a customer sends (the rules above tell you how to answer each kind). Never say you can't open pictures.
@@ -3067,10 +3067,13 @@ const EMPTY_ASK_T = {
 // then feed the text into the normal chat. Needs OPENAI_API_KEY in the env.
 const WHISPER_API = 'https://api.openai.com/v1/audio/transcriptions';
 const VOICE_HINT = 'Nassau, Bahamas sneaker shop. Places: Baha Mar, Cable Beach, Carmichael Road, Blue Hill Road, Prince Charles Drive, Fox Hill, Paradise Island, Coral Harbour, Golden Gates, Pinewood Gardens, Nassau Village, South Beach, Bay Street, Gladstone Road, Yamacraw, Eastern Road, Soldier Road, Mackey Street, Shirley Street, Robinson Road, Marathon Mall, Sea Breeze, Elizabeth Estates, Lyford Cay, Sandyport, Adelaide, Gambier, Wulff Road, Farrington Road, Bernard Road, Kemp Road, Palmdale, Oakes Field, Sunrise Highway, JFK Drive, Tonique Williams Highway, Harold Road, Cowpen Road, Faith Avenue, Millers Heights, Baillou Hill Road, East Street, Chippingham, Town Centre Mall, Fusion Superplex. Shoes: Air Force 1, Air Max 95, Air Max 97, Air Max Plus TN, VaporMax, Jordan 1, Jordan 4, Jordan 5, Jordan 11, Dunk, New Balance 9060, New Balance 1906, New Balance 2000, Nike Shox, Asics Gel-Kayano, Yeezy Foam Runner, Crocs. Sizes: 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13, ten and a half, thirteen.';
-async function transcribeAudio(url, mediaAuth) {
+async function transcribeAudio(url, mediaAuth, extraHeaders) {
   if (!process.env.OPENAI_API_KEY) return null;
   // mediaAuth: WhatsApp Cloud API media URLs need a Bearer token to download.
-  const audio = await fetch(url, mediaAuth ? { headers: { Authorization: `Bearer ${mediaAuth}` } } : undefined);
+  // extraHeaders: YCloud media links want X-API-Key instead; retried bare if that is refused.
+  const hdrs = Object.assign({}, mediaAuth ? { Authorization: `Bearer ${mediaAuth}` } : {}, extraHeaders || {});
+  let audio = await fetch(url, Object.keys(hdrs).length ? { headers: hdrs, redirect: 'follow' } : { redirect: 'follow' });
+  if (!audio.ok && Object.keys(hdrs).length) audio = await fetch(url, { redirect: 'follow' });
   if (!audio.ok) return null;
   const buf = Buffer.from(await audio.arrayBuffer());
   // WhatsApp voice notes are ogg/opus; the filename extension tells the model the format.
@@ -9355,6 +9358,23 @@ app.post('/ycloud/webhook', async (req, res) => {
     else if (t === 'interactive' && m.interactive) {
       const it = m.interactive;
       text = (it.buttonReply && it.buttonReply.title) || (it.listReply && it.listReply.title) || '';
+    } else if ((t === 'audio' || t === 'voice') && (m.audio || m.voice)) {
+      // 🎤 VOICE NOTES WERE DROPPED ON THIS LINE (2026-10-13, Yasmine on Foot Fetish: three voice notes,
+      // no reply — the handler only read text and photos, so an audio message had no text and
+      // returned silently). Transcribe it the same way the ManyChat and Cloud API paths do.
+      const a = m.audio || m.voice;
+      const link = String(a.link || a.url || '');
+      let tr = null;
+      if (link) {
+        const hdr = process.env.YCLOUD_API_KEY ? { 'X-API-Key': process.env.YCLOUD_API_KEY } : {};
+        tr = await transcribeAudio(link, null, hdr).catch(() => null);
+      }
+      record(req, { endpoint: 'ycloud-voice-transcribe', sub: from, ok: !!tr, transcript: String(tr || '').slice(0, 160), hasLink: !!link });
+      if (tr && tr.trim()) text = tr.trim();
+      else {
+        try { await sendChunk(from, [{ type: 'text', text: "Sorry, I couldn't quite catch that voice note 🙉 mind typing it or sending it again?" }], ''); } catch (_) {}
+        return;
+      }
     } else if (t === 'location' && m.location) {
       const L = m.location;
       text = `(SYSTEM: customer dropped a LOCATION PIN — ${L.latitude},${L.longitude} — maps: https://maps.google.com/?q=${L.latitude},${L.longitude})`;
