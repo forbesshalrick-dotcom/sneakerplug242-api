@@ -3787,6 +3787,103 @@ function noteSendFailure(sub, body, token) {
 // written to the task board — what failed was the message to his phone, and nothing anywhere
 // recorded that. An alert that silently fails is worse than no alert, because the job looks
 // done. Now /last carries the outcome.
+/* 📣 THE OWNER-ALERT QUEUE (ported 2026-10-13 - the Sep 3 reset dropped it and every order
+ * alert since Sunday 19:02 went nowhere). ManyChat's road to Rodney's phone shuts after 24h
+ * without him messaging the bot; the one road that has never lied is the owner-alerts bot on
+ * the Mac, which polls /alerts/for-owner and posts into the "Shoe Delivery Orders!" group,
+ * then acks. An order stays queued for six hours until it is acked; warnings for 30 minutes. */
+const OWNERQ_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'owner-queue.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+const ownerQueue = (() => {
+  try {
+    if (OWNERQ_FILE && require('fs').existsSync(OWNERQ_FILE)) {
+      const saved = JSON.parse(require('fs').readFileSync(OWNERQ_FILE, 'utf8'));
+      if (Array.isArray(saved)) return saved;
+    }
+  } catch (_) {}
+  return [];
+})();
+let _ownerQSaveT = null;
+function saveOwnerQueue() {
+  if (!OWNERQ_FILE) return;
+  clearTimeout(_ownerQSaveT);
+  _ownerQSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(OWNERQ_FILE, JSON.stringify(ownerQueue)); } catch (_) {}
+  }, 2000);
+  if (_ownerQSaveT.unref) _ownerQSaveT.unref();
+}
+function firstLine(t) {
+  return String(t || '').split('\n')[0].replace(/[*_]/g, '').trim().slice(0, 80) || 'Delivery';
+}
+function queueForOwner(text, title, noLink) {
+  try {
+    let t = String(text || '').trim();
+    if (!t) return;
+    const raw = t;
+    const now = Date.now();
+    // The same alert twice in a minute is one order re-filed, not two orders.
+    if (ownerQueue.some(q => q.raw === raw && now - q.at < 60000)) return;
+    // Only a real job gets the "tap when it's done" link; warnings never do.
+    const isJob = !/^(✅|❌)/.test(raw)
+      && (/^(📞|🛵|🛒|👟)/.test(raw) || /PHONE CALL|DELIVERY READY|NEW ORDER|ORDER —/i.test(raw.split('\n')[0]));
+    if (!noLink && isJob) try {
+      const job = require('./shop').addJob(title || firstLine(t), t);
+      if (job && job.id) t += '\n\n👉 Tap when it\'s done: https://' + WEBSITE + '/j/' + job.id;
+    } catch (_) {}
+    ownerQueue.unshift({ id: now.toString(36) + Math.random().toString(36).slice(2, 8),
+                         at: now, atISO: new Date(now).toISOString(), text: t, raw, tries: 0 });
+    if (ownerQueue.length > 50) ownerQueue.length = 50;
+    saveOwnerQueue();
+  } catch (_) {}
+}
+try { require('./shop').setJobClosedHook((line) => { try { queueForOwner(line, 'Job closed', true); } catch (_) {} }); } catch (_) {}
+
+app.get('/alerts/for-owner', (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const now = Date.now();
+  const isOrder = (t) => /NEW ORDER|DELIVERY READY|ORDER —|🆕|📍/i.test(String(t || ''));
+  const live = ownerQueue.filter(q => now - q.at < (isOrder(q.text) ? 6 * 3600000 : 30 * 60000));
+  ownerQueue.length = 0; ownerQueue.push(...live);
+  saveOwnerQueue();
+  const out = live.slice().reverse().slice(0, 10);
+  for (const q of out) q.tries++;
+  res.json({ ok: true, count: out.length, alerts: out.map(q => ({ id: q.id, at: q.atISO, tries: q.tries, text: q.text })) });
+});
+app.post('/alerts/ack', (req, res) => {
+  if (req.query.key !== DEBUG_KEY && (req.body || {}).key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const ids = [].concat((req.body || {}).ids || (req.body || {}).id || []);
+  let gone = 0;
+  for (const id of ids) {
+    const i = ownerQueue.findIndex(q => q.id === String(id));
+    if (i >= 0) { ownerQueue.splice(i, 1); gone++; }
+  }
+  if (gone) saveOwnerQueue();
+  try { recent.unshift({ at: new Date().toISOString(), endpoint: 'owner-alert-delivered-by-bot', n: gone }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+  res.json({ ok: true, acked: gone, left: ownerQueue.length });
+});
+let _groupAlarmAt = 0;
+app.post('/alerts/raise', (req, res) => {
+  if (req.query.key !== DEBUG_KEY && (req.body || {}).key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const text = String((req.body || {}).text || '').trim().slice(0, 600);
+  if (!text) return res.status(400).json({ ok: false, error: 'no text' });
+  const now = Date.now();
+  if (now - _groupAlarmAt < 15 * 60 * 1000) return res.json({ ok: true, skipped: 'rate-limited' });
+  _groupAlarmAt = now;
+  try {
+    require('./shop').addAlert(text, 'Kiki 🤖', { pushTitle: '🚨 Drivers are not getting the orders',
+      pushBody: 'The group send keeps failing — orders are queued and safe, but no driver can see them.' });
+  } catch (_) {}
+  record(req, { endpoint: 'group-send-alarm', text: text.slice(0, 120) });
+  res.json({ ok: true });
+});
+
 async function waSendManager(text, token, image) {
   let ok = false;
   try { ok = await _waSendManagerInner(text, token, image); }
@@ -3796,6 +3893,9 @@ async function waSendManager(text, token, image) {
         endpoint: ok ? 'manager-alert-sent' : 'manager-alert-FAILED',
         preview: String(text || '').replace(/\n/g, ' | ').slice(0, 70) });
       if (recent.length > 120) recent.length = 120;
+      // Park it for the Mac bot regardless of what ManyChat said - it has reported success while
+      // he saw nothing. The bot sends to the drivers' group and acks, or the item stays queued.
+      try { queueForOwner(text); } catch (_) {}
       if (!ok) {
         console.error('[manager-alert] DID NOT REACH HIM:', String(text || '').slice(0, 80));
         // The alert genuinely did not land. NOW the window is worth raising — and only
