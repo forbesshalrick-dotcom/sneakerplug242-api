@@ -1099,6 +1099,18 @@ try {
     console.log('[ycloud] restored', ycloudStore.size, 'customers');
   }
 } catch (e) { console.log('[ycloud] restore failed:', e.message); }
+// A YCloud customer is one we saw come in that way, OR a phone-shaped id whose inbox thread sits
+// under Foot Fetish (so a customer from before this list existed is still reachable by hand).
+function isYcloudSub(sub) {
+  const s = String(sub || '');
+  if (!/^\d{10,15}$/.test(s)) return false;
+  if (ycloudStore.has(s)) return true;
+  try {
+    const sidx = inboxSubIndex.get(s); const t = sidx ? inboxThreads.get(sidx) : null;
+    if (t && String(t.account || '') === 'Foot Fetish') { ycloudStore.set(s, 'Foot Fetish'); saveYcloudStore(); return true; }
+  } catch (_) {}
+  return false;
+}
 let ycloudStoreSaveT = null;
 function saveYcloudStore() {
   if (!YCLOUD_STORE_FILE) return;
@@ -1164,7 +1176,7 @@ async function ycloudSendMessages(phoneDigits, messages) {
 async function sendChunkRaw(subscriberId, messages, token) {
   // A phone-shaped id that came in through YCloud never goes to ManyChat (which has no such subscriber).
   try {
-    const _phoneSub = ycloudStore.has(String(subscriberId || '')) && /^\d{10,15}$/.test(String(subscriberId || ''));
+    const _phoneSub = isYcloudSub(subscriberId);
     if (_phoneSub) {
       const _r = await ycloudSendMessages(String(subscriberId), messages);
       if (_r.ok) return { ok: true, status: 200, body: JSON.stringify({ ycloud: 'sent', n: _r.n }) };
@@ -9394,7 +9406,7 @@ app.post('/inbox/send', async (req, res) => {
   const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
     || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
     || lastToken || process.env.MANYCHAT_TOKEN || null;
-  if (!token && !waChannel.get(sub) && !ycloudStore.has(String(sub))) return res.json({ ok: false, error: 'No account token learned for this customer yet — have them message the bot once, then reply.' });
+  if (!token && !waChannel.get(sub) && !isYcloudSub(sub)) return res.json({ ok: false, error: 'No account token learned for this customer yet — have them message the bot once, then reply.' });
   // The moment we reply as a human, Kiki pauses for this customer (refreshed each reply)
   // and any pending nudge is cancelled so she never talks over us.
   setHumanPause(sub);
