@@ -1807,6 +1807,7 @@ const END_OF_PHOTOS_T = {
   ht: `fè m konnen si ou bezwen livrezon`,
   fr: `dis-moi si tu as besoin d'une livraison`,
 };
+const SIZES_LABEL_T = { en: '📏 Sizes: ', es: '📏 Tallas: ', ht: '📏 Gwosè: ', fr: '📏 Pointures : ' };
 const DELIVERY_FOLLOWUP_T = {
   en: DELIVERY_FOLLOWUP_MSG,
   es: "Solo para avisarte — ¡seguimos en camino! 🚗 El chofer te llamará cuando esté cerca 👟",
@@ -2851,8 +2852,10 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
   // Rodney 2026-10-13: a size-filtered album stays bare, but when the customer named a shoe
   // or brand and never gave a size, the sizes go under each picture so they can pick.
   const showSizes = !sizeKnown && !photosOnly && !isStaff;
+  let sizesLabel = '📏 Sizes: ';   // in the customer's language (big four by table, the rest by say())
+  if (showSizes) { try { sizesLabel = await say(L(SIZES_LABEL_T, sub), sub) || sizesLabel; } catch (_) {} }
   const photoMsg = (s) => showSizes
-    ? [{ type: 'image', url: s.image }, { type: 'text', text: '📏 Sizes: ' + sizesOf(s) }]
+    ? [{ type: 'image', url: s.image }, { type: 'text', text: sizesLabel + sizesOf(s) }]
     : [{ type: 'image', url: s.image }];
 
   if (Array.isArray(groups) && groups.length) {
