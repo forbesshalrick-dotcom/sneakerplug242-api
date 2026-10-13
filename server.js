@@ -3647,6 +3647,84 @@ const FIT_QUESTION_RE = new RegExp(
     '|\\bbetween\\b[^.!?\\n]{0,12}\\bsizes?\\b' +
     '|\\b(?:will|would|do|does|they|these|it)\\b[^.!?\\n]{0,20}\\bfit\\b' +
   ')', 'i');
+/* ☀️ NEXT-MORNING CHECK-IN ON AN ORDER THAT WENT QUIET (Rodney 2026-10-13: "they can come back
+ * tomorrow and say, hey, just checking up on the order you made yesterday, do you still want it").
+ * Every order Kiki files (order_confirmed or delivery_ready, not a booked-for-later one) is
+ * remembered; at 9 AM Nassau the next morning, if nobody closed it, she asks once. Cleared when
+ * a driver taps the job done. Kept on the volume so a restart does not lose tonight's orders. */
+const ORDER_CHECKIN_FILE = (() => {
+  for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+    try { if (require('fs').existsSync(d)) return require('path').join(d, 'order-checkins.json'); } catch (_) {}
+  }
+  return null;
+})();
+const orderCheckins = new Map();   // sub -> { shoe, size, price, store, phone, at }
+const orderCheckinTimers = new Map();
+function saveOrderCheckins() {
+  if (!ORDER_CHECKIN_FILE) return;
+  try { require('fs').writeFileSync(ORDER_CHECKIN_FILE, JSON.stringify(Object.fromEntries(orderCheckins))); } catch (_) {}
+}
+const ORDER_CHECKIN_T = {
+  en: 'Morning! 👋 Still want the {shoe}{size}? Say yes and I\'ll get it moving 👟',
+  es: '¡Buenos días! 👋 ¿Todavía quieres {shoe}{size}? Dime que sí y lo pongo en marcha 👟',
+  ht: 'Bonjou! 👋 Ou toujou vle {shoe}{size}? Di m wi epi m ap fè l pati 👟',
+  fr: 'Bonjour ! 👋 Tu veux toujours {shoe}{size} ? Dis oui et je lance ça 👟',
+};
+function nextNineAmAfter(ms) {
+  // 9:00 Nassau (UTC-4) after the given moment
+  const d = new Date(ms - 4 * 3600000);                 // shift to Nassau wall-clock
+  const due = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 9, 0, 0) + 4 * 3600000;
+  return due > ms ? due : due + 24 * 3600000;
+}
+function armOrderCheckin(sub) {
+  const e = orderCheckins.get(String(sub)); if (!e) return;
+  const due = nextNineAmAfter(e.at);
+  if (Date.now() - due > 6 * 3600000) { orderCheckins.delete(String(sub)); saveOrderCheckins(); return; }   // too old to chase
+  clearTimeout(orderCheckinTimers.get(String(sub)));
+  const t = setTimeout(async () => {
+    orderCheckinTimers.delete(String(sub));
+    const cur = orderCheckins.get(String(sub)); if (!cur) return;
+    orderCheckins.delete(String(sub)); saveOrderCheckins();
+    try {
+      if (isHumanPaused(sub) || isComposeSub(sub)) return;
+      const size = cur.size ? ' in a ' + cur.size : '';
+      let text = L(ORDER_CHECKIN_T, sub).replace('{shoe}', cur.shoe || 'pair you picked').replace('{size}', size);
+      try { text = await say(text, sub) || text; } catch (_) {}
+      const token = (cur.store && storeTokens.get(cur.store)) || '';
+      const r = await sendChunk(sub, [{ type: 'text', text }], token);
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'order-checkin-sent', sub: String(sub), ok: !!(r && r.ok), shoe: cur.shoe || '', size: cur.size || '' });
+      if (recent.length > 120) recent.length = 120;
+    } catch (_) {}
+  }, Math.max(60000, due - Date.now()));
+  if (t.unref) t.unref();
+  orderCheckinTimers.set(String(sub), t);
+}
+function noteOrderForCheckin(sub, info) {
+  try {
+    orderCheckins.set(String(sub), { shoe: String(info.shoe || '').slice(0, 80), size: info.size != null ? String(info.size) : '', price: info.price || '',
+                                     store: info.store || '', phone: String(info.phone || '').replace(/\D/g, ''), at: Date.now() });
+    saveOrderCheckins(); armOrderCheckin(sub);
+  } catch (_) {}
+}
+function clearOrderCheckinByText(line) {
+  try {
+    const digits = (String(line || '').match(/\d{7,15}/g) || []);
+    for (const [sub, e] of orderCheckins) {
+      if (digits.some(d => d === sub || (e.phone && (e.phone.endsWith(d) || d.endsWith(e.phone.slice(-7)))))) {
+        orderCheckins.delete(sub); clearTimeout(orderCheckinTimers.get(sub)); orderCheckinTimers.delete(sub);
+      }
+    }
+    saveOrderCheckins();
+  } catch (_) {}
+}
+try {
+  if (ORDER_CHECKIN_FILE && require('fs').existsSync(ORDER_CHECKIN_FILE)) {
+    for (const [k, v] of Object.entries(JSON.parse(require('fs').readFileSync(ORDER_CHECKIN_FILE, 'utf8')))) orderCheckins.set(k, v);
+    for (const k of orderCheckins.keys()) armOrderCheckin(k);
+    console.log('[checkin] re-armed', orderCheckins.size, 'morning check-ins');
+  }
+} catch (e) { console.log('[checkin] restore failed:', e.message); }
+
 function scheduleNudge(sub, token, text, ms, next, isCloser) {
   if (isComposeSub(sub)) return;   // the Mac bot owns follow-ups on its lines
   clearFollowUp(sub);
@@ -3849,7 +3927,7 @@ function queueForOwner(text, title, noLink) {
     saveOwnerQueue();
   } catch (_) {}
 }
-try { require('./shop').setJobClosedHook((line) => { try { queueForOwner(line, 'Job closed', true); } catch (_) {} }); } catch (_) {}
+try { require('./shop').setJobClosedHook((line) => { try { queueForOwner(line, 'Job closed', true); } catch (_) {} try { clearOrderCheckinByText(line); } catch (_) {} }); } catch (_) {}
 
 app.get('/alerts/for-owner', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
@@ -5857,6 +5935,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         ].filter(Boolean).join('\n');
         let alertImg = null;
         try { const sh = liveShoeMap()[inp.shoe_id]; if (sh && sh.image) alertImg = sh.image; } catch (_) {}
+        if (!forLater && !staffName) noteOrderForCheckin(sub, { shoe: inp.shoe, size: inp.size, price: inp.price, store: ctx.store, phone: custPhone });
         // Log it for tonight's "did these go through?" check — but only orders meant for TODAY.
         // A future booking isn't a delivery that can have failed yet, and listing it would be
         // the same false alarm in a different costume.
