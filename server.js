@@ -1157,20 +1157,41 @@ async function ycloudSendMessages(phoneDigits, messages) {
     const fromE = String(from).startsWith('+') ? String(from) : '+' + String(from).replace(/\D/g, '');
     const to = '+' + String(phoneDigits).replace(/\D/g, '');
     let n = 0, i = 0;
+    // 🧷 A picture's sizes line rides as the picture's CAPTION, not a second message (2026-10-13,
+    // Yasmine on Foot Fetish: a 63-shoe album hit Meta's per-customer limit (#131056) after 13
+    // pictures because every shoe was two sends). Halves the sends; the customer sees the sizes
+    // under the picture exactly as before.
+    const list = [];
     for (const m of (messages || [])) {
+      const prev = list[list.length - 1];
+      if (m && m.type === 'text' && prev && prev.type === 'image' && !prev._cap && String(m.text || '').trim().length <= 1000) {
+        prev._cap = String(m.text); continue;
+      }
+      list.push(m && m.type === 'image' ? Object.assign({}, m) : m);
+    }
+    for (const m of list) {
       let body = null;
       if (m && m.type === 'text' && String(m.text || '').trim()) body = { type: 'text', text: { body: String(m.text) } };
-      else if (m && m.type === 'image' && (m.url || m.image_url)) body = { type: 'image', image: { link: String(m.url || m.image_url) } };
+      else if (m && m.type === 'image' && (m.url || m.image_url)) body = { type: 'image', image: Object.assign({ link: String(m.url || m.image_url) }, m._cap ? { caption: m._cap } : {}) };
       if (!body) { i++; continue; }
       // Adaptive spacing for WhatsApp rate limits: 0.7s, +0.5s per ten messages, capped at 5s.
       const delayMs = Math.min(700 + (Math.floor(i / 10) * 500), 5000);
       if (i > 0) await new Promise(resolve => setTimeout(resolve, delayMs));
       const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 30000);
       try {
-        const r = await fetch('https://api.ycloud.com/v2/whatsapp/messages/sendDirectly', {
+        let r = await fetch('https://api.ycloud.com/v2/whatsapp/messages/sendDirectly', {
           method: 'POST', headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
           body: JSON.stringify(Object.assign({ from: fromE, to }, body)), signal: ctl.signal });
-        const t = await r.text();
+        let t = await r.text();
+        // Meta's per-customer pair limit: wait it out and try the SAME message again, up to twice,
+        // instead of failing the album three shoes later.
+        for (let k = 0; !r.ok && /131056|pair rate limit/i.test(t) && k < 2; k++) {
+          await new Promise(resolve => setTimeout(resolve, 8000 * (k + 1)));
+          r = await fetch('https://api.ycloud.com/v2/whatsapp/messages/sendDirectly', {
+            method: 'POST', headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
+            body: JSON.stringify(Object.assign({ from: fromE, to }, body)), signal: AbortSignal.timeout(30000) });
+          t = await r.text();
+        }
         if (!r.ok) return { ok: false, why: r.status + ' ' + t.slice(0, 160), n };
         n++;
       } finally { clearTimeout(tm); }
