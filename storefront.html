@@ -537,7 +537,7 @@ select option{background:var(--surface2);}
   <span id="cloud-sync-badge" style="font-size:10px;color:var(--accent);opacity:0;transition:opacity 0.6s;white-space:nowrap;"></span>
   <div class="nav-links">
     <button class="nav-btn active" id="nav-inventory" onclick="showPage('inventory')">Shop</button>
-    <button class="nav-btn" id="nav-payment" onclick="_sfx.pay();showPage('payment')">Pay</button><button class="nav-btn" onclick="showPage('requests')" id="nav-requests">📋 Requests</button><button class="nav-btn" onclick="showPage('sales')" id="nav-sales">💰 Sales</button><button class="nav-btn" onclick="showPage('schedule')" id="nav-schedule">📅 Schedule</button><button class="nav-btn" onclick="showPage('tasks')" id="nav-tasks">✅ Tasks <span id="tasks-badge" style="display:none;background:#ffc800;color:#000;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:3px;vertical-align:middle;font-weight:700;"></span></button><button class="nav-btn" id="nav-jess" onclick="openAdminTool('console')">🟢 Jess</button><button class="nav-btn" id="nav-inbox" onclick="openAdminTool('inbox')">💬 Chats</button><button class="nav-btn" onclick="showPage('notifications')" id="nav-notifications">🔔 Inbox <span id="notif-badge" style="display:none;background:#ff4444;color:#fff;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:3px;vertical-align:middle;"></span></button><button class="nav-btn" onclick="showPage('auditlog')" id="nav-auditlog" style="display:none;">📜 Log</button><button class="nav-btn" onclick="openDeletedShoes()" id="nav-restore" style="display:none;">🗑️ Restore</button>
+    <button class="nav-btn" id="nav-payment" onclick="_sfx.pay();showPage('payment')">Pay</button><button class="nav-btn" onclick="showPage('requests')" id="nav-requests">📋 Requests</button><button class="nav-btn" onclick="showPage('sales')" id="nav-sales">💰 Sales</button><button class="nav-btn" onclick="showPage('schedule')" id="nav-schedule">📅 Schedule</button><button class="nav-btn" onclick="showPage('tasks')" id="nav-tasks">✅ Tasks <span id="tasks-badge" style="display:none;background:#ffc800;color:#000;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:3px;vertical-align:middle;font-weight:700;"></span></button><button class="nav-btn" id="nav-daily" onclick="window.open('/tasks','_blank','noopener')" title="Today's jobs, photos, clips and the stock check">📋 Daily Sheet</button><button class="nav-btn" id="nav-jess" onclick="openAdminTool('console')">🟢 Jess</button><button class="nav-btn" id="nav-inbox" onclick="openAdminTool('inbox')">💬 Chats</button><button class="nav-btn" id="nav-receipts" style="display:none" onclick="window.open('/invoice','_blank','noopener')" title="Make and send a customer receipt">🧾 Receipts</button><button class="nav-btn" id="nav-singles" style="display:none" onclick="window.open('https://sneakerplug242-api-production.up.railway.app/singles','_blank','noopener')" title="Every shoe you are down to your last pair of">👟 Singles</button><button class="nav-btn" onclick="showPage('notifications')" id="nav-notifications">🔔 Inbox <span id="notif-badge" style="display:none;background:#ff4444;color:#fff;border-radius:8px;padding:1px 6px;font-size:10px;margin-left:3px;vertical-align:middle;"></span></button><button class="nav-btn" onclick="showPage('auditlog')" id="nav-auditlog" style="display:none;">📜 Log</button><button class="nav-btn" onclick="openDeletedShoes()" id="nav-restore" style="display:none;">🗑️ Restore</button>
     <button class="nav-btn" id="nav-wholesale" onclick="showPage('wholesale')">🏪 Wholesale</button>
     <button class="nav-btn" id="nav-settings" onclick="showPage('settings')">⚙</button>
     <button class="nav-btn primary" id="nav-add" onclick="openAddModal()">+ Add</button>
@@ -653,6 +653,26 @@ select option{background:var(--surface2);}
 <div class="page" id="page-payment">
   <div class="payment-page">
     <div class="payment-hero"><h1>PAYMENT</h1><p>Choose a method, send the exact amount, then upload your receipt.</p></div>
+    <!-- FAST CHECKOUT LINK - staff only. The new /pay page (2 Sep) was only
+         reachable from inside a POS sale, so from the Pay screen you still got
+         the old bank-transfer-and-upload-a-screenshot flow. Rodney, 2026-09-15:
+         "I recently built a pay page where I can handle a fast checkout... I can
+         also send customer the link to pay fast". Type an item and a price, get
+         a link to send. Hidden from customers by the isEmployee gate. -->
+    <div id="staff-paylink" style="display:none;background:var(--card,#16181d);border:1px solid var(--line,#2a2e37);border-radius:12px;padding:14px;margin-bottom:18px">
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">⚡ Fast checkout link</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">They type their own card on their own phone.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div><label>What for</label><input type="text" id="paylink-ref" placeholder="e.g. Air Max 97 size 9"/></div>
+        <div><label>Amount ($)</label><input type="number" inputmode="decimal" step="0.01" min="0" id="paylink-amt" placeholder="130.00"/></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn" onclick="paylinkSend()" style="flex:1;min-width:120px">Send on WhatsApp</button>
+        <button class="btn" onclick="paylinkCopy()" style="flex:1;min-width:110px">Copy link</button>
+        <button class="btn" onclick="paylinkOpen()" style="flex:1;min-width:90px">Open</button>
+      </div>
+      <div id="paylink-out" style="font-size:11px;color:var(--text-muted);margin-top:8px;word-break:break-all"></div>
+    </div>
     <div class="payment-methods" id="payment-methods-list"></div>
     <div class="receipt-section">
       <h3 style="font-size:15px;font-weight:700;margin-bottom:5px">📎 Upload Payment Receipt</h3>
@@ -1072,6 +1092,12 @@ function _applyCatalogOverrides(){
     if(ov)_OVERRIDE_FIELDS.forEach(function(f){if(ov[f]!=null)s[f]=ov[f];});
   });}catch(e){}
 }
+// Some shoes are stored as "Air Force 1" and some as "Nike Air Force 1", so gluing the brand
+// on the front gave us "Nike Nike Air Force 1" — on the "I want this!" message that goes to
+// Kiki, on receipts, and all through the activity log. Only add the brand if it isn't there.
+function bn(brand,name){var b=String(brand||'').trim(),n=String(name||'').trim();
+  if(!b)return n; if(!n)return b;
+  return n.toLowerCase().indexOf(b.toLowerCase())===0 ? n : b+' '+n;}
 function showToast(msg,err=false){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(err?' error':'');setTimeout(()=>t.className='toast',3500);}
 
 // ─── SOUND ENGINE ─────────────────────────────────────────────
@@ -1743,7 +1769,7 @@ function checkReorderAlerts(){
 function sendReorderWA(id){
   const s=shoes.find(x=>x.id===id);if(!s)return;
   if(!settings.wa_supplier){showToast('Add supplier number in Settings first',true);showPage('settings');return;}
-  const msg=encodeURIComponent('🔄 RESTOCK NEEDED\n\nShoe: '+s.brand+' '+s.name+'\nSizes left: '+s.sizes.join(', ')+'\nStock: '+s.sizes.length+' pair(s)\n\nPlease restock ASAP.');
+  const msg=encodeURIComponent('🔄 RESTOCK NEEDED\n\nShoe: '+bn(s.brand,s.name)+'\nSizes left: '+s.sizes.join(', ')+'\nStock: '+s.sizes.length+' pair(s)\n\nPlease restock ASAP.');
   openWA(settings.wa_supplier,msg);
 }
 function toggleReorder(id){
@@ -1786,7 +1812,7 @@ function confirmWantThis(){
     ? '\n\n📍 DELIVERY LOCATION (Ready NOW):\n' + locData.label + '\n' + locData.url
     : '\n\nHow do I pay and arrange pickup/delivery?';
   const msg=encodeURIComponent(
-    '👟 I want this!\n\n'+s.brand+' '+s.name+
+    '👟 I want this!\n\n'+bn(s.brand,s.name)+
     '\nColor: '+(s.color||'N/A')+
     '\nCondition: '+s.condition+
     '\nPrice: '+price+
@@ -1973,7 +1999,7 @@ function renderCartPayPal(){
 function onCartPaid(det){
   px('paid');
   const oid=(det&&det.id)?det.id:'';
-  const lines=cart.map(it=>'• '+it.brand+' '+it.name+(it.color?' ('+it.color+')':'')+' — size '+it.size+' — $'+(parseFloat(it.price)||0).toFixed(2)).join('\n')
+  const lines=cart.map(it=>'• '+bn(it.brand,it.name)+(it.color?' ('+it.color+')':'')+' — size '+it.size+' — $'+(parseFloat(it.price)||0).toFixed(2)).join('\n')
     +'\n• Card processing fee (4%) — $'+cardFee().toFixed(2);
   const total=cardTotal().toFixed(2);
   const count=cart.length;
@@ -2062,6 +2088,33 @@ function posAddCustom(){
 // over. There is no live connection back to this POS from that separate page,
 // so completion is a plain staff confirmation once the customer shows their
 // on-screen receipt — the same trust point as watching a Cash payment happen. ─
+/* The same /pay link the POS builds, but typed by hand for a customer who is
+ * not standing in front of you. Returns '' and complains if the amount is junk,
+ * so we can never send someone a checkout for $0 or NaN. */
+function paylinkUrl(){
+  var amtEl=document.getElementById('paylink-amt'), refEl=document.getElementById('paylink-ref');
+  var amt=parseFloat((amtEl&&amtEl.value||'').replace(/[^0-9.]/g,''));
+  if(!(amt>0)){ showToast('Put an amount in first',true); return ''; }
+  var ref=((refEl&&refEl.value)||'').trim().slice(0,140);
+  var u='https://242plug.com/pay?amount='+encodeURIComponent(amt.toFixed(2));
+  if(ref) u+='&ref='+encodeURIComponent(ref);
+  var out=document.getElementById('paylink-out'); if(out) out.textContent=u;
+  return u;
+}
+function paylinkOpen(){ var u=paylinkUrl(); if(u) window.open(u,'_blank','noopener'); }
+function paylinkCopy(){
+  var u=paylinkUrl(); if(!u) return;
+  try{ navigator.clipboard.writeText(u).then(function(){ showToast('Link copied'); },
+       function(){ showToast('Copy failed - long-press the link below',true); }); }
+  catch(e){ showToast('Copy failed - long-press the link below',true); }
+}
+function paylinkSend(){
+  var u=paylinkUrl(); if(!u) return;
+  var refEl=document.getElementById('paylink-ref');
+  var ref=((refEl&&refEl.value)||'').trim();
+  var msg=(ref?('Here you go - '+ref+'. '):'')+'Pay here: '+u;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank','noopener');
+}
 function posCustomerPay(){
   if(!posSale.length){ showToast('Add a shoe first',true); return; }
   var grid=document.getElementById('pos-pay-grid'); if(grid) grid.style.display='none';
@@ -2176,7 +2229,7 @@ function posComplete(method, extra){
     if(s.sizes.length===0) s.sold=true;
     s.updatedAt=Date.now();
     logSale(s, it.size, method, extra);
-    if(typeof addAudit==='function') addAudit('POS sale ('+method+')', s.brand+' '+s.name+' — size '+it.size, 'sale', s.id);
+    if(typeof addAudit==='function') addAudit('POS sale ('+method+')', bn(s.brand,s.name)+' — size '+it.size, 'sale', s.id);
   });
   try{ save(); }catch(e){}
   try{_sfx.sell&&_sfx.sell();}catch(e){}
@@ -2229,7 +2282,7 @@ function confirmSoldSize(){
   s.updatedAt=Date.now();
   // ── Log the sale ──
   const sale=logSale(s, soldSizeSelected, '', wantReceipt?{customerWa:normalizeBahamasWa(custWa)}:null);
-  if(typeof addAudit==='function')addAudit('Size '+soldSizeSelected+' sold',s.brand+' '+s.name+(s.color?' — '+s.color:''),'sale',s.id);
+  if(typeof addAudit==='function')addAudit('Size '+soldSizeSelected+' sold',bn(s.brand,s.name)+(s.color?' — '+s.color:''),'sale',s.id);
   save();document.getElementById('sold-modal').classList.remove('open');
   renderInventory();_sfx.sell();showToast('Size '+soldSizeSelected+' marked sold ✓');
   // hand the receipt to WhatsApp last so it doesn't block the sale being recorded
@@ -2574,8 +2627,8 @@ function cycleGrid() {
   _sfx.tap();
 }
 function setTab(tab){currentTab=tab;document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+tab).classList.add('active');renderInventory();}
-function markUnsold(id){const s=shoes.find(x=>x.id===id);if(s){s.sold=false;s.updatedAt=Date.now();save();renderInventory();_sfx.pop();addAudit('Shoe relisted',s.brand+' '+s.name,'inventory',s.id);showToast('Relisted ✓');}}
-function deleteShoe(id){if(!_requireDelete('delete a shoe'))return;if(!confirm('Delete this shoe?'))return;const _ds=shoes.find(x=>x.id===id);shoes=shoes.filter(x=>x.id!==id);const deletedIds=JSON.parse(localStorage.getItem('sp_deleted')||'[]');if(!deletedIds.includes(id)){deletedIds.push(id);localStorage.setItem('sp_deleted',JSON.stringify(deletedIds));}if(typeof shopPost==='function')shopPost('/shop/deleted',{ids:[id]}).catch(function(){});save();renderInventory();_sfx.error();if(_ds)addAudit('Shoe deleted',_ds.brand+' '+_ds.name,'inventory');showToast('Shoe deleted');}
+function markUnsold(id){const s=shoes.find(x=>x.id===id);if(s){s.sold=false;s.updatedAt=Date.now();save();renderInventory();_sfx.pop();addAudit('Shoe relisted',bn(s.brand,s.name),'inventory',s.id);showToast('Relisted ✓');}}
+function deleteShoe(id){if(!_requireDelete('delete a shoe'))return;if(!confirm('Delete this shoe?'))return;const _ds=shoes.find(x=>x.id===id);shoes=shoes.filter(x=>x.id!==id);const deletedIds=JSON.parse(localStorage.getItem('sp_deleted')||'[]');if(!deletedIds.includes(id)){deletedIds.push(id);localStorage.setItem('sp_deleted',JSON.stringify(deletedIds));}if(typeof shopPost==='function')shopPost('/shop/deleted',{ids:[id]}).catch(function(){});save();renderInventory();_sfx.error();if(_ds)addAudit('Shoe deleted',bn(_ds.brand,_ds.name),'inventory');showToast('Shoe deleted');}
 
 // ── Typo-tolerant search helpers ─────────────────────────────────────────────
 // Bounded edit distance so the search bar forgives misspellings/alt spellings
@@ -2960,7 +3013,7 @@ function saveShoe(){if(editingId && !_requireManager('edit an existing shoe'))re
   }
   // Log explicitly with detail (brand+name) — showToast wrapper will also fire but won't duplicate
   var _auditAction = editingId ? 'Shoe edited' : 'Shoe added';
-  var _auditDetail = shoe.brand+' '+shoe.name+(shoe.color?' — '+shoe.color:'');
+  var _auditDetail = bn(shoe.brand,shoe.name)+(shoe.color?' — '+shoe.color:'');
   // Spell out WHAT changed (sizes added/removed, price, colour) so the Log is useful, not just "Shoe edited".
   if(editingId){var _chg=[];var _sd=_sizeDiffStr(_oldSizes,shoe.sizes);if(_sd)_chg.push(_sd);if(_oldPrice!=null&&Number(_oldPrice)!==Number(shoe.price))_chg.push('price $'+_oldPrice+' → $'+shoe.price);if(_oldColor!=null&&_oldColor!==(shoe.color||''))_chg.push('colour '+(_oldColor||'—')+' → '+(shoe.color||'—'));if(_chg.length)_auditDetail+=' — '+_chg.join(', ');}
   addAudit(_auditAction, _auditDetail, 'inventory', shoe.id, shoe.image||null);
@@ -3315,7 +3368,7 @@ function wsRenderProducts(){
     if(!wholesaleProducts.length){el.innerHTML='<p style="color:var(--text-muted);font-size:14px;">No wholesale products yet.</p>';}
     else{el.innerHTML=wholesaleProducts.map(function(p){
       return '<div class="ws-card">'+wsCardImg(p.image)+
-        '<div class="ws-card-body"><div class="ws-card-name">'+wsEsc(p.brand)+' '+wsEsc(p.name)+'</div>'+
+        '<div class="ws-card-body"><div class="ws-card-name">'+wsEsc(bn(p.brand,p.name))+'</div>'+
         (p.color?'<div class="ws-card-color">'+wsEsc(p.color)+'</div>':'')+
         '<div class="ws-card-price">$'+Number(p.price||0)+' <span style="font-size:11px;color:var(--text-muted);font-weight:400">/ pair</span></div>'+
         (p.sizes?'<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">Sizes: '+wsEsc(p.sizes)+'</div>':'')+
@@ -3323,7 +3376,7 @@ function wsRenderProducts(){
         '</div></div>';
     }).join('');}
   }
-  if(sel){sel.innerHTML='<option value="">Select a shoe…</option>'+wholesaleProducts.map(function(p){return '<option value="'+p.id+'">'+wsEsc(p.brand+' '+p.name+(p.color?' — '+p.color:''))+' ($'+Number(p.price||0)+')</option>';}).join('');}
+  if(sel){sel.innerHTML='<option value="">Select a shoe…</option>'+wholesaleProducts.map(function(p){return '<option value="'+p.id+'">'+wsEsc(bn(p.brand,p.name)+(p.color?' — '+p.color:''))+' ($'+Number(p.price||0)+')</option>';}).join('');}
 }
 
 function wsAddLine(){
@@ -3334,7 +3387,7 @@ function wsAddLine(){
   if(!qty||qty<1){showToast('Enter a quantity',true);return;}
   var p=wholesaleProducts.find(function(x){return x.id===pid;});
   if(!p)return;
-  wsOrder.push({pid:pid,name:p.brand+' '+p.name+(p.color?' — '+p.color:''),price:Number(p.price||0),size:size,qty:qty});
+  wsOrder.push({pid:pid,name:bn(p.brand,p.name)+(p.color?' — '+p.color:''),price:Number(p.price||0),size:size,qty:qty});
   var q=document.getElementById('ws-sel-qty');if(q)q.value='1';
   var s=document.getElementById('ws-sel-size');if(s)s.value='';
   wsRenderOrder();
@@ -3391,7 +3444,7 @@ function wsSaveProduct(){
   saveWholesale();
   var m=document.getElementById('ws-product-modal');if(m)m.classList.remove('open');
   renderWholesale();
-  if(typeof addAudit==='function')addAudit('Wholesale product added',brand+' '+name,'wholesale');
+  if(typeof addAudit==='function')addAudit('Wholesale product added',bn(brand,name),'wholesale');
   showToast('Product added ✓');
 }
 function wsRemoveProduct(id){
@@ -3407,7 +3460,7 @@ function wsRenderPending(){
     '<p style="color:var(--text-muted);font-size:12px;margin-bottom:12px;">Auto-detected new Jordan / Nike releases. Approve to add to wholesale, or reject.</p>'+
     '<div class="ws-grid">'+wholesalePending.map(function(r){
       return '<div class="ws-card">'+wsCardImg(r.image)+
-        '<div class="ws-card-body"><div class="ws-card-name">'+wsEsc(r.brand+' '+r.name)+'</div>'+
+        '<div class="ws-card-body"><div class="ws-card-name">'+wsEsc(bn(r.brand,r.name))+'</div>'+
         (r.color?'<div class="ws-card-color">'+wsEsc(r.color)+'</div>':'')+
         (r.retail?'<div style="font-size:12px;color:var(--text-dim);margin-top:2px;">Retail $'+wsEsc(String(r.retail))+'</div>':'')+
         '<div style="display:flex;gap:6px;margin-top:8px;"><button class="btn btn-primary" style="flex:1;font-size:12px;padding:6px;" onclick="wsApprovePending(\''+r.id+'\')">Approve</button><button class="btn btn-ghost" style="flex:1;font-size:12px;padding:6px;" onclick="wsRejectPending(\''+r.id+'\')">Reject</button></div>'+
@@ -3419,7 +3472,7 @@ function wsApprovePending(id){
   wholesaleProducts.unshift({id:'ws'+Date.now(),brand:r.brand,name:r.name,color:r.color||'',price:Number(r.retail)||0,sizes:r.sizes||'',image:r.image||'',createdAt:Date.now()});
   wholesalePending=wholesalePending.filter(function(x){return x.id!==id;});
   saveWholesale();renderWholesale();showToast('Approved ✓');
-  if(typeof addAudit==='function')addAudit('Release approved',r.brand+' '+r.name,'wholesale');
+  if(typeof addAudit==='function')addAudit('Release approved',bn(r.brand,r.name),'wholesale');
 }
 function wsRejectPending(id){wholesalePending=wholesalePending.filter(function(x){return x.id!==id;});saveWholesale();renderWholesale();showToast('Rejected');}
 
@@ -5590,11 +5643,13 @@ function applyRoleUI() {
   // Show/hide employee-only nav buttons
   document.querySelectorAll('.nav-btn').forEach(b => {
     const oc = b.getAttribute('onclick') || '';
-    if (oc.includes('settings') || b.id === 'nav-requests' || b.id === 'nav-sales' || b.id === 'nav-schedule' || b.id === 'nav-tasks' || b.id === 'nav-jess' || b.id === 'nav-inbox' || b.id === 'nav-notifications') {
+    if (oc.includes('settings') || b.id === 'nav-requests' || b.id === 'nav-sales' || b.id === 'nav-schedule' || b.id === 'nav-tasks' || b.id === 'nav-daily' || b.id === 'nav-jess' || b.id === 'nav-inbox' || b.id === 'nav-receipts' || b.id === 'nav-singles' || b.id === 'nav-notifications') {
       b.style.display = isEmployee ? '' : 'none';
     }
   });
   // Hide + Add from customers — employees only
+  var payLink = document.getElementById('staff-paylink');
+  if (payLink) payLink.style.display = isEmployee ? '' : 'none';
   var addBtn = document.getElementById('nav-add');
   if (addBtn) addBtn.style.display = isEmployee ? '' : 'none';
 
@@ -7995,8 +8050,30 @@ function syncInventory(){
      also needs sales, staff and roles). A customer holds no key, so it reads the public
      write-less /shop/stock feed — which carries shoes and deletions and nothing else.
      Either way the shopper ends up seeing CONFIRMED stock, which is the whole point. */
+  /* 🔑 A STAFF KEY THAT NO LONGER WORKS MUST DEGRADE TO A SHOPPER, NOT TO A BROKEN PAGE
+     (Rodney 2026-09-07 — "sizes not showing for client").
+
+     _hasShopKey() is presence-only (`return !!SHOP_KEY`) — it does not check that the key
+     still WORKS. So any phone holding a stale, revoked or half-copied key took the staff
+     door, got 401, and shopGet threw. That landed in the .catch below, set _invFailed, and
+     every card on the page then read "Message us to check sizes" — permanently, without
+     ever trying the public feed it is perfectly entitled to read.
+
+     Rodney hit this on his own phone inside WhatsApp's in-app browser, which is a separate
+     storage context and a good place for an aged key to sit unnoticed.
+
+     A shopper holding NO key was never affected — they already take the public door. Only
+     set _invFailed when BOTH doors fail; that is the genuine "we cannot see the shelf" case
+     the message was written for. The key is deliberately NOT deleted here: a write failing
+     loudly later is better than silently signing staff out on a blip. */
   var source = _hasShopKey()
-    ? shopGet('/shop/state')
+    ? shopGet('/shop/state').catch(function(err){
+        if (err && /http 40[13]/.test(String(err && err.message || ''))) {
+          try{ console.warn('[sp242] staff key rejected — reading the public shelf instead'); }catch(e){}
+          return shopGetPublic('/shop/stock');
+        }
+        throw err;
+      })
     : shopGetPublic('/shop/stock');
   return source.then(function(st){
     var serverIds={}; (st.shoes||[]).forEach(function(s){ serverIds[s.id]=1; });
@@ -8536,6 +8613,14 @@ setTimeout(_showLandingFpBtn, 200);
 </div>
 
 <div class="page" id="page-tasks">
+      <!-- 📋 THE FLOOR SHEET. The task board below is for one-off messages; the day's
+           standing work — jobs, six shoes to shoot, two clips, today's ten and the
+           stock check — lives at /tasks. Rodney asked where to find it from the site
+           (2026-09-23), and a link nobody can find is a page nobody uses. -->
+      <button onclick="window.open('/tasks','_blank','noopener')" style="width:100%;margin-bottom:14px;padding:15px;border:0;border-radius:12px;background:#C8FF2E;color:#11140A;font-size:15px;font-weight:700;cursor:pointer;text-align:left;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:20px">📋</span>
+        <span>Open today's Daily Sheet<span style="display:block;font-size:12px;font-weight:600;opacity:.75">Jobs · photos to shoot · TikTok clips · stock check</span></span>
+      </button>
   <div class="page-title"><h2>✅ TASKS</h2><p>Notes for the team — everyone gets a WhatsApp</p></div>
   <div style="padding:0 0 20px;">
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:18px;">

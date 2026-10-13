@@ -10014,6 +10014,123 @@ try {
   console.error('[voice] NOT mounted:', e && e.message);
 }
 
+// ===== RESTORED 2026-10-13 =====================================================
+// The 2026-10-12 'Restore Sep 3 brain' commit reset the whole repo to 3 September and
+// pushed over main, which also removed the staff pages that were never part of the
+// brain: /push-check, /invoice, /tasks (Deashinique's daily sheet, with her photo and
+// clip uploads) and /singles. The brain itself is untouched; these blocks are the
+// route tables as they stood on 9 October (ffcade5), nothing more.
+
+// 🩺 /push-check — the one thing he can tap that tells the truth.
+// For weeks the server said every push was "accepted" while nothing appeared on his phone,
+// because everything we could measure sits on the sending side. This page runs on HIS phone,
+// on the same address as the shop app (so it can see the same sign-up and read the same saved
+// key), and walks the last three steps one at a time: can the phone draw a notification at
+// all, is this phone on the list the server actually sends to, and does a real send land.
+// Whichever step goes quiet is the fault — no more guessing from the far end of the wire.
+let PUSHCHK = null;
+try { PUSHCHK = require('fs').readFileSync(require('path').join(__dirname, 'push-check.html'), 'utf8'); }
+catch (e) { console.log('[push-check] page missing:', e.message); }
+app.get(['/push-check', '/push-check.html'], (req, res) => {
+  if (!PUSHCHK) return res.status(404).type('text/plain').send('no page');
+  res.set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-cache').send(PUSHCHK);
+});
+
+/* THE INVOICE MAKER — /invoice
+ *
+ * A standalone page the manager opens on his phone: it builds a receipt he can
+ * edit in place, makes a PDF of it, and hands it to WhatsApp or email through the
+ * phone's own share sheet. It lives here rather than on the Netlify site for one
+ * practical reason - the share sheet and Add to Home screen both need https, and
+ * this domain already has it.
+ *
+ * Served the same way as /push-check above: read once at boot, no static mount, so
+ * it cannot expose anything else in this directory. Read-only as far as the shop is
+ * concerned - the page talks to Firestore directly for invoices and never touches
+ * stock counts.
+ */
+const INVOICE_ASSETS = {
+  '/invoice':                 ['invoice.html',          'text/html; charset=utf-8'],
+  '/invoice.html':            ['invoice.html',          'text/html; charset=utf-8'],
+  '/invoice-manifest.json':   ['invoice-manifest.json', 'application/manifest+json'],
+  '/invoice-icon-192.png':    ['invoice-icon-192.png',  'image/png'],
+  '/invoice-icon-512.png':    ['invoice-icon-512.png',  'image/png']
+};
+const INVOICE_CACHE = {};
+Object.keys(INVOICE_ASSETS).forEach((route) => {
+  const file = INVOICE_ASSETS[route][0];
+  if (INVOICE_CACHE[file] !== undefined) return;
+  try {
+    INVOICE_CACHE[file] = require('fs').readFileSync(require('path').join(__dirname, file));
+  } catch (e) {
+    INVOICE_CACHE[file] = null;
+    console.log('[invoice] missing file:', file, e.message);
+  }
+});
+app.get(Object.keys(INVOICE_ASSETS), (req, res) => {
+  const entry = INVOICE_ASSETS[req.path];
+  const body = entry && INVOICE_CACHE[entry[0]];
+  if (!body) return res.status(404).type('text/plain').send('no page');
+  res.set('Content-Type', entry[1]).set('Cache-Control', 'no-cache').send(body);
+});
+
+/* THE DAILY COUNT SHEET — /tasks
+ *
+ * Deashinique's stock-count sheet. It used to live in a Claude artifact, which
+ * only hands its data to a signed-in Claude account: opened from a WhatsApp link
+ * it silently fell back to placeholder shoes and grey boxes, and she was counting
+ * shoes that don't exist. Nothing warned her. This is the same job with no
+ * sign-in of any kind — anyone with the link sees the real catalogue.
+ *
+ * tasks-data.js carries the names and the thumbnail URLs (the shop's own frames
+ * repo); the sizes are re-read live from /shop/state on every load, so the sheet
+ * can never advertise a size the shop no longer has. Her taps save to the phone
+ * as she goes, and "Send count" posts a summary to /shop/note — a report for
+ * Rodney to read. It deliberately does NOT write stock: a miscount must never be
+ * able to wipe sizes out of inventory.
+ *
+ * Served like /invoice above: read once at boot, no static mount.
+ */
+const COUNT_ASSETS = {
+  '/tasks':          ['tasks.html',    'text/html; charset=utf-8'],
+  '/tasks.html':     ['tasks.html',    'text/html; charset=utf-8'],
+  '/count':          ['tasks.html',    'text/html; charset=utf-8'],
+  '/tasks-data.js':  ['tasks-data.js', 'application/javascript; charset=utf-8']
+};
+const COUNT_CACHE = {};
+Object.keys(COUNT_ASSETS).forEach((route) => {
+  const file = COUNT_ASSETS[route][0];
+  if (COUNT_CACHE[file] !== undefined) return;
+  try {
+    COUNT_CACHE[file] = require('fs').readFileSync(require('path').join(__dirname, file));
+  } catch (e) {
+    COUNT_CACHE[file] = null;
+    console.log('[count] missing file:', file, e.message);
+  }
+});
+app.get(Object.keys(COUNT_ASSETS), (req, res) => {
+  const entry = COUNT_ASSETS[req.path];
+  const body = entry && COUNT_CACHE[entry[0]];
+  if (!body) return res.status(404).type('text/plain').send('no page');
+  res.set('Content-Type', entry[1]).set('Cache-Control', 'no-cache').send(body);
+});
+
+// 🧾 STAFF TASK LIST — /tasks
+// This used to be a redirect to a Claude artifact, with our own og: tags on the
+// hop so WhatsApp's preview card read SneakerPlug242 instead of "Claude Artifact"
+// (Rodney 2026-09-18: "next time dont put Claude, put Sneaker plug.").
+//
+// The redirect is gone. That artifact only hands its data to a signed-in Claude
+// account, so opened from a WhatsApp tap it showed Deashinique placeholder shoes
+// and grey boxes with no warning — she saw real pictures twice, then never again.
+// /tasks is now served straight from here by COUNT_ASSETS above, with the same
+// og: tags on the page itself. The link saved to her home screen never changed.
+
+// 👟 SINGLES (Rodney 2026-09-10) - staff page at /singles; reads live stock through shop.getShoes().
+try { require('./singles').mount(app); }
+catch (e) { console.error('[singles] not mounted:', e && e.message); }
+// ===== END RESTORED ============================================================
+
 app.listen(PORT, () => {
   console.log(`Sneaker lookup API running on port ${PORT}`);
   console.log(`${catalog.length} shoes loaded`);

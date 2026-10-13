@@ -32,6 +32,13 @@ const VOICE_KEY = process.env.VOICE_KEY || 'sp242-voice-4f9c21ab77e0';
 const VOICE_LINES = {
   '12428033126': 'Official Sneaker Crew',
   '12428256405': 'Trendy Kicks',
+  // 📞 THE NUMBER THAT ACTUALLY TAKES THE CALLS. Rodney 2026-10-01: "for my direct calls,
+  // I've been missing all the calls I had for weeks. I haven't seen any come through to my
+  // message app. So I don't even know who's been calling me."
+  // Measured against Retell: 38 phone calls since 5 September, every single one dialled to
+  // +1 (904) 906-8851 - which was in neither this map nor the call log. Kiki answered all of
+  // them and he never saw one.
+  '19049068851': 'Shop line',
 };
 
 const digits = v => String(v == null ? '' : v).replace(/\D/g, '');
@@ -70,6 +77,116 @@ function spokenSizes(sizes, bare) {
   if (nums.length <= 4) return `${nums.slice(0, -1).map(aSize).join(', ')} and ${aSize(nums[nums.length - 1])}`;
   return `${nums.length} sizes, from ${aSize(nums[0])} up to ${aSize(nums[nums.length - 1])}`;
 }
+
+// A size string off searchInventory is "7, 8, 9.5". Does it actually hold THIS size?
+// Needed because searchInventory deliberately also returns the half-size UP.
+const sizeArray = s => String(s && s.sizes || '').split(',').map(x => parseFloat(x)).filter(n => !isNaN(n));
+const hasSize = (s, n) => !isNaN(n) && sizeArray(s).some(x => x === n);
+const sizeWord = n => (isNaN(n) || n == null ? 'that size' : aSize(n));
+
+// ── WHAT A CALLER SHOULD HEAR FIRST ───────────────────────────────────────────
+// Rodney, 5 Sep 2026: the phone agent was reading out the SAME four shoes on every call,
+// whatever was asked, and they were mostly one-off leftovers sitting in a single size.
+// Two separate causes, both here:
+//   1. searchInventory hands back catalog order, so `slice(0, 4)` returned whatever happened
+//      to sit at the top of the file. Now we LEAD WITH DEPTH — a shoe we hold in 9 sizes can
+//      be sold to whoever rings; one pair left in a 13 nearly always ends the call in "sorry".
+//   2. Four colourways of one Air Max makes it sound like we stock one shoe. ONE PER MODEL
+//      first, then come back for the rest.
+const stockDepth = s => (s && s.pairs != null && !isNaN(s.pairs) ? Number(s.pairs) : sizeArray(s).length);
+const modelKeyOf = s => String(s && s.name || '').toLowerCase().split(/[—(]/)[0].replace(/\s+/g, ' ').trim();
+
+function rankForPhone(found) {
+  // Stable: searchInventory's own ordering (pure-colour first, query relevance) breaks ties,
+  // so ranking by depth never throws away the match the caller actually asked for.
+  const idx = found.map((s, i) => ({ s, i }));
+  // 🥇 WHAT THEY ASKED FOR BEATS WHAT WE HAVE MOST OF. Depth-first on its own let a 15-pair
+  // Nike Mind answer the word "yeezy", because the foam family is deliberately searched as one
+  // shoe (Rodney, 14 Jul) and the deepest member of the family won. searchInventory now marks
+  // each row `direct` — 0 if the shoe's OWN name/colour carries every word they said, 1 if it
+  // only came back on a family alias — so depth now decides the order INSIDE those two groups
+  // rather than across them. A vague ask ("slippers", "what you got") tags every row the same,
+  // so it stays pure depth-first exactly as before.
+  idx.sort((a, b) => ((a.s.direct || 0) - (b.s.direct || 0))
+                  || (stockDepth(b.s) - stockDepth(a.s))
+                  || (a.i - b.i));
+  // A model only earns a place in the spread if we hold a REAL amount of it. Without this
+  // the one-per-model pass promoted single leftovers above deep sellers just because they
+  // were a different model — a 1-pair Jordan 13 landing above a 28-pair Jordan 4, which is
+  // exactly the "mostly one-off single pairs" complaint. Leftovers still come back, at the
+  // bottom, where they belong.
+  const WORTH_LEADING_WITH = 3;
+  // Run the one-per-model spread SEPARATELY over each group. Run over the whole list it
+  // interleaved them again — the caller asked for yeezys, we led with a yeezy and then put a
+  // Nike Mind and a Crocs at two and three, because they were the next different models. The
+  // point of the spread is variety among the shoes they actually want, not variety instead.
+  const spread = (list) => {
+    const seen = new Set(), first = [], rest = [];
+    list.forEach(({ s }) => {
+      const k = modelKeyOf(s);
+      if ((k && seen.has(k)) || stockDepth(s) < WORTH_LEADING_WITH) { rest.push(s); return; }
+      seen.add(k); first.push(s);
+    });
+    return first.concat(rest);
+  };
+  const asked = idx.filter(({ s }) => !(s.direct || 0));
+  const family = idx.filter(({ s }) => (s.direct || 0));
+  return spread(asked).concat(spread(family));
+}
+
+// A caller nearly always already knows the colour they want, so the genuinely useful thing to
+// hand the agent is the SHORT list of colours we hold. That is what "black or white?" is built
+// from — and it is why the agent no longer needs the whole list read out to it.
+const COLOUR_WORDS = ['black', 'white', 'grey', 'blue', 'navy', 'red', 'green', 'brown', 'tan',
+  'cream', 'pink', 'purple', 'orange', 'yellow', 'beige', 'silver', 'gold', 'olive', 'burgundy'];
+// Counts the PRIMARY colour only — the first colour word in "Black/Red" is black. Counting
+// every word made a shelf of three shoes offer "black or red" when black and red were the same
+// shoe, and the caller picks red expecting a red shoe.
+function coloursIn(found) {
+  const n = {};
+  found.forEach(s => {
+    const hay = String(s.color || '').toLowerCase().replace(/\bgray\b/g, 'grey');
+    const first = COLOUR_WORDS
+      .map(w => ({ w, at: hay.indexOf(w) }))
+      .filter(x => x.at >= 0)
+      .sort((a, b) => a.at - b.at)[0];
+    if (first) n[first.w] = (n[first.w] || 0) + 1;
+  });
+  return Object.keys(n).sort((a, b) => n[b] - n[a]);
+}
+function modelsIn(found) {
+  const n = {};
+  found.forEach(s => { const k = modelKeyOf(s); if (k) n[k] = (n[k] || 0) + 1; });
+  return Object.keys(n).sort((a, b) => n[b] - n[a]).slice(0, 8);
+}
+// Case-folded, because the catalog holds both "Asics" and "ASICS" and the brand list came
+// back with the same brand twice — which reads out loud as "Asics, Crocs, Yeezy, Asics".
+function brandsIn(found) {
+  const n = {}, label = {};
+  found.forEach(s => {
+    const b = String(s.brand || '').trim();
+    if (!b) return;
+    const k = b.toLowerCase();
+    n[k] = (n[k] || 0) + 1;
+    // Keep the nicest-looking spelling: "Asics" beats "ASICS", which TTS may spell out.
+    if (!label[k] || (b !== b.toUpperCase() && label[k] === label[k].toUpperCase())) label[k] = b;
+  });
+  return Object.keys(n).sort((a, b) => n[b] - n[a]).map(k => label[k]);
+}
+
+// One shoe, described for a machine AND for a mouth. The price goes back BOTH ways on purpose:
+// `price` is a real number so the agent can answer "anything under 150", `price_spoken` is the
+// words to say. Sending only "180 dollars" left it unable to compare two shoes (5 Sep 2026).
+const shoeOut = s => ({
+  name: spokenName(s.name),
+  color: s.color,
+  brand: s.brand,
+  price: parseFloat(String(s.price).replace(/[^0-9.]/g, '')) || null,
+  price_spoken: spokenPrice(s.price),
+  sizes: s.sizes,
+  sizes_spoken: spokenSizes(s.sizes),
+  pairs: stockDepth(s),
+});
 
 // Women's − 1.5 = men's. Stock is ALWAYS men's (see server.js sizesOf / CLAUDE.md).
 // A caller saying "women's 8" means a men's 6.5 and getting this backwards sends a driver
@@ -143,6 +260,153 @@ const VOICE_AGENT_CONFIG = {
   normalize_for_speech: true,          // reads "$130" and "9.5" like a person would
 };
 
+// ── 📞 THE CALL LOG ───────────────────────────────────────────────────────────
+//
+// Rodney, 5 Sep 2026: "my call logs never show up ... how will I know who called, each log
+// should have a recording of the call so I can know if I have to fix anything or return call."
+//
+// WHY THIS EXISTS. WhatsApp keeps every message he has ever had. The phone kept NOTHING —
+// somebody could ring, ask for a nine and a half, and vanish with no trace he could look at
+// later. This is the shelf those calls sit on, and the Inbox reads it into the same list as
+// the chats so the phone and the messages are finally one screen.
+//
+// WHY IT IS POSTED IN RATHER THAN BUILT HERE. Calls arrive over two different pipes: Retell
+// on its own webhook (/voice/end below), and the WhatsApp-call bridge running on the other
+// Mac. Both POST the same shape. Dedupe is on call_id, so one call can be posted twice —
+// once the moment it ends, again later when the recording has finished uploading — without
+// turning into two rows in his list.
+const CALL_LOG_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'call-log.json');
+    }
+  } catch (_) {}
+  return null;   // no disk mounted (a local run): the log still works, it just won't survive a restart
+})();
+const CALL_LOG_MAX = 500;
+let callLog = [];
+try {
+  if (CALL_LOG_FILE && require('fs').existsSync(CALL_LOG_FILE)) {
+    callLog = JSON.parse(require('fs').readFileSync(CALL_LOG_FILE, 'utf8')) || [];
+    console.log('[voice] restored', callLog.length, 'call log entr(ies)');
+  }
+} catch (_) { callLog = []; }
+// Bumped on every write. The Inbox polls this number so a call that lands while he is
+// staring at the list pops in on its own, the same way a new message does.
+let callRev = callLog.length;
+function saveCallLog() {
+  try { if (CALL_LOG_FILE) require('fs').writeFileSync(CALL_LOG_FILE, JSON.stringify(callLog)); } catch (_) {}
+}
+
+// Which business the call came in on. Rodney picked the colours himself: "green for osc,
+// blue for tk, yellow for ff foot fetish." The Inbox colours the row off this tag and
+// nothing else, so an odd or missing line has to land somewhere sane — OTH, never a crash.
+const CALL_TAGS = [
+  ['trendy kicks', 'TK'], ['trendy', 'TK'], ['tk', 'TK'],
+  ['official sneaker crew', 'OSC'], ['sneaker crew', 'OSC'], ['osc', 'OSC'],
+  ['foot fetish', 'FF'], ['footfetish', 'FF'], ['ff', 'FF'],
+];
+function callTag(line) {
+  const s = String(line || '').trim().toLowerCase();
+  if (!s) return 'OTH';
+  for (const [k, tag] of CALL_TAGS) if (s === k) return tag;
+  for (const [k, tag] of CALL_TAGS) if (k.length > 2 && s.includes(k)) return tag;
+  return 'OTH';
+}
+
+// Add or update one call. Returns the stored row.
+//
+// ⚠️ A SECOND POST ONLY EVER FILLS IN BLANKS. The recording finishes uploading well after
+// the call ends, so the bridge posts the same call again carrying nothing but call_id and a
+// URL. An earlier version rebuilt the whole row from that second post and quietly replaced
+// the caller's name, the business and the time with defaults — the call was still in the
+// list, but it had lost who rang and which line they rang. So: only fields the poster
+// ACTUALLY SENT are written; everything else is left exactly as it was.
+function addCall(rec) {
+  const r = rec || {};
+  const id = String(r.call_id || r.callId || r.id || '').trim() || ('call-' + (r.epoch || Date.now()));
+  const has = (...keys) => keys.some(k => r[k] !== undefined && r[k] !== null && String(r[k]).trim() !== '');
+  const patch = {};
+  if (has('epoch', 'at')) patch.ts = Number(r.epoch) || Date.parse(r.at || '') || Date.now();
+  if (has('at')) patch.at = String(r.at).trim();
+  if (has('line')) patch.line = String(r.line).trim();
+  if (has('tag', 'line')) patch.tag = callTag(r.tag || r.line);
+  // "unknown" IS THE HONEST ANSWER and it stays. A web call carries no caller ID at all —
+  // the name is read off the WhatsApp ring by the bridge on the other Mac, which is the only
+  // place the caller's identity exists. Calls from before that was built come in as unknown.
+  // Writing "Caller" instead would read like we knew and didn't say.
+  if (has('caller', 'name')) patch.caller = String(r.caller || r.name).trim();
+  if (has('phone')) patch.phone = prettyPhone(r.phone);
+  if (has('seconds', 'duration')) patch.seconds = Math.max(0, Math.round(Number(r.seconds || r.duration)) || 0);
+  if (has('ended_because', 'ended')) patch.ended_because = String(r.ended_because || r.ended).trim();
+  if (has('summary')) patch.summary = String(r.summary).trim();
+  if (has('recording', 'recording_url')) patch.recording = String(r.recording || r.recording_url).trim();
+  if (has('transcript')) patch.transcript = String(r.transcript).trim();
+
+  const i = callLog.findIndex(c => c && c.call_id === id);
+  const base = i > -1 ? callLog[i] : {
+    call_id: id, ts: Date.now(), at: new Date().toISOString(), line: 'shop line', tag: 'OTH',
+    caller: 'unknown', phone: '', seconds: 0, ended_because: '', summary: '', recording: '', transcript: '',
+  };
+  const entry = Object.assign({}, base, patch, { call_id: id });
+  if (i > -1) callLog[i] = entry; else callLog.push(entry);
+
+  callLog.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  if (callLog.length > CALL_LOG_MAX) callLog.length = CALL_LOG_MAX;
+  callRev++;
+  saveCallLog();
+  return entry;
+}
+// 📥 PULL THE CALLS FROM RETELL OURSELVES.
+// Every phone call already exists in Retell - with the caller's number, the length, a summary
+// and a recording - and 38 of them never reached this log. Rather than depend on a webhook
+// being configured correctly in a dashboard nobody can see from here, we ASK. Polling cannot
+// silently stop working the way a missing webhook did, it backfills the history we already
+// lost, and addCall only fills blanks so a later webhook post can still add to the same row.
+let lastCallPull = 0;
+async function pullRetellCalls(limit = 60, note = () => {}) {
+  const key = (process.env.RETELL_API_KEY || '').trim();
+  if (!key) return { ok: false, why: 'RETELL_API_KEY not set' };
+  try {
+    const r = await fetch('https://api.retellai.com/v2/list-calls', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ limit: Math.max(1, Math.min(500, limit)) }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!r.ok) return { ok: false, status: r.status, why: (await r.text()).slice(0, 160) };
+    const data = await r.json();
+    const rows = Array.isArray(data) ? data : (data.calls || []);
+    let added = 0;
+    for (const c of rows) {
+      if (!c || c.call_type !== 'phone_call') continue;   // web calls are logged by the bridge
+      const an = c.call_analysis || {};
+      const to = String(c.to_number || '').replace(/\D/g, '');
+      addCall({
+        call_id: c.call_id,
+        epoch: Number(c.start_timestamp) || Date.now(),
+        line: VOICE_LINES[to] || 'Shop line',
+        phone: c.from_number || '',
+        seconds: Math.round((Number(c.duration_ms) || 0) / 1000),
+        ended_because: c.disconnection_reason || '',
+        summary: an.call_summary || '',
+        recording: c.recording_url || an.recording_url || '',
+        transcript: typeof c.transcript === 'string' ? c.transcript : '',
+      });
+      added++;
+    }
+    lastCallPull = Date.now();
+    return { ok: true, seen: rows.length, phoneCalls: added };
+  } catch (e) { return { ok: false, why: String(e).slice(0, 160) }; }
+}
+
+function getCallLog(limit) {
+  const n = Math.max(1, Math.min(CALL_LOG_MAX, parseInt(limit, 10) || 100));
+  return callLog.slice(0, n);
+}
+function getCallRev() { return callRev; }
+
 function mountVoice(app, deps) {
   const { searchInventory, record, waSendManager, express } = deps;
 
@@ -169,6 +433,197 @@ function mountVoice(app, deps) {
     res.type('text/plain').send(VOICE_PROMPT);
   });
 
+  // ── 📞 CALL LOG IN / OUT (see THE CALL LOG block above) ─────────────────────
+  // POST one call, or a whole batch as {calls:[...]} — a backfill of everything already
+  // sitting in the bridge's calls.jsonl is then a single request, not one per call.
+  app.post('/voice/call-log', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const list = Array.isArray(b) ? b : (Array.isArray(b.calls) ? b.calls : [b]);
+    const saved = list.filter(x => x && typeof x === 'object').map(addCall);
+    try { record(req, { endpoint: 'voice-call-log', callsIn: saved.length }); } catch (_) {}
+    res.json({ ok: true, saved: saved.length, total: callLog.length, rev: callRev });
+  });
+  // Pull on boot (backfills what the missing webhook lost) and every two minutes after.
+  // First run is delayed so it never competes with start-up.
+  setTimeout(() => { pullRetellCalls(200).then(r => {
+    try { console.log('[calls] backfill from Retell:', JSON.stringify(r)); } catch (_) {}
+  }); }, 12000);
+  setInterval(() => { pullRetellCalls(60).catch(() => {}); }, 2 * 60 * 1000);
+
+  // Manual kick, for checking it by hand.
+  app.get('/voice/pull-calls', async (req, res) => {
+    if (!auth(req, res)) return;
+    res.json(await pullRetellCalls(parseInt(req.query.limit, 10) || 200));
+  });
+
+  app.get('/voice/call-log', (req, res) => {
+    if (!auth(req, res)) return;
+    res.json({ count: callLog.length, rev: callRev, calls: getCallLog(req.query.limit) });
+  });
+
+  // ── 💬 MESSAGE LOG IN (Rodney, 7 Sep 2026: "my inbox app is dead") ──────────
+  //
+  // It was never dead. It was HALF dead, which is worse, because it looked like it worked.
+  //
+  // When Trendy Kicks, Official Sneaker Crew and Foot Fetish moved onto the browser bot on
+  // the other Mac, the calls kept arriving here (that bridge posts to /voice/call-log) and
+  // the messages stopped. Nothing on the Mac posted a conversation anywhere. So his Chats
+  // list froze mid-sentence: Sneaker Inventory rows still filled in, because SI is still on
+  // ManyChat and flows through this server, while OSC and TK rows showed a phone call and
+  // nothing else. Every text those two lines had sent or received for weeks existed only in
+  // a jsonl file on a laptop.
+  //
+  // 🚨 LOG-ONLY. THIS MUST NEVER PRODUCE A REPLY.
+  // Everything posted here has ALREADY been answered by the bot on the Mac. If this were
+  // wired into the chat path the customer would be answered a second time, by a different
+  // bot, with different stock in front of it. `inboxRecord` stores and does nothing else —
+  // keep it that way, and never call sendChunk/handleChat from this route.
+  //
+  // Posted in for the same reason the call log is: two different pipes (this server for the
+  // ManyChat lines, the Mac for the browser-bot lines) need to land in one list.
+  const MSG_LINE_ACCOUNT = {
+    TK:  'Trendy Kicks',
+    OSC: 'Official Sneaker Crew',
+    FF:  'Foot Fetish',
+    SI:  'Sneaker Inventory',
+  };
+  function msgAccount(row) {
+    // The line wins over the shop name: the bot always knows which line it answered on,
+    // whereas `shop` is a display string and drifts. 4324406 is Foot Fetish's number and the
+    // bot files that line by number, so callTag would call it OTH — mapped explicitly.
+    const raw = String(row.line || '').trim();
+    let tag = /4324406/.test(raw) ? 'FF' : callTag(raw);
+    if (tag === 'OTH' && row.shop) tag = callTag(String(row.shop));
+    return MSG_LINE_ACCOUNT[tag] || String(row.shop || row.line || 'Other').slice(0, 60);
+  }
+  // "2026-09-07T15:32:12" with no timezone is LOCAL time on his Mac. Parsing that with
+  // new Date() in a UTC container shifts every row by four hours, which is exactly the
+  // UTC-date trap that broke the schedule page. Treated as local-to-him and converted.
+  const MSG_TZ_OFFSET_MIN = Number(process.env.MSG_LOG_TZ_OFFSET_MIN || -240); // EDT
+  function msgWhen(at) {
+    if (!at) return Date.now();
+    const s = String(at).trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(s);
+    if (m) {
+      const utc = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+      return utc - MSG_TZ_OFFSET_MIN * 60000;
+    }
+    const t = Date.parse(s);
+    return Number.isFinite(t) ? t : Date.now();
+  }
+
+  app.post('/voice/msg-log', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const list = Array.isArray(b) ? b : (Array.isArray(b.messages) ? b.messages : [b]);
+
+    // 🧪 DRY RUN. `{"dry":true}` (or ?dry=1) writes NOTHING and reports what a real run would do.
+    //
+    // This exists because the skip rule and the real risk are not the same shape. A row is only
+    // skipped when the text matches AND the clock agrees to within a second — but the Mac's
+    // clock and this server's clock will not agree that closely, and this server ALREADY holds
+    // Kiki replies for Trendy Kicks and Official Sneaker Crew inside the window being replayed.
+    // So a message this server already has can arrive stamped a few seconds off, sail past the
+    // skip, and land a second time. `dupText` counts exactly those: same thread, same words,
+    // different second. If it comes back above zero, a real run WILL double part of his history
+    // and the fix is to send only the `kiki` half, or to narrow the date range — not to press on.
+    const dry = !!(b.dry || b.dryRun || req.query.dry);
+    let saved = 0, skipped = 0, dupText = 0;
+    const samples = [];
+
+    // 🧠 A dry run must also see the rows THIS BATCH would insert.
+    //
+    // Caught by M5 helper, and they were right: a dry run writes nothing, so every row was
+    // being compared against the database as it stood BEFORE the batch — while the real run
+    // compares each row against a database its own earlier rows are filling in. Two rows that
+    // collide with each other inside one payload were therefore invisible to the check, and
+    // since a normal import is a single batch, the number could read a clean 0 on a payload
+    // that was full of them. A safety check that is blind in the exact case it exists for is
+    // worse than none, because it gets believed. So dry mode keeps its own shadow copy of what
+    // it would have written and checks against that too.
+    const pending = new Map(); // "account|sub" -> [{ts, text}]
+    const pendingHit = (account, sub, ts, text) => {
+      const arr = pending.get(account + '|' + sub);
+      if (!arr) return { exact: false, sameText: false };
+      const out = { exact: false, sameText: false };
+      for (let i = arr.length - 1, seen = 0; i >= 0 && seen < 200; i--, seen++) {
+        if (arr[i].text !== text) continue;
+        const gap = Math.abs(arr[i].ts - ts);
+        if (gap <= 1000) { out.exact = true; return out; }
+        if (gap <= 10 * 60 * 1000) out.sameText = true;
+      }
+      return out;
+    };
+    const pendingAdd = (account, sub, ts, text) => {
+      const k = account + '|' + sub;
+      if (!pending.has(k)) pending.set(k, []);
+      pending.get(k).push({ ts, text });
+    };
+
+    for (const row of list) {
+      if (!row || typeof row !== 'object') { skipped++; continue; }
+      const sub = String(row.thread || row.phone || '').replace(/[^0-9]/g, '');
+      if (!sub) { skipped++; continue; }
+      const account = msgAccount(row);
+      const them = String(row.them || '').slice(0, 1000);
+      const kiki = String(row.kiki || '').slice(0, 2000);
+      if (!them && !kiki) { skipped++; continue; }
+      const at = msgWhen(row.at);
+
+      // Replaying the same file twice must not double every line. Cheap and good enough:
+      // an identical text at an identical second in the same thread is the same message.
+      const probe = them || kiki;
+      let hit = deps.inboxFind
+        ? deps.inboxFind(account, sub, at, probe)
+        : { exact: !!(deps.inboxHas && deps.inboxHas(account, sub, at, probe)), sameText: false };
+      // In a dry run the earlier rows of this same batch are not in the database yet, so ask
+      // the shadow copy as well. In a real run they ARE in the database, so this adds nothing.
+      if (dry && !hit.exact) {
+        const p = pendingHit(account, sub, at, probe);
+        hit = { exact: p.exact, sameText: hit.sameText || p.sameText };
+      }
+      if (hit.exact) { skipped++; continue; }
+
+      // Already present under a different timestamp — the case the skip rule misses.
+      if (hit.sameText) {
+        dupText++;
+        if (samples.length < 12) samples.push({ account, thread: sub, at: new Date(at).toISOString(), text: String(probe).slice(0, 90) });
+      }
+
+      if (dry) {
+        if (them) pendingAdd(account, sub, at, them);
+        if (kiki) pendingAdd(account, sub, at + 1000, kiki);
+        saved++;
+        continue;
+      }
+
+      // quiet: already answered on the Mac. No unread badge, no push, no staff WhatsApp.
+      if (them) deps.inboxRecord(account, sub, { dir: 'in',  sender: 'customer', text: them, ts: at,        quiet: true, phone: String(row.thread || '') });
+      if (kiki) deps.inboxRecord(account, sub, { dir: 'out', sender: 'kiki',     text: kiki, ts: at + 1000, quiet: true });
+      const n = parseInt(row.photos, 10) || 0;
+      if (n > 0) deps.inboxRecord(account, sub, { dir: 'out', sender: 'system', text: '📷 sent ' + n + (n === 1 ? ' photo' : ' photos'), ts: at + 2000, quiet: true });
+      saved++;
+    }
+
+    try { record(req, { endpoint: 'voice-msg-log', msgsIn: saved, skipped, dupText, dry, source: String(b.source || (list[0] && list[0].source) || '') }); } catch (_) {}
+    const out = { ok: true, saved, skipped, dupText };
+    if (dry) { out.dry = true; out.wouldSave = saved; out.saved = 0; out.duplicateSamples = samples; }
+    res.json(out);
+  });
+  // Bin one row. A test call, or a wrong number that logged itself twice — a list he can't
+  // tidy is a list he stops trusting. Key goes in the BODY, not the query string: a key on the
+  // end of a URL ends up in logs and in his browser history.
+  app.post('/voice/call-log/delete', (req, res) => {
+    if (!auth(req, res)) return;
+    const id = String((req.body && (req.body.id || req.body.call_id)) || '').trim();
+    const before = callLog.length;
+    callLog = callLog.filter(c => c && c.call_id !== id);
+    const removed = before - callLog.length;
+    if (removed) { callRev++; saveCallLog(); }
+    res.json({ ok: true, removed, total: callLog.length });
+  });
+
   // ── Everything the voice platform needs, ready to paste ─────────────────────
   // Retell wants each tool declared with a name, a description, its arguments, and — the
   // part that kills the dead air — `speak_during_execution` with a line to say WHILE the
@@ -192,7 +647,12 @@ function mountVoice(app, deps) {
       agent: Object.assign({
         agent_name: 'Kiki — SNEAKERPLUG242 phone',
         general_prompt: VOICE_PROMPT,
-        begin_message: "Hello, good day. How can I help you?",
+        // EMPTY ON PURPOSE. A fixed begin_message can only ever say one thing, and the one it
+        // said was "Hello, good day" — which is not how anybody in Nassau greets anybody
+        // (Rodney's rule: never "good day"). Empty makes the agent speak first using the
+        // OPENING section of the prompt, which reads the Nassau clock and says good morning,
+        // good afternoon or good night. Do not put a string back here.
+        begin_message: '',
         webhook_url: `${req.protocol}://${req.get('host')}/voice/end?key=${VOICE_KEY}`,
       }, VOICE_AGENT_CONFIG),
       tools: [
@@ -206,6 +666,10 @@ function mountVoice(app, deps) {
         tool('size_check', 'Yes or no: do we have ONE named shoe in ONE named size.', {
           query: { type: 'string', description: 'The shoe they named.' },
           size:  { type: 'string', description: 'The size they need.' },
+          // If they named a colour, ALWAYS pass it. Without it we answer about whatever
+          // colourway happens to match the name, which is how "the black 97 in a 9.5"
+          // came back as a yes about the green one.
+          color: { type: 'string', description: 'The colour they named, if they named one. e.g. black' },
           for_who: { type: 'string', description: 'Say "womens" for a womens size.' },
         }, ['query', 'size']),
         tool('price_check', 'How much a shoe costs.', {
@@ -244,15 +708,19 @@ function mountVoice(app, deps) {
     }
     let out;
     try {
-      out = await runTool(String(name), args, c);
+      out = await runTool(String(name), args, c, req);
     } catch (e) {
+      if (process.env.VOICE_DEBUG) console.error('[voice/fn]', e && e.stack || e);
       out = { error: 'lookup failed', say: 'Give me one second — let me check that on WhatsApp for you.' };
     }
     record(req, { endpoint: 'voice-fn', voiceFn: String(name), voiceCall: callId, voiceArgs: args });
     res.json(out);
   });
 
-  async function runTool(name, args, c) {
+  // `req` is threaded through so a tool can leave its own row in /last. It used to be
+  // missing here, so take_message's record() call threw ReferenceError into a silent
+  // catch and no phone order ever appeared in the log.
+  async function runTool(name, args, c, req) {
     switch (name) {
 
       // What have you got? The bread-and-butter question on a call.
@@ -276,13 +744,85 @@ function mountVoice(app, deps) {
               : `I am not seeing that one right now. Message this same number on WhatsApp and I will send you pictures of what we do have.`,
           };
         }
-        const top = found.slice(0, 4);
+        const ranked = rankForPhone(found);
+        // "Yeah, I have that. black or brown?" is built from these, so they have to describe the
+        // shoe they ASKED for. Off the full result set a yeezy question could offer them the
+        // green of a Crocs. Fall back to everything when nothing matched directly, so a vague
+        // ask ("slippers", "what you got") still gets the whole shelf's colours as before.
+        const direct = found.filter(s => !(s.direct || 0));
+        const pool = direct.length ? direct : found;
+        const colours = coloursIn(pool);
+        const askedColour = String(args.color || '').trim();
+        const askedFor = args.query || args.shoe || args.brand || askedColour;
+        const wantSize = size != null && !isNaN(size) ? size : null;
+        // searchInventory always throws in the half-size UP so we don't lose a sale over half
+        // a size. On WhatsApp that is right — the photo label shows the real size. On a call
+        // it made Kiki say a flat "yes, I have your size" for a shoe we only had a half up in.
+        const exact = wantSize == null ? ranked : ranked.filter(s => hasSize(s, wantSize));
+        const lead = (exact.length ? exact : ranked)[0];
+
+        // ── WHAT SHE SAYS OUT LOUD ────────────────────────────────────────────
+        // Rodney, 5 Sep 2026: this field was a four-shoe recital and the agent read it word
+        // for word down the phone. Nobody listens to four shoes. A caller wants ONE answer or
+        // ONE question, so `say` is now either the answer about one shoe, or the next question.
+        // Everything else is in the structured fields for the agent to reason over silently.
+        let say;
+        if (wantSize != null && exact.length) {
+          say = `Yes, I have that in ${sizeWord(wantSize)}. ${spokenName(lead.name)}, ${spokenPrice(lead.price)}, and delivery in Nassau is free.`;
+        } else if (wantSize != null) {
+          say = `Not in ${sizeWord(wantSize)} exactly, but I have ${spokenName(lead.name)} in ${spokenSizes(lead.sizes, true)}. The driver brings two sizes so you can try both at the door.`;
+        } else if (!askedFor) {
+          // A bare "what you got". Reading out 334 shoes is the worst possible answer — and
+          // so is "yeah, I have that", because they never named a that. Narrow it by brand.
+          say = `Plenty. What you looking for — ${brandsIn(pool).slice(0, 3).join(', ')}?`;
+        } else if (!askedColour && colours.length > 1) {
+          say = `Yeah, I have that. ${colours.slice(0, 2).join(' or ')}?`;
+        } else {
+          say = `Yeah, I have that${askedColour ? ` in ${askedColour.toLowerCase()}` : ''}. What size you wear?`;
+        }
+
+        // 🔴 7 Sep 2026 — this cost a sale, and here is exactly how.
+        //
+        // A customer asked for all black in an 8.5. `shoes` was `ranked.slice(0,8)` — eight
+        // shoes that had NOT been narrowed to the size he asked for, so the list handed over
+        // included shoes with no 8.5 at all. The text bot answers out of this list, so it told
+        // him the only all-black 8.5s were the Shox and the Air Max 97. There were six. He
+        // then found the Asics himself on the website and sent the card back, which is a
+        // customer doing our job for us.
+        //
+        // Two changes, both additive so the phone agent cannot regress:
+        //   · when a size was asked, the eight now come from the shoes that ACTUALLY have it
+        //     (`exact`), which is the same set `lead` has always been picked from;
+        //   · `all_in_size` lists every match in that size, compactly. On a call the agent
+        //     ignores it — it was never going to read eight shoes out, let alone forty. In a
+        //     TEXT chat the customer genuinely wants the list, and eight was never a real
+        //     limit there, just one inherited from the phone.
+        const shortlist = exact.length ? exact : ranked;
         return {
           count: found.length,
           total_found: found.length,
-          shoes: top.map(s => ({ name: spokenName(s.name), price: spokenPrice(s.price), sizes: spokenSizes(s.sizes), color: s.color })),
-          say: `${found.length === 1 ? 'I have one' : `I have ${found.length}`}. ${top.map(s => `${spokenName(s.name)}, ${spokenPrice(s.price)}, ${spokenSizes(s.sizes)}`).join('. ')}.`
-             + ` The pictures are the part that sells it though — message this same number on WhatsApp and I will send them straight over.`,
+          shown: Math.min(shortlist.length, 8),
+          asked_size: wantSize,
+          exact_size_matches: wantSize == null ? null : exact.length,
+          colors_available: colours,
+          brands_available: brandsIn(pool),
+          models_available: modelsIn(pool),
+          // Eight, ranked, one per model — enough for the agent to answer a follow-up colour
+          // or size question without a second lookup, and it never reads them out.
+          shoes: shortlist.slice(0, 8).map(shoeOut),
+          // `sizes` is not always a plain array on the way through here — go via shoeOut,
+          // which is the one place that already knows how to shape a shoe, so this can never
+          // drift from it again. (It threw on `.join` the first time and the catch above
+          // swallowed it into a bland "lookup failed", which would have made Kiki go quiet
+          // on every line at once.)
+          all_in_size: wantSize == null ? null : exact.slice(0, 40).map(s => {
+            const o = shoeOut(s);
+            return {
+              name: o.name, color: o.color, price: o.price,
+              sizes: Array.isArray(o.sizes) ? o.sizes.join(', ') : String(o.sizes || ''),
+            };
+          }),
+          say,
         };
       }
 
@@ -290,12 +830,20 @@ function mountVoice(app, deps) {
       case 'price_check': {
         const found = searchInventory({ query: args.query || args.shoe || '' });
         if (!found.length) return { found: false, say: 'I cannot find that one. What colour was it?' };
-        const prices = [...new Set(found.map(s => spokenPrice(s.price)))];
+        // These used to be de-duplicated STRINGS in catalog order, so "they run from X to Y"
+        // read them out back to front — "from 180 dollars to 95 dollars" (5 Sep 2026).
+        // Sort the numbers, then speak them.
+        const nums = [...new Set(found.map(s => parseFloat(String(s.price).replace(/[^0-9.]/g, ''))).filter(n => !isNaN(n)))]
+          .sort((a, b) => a - b);
+        if (!nums.length) return { found: false, say: 'Let me check that price and call you right back.' };
         return {
           found: true,
-          say: prices.length === 1
-            ? `That one is ${prices[0]}.`
-            : `Those run from ${prices[0]} to ${prices[prices.length - 1]}, depending on the colour.`,
+          count: found.length,
+          price_low: nums[0],
+          price_high: nums[nums.length - 1],
+          say: nums.length === 1
+            ? `That one is ${spokenPrice(nums[0])}.`
+            : `Those run from ${spokenPrice(nums[0])} to ${spokenPrice(nums[nums.length - 1])}, depending on the colour.`,
         };
       }
 
@@ -304,15 +852,34 @@ function mountVoice(app, deps) {
         const womens = /women|lady|ladies|female|girl/i.test(String(args.for_who || args.gender || ''));
         const raw = parseFloat(args.size);
         const size = womens ? toMens(raw) : raw;
-        const found = searchInventory({ query: args.query || args.shoe || '', size: isNaN(size) ? undefined : size });
-        if (found.length) {
-          return { in_stock: true, say: `Yes, I have that in your size. ${spokenName(found[0].name)}, ${spokenPrice(found[0].price)}.` };
+        const q = args.query || args.shoe || '';
+        // THE COLOUR WAS BEING THROWN AWAY (found 5 Sep 2026). size_check took a colour
+        // argument, never passed it on, and answered about whatever shoe happened to match
+        // the name — so "you got the BLACK 97 in a 9.5" came back about the GOLF GREEN one.
+        // A yes/no about the wrong colourway is worse than no answer at all.
+        const colour = String(args.color || args.colour || '').trim() || undefined;
+        const found = searchInventory({ query: q, color: colour, size: isNaN(size) ? undefined : size });
+        // THE FALSE YES. searchInventory also returns the half-size UP on purpose, so this
+        // said "yes, I have that in your size" about a shoe we only had half a size up in —
+        // and the driver went out with the wrong shoe. A yes/no tool has to check the EXACT
+        // size (5 Sep 2026). The near-miss is still a good answer, just an honest one.
+        const exact = isNaN(size) ? found : found.filter(s => hasSize(s, size));
+        if (exact.length) {
+          const s = rankForPhone(exact)[0];
+          return { in_stock: true, exact: true, count: exact.length, shoes: rankForPhone(exact).slice(0, 4).map(shoeOut),
+            say: `Yes, I have that in ${sizeWord(size)}. ${spokenName(s.name)}, ${spokenPrice(s.price)}.` };
         }
-        const anySize = searchInventory({ query: args.query || args.shoe || '' });
+        if (found.length) {
+          const s = rankForPhone(found)[0];
+          return { in_stock: false, exact: false, near: true, shoes: rankForPhone(found).slice(0, 4).map(shoeOut),
+            say: `Not in ${sizeWord(size)} exactly — I have it in ${spokenSizes(s.sizes, true)}. In Nassau the driver brings two sizes so you can try both at the door and keep the one that fits.` };
+        }
+        const anySize = searchInventory({ query: q });
         if (anySize.length) {
+          const s = rankForPhone(anySize)[0];
           return {
-            in_stock: false,
-            say: `Not in that size, but I have it in ${spokenSizes(anySize[0].sizes, true)}. In Nassau the driver brings two sizes so you can try both at the door and keep the one that fits.`,
+            in_stock: false, exact: false, shoes: rankForPhone(anySize).slice(0, 4).map(shoeOut),
+            say: `Not in ${sizeWord(size)}, but I have it in ${spokenSizes(s.sizes, true)}. In Nassau the driver brings two sizes so you can try both at the door and keep the one that fits.`,
           };
         }
         return { in_stock: false, say: 'I am not seeing that one at all right now.' };
@@ -336,15 +903,68 @@ function mountVoice(app, deps) {
       // while the customer is still warm. Goes out on WhatsApp AND into /last.
       case 'take_message': {
         const who = String(args.name || '').trim() || 'A caller';
-        const num = prettyPhone(args.phone || c.from);
+        // 📵 A JUNK NUMBER MUST NEVER WIN OVER A REAL ONE (2026-09-07). The browser bot sent
+        // `"phone": "{{from_number}}"` — an unsubstituted template — on all five of David's
+        // order alerts, and because the old line was `args.phone || c.from`, a non-empty junk
+        // string beat the number we actually knew. The alerts reached the task board reading
+        // "📱 {{from_number}}" with no wa.me link, so even when Rodney saw the order he had no
+        // way to call the customer back. The models also write prose into this field —
+        // "customer's WhatsApp number", "[customer's number]", "same as their WhatsApp number".
+        // So: take the first candidate that is actually a phone number, and if none is, say so
+        // in words instead of printing a template at him.
+        const usable = v => { const d = digits(v); return d.length >= 7 && d.length <= 15 ? d : ''; };
+        const rawNum = usable(args.phone) || usable(args.from_number) || usable(args.number) || usable(c.from);
+        const raw = rawNum;
+        const num = rawNum ? prettyPhone(rawNum) : '';
+        // 🔎 WHEN THERE IS GENUINELY NO NUMBER, GIVE HIM SOMETHING TO SEARCH FOR. Some contacts
+        // have no number anywhere — WhatsApp shows only a saved name ("WhatsApp Web 04372"), and
+        // the browser bot now correctly OMITS the phone fields rather than inventing one. It
+        // passes `thread` instead: the chat title exactly as WhatsApp displays it. Telling Rodney
+        // "find David in the Chats screen" is useless if the chat is not called David — this is
+        // the string he can actually search.
+        const thread = String(args.thread || args.contact || '').trim().slice(0, 60);
         const want = String(args.what_they_want || args.message || '').trim();
-        c.message = { who, num, want };
+        c.message = { who, num: num || 'not given', want };
         const text = `📞 *PHONE CALL — ${c.line || 'shop line'}*\n`
-                   + `👤 ${who}\n📱 ${num}\n`
+                   + `👤 ${who}\n`
+                   + (num ? `📱 ${num}\n`
+                          : `📱 ⚠️ NO NUMBER CAME THROUGH — open Chats and look for ${thread ? `"${thread}"` : who}\n`)
+                   + (raw ? `💬 https://wa.me/${raw}\n` : '')
                    + (want ? `👟 ${want}\n` : '')
                    + `\nKiki answered the call. They are waiting to hear back.`;
-        try { await waSendManager(text); } catch (_) { /* the alert is logged either way */ }
-        return { saved: true, say: `Ok, let me confirm that and call you right back.` };
+
+        // 🚨 A PHONE ORDER USED TO EXIST IN ONE PLACE ONLY: a WhatsApp message.
+        // Found 5 Sep 2026 — a live call left a real order (AF1 all black, 10, Marathon Mall)
+        // and Rodney never saw it. take_message answered {saved:true} and the only copy of
+        // that order went out through WhatsApp, which has a 24-HOUR WINDOW: if Rodney has
+        // not written to the bot in the last day, WhatsApp drops the message and ManyChat
+        // still reports success. So "sent" was true and the order was gone.
+        // The delivery alerts already learned this and post to the task board as well.
+        // The board has no window and pushes to his phone, so it is the copy that survives.
+        let waOk = false;
+        try { waOk = await waSendManager(text); } catch (_) { /* the board copy still stands */ }
+        try {
+          require('./shop').addAlert(text, 'Kiki 📞', {
+            pushTitle: `📞 Phone order — ${who}`,
+            pushBody: (want || 'They want a call back').slice(0, 90),
+          });
+        } catch (_) {}
+        // And leave a trail in /last, so "did the call produce anything?" is answerable
+        // later without taking Rodney's word for whether his phone buzzed.
+        try { record(req, { endpoint: 'voice-message', voiceFrom: num, voiceWant: want, waOk }); } catch (_) {}
+
+        // ⚠️ NO `say` HERE ON PURPOSE. The agent reads `say` out word for word, and this
+        // one said "let me confirm that and call you right back" — on an order the caller had
+        // ALREADY confirmed, which makes it sound like nothing was actually booked. Kiki
+        // closes the call in her own words now.
+        // Tell the caller when the number was missing, so a bot that CAN resolve it fixes its
+        // own payload instead of us silently filing another contactless order.
+        return { saved: true, delivered_to_whatsapp: waOk, on_task_board: true,
+                 contact_number: num || null, contact_thread: thread || null,
+                 warning: num ? undefined
+                   : (thread
+                      ? 'Order saved. No phone number exists for this contact — it is filed under the chat name "' + thread + '" so Rodney can find it in Chats. Nothing to fix.'
+                      : 'No usable phone number was sent with this order — pass the customer\'s real digits in `phone`, or `thread` (the chat name) if the contact genuinely has no number. The order was saved without either, so it is hard to trace back.') };
       }
 
       default:
@@ -373,6 +993,22 @@ function mountVoice(app, deps) {
                  + `\nKiki answered but no message was left. Worth a call back.`;
       try { await waSendManager(text); } catch (_) {}
     }
+    // 📞 Leave a row in the call log whatever happened — message left or not, answered or
+    // hung up on. This is the only trace a phone call has ever had (see THE CALL LOG above).
+    try {
+      addCall({
+        call_id: callId,
+        epoch: Date.parse(c.at || '') || Date.now(),
+        line,
+        caller: (c.message && c.message.who) || call.from_name || call.caller_name || '',
+        phone: call.from_number || call.from || c.from || '',
+        seconds: secs || 0,
+        ended_because: call.disconnection_reason || call.ended_reason || '',
+        summary: (c.message && c.message.want) || (c.asked.length ? 'Asked about: ' + c.asked.join('; ') : ''),
+        recording: call.recording_url || (call.call_analysis && call.call_analysis.recording_url) || '',
+        transcript: typeof call.transcript === 'string' ? call.transcript : '',
+      });
+    } catch (_) {}
     calls.delete(callId);
     res.json({ ok: true });
   });
@@ -387,27 +1023,85 @@ HOW YOU SOUND
 Bahamian, warm, quick. Short sentences. You are on a phone call, not writing a message.
 Never say emoji names, never spell out punctuation, never read out a dollar sign.
 One question at a time. Let them finish talking.
+Never stretch a word out or sing it. Bahamians talk short and fast. Say things the way a
+busy person says them, not the way an announcer reads them.
+
+SAYING WHO YOU ARE — KEEP IT SHORT
+Bahamians do not announce themselves. A long introduction is the most robotic thing you can do.
+If they ask who they are speaking to, say ONE of these and stop:
+- "Kiki speaking, how can I help you?"
+- "You speaking with Kiki."
+Never follow your name with a list of what you do. Never say anything like "I help you with
+sneakers, prices, sizes and delivery" — that is a machine reading a menu off a card. If you
+want to move them along, just ask them something normal: "you looking for some sneakers?"
+
+THE SHOP NAME
+Say SNEAKERPLUG242 as little as you possibly can. Once in a whole call is plenty and none at
+all is fine. Only say it if they straight out ask what shop this is. Never bolt it onto your
+name. The one place it sits well is right at the end: "thank you for shopping with us."
+
+YOU CANNOT SEE ANYTHING
+You are on a phone call. You cannot see their screen, their phone, a photo, a list or a
+calendar. Never describe or guess at something you think they are showing you. If you did not
+catch what they said, just say "sorry, say that again for me?" — never invent what it might be.
+
+NEVER READ OUT THE WHOLE LIST — THIS IS HOW YOU HANDLE A SHOE REQUEST
+When somebody names a shoe they nearly always already know the colour they want. Reading out
+every colour and every size we hold is the most robotic thing you can do. Do not do it.
+Ask two short questions instead, ONE AT A TIME:
+1. The colour, offered as a simple choice out of what we actually have: "black or white?"
+2. Then the size: "and what size?"
+Then give them a straight answer on that ONE shoe:
+- If we have it: "yes, we have that in an eight and a half, it's 120 dollars, free delivery."
+- If we do not: "no, I ain't got the eight and a half in white right now. I have it in black
+  and a couple other colours."
+Only name the other colours if they ask for them. Never dump the stock list.
+One colour, one size, one answer.
+The tools hand you back a colors_available list and up to eight shoes. That is for YOU to read
+silently and pick from — it is never something to read out loud.
+
+THEY ARE TELLING YOU THEY ARE ON ANOTHER ISLAND
+If they say anything like "I have to send the money", "I'll send someone for it", or "somebody
+picking it up for me", that nearly always means they are NOT in Nassau.
+Ask them plain: "oh, you on the island?"
+If they say yes, tell them the extra straight away: "it's 10 dollars extra by boat, or 35 by
+plane." Islands pay first, so try before you buy does not apply to them.
 
 NEVER LEAVE THE LINE SILENT
 Silence makes people think the call dropped and hang up. So:
 - While they are talking, make small sounds back — "mm-hm", "right", "ok", "I hear you".
-- The MOMENT you go to look stock up, say out loud first: "1 min, let me check that for you".
-  Say it BEFORE the tool, not after.
-- If a lookup is taking a while, fill it: "still looking…", "bear with me one sec".
+- The MOMENT you go to look stock up, say out loud first: "one minute, let me check that for
+  you". Say it BEFORE the tool, not after.
+- If a lookup is taking a while, fill it: "still looking…", "bear with me one second".
 - If you are thinking, a small "uhm" or "so…" is better than nothing.
 Never go more than about two seconds without a sound.
 
+A SECOND "HELLO" MEANS THEY THINK THE LINE WENT DEAD — REASSURE THEM FIRST
+If a caller says "hello" again a few seconds after already saying it once — or "you there?",
+"can you hear me?", "hello hello" — they are checking the call did not drop, usually because
+you went quiet while looking something up. Do not just plough on into your answer as if that
+second hello was never said; that reads as if you ignored them checking on you. Say something
+first that answers THAT worry — "Yeah, I'm here!" or "Still here, I can hear you" — then
+continue straight into whatever you were about to tell them. Both in the same breath is fine:
+"Yeah, I'm here! We do have that in stock." Do not treat the repeated hello as a new, separate
+thing to respond to on its own — it is reassurance-then-answer, not reassurance-then-silence.
+
 THE ONE THING A CALL IS FOR
-Photos sell the shoes and you cannot send photos down a phone line. So your job is to answer
-their question honestly, then move them to WhatsApp on this same number, or take a message.
+You CANNOT send photos on a phone call. You can only tell them where to get them. Photos are
+what sell the shoes, so your job is to answer their question honestly, then send them to
+WhatsApp on this same number for the pictures.
+Say it plain, like this: "message this same number on WhatsApp and I'll send you the pictures,
+just text your size."
+Never say you are sending, texting or emailing a photo yourself. You are not. They message
+first, then the pictures come.
 Do not try to close a whole sale out loud.
 
 WHAT YOU MUST NEVER DO
 - Never invent a shoe, a price, or a size. If check_stock did not return it, we do not have it —
-  but check_stock only SPEAKS the first 4 matches even when more exist (count can be higher than
-  what you were told about). If the caller names a colour, size or detail you were not already
-  told about by name, call check_stock AGAIN with that exact detail before saying no. Only say
-  "I don't have that" after a check_stock call that was actually asked about that specific thing.
+  but check_stock only hands you the best 8 matches even when count is higher. If the caller
+  names a colour, size or detail you were not already told about by name, call check_stock
+  AGAIN with that exact detail before saying no. Only say "I don't have that" after a
+  check_stock call that was actually asked about that specific thing.
 - Never promise a special order. We sell what is on the shelf.
 - Never send a caller to friends, Google or reviews to work out their size. We bring two sizes.
 - Never quote island shipping unless THEY say they are on another island. Plain "delivery"
@@ -448,17 +1142,29 @@ YOUR TOOLS
   number is already known from caller ID — do not ask for it or read it back to confirm.
 
 OPENING
-You answer the phone the way a person does, not the way a company does. Just:
-"Hello, good day. How can I help you?"
-Never open with a big welcome, never announce the shop name, never say "welcome to" anything.
-If they ask who they reached, THEN tell them SNEAKERPLUG242 and that you are Kiki.
+The time in Nassau right now is {{current_time_America/Nassau}}.
+Your very first words are one short sentence, said fast, all in one breath:
+- Before 12 noon: "Hello, good morning, how can I help you?"
+- From 12 noon until 6 in the evening: "Hello, good afternoon, how can I help you?"
+- After 6 in the evening: "Hello, good night, how can I help you?"
+HOW TO SAY IT — this matters as much as the words:
+- It is ONE sentence, not two. Never stop between the greeting and the question.
+- Say it quick. The whole thing takes about one second. Snap "hello" out short, do not
+  hold it or stretch it.
+- Flat and friendly, not sung. No rising tune on the greeting.
+- Think of a busy shop person grabbing the phone, not a receptionist announcing a company.
+In the Bahamas "good night" is how you GREET someone in the evening, it is not goodbye.
+Never say "good day". Never open with a big welcome, never announce the shop name, never say
+"welcome to" anything. Say nothing else at all until they speak. If they ask who they
+reached, keep it to a few words — see SAYING WHO YOU ARE above.
 
 CLOSING
 Confirm what happens next in one line, then: "Message this same number on WhatsApp and I'll
-send you the pictures right now."`;
+send you the pictures right now, just text your size."`;
 
 module.exports = {
   mountVoice, VOICE_PROMPT, VOICE_KEY, VOICE_LINES,
   VOICE_AGENT_CONFIG, TOOL_FILLERS, FILLERS_WHILE_LISTENING,
   spokenPrice, spokenSizes, toMens, prettyPhone,
+  addCall, getCallLog, getCallRev, callTag, pullRetellCalls,
 };

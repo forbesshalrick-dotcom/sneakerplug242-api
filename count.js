@@ -22,6 +22,8 @@
  *
  *   node count.js <shoeId> 7 7 7.5 8 8 8.5          # sizes, one per PAIR
  *   node count.js <shoeId> --dry                    # show what would change, write nothing
+ *   node count.js <shoeId> 5.5 5.5 6.5 --new        # first count of a shoe the shop has
+ *                                                   # never held (must exist in catalog.json)
  *
  * Sizes are always MEN'S, one entry per pair, exactly as stored (see the Aug 4 count notes:
  * women's are converted on the way in; a literal "W8" would parseFloat to NaN and make the
@@ -33,12 +35,14 @@ const BASE = process.env.SHOP_API || 'https://sneakerplug242-api-production.up.r
 
 const argv = process.argv.slice(2);
 const dry = argv.includes('--dry');
-const [id, ...rawSizes] = argv.filter(a => a !== '--dry');
+const isNew = argv.includes('--new');
+const [id, ...rawSizes] = argv.filter(a => a !== '--dry' && a !== '--new');
 const sizes = rawSizes.map(s => String(s).trim()).filter(Boolean);
 
 if (!id || (!sizes.length && !dry)) {
   console.error('usage: node count.js <shoeId> <size> <size> ...   (one entry per pair)');
   console.error('       node count.js <shoeId> --dry               (show current, write nothing)');
+  console.error('       node count.js <shoeId> <size>... --new     (first count of a brand-new shoe)');
   process.exit(2);
 }
 
@@ -62,10 +66,32 @@ const get = async () => {
 };
 
 (async () => {
-  const before = await get();
+  let before = await get();
   if (!before) {
-    console.error(`❌ no shoe with id "${id}" in the live shop state. Check the id — nothing was written.`);
-    process.exit(1);
+    // A brand-new shoe has no shop record at all, and the shop app has never been able to
+    // create one (its one-time seed doesn't push new shoes). Before this, the only way in
+    // was a hand-rolled POST — the exact thing this file exists to stop. So create it here,
+    // where the read-back still has to agree, and ONLY for an id that is already in
+    // catalog.json: that way a typo'd id can never conjure a shoe into existence.
+    const row = (() => {
+      try { return require('./catalog.json').find(x => String(x.id) === String(id)) || null; }
+      catch (_) { return null; }
+    })();
+    if (!row) {
+      console.error(`❌ no shoe with id "${id}" in the live shop state, and none in catalog.json either.`);
+      console.error('   Check the id — nothing was written. A brand-new shoe needs its catalogue row first.');
+      process.exit(1);
+    }
+    if (!isNew) {
+      console.error(`❌ "${id}" is in catalog.json but the shop has never had a record for it.`);
+      console.error(`   That is a BRAND-NEW shoe. If that's really what you mean, say so:`);
+      console.error(`     node count.js ${id} ${sizes.join(' ') || '<sizes>'} --new`);
+      process.exit(1);
+    }
+    console.log(`\n🆕 "${id}" (${[row.brand, row.name, row.color].filter(Boolean).join(' ')}) is in the`);
+    console.log('   catalogue but has no shop record yet — creating one.');
+    before = { id: String(id), _catalog: true, sizes: [], sizesRaw: [], sold: false,
+               price: row.price, updatedAt: 0 };
   }
 
   const beforeT = tally(before.sizes);

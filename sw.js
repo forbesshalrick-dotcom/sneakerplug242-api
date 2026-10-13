@@ -56,6 +56,23 @@ self.addEventListener('push', (event) => {
       requireInteraction: false,
       data: { url: d.url || '/' },
     })
+    // 📣 TELL THE SERVER IT WAS ACTUALLY DRAWN.
+    // Every signal we had lived on the sending side: FCM said "accepted" for weeks while
+    // Rodney's phone stayed silent, so "accepted" got trusted and the failure hid in plain
+    // sight. Only this line runs AFTER the notification exists on a screen, so it is the one
+    // honest confirmation in the whole chain. Costs one same-origin POST per alert.
+    // Best effort on purpose: if it fails the notification is still shown, which is what
+    // matters. Never let the reporting break the thing it is reporting on.
+    // Include this device's own push address so the server learns WHICH of the registered
+    // phones is alive and drawing. Without it a report says "somebody saw it" and we are
+    // back to guessing which somebody.
+    .then(() => self.registration.pushManager.getSubscription().catch(() => null))
+    .then((sub) => fetch('/shop/push/seen', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tag: d.tag || null, title: title,
+        tail: sub && sub.endpoint ? sub.endpoint.slice(-24) : null }),
+    }).catch(() => {}))
+    .catch(() => {})
   );
 });
 

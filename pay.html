@@ -49,6 +49,8 @@
 
     <div class="card">
       <div id="amt-block">
+        <div class="rrow" id="line-goods"><span>Shoes</span><span id="goods">—</span></div>
+        <div class="rrow" id="line-fee"><span>Card processing fee</span><span id="feeamt">—</span></div>
         <div class="total-row"><span class="total-k">Total</span><span class="total-v" id="total">$0.00</span></div>
         <div class="ref" id="ref-line"></div>
         <div id="paypal-box"></div>
@@ -87,6 +89,35 @@
   var CLIENT_ID = 'AeX7a1IbNRKYrce7DZntUYNfGGqLZVEPlT43byCqY442t0svUVA6RQHd4IF9LAZYgasId7F1PmPULtpO';
   var MIN = 1, MAX = 20000;
 
+  /* ── 💳 THE CARD FEE IS THE CUSTOMER'S, NOT RODNEY'S ──────────────────────────
+     Rodney, 2026-10-02: "I asked for the customer to be charged for the credit card
+     tax, but you're charging me."  He was right. The link carried the sticker price
+     and PayPal took its cut out of HIS side, so a $180 pair paid $169.98.
+
+     MEASURED, NOT GUESSED. A real $180 card payment on 2 Oct landed as exactly
+     $169.98 in the Up1 sports account - $10.02 of fee, which is 5.4% + $0.30 to the
+     cent. That is PayPal's cross-border commercial rate.
+
+     So the link still carries the SHOE price (amount=180) - nothing Kiki or the POS
+     builds has to change - and this page grosses it up so that what lands in PayPal
+     after the fee is the full sticker price.
+
+     The gross-up is NOT price + 5.4%. Charging $189.72 would net $179.06, still
+     short, because PayPal takes its cut of the BIGGER number too. To actually clear
+     $180 you must solve for it:   gross = (price + fixed) / (1 - rate)
+     $180 -> charge $190.59, fee $10.59, Rodney keeps $180.00 exactly.
+
+     If PayPal ever changes the rate, change these two numbers and nothing else.
+     Set FEE_RATE to 0 to go back to the customer paying only the sticker price. */
+  var FEE_RATE = 0.054;      // 5.4%
+  var FEE_FIXED = 0.30;      // plus 30c, in USD
+
+  function grossUp(price) {
+    if (!(FEE_RATE > 0) && !(FEE_FIXED > 0)) return price;
+    var g = (price + FEE_FIXED) / (1 - FEE_RATE);
+    return Math.ceil(g * 100) / 100;   // round UP, so a rounding cent is never his
+  }
+
   var totalEl  = document.getElementById('total');
   var refEl    = document.getElementById('ref-line');
   var boxEl    = document.getElementById('paypal-box');
@@ -117,7 +148,17 @@
     return;
   }
 
-  totalEl.textContent = money(amt);
+  // amt is what the shop asked for; charged is what PayPal must take to leave that behind.
+  var charged = grossUp(amt);
+  var fee = Math.round((charged - amt) * 100) / 100;
+
+  document.getElementById('goods').textContent  = money(amt);
+  document.getElementById('feeamt').textContent = money(fee);
+  if (fee <= 0) {
+    document.getElementById('line-goods').style.display = 'none';
+    document.getElementById('line-fee').style.display = 'none';
+  }
+  totalEl.textContent = money(charged);
   refEl.textContent = ref || 'SneakerPlug242 purchase';
 
   function showErr(msg) { errEl.textContent = msg; errEl.classList.add('on'); }
@@ -147,7 +188,7 @@
         return actions.order.create({
           intent: 'CAPTURE',
           purchase_units: [{
-            amount: { currency_code: 'USD', value: amt.toFixed(2) },
+            amount: { currency_code: 'USD', value: charged.toFixed(2) },
             description: ('SneakerPlug242' + (ref ? ' — ' + ref : '')).slice(0, 127)
           }],
           application_context: {
@@ -175,7 +216,7 @@
     var when = new Date().toLocaleString('en-BS', {
       day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit'
     });
-    document.getElementById('rcpt-amt').textContent  = money(amt) + ' USD';
+    document.getElementById('rcpt-amt').textContent  = money(charged) + ' USD';
     document.getElementById('rcpt-ref').textContent  = ref || 'SneakerPlug242 purchase';
     document.getElementById('rcpt-id').textContent   = id;
     document.getElementById('rcpt-date').textContent = when;

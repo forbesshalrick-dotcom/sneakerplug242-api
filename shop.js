@@ -26,6 +26,20 @@ if (webpush) {
   catch (e) { console.log('[shop] VAPID setup failed — push disabled:', e.message); webpush = null; }
 }
 
+// 🔴 THE REASON RODNEY'S PHONE STAYED SILENT (2026-09-10).
+// web-push defaults every message to Urgency: normal. Google turns that into a NORMAL-priority
+// FCM message, and Android will NOT wake a dozing phone for one — it parks it until the phone
+// happens to come alive on its own. That is the exact symptom we chased for two nights: Google
+// answers "accepted", the subscription is alive, and the notification is simply never drawn.
+// Two labelled test alerts were fired at his two registered phones and NEITHER was drawn, while
+// the same devices had drawn 16 notifications earlier when the phones were awake and in use.
+// `urgency: 'high'` is the documented way to say "this is worth waking the device for" — it is
+// what a chat app sends. This shop's push volume is tiny (16 in a day), so there is no battery
+// or throttling cost worth weighing against a delivery order nobody sees.
+// TTL 1 day, not the 4-week default: a delivery job that surfaces next week is worse than
+// useless, because a driver could act on an order that was filled days ago.
+const PUSH_OPTS = { TTL: 86400, urgency: 'high' };
+
 // Shared key the website sends with every request. It lives in the (public)
 // client JS so it's a gate against random scanners, not a strong secret — the
 // note endpoint is also rate-limited below to blunt abuse.
@@ -71,6 +85,15 @@ const state = {
   deletedStaff: loadFile('deletedStaff.json', []), // names permanently removed — devices must never re-add these
   proofs: loadFile('proofs.json', {}),      // saleId -> {media_type, data(base64), by, at} — payment screenshots pinned to a sale (kept OUT of /shop/state so the poll payload stays small)
   subs: loadFile('subs.json', []),          // web-push subscriptions [{endpoint, keys, by, at}]
+  pushSeen: loadFile('pushSeen.json', []),  // proof a notification was DRAWN on a screen — sw.js posts here after showNotification. Persisted so "has one EVER landed?" survives a deploy.
+  // 🚚 DELIVERY JOBS — the thing behind the link in every order alert (Rodney 2026-09-09).
+  // The alert now goes to the "Shoe Delivery Orders!" group, which every driver is in. That
+  // fixes "nobody told me" but creates a new problem: five people see the same job and none
+  // of them knows if another already took it. So every alert carries a link to a page with
+  // two buttons — SOLD or DIDN'T SELL — and whoever taps first closes it for everyone. The
+  // record is kept here, NOT in the alert queue, because that queue empties after 30 minutes
+  // and a driver may not open the link until he is standing at the door.
+  jobs: loadFile('jobs.json', []),          // [{id, text, at, state:'open'|'sold'|'failed', by, atDone, note}]
   logins: loadFile('logins.json', {}),      // SERVER-side login patterns: { name: {hash, salt} } — hashed, never plaintext
   rev: loadFile('rev.json', { n: 1 }),
   dateTasks: loadFile('dateTasks.json', {}), // { "YYYY-MM-DD": [{id,text,by,at}] } — queued into THAT evening's WhatsApp reminder (not an instant alert like notes/tasks above)
@@ -95,6 +118,14 @@ const state = {
   // his phone had even reached the server. Now there always is: read it at
   // GET /shop/shifts/uploads. Keeps the last 30.
   uploadLog: loadFile('uploadLog.json', []),
+  // 📋 THE DAILY SHEET (Rodney 2026-09-23). One record per day for whoever is on
+  // the floor: which shoes were counted, which were photographed, which got a
+  // TikTok clip, which of the day's ten were fixed, and which chores are done.
+  // Shape: { "YYYY-MM-DD": {date, by, at, chores:{}, fixed:{}, photos:{shoeId:[url]},
+  //          videos:{shoeId:[url]}, counts:{shoeId:{size:found}}, extras:{}, notes:{}} }
+  // Kept OUT of /shop/state: the media URLs are only wanted by whoever is posting,
+  // and the state poll runs every few seconds on every staff phone.
+  daily: loadFile('daily.json', {}),
 };
 
 // ── one-time migration off the old root shifts.legacy.json ───────────────────
@@ -1024,7 +1055,44 @@ function onDutyNames(at) {
 // hears about his own business. Deliberately a union, not a replacement: whoever is on duty
 // still gets it, and the Set stops him being messaged twice when he IS the rostered one.
 const ALWAYS_COPY = ['Manager'];
-async function blastOnDuty(text, exceptName) {
+
+// ── 🔕 WHAT AN EMPLOYEE IS ALLOWED TO BE SENT (Rodney, 5 Sep 2026) ────────────
+// His words: Deashinique (4684477) should receive exactly TWO things and nothing else —
+// her work schedule, and the shoes to post. Everything else on the alert list (order
+// alerts, delivery chases, "a customer needs you", end-of-day checks, NOBODY PICKED UP)
+// is Rodney's business, not hers, and she had been getting all of it.
+//
+// Matched on the PHONE NUMBER, not the name — a name is a label on the Schedule page and
+// gets retyped; the number is the person.
+//
+// DENY BY DEFAULT, on purpose. A restricted person is only sent a message that explicitly
+// names an allowed topic, so any alert added later — by me or by anyone — does NOT reach
+// her unless somebody deliberately says it should. The failure mode of the opposite design
+// is that she quietly starts getting the next new alert and nobody notices for weeks.
+const RESTRICTED_STAFF_TAILS = ['4684477'];
+// 'task-board' added 5 Sep 2026 (Rodney, asked and answered): a one-off task he TYPES for
+// her on the board should reach her. His ban was on the shop's own automated noise — order
+// alerts, delivery chases — not on him assigning her work. Everything untagged stays denied.
+const STAFF_TOPICS_ALLOWED = ['schedule', 'post-list', 'task-board'];
+function isRestrictedStaff(num) {
+  const d = String(num || '').replace(/[^0-9]/g, '');
+  return !!d && RESTRICTED_STAFF_TAILS.some(t => d.endsWith(t));
+}
+/* May we send this person a message about `topic`? Unrestricted staff: always.
+   Restricted staff: only the topics above. */
+function mayReceive(num, topic) {
+  return !isRestrictedStaff(num) || STAFF_TOPICS_ALLOWED.indexOf(String(topic || '')) !== -1;
+}
+/* Drop restricted staff from a target list, and say who was dropped and why so the
+   decision shows up in the log instead of looking like a send that failed. */
+function filterTopic(names, nums, topic) {
+  const kept = [], held = [];
+  names.forEach(n => (mayReceive(nums[n], topic) ? kept : held).push(n));
+  if (held.length) console.log('[shop] topic gate:', held.join(', '), 'not sent "' + (topic || 'untagged') + '" — restricted to', STAFF_TOPICS_ALLOWED.join(' + '));
+  return { kept, held };
+}
+
+async function blastOnDuty(text, exceptName, topic) {
   const nums = state.employees || {};
   const duty = onDutyNames().filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase());
   let targets = duty.filter(n => nums[n]);
@@ -1035,23 +1103,49 @@ async function blastOnDuty(text, exceptName) {
   if (targets.length && copied.length) { targets = [...new Set([...targets, ...copied])]; scope = 'on-duty + owner copy'; }
   if (!targets.length && nums.Manager) { targets = ['Manager']; scope = 'manager-fallback (nobody rostered has a number)'; }
   if (!targets.length) { targets = Object.keys(nums).filter(n => !exceptName || n.toLowerCase() !== String(exceptName).toLowerCase()); scope = 'everyone-fallback (no numbers for the rota)'; }
+  // 🔕 The topic gate (see above). Applied LAST, after every fallback has run, so it can
+  // only ever remove a person — it can never be the reason an alert reaches nobody.
+  const gate = filterTopic(targets, nums, topic);
+  targets = gate.kept;
+  // ...and if the gate just emptied the list, the alert still has to land on somebody.
+  // Losing a delivery alert is far worse than one extra buzz — the same rule the rota
+  // fallbacks above follow. Only reachable if the restricted person was the ONLY target.
+  if (!targets.length && gate.held.length && nums.Manager) {
+    targets = ['Manager'];
+    scope = 'manager-fallback (only restricted staff matched this topic)';
+  }
   const results = [];
   for (const name of targets) {
     const digits = String(nums[name] || '').replace(/[^0-9]/g, '');
     const r = await waSendDetailed(digits, text, name);
     results.push({ name, ok: r.ok, via: r.via || undefined, why: r.why, onDuty: true });
   }
+  gate.held.forEach(n => results.push({ name: n, ok: false, why: 'restricted staff — "' + (topic || 'untagged') + '" is not one of: ' + STAFF_TOPICS_ALLOWED.join(', ') }));
   const skipped = Object.keys(nums).filter(n => targets.indexOf(n) === -1);
   console.log('[shop] on-duty alert →', targets.join(', ') || '(nobody)', '| scope:', scope, '| not rung (off duty):', skipped.join(', ') || 'none');
   results.scope = scope; results.skipped = skipped;
   return results;
 }
 
-async function blastEmployees(text, exceptName) {
+/* `who` (optional): send to ONE person — matched on name (any case, partial) or on the
+   tail of their number. Without it this reaches every employee on file. */
+function matchesStaff(name, num, who) {
+  const w = String(who || '').trim().toLowerCase();
+  if (!w) return true;
+  if (String(name).toLowerCase().includes(w)) return true;
+  const d = w.replace(/[^0-9]/g, '');
+  return !!d && String(num || '').replace(/[^0-9]/g, '').endsWith(d);
+}
+async function blastEmployees(text, exceptName, topic, who) {
   const nums = state.employees || {};
   const results = [];
   for (const name of Object.keys(nums)) {
     if (exceptName && name.toLowerCase() === String(exceptName).toLowerCase()) continue;
+    if (!matchesStaff(name, nums[name], who)) continue;
+    if (!mayReceive(nums[name], topic)) {                       // 🔕 topic gate — see blastOnDuty
+      results.push({ name, ok: false, why: 'restricted staff — "' + (topic || 'untagged') + '" is not one of: ' + STAFF_TOPICS_ALLOWED.join(', ') });
+      continue;
+    }
     const digits = String(nums[name] || '').replace(/[^0-9]/g, '');
     const r = await waSendDetailed(digits, text, name);
     results.push({ name, ok: r.ok, via: r.via || undefined, why: r.why });
@@ -1061,6 +1155,7 @@ async function blastEmployees(text, exceptName) {
 
 // Send a web-push notification to every subscribed staff device. Best-effort:
 // dead/expired subscriptions (HTTP 404/410) are pruned so the list stays clean.
+let lastPushFail = null;   // last non-expiry refusal from the push service — evidence, not a guess
 async function sendPush(title, body, url, tag) {
   if (!webpush || !Array.isArray(state.subs) || !state.subs.length) return 0;
   // `tag` (2026-08-21): a shared tag REPLACES the previous notification. That is right for
@@ -1070,8 +1165,14 @@ async function sendPush(title, body, url, tag) {
   const payload = JSON.stringify({ title: title || 'THE PLUG 242', body: body || 'New delivery / task', url: url || '/', tag: tag || 'plug242-task' });
   let sent = 0; const dead = [];
   await Promise.all(state.subs.map(async (s) => {
-    try { await webpush.sendNotification(s, payload); sent++; }
-    catch (e) { if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint); }
+    try { await webpush.sendNotification(s, payload, PUSH_OPTS); sent++; }
+    catch (e) {
+      if (e && (e.statusCode === 404 || e.statusCode === 410)) dead.push(s.endpoint);
+      // Anything else was being thrown away, so a rejected send looked identical to a
+      // delivered one from the outside. Keep the last one so /shop/push/status can say it.
+      else { try { lastPushFail = { at: new Date().toISOString(), tail: String(s.endpoint || '').slice(-8),
+                                    code: e && e.statusCode, why: String((e && e.body) || (e && e.message) || e).slice(0, 160) }; } catch (_) {} }
+    }
   }));
   if (dead.length) {
     state.subs = state.subs.filter((s) => dead.indexOf(s.endpoint) === -1);
@@ -1081,6 +1182,24 @@ async function sendPush(title, body, url, tag) {
 }
 
 // ── routes ───────────────────────────────────────────────────────────────────
+// 🚚 One delivery job = one link. Called from the alert path in server.js, which owns
+// the wording of the alert; this side only owns the record and the page.
+let onJobClosed = null;
+function setJobClosedHook(fn) { onJobClosed = fn; }
+function addJob(title, text) {
+  try {
+    // The id rides inside a WhatsApp group message, so it has to be long enough that
+    // nobody can walk the list by guessing — it is the only thing guarding the page.
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    const job = { id, title: String(title || 'Delivery').slice(0, 90),
+                  text: String(text || '').slice(0, 1200),
+                  at: new Date().toISOString(), state: 'open' };
+    state.jobs = [job].concat(Array.isArray(state.jobs) ? state.jobs : []).slice(0, 400);
+    persist('jobs.json');
+    return job;
+  } catch (e) { return null; }
+}
+
 function mount(app) {
   // ── 🤖 A LINK PREVIEWER MUST NEVER TOUCH STOCK (Rodney 2026-08-19) ───────────
   // The "stock keeps reverting" saga, finally pinned down. On 16 Aug at 04:13:27–30Z,
@@ -1456,6 +1575,239 @@ function mount(app) {
   });
 
   let noteTimes = [];
+  /* ── TIKTOK CLIPS LIVE HERE, NOT ON CLOUDINARY ──────────────────────────
+   * Her photos go to Cloudinary and always have. Video cannot: the free plan
+   * caps ONE ASSET at 10 MB and a phone clip is 20-60 MB. Chunking does not help
+   * — the limit is on the finished asset, and the API says so outright ("Your
+   * file exceeds the Free plan upload limit"). The preset was a second, separate
+   * problem (sp242xx forces webp, which video uploads reject).
+   *
+   * So clips are stored on our own disk under DATA_DIR/clips/<date>/, which has
+   * no such ceiling, and served back with Range support so they scrub properly
+   * in a browser. Kept 21 days — long enough to post them, short enough that the
+   * volume never fills. The global body parsers step aside for this path (see
+   * server.js) so the upload reaches the route as a plain stream.
+   */
+  const CLIP_DIR = path.join(DATA_DIR, 'clips');
+  const CLIP_KEEP_DAYS = 21;
+  const CLIP_TYPES = { mp4:'video/mp4', mov:'video/quicktime', m4v:'video/x-m4v',
+                       webm:'video/webm', '3gp':'video/3gpp' };
+
+  function sweepClips() {
+    try {
+      const cutoff = Date.now() - CLIP_KEEP_DAYS * 86400000;
+      for (const day of fs.readdirSync(CLIP_DIR)) {
+        const t = Date.parse(day + 'T00:00:00Z');
+        if (!isFinite(t) || t >= cutoff) continue;
+        fs.rmSync(path.join(CLIP_DIR, day), { recursive: true, force: true });
+        console.log('[clips] swept', day);
+      }
+    } catch (_) { /* nothing stored yet */ }
+  }
+  try { fs.mkdirSync(CLIP_DIR, { recursive: true }); } catch (_) {}
+  sweepClips();
+  setInterval(sweepClips, 12 * 3600 * 1000).unref();
+
+  /* STREAM IT TO DISK. Do NOT buffer.
+   * express.raw holds the whole body in memory first, and a 60 mb clip took the
+   * whole app down with it — Railway answered 502 "Application failed to respond"
+   * and the process restarted, which on this server also means Kiki's bus loses
+   * its API for a few seconds. Measured 2026-09-23: 25 mb fine, 60 mb fatal.
+   * Piping the request straight into the file keeps memory flat whatever the size.
+   */
+  const CLIP_MAX_BYTES = 120 * 1024 * 1024;
+  /* 💽 HOW FULL IS THE DISK, AND CAN WE CLEAR IT (Rodney 2026-10-05: "also the videos cant
+   * upload"). Measured from outside: a 5MB clip saves, a 10MB clip fails in under 3 seconds
+   * with "could not save" — that is the write stream erroring, not a timeout and not the size
+   * cap (120MB). The shape of it is a FULL VOLUME, and that threatens far more than clips:
+   * notes.json, shoes.json, the inbox, the owner queue and the driver state all live there.
+   * Clips are the obvious hog — 21 days of phone video. GET reports, POST ?purge=<days> drops
+   * clips older than that many days. */
+  app.get('/shop/disk', (req, res) => {
+    if (!auth(req, res)) return;
+    const out = { dataDir: DATA_DIR, persistent: PERSISTENT, clipDir: CLIP_DIR, days: [], totalMB: 0 };
+    try {
+      for (const d of fs.readdirSync(CLIP_DIR)) {
+        let bytes = 0, n = 0;
+        try {
+          for (const f of fs.readdirSync(path.join(CLIP_DIR, d))) {
+            try { bytes += fs.statSync(path.join(CLIP_DIR, d, f)).size; n++; } catch (_) {}
+          }
+        } catch (_) {}
+        out.days.push({ date: d, files: n, mb: +(bytes / 1048576).toFixed(1) });
+        out.totalMB += bytes / 1048576;
+      }
+    } catch (e) { out.clipError = String(e.message || e).slice(0, 120); }
+    out.totalMB = +out.totalMB.toFixed(1);
+    out.days.sort((a, b) => (a.date < b.date ? -1 : 1));
+    try {
+      // ?mb=N so the probe can be pushed past the cliff the uploads hit. 8MB saves, 10MB does
+      // not — and the upload fails in a quarter of a second, far too fast to have transferred
+      // the body, so the question is whether the DISK refuses it or the request never arrives.
+      const mb = Math.min(200, Math.max(1, parseInt(req.query.mb || '8', 10)));
+      const probe = path.join(DATA_DIR, '.diskprobe');
+      fs.writeFileSync(probe, Buffer.alloc(mb * 1024 * 1024));
+      fs.unlinkSync(probe);
+      out.probeMB = mb; out.canWriteProbe = true;
+    } catch (e) { out.canWriteProbe = false; out.writeError = String((e && e.code) || (e && e.message) || e).slice(0, 80); }
+    res.json(out);
+  });
+  app.post('/shop/disk/purge', (req, res) => {
+    if (!auth(req, res)) return;
+    /* ?prefix=NAME deletes by FILENAME on any day — for clearing test uploads without
+     * touching a real clip recorded the same afternoon. Deliberately separate from the
+     * by-age purge: age is the routine sweep, prefix is for cleaning up after yourself. */
+    const prefix = String(req.query.prefix || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+    if (prefix) {
+      let n = 0, mb = 0;
+      try {
+        for (const d of fs.readdirSync(CLIP_DIR)) {
+          const dir = path.join(CLIP_DIR, d);
+          let files = [];
+          try { files = fs.readdirSync(dir); } catch (_) { continue; }
+          for (const f of files) {
+            if (!f.startsWith(prefix)) continue;
+            try { mb += fs.statSync(path.join(dir, f)).size / 1048576; fs.unlinkSync(path.join(dir, f)); n++; } catch (_) {}
+          }
+        }
+      } catch (e) { return res.json({ ok: false, error: String(e.message || e).slice(0, 120) }); }
+      return res.json({ ok: true, prefix, removed: n, freedMB: +mb.toFixed(1) });
+    }
+    const days = Math.max(0, parseInt(req.query.days || '7', 10));
+    const cutoff = Date.now() - days * 86400000;
+    let removed = 0, freedMB = 0, dirs = 0;
+    try {
+      for (const d of fs.readdirSync(CLIP_DIR)) {
+        const when = Date.parse(d + 'T00:00:00Z');
+        if (isNaN(when) || when >= cutoff) continue;
+        const dir = path.join(CLIP_DIR, d);
+        try {
+          for (const f of fs.readdirSync(dir)) {
+            const fp = path.join(dir, f);
+            try { freedMB += fs.statSync(fp).size / 1048576; fs.unlinkSync(fp); removed++; } catch (_) {}
+          }
+          fs.rmdirSync(dir); dirs++;
+        } catch (_) {}
+      }
+    } catch (e) { return res.json({ ok: false, error: String(e.message || e).slice(0, 120) }); }
+    res.json({ ok: true, olderThanDays: days, removed, freedMB: +freedMB.toFixed(1), daysDropped: dirs });
+  });
+
+  app.post('/shop/clip', (req, res) => {
+    if (!auth(req, res)) return;
+    const date = String(req.query.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'bad date' });
+    const ext = String(req.query.ext || 'mp4').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4);
+    if (!CLIP_TYPES[ext]) return res.status(400).json({ error: 'not a video we serve' });
+    const declared = parseInt(req.headers['content-length'] || '0', 10);
+    if (declared && declared > CLIP_MAX_BYTES) {
+      return res.status(413).json({ error: 'that clip is too big — keep it under a minute' });
+    }
+    const shoe = String(req.query.shoe || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || 'shoe';
+    const name = shoe + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7) + '.' + ext;
+    const dir = path.join(CLIP_DIR, date);
+    const file = path.join(dir, name);
+    try { fs.mkdirSync(dir, { recursive: true }); }
+    catch (e) { return res.status(500).json({ error: 'could not save' }); }
+
+    let written = 0, failed = false;
+    const out = fs.createWriteStream(file);
+    const abort = (code, msg) => {
+      if (failed) return;
+      failed = true;
+      try { req.unpipe(out); } catch (_) {}
+      out.destroy();
+      fs.unlink(file, () => {});
+      if (!res.headersSent) res.status(code).json({ error: msg });
+    };
+    req.on('data', (c) => {
+      written += c.length;
+      if (written > CLIP_MAX_BYTES) abort(413, 'that clip is too big — keep it under a minute');
+    });
+    req.on('aborted', () => abort(400, 'upload stopped'));
+    out.on('error', (e) => {
+      // Say WHICH failure. "could not save" sent me hunting a full disk for half an hour when
+      // the disk was fine; the code (ENOSPC / EFBIG / EACCES) answers it in one word.
+      console.error('[clips] write failed', e && e.code, e && e.message);
+      abort(500, 'could not save (' + String((e && e.code) || (e && e.message) || 'unknown').slice(0, 40) + ')');
+    });
+    req.on('error', (e) => {
+      console.error('[clips] request stream failed', e && e.code, e && e.message);
+      abort(400, 'upload cut off (' + String((e && e.code) || 'unknown').slice(0, 40) + ')');
+    });
+    out.on('finish', () => {
+      if (failed) return;
+      if (!written) return abort(400, 'no file');
+      console.log('[clips] saved', date + '/' + name, (written / 1048576).toFixed(1) + 'mb');
+      res.json({ ok: true, url: '/shop/clip/' + date + '/' + name, bytes: written });
+    });
+    req.pipe(out);
+  });
+
+  app.get('/shop/clip/:date/:name', (req, res) => {
+    const date = String(req.params.date), name = String(req.params.name);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^[A-Za-z0-9_.-]+$/.test(name) || name.indexOf('..') > -1) {
+      return res.status(400).type('text/plain').send('no');
+    }
+    const file = path.join(CLIP_DIR, date, name);
+    let st; try { st = fs.statSync(file); } catch (_) { return res.status(404).type('text/plain').send('gone'); }
+    const type = CLIP_TYPES[(name.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
+    res.set('Content-Type', type).set('Accept-Ranges', 'bytes').set('Cache-Control', 'private, max-age=3600');
+    // Range matters: without it a phone browser will not scrub, and some will not
+    // play at all — they ask for the first bytes before committing to the file.
+    const range = req.headers.range;
+    if (range) {
+      const m = /bytes=(\d*)-(\d*)/.exec(range) || [];
+      let start = m[1] ? parseInt(m[1], 10) : 0;
+      let end = m[2] ? parseInt(m[2], 10) : st.size - 1;
+      if (isNaN(start) || start < 0) start = 0;
+      if (isNaN(end) || end >= st.size) end = st.size - 1;
+      if (start > end) return res.status(416).set('Content-Range', 'bytes */' + st.size).end();
+      res.status(206)
+        .set('Content-Range', 'bytes ' + start + '-' + end + '/' + st.size)
+        .set('Content-Length', String(end - start + 1));
+      return fs.createReadStream(file, { start, end }).pipe(res);
+    }
+    res.set('Content-Length', String(st.size));
+    fs.createReadStream(file).pipe(res);
+  });
+
+  /* ── THE DAILY SHEET ────────────────────────────────────────────────────
+   * Read and write one day's floor work. Deliberately NOT routed through
+   * /shop/note: a note fires a WhatsApp blast and a push to every on-duty
+   * phone, and this saves every few seconds while she works. She sends one
+   * note at the end, on purpose.
+   */
+  app.get('/shop/daily', (req, res) => {
+    if (!auth(req, res)) return;
+    const d = String(req.query.date || '').slice(0, 10);
+    if (d) return res.json({ day: (state.daily || {})[d] || null });
+    // no date = the whole book, newest first, for whoever is posting the media
+    const all = state.daily || {};
+    const days = Object.keys(all).sort().reverse().slice(0, 30).map(k => all[k]);
+    res.json({ days });
+  });
+
+  app.post('/shop/daily', (req, res) => {
+    if (!auth(req, res)) return;
+    const b = req.body || {};
+    const d = String(b.date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return res.status(400).json({ error: 'bad date' });
+    state.daily = state.daily || {};
+    const prev = state.daily[d] || {};
+    state.daily[d] = Object.assign({}, prev, b.day || {}, {
+      date: d,
+      by: b.by || prev.by || '',
+      at: new Date().toISOString()
+    });
+    // 120 days is plenty to answer "what did we shoot last month" without the
+    // file growing forever.
+    const keys = Object.keys(state.daily).sort();
+    while (keys.length > 120) delete state.daily[keys.shift()];
+    persist('daily.json');
+    res.json({ ok: true, day: state.daily[d] });
+  });
+
   app.post('/shop/note', async (req, res) => {
     if (!auth(req, res)) return;
     const b = req.body || {};
@@ -1497,7 +1849,7 @@ function mount(app) {
       // Only the staff actually rostered on this slot (Rodney 2026-08-15) — deliveries moved
       // to the rota on 14 Aug and he asked for tasks to follow. The author is still excluded,
       // and blastOnDuty falls back to the Manager rather than reaching nobody.
-      try { delivery = await blastOnDuty(msg, note.by); } catch (_) {}
+      try { delivery = await blastOnDuty(msg, note.by, 'task-board'); } catch (_) {}   // 🔕 a task he typed IS for her — see STAFF_TOPICS_ALLOWED
       // Web push to installed staff phones (works when the app is closed).
       const pushBody = note.kind === 'shoe' && note.shoeLabel ? `${note.text} — ${note.shoeLabel}` : note.text;
       sendPush(`New task from ${note.by}`, pushBody, '/').catch(() => {});
@@ -1514,6 +1866,12 @@ function mount(app) {
     if (!sub || !sub.endpoint) return res.status(400).json({ error: 'no subscription' });
     sub.by = b.by || 'staff';
     sub.at = new Date().toISOString();
+    // 📱 WHAT KIND OF PHONE IS THIS? Eight devices were registered and every push came back
+    // "accepted" while Rodney saw nothing, and there was no way to tell from here whether any
+    // of them was even his handset. An iPhone's push address lives on push.apple.com and an
+    // Android or desktop Chrome's on fcm.googleapis.com, so the host is already a hint — this
+    // records the rest, once, at sign-up. Trimmed hard: it is a label, not a tracking record.
+    try { sub.ua = String(req.get('user-agent') || '').slice(0, 180); } catch (_) {}
     state.subs = (state.subs || []).filter((s) => s.endpoint !== sub.endpoint);
     state.subs.push(sub);
     if (state.subs.length > 200) state.subs = state.subs.slice(-200);
@@ -1580,8 +1938,23 @@ function mount(app) {
           at: s.at || null,
           host,                                    // fcm/apple/mozilla — tells us the phone type
           tail: String(s.endpoint || '').slice(-8), // enough to tell two devices apart
+          ua: s.ua || null,                        // only on sign-ups from 09 Sep on
+          // Has anything this device drew ever been reported back? sw.js posts to
+          // /shop/push/seen the moment a notification exists on screen, so this is the
+          // difference between "Google accepted it" and "a human could have seen it".
+          everDrew: (Array.isArray(state.pushSeen) ? state.pushSeen : [])
+            .some((r) => r.tail && String(s.endpoint || '').endsWith(r.tail)),
         };
       }),
+      // Sending options in force. Recorded here because "why did nothing arrive" was answered
+      // for two nights by reading the sending side and finding it healthy — the setting that
+      // was actually wrong (normal urgency, which Android parks while the phone dozes) was
+      // never visible anywhere. Now it is.
+      urgency: PUSH_OPTS.urgency,
+      ttlSeconds: PUSH_OPTS.TTL,
+      // The push service's own last refusal. Nothing else in here is evidence: a live
+      // subscription and an "accepted" both stay true while the phone shows nothing.
+      lastPushFail,
     });
   });
 
@@ -1598,11 +1971,180 @@ function mount(app) {
   //
   // Worth knowing, because it is the thing he assumed: on Android you do NOT have to install
   // the app for this to work. A plain Chrome tab is enough once notifications are allowed.
+  // ✅ PROOF A NOTIFICATION REACHED A SCREEN. sw.js posts here straight after
+  // showNotification, so unlike "accepted by Google" this cannot be true while Rodney sees
+  // nothing. It is the only honest signal in the chain and it needs no key: it carries no
+  // data worth faking and the worst a stranger can do is make us think alerts are working,
+  // which is why `tail` is checked against the phones we already know about.
+  app.post('/shop/push/seen', (req, res) => {
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const tail = String(b.tail || '').slice(-24);
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    const known = tail.length >= 12 && subs.some(x => String(x.endpoint || '').endsWith(tail));
+    const row = { at: new Date().toISOString(), tail: tail || null, known,
+                  title: String(b.title || '').slice(0, 80), tag: String(b.tag || '').slice(0, 40) };
+    state.pushSeen = [row].concat(Array.isArray(state.pushSeen) ? state.pushSeen : []).slice(0, 100);
+    // Persisted deliberately: the question this answers is "has ANY alert ever been drawn on
+    // a real screen", and an answer that resets on every deploy could never say "never".
+    persist('pushSeen.json');
+    res.json({ ok: true });
+  });
+  app.get('/shop/push/seen', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    const seen = Array.isArray(state.pushSeen) ? state.pushSeen : [];
+    const tails = {};
+    for (const r of seen) if (r.tail) tails[r.tail] = (tails[r.tail] || 0) + 1;
+    // `everSeen` counts ONLY reports from a device the server knows about. A stranger posting
+    // here must not be able to make the alert channel look healthy — that is the exact lie
+    // this endpoint exists to catch.
+    const real = seen.filter((r) => r.known);
+    res.json({ ok: true, everSeen: real.length > 0, count: real.length, unknownReports: seen.length - real.length,
+               newest: real[0] || null, byDevice: tails, recent: seen.slice(0, 25) });
+  });
+
+  // ❓ IS THIS EXACT PHONE ON THE LIST THE SERVER SENDS TO? The failure we could not see was
+  // a phone signed up against one address while the server holds another — the send is then
+  // "accepted" forever and nothing ever appears. Only the phone itself knows its own address,
+  // so it has to be the one to ask. Takes the last chunk of that address, which is already a
+  // long random token, and answers yes/no. No key: it reveals nothing you did not already have.
+  // ═══ 🚚 THE CONFIRM LINK ════════════════════════════════════════════════════
+  // Every order alert now lands in the drivers' group, so five people read the same
+  // job. Without this, two drivers run the same delivery and a third assumes someone
+  // else has it. The link at the bottom of each alert opens this page: two buttons,
+  // first tap wins, and the outcome goes straight back to the group so the rest of
+  // them stop. It is deliberately keyless — the id is a long random string that only
+  // arrives inside the alert, and the page can do nothing except close its own job.
+  app.get('/j/:id', (req, res) => {
+    const j = (Array.isArray(state.jobs) ? state.jobs : []).find(x => x.id === String(req.params.id));
+    if (!j) return res.status(404).type('text/html').send(jobPage(null));
+    res.set('Cache-Control', 'no-store').type('text/html').send(jobPage(j));
+  });
+
+  app.post('/j/:id/close', (req, res) => {
+    const jobs = Array.isArray(state.jobs) ? state.jobs : [];
+    const j = jobs.find(x => x.id === String(req.params.id));
+    if (!j) return res.json({ ok: false, why: 'that job is gone' });
+    const b = (req.body && typeof req.body === 'object') ? req.body : {};
+    const want = String(b.outcome || '').toLowerCase() === 'sold' ? 'sold' : 'failed';
+    const who = String(b.by || '').trim().slice(0, 40) || 'someone';
+    const note = String(b.note || '').trim().slice(0, 200);
+
+    // FIRST TAP WINS. If it is already closed, say who closed it rather than
+    // overwriting — two drivers tapping opposite buttons must not silently fight.
+    if (j.state && j.state !== 'open') {
+      return res.json({ ok: false, already: true, state: j.state, by: j.by || 'someone',
+                        why: 'Already marked ' + j.state.toUpperCase() + ' by ' + (j.by || 'someone') });
+    }
+    j.state = want; j.by = who; j.atDone = new Date().toISOString(); if (note) j.note = note;
+    persist('jobs.json');
+
+    // Tell the group. This is the half that stops the other four drivers.
+    try {
+      const head = want === 'sold' ? '✅ SOLD' : '❌ DIDN’T SELL';
+      const line = head + ' — ' + (j.title || 'job') + '\nBy ' + who + (note ? '\n"' + note + '"' : '')
+                 + '\nNobody else needs to run this one.';
+      if (typeof onJobClosed === 'function') onJobClosed(line, j, want);
+    } catch (_) {}
+    res.json({ ok: true, state: want, by: who });
+  });
+
+  function jobPage(j) {
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    if (!j) return '<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">'
+      + '<body style="background:#111;color:#eee;font:17px/1.5 system-ui;padding:28px">'
+      + '<h2>That job is gone</h2><p>The link is old, or the job was cleared. '
+      + 'Open the shop and check the board.</p>';
+    const closed = j.state && j.state !== 'open';
+    return '<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">'
+      + '<title>' + esc(j.title || 'Delivery') + '</title>'
+      + '<body style="background:#111;color:#eee;font:17px/1.55 system-ui;margin:0;padding:22px 18px 60px">'
+      + '<div style="max-width:520px;margin:0 auto">'
+      + '<div style="font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#8b8b8b">Delivery job</div>'
+      + '<h1 style="font-size:24px;margin:6px 0 14px">' + esc(j.title || 'Delivery') + '</h1>'
+      + '<pre style="white-space:pre-wrap;word-wrap:break-word;background:#1c1c1c;border-radius:12px;'
+      + 'padding:14px;font:15px/1.5 system-ui;margin:0 0 20px">' + esc(j.text || '') + '</pre>'
+      + '<div id=box>' + (closed
+          ? '<div style="background:#1f3a1f;border-radius:12px;padding:16px;font-size:18px">'
+            + (j.state === 'sold' ? '✅ Marked SOLD' : '❌ Marked DIDN’T SELL')
+            + ' by ' + esc(j.by || 'someone') + '</div>'
+          : '<input id=who placeholder="Your name" autocomplete=name '
+            + 'style="width:100%;box-sizing:border-box;padding:14px;border-radius:12px;border:1px solid #3a3a3a;'
+            + 'background:#1c1c1c;color:#eee;font-size:17px;margin-bottom:10px">'
+            + '<input id=note placeholder="Anything to add? (optional)" '
+            + 'style="width:100%;box-sizing:border-box;padding:14px;border-radius:12px;border:1px solid #3a3a3a;'
+            + 'background:#1c1c1c;color:#eee;font-size:17px;margin-bottom:16px">'
+            + '<button onclick="go(\'sold\')" style="width:100%;padding:20px;font-size:20px;font-weight:600;'
+            + 'border:0;border-radius:14px;background:#1d7f3a;color:#fff;margin-bottom:12px">✅ SOLD IT</button>'
+            + '<button onclick="go(\'failed\')" style="width:100%;padding:20px;font-size:20px;font-weight:600;'
+            + 'border:0;border-radius:14px;background:#8a2222;color:#fff">❌ DIDN’T SELL</button>') + '</div>'
+      + '<p style="color:#8b8b8b;font-size:14px;margin-top:22px">Whoever taps first closes this for everyone. '
+      + 'The group gets told straight away so nobody doubles up.</p></div>'
+      + '<script>function go(o){var b=document.getElementById("box");'
+      + 'var who=(document.getElementById("who")||{}).value||"";'
+      + 'var note=(document.getElementById("note")||{}).value||"";'
+      + 'if(!who.trim()){alert("Put your name in first so the group knows who has it.");return;}'
+      + 'b.innerHTML=\'<div style="padding:16px;font-size:18px">Sending\\u2026</div>\';'
+      + 'fetch(location.pathname+"/close",{method:"POST",headers:{"Content-Type":"application/json"},'
+      + 'body:JSON.stringify({outcome:o,by:who,note:note})}).then(function(r){return r.json();})'
+      + '.then(function(j){b.innerHTML=\'<div style="background:\'+(j.ok?"#1f3a1f":"#3a2a1f")+\';border-radius:12px;padding:16px;font-size:18px">\'+'
+      + '(j.ok?(o==="sold"?"\\u2705 Marked SOLD. The group has been told.":"\\u274c Marked did not sell. The group has been told."):'
+      + '(j.why||"Could not save that \\u2014 tap again."))+\'</div>\';})'
+      + '.catch(function(){b.innerHTML=\'<div style="background:#3a2a1f;border-radius:12px;padding:16px">No signal. Tap again when you have bars.</div>\';});}<\/script>';
+  }
+
+  app.get('/shop/push/known', (req, res) => {
+    const tail = String(req.query.tail || '');
+    const subs = Array.isArray(state.subs) ? state.subs : [];
+    const known = tail.length >= 12 && subs.some(s => String(s.endpoint || '').endsWith(tail));
+    res.json({ ok: true, known, total: subs.length });
+  });
+
+  // 📱 RING THIS EXACT PHONE — no key needed, and safe without one: it will only push to a
+  // subscription the server ALREADY holds, and the endpoint string is a long unguessable
+  // token the caller must already possess. Used by /push-check so Rodney can prove the last
+  // step from his own hand. "Accepted by Google" was true for weeks while nothing rang, so a
+  // server-side success is worth nothing here — only he can see whether it appears.
+  app.post('/shop/push/selftest', async (req, res) => {
+    if (!webpush) return res.json({ ok: false, why: 'web-push not installed' });
+    const ep = String((req.body && req.body.endpoint) || '');
+    const sub = (Array.isArray(state.subs) ? state.subs : []).find(s => s.endpoint === ep);
+    if (!sub) return res.json({ ok: false, why: 'this phone is not linked to the shop yet' });
+    const payload = JSON.stringify({ title: '🔔 It works', body: 'Notifications can reach this phone. This is what an order alert will look like.', url: '/', tag: 'plug242-selftest' });
+    try { await webpush.sendNotification(sub, payload, PUSH_OPTS); res.json({ ok: true }); }
+    catch (e) { res.json({ ok: false, why: String((e && e.body) || (e && e.message) || e).slice(0, 160), code: e && e.statusCode }); }
+  });
+
+  // 🩺 WHAT DID HIS PHONE ACTUALLY REPORT? The whole reason this went undetected is that every
+  // signal the server had said success. This lets the check page post its findings back, so a
+  // session can read the client-side truth (permission state, worker, subscription) instead of
+  // asking him to read a screen out. Kept in memory only — it is a diagnostic, not a record.
+  const _diags = [];
+  app.post('/shop/push/diag', (req, res) => {
+    const r = (req.body && typeof req.body === 'object') ? req.body : {};
+    _diags.unshift({ at: new Date().toISOString(), ...r });
+    if (_diags.length > 20) _diags.length = 20;
+    res.json({ ok: true });
+  });
+  app.get('/shop/push/diag', (req, res) => {
+    const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
+    if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
+    res.json({ ok: true, count: _diags.length, diags: _diags });
+  });
+
   app.get('/shop/push/test', async (req, res) => {
     const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
     if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
     if (!webpush) return res.json({ ok: false, why: 'web-push not installed' });
-    const subs = Array.isArray(state.subs) ? state.subs : [];
+    // ?by=Manager rings only Rodney's own phones. Without it this wakes every registered
+    // device, and the answer to "does MY phone ring" is not worth waking the staff at 3am
+    // to get. Substring match, case-insensitive, so ?by=mana works.
+    const _who = String(req.query.by || '').trim().toLowerCase();
+    let subs = Array.isArray(state.subs) ? state.subs : [];
+    if (_who) subs = subs.filter(s => String(s.by || '').toLowerCase().includes(_who));
+    const _tail = String(req.query.tail || '').trim();
+    if (_tail) subs = subs.filter(s => String(s.endpoint || '').endsWith(_tail));
     const payload = JSON.stringify({
       title: req.query.title || '🔔 Test from Kiki',
       body: req.query.body || 'If you can read this, notifications are working on this phone.',
@@ -1612,10 +2154,10 @@ function mount(app) {
     for (const s of subs) {
       let host = ''; try { host = new URL(s.endpoint).host; } catch (_) {}
       const tail = String(s.endpoint || '').slice(-8);
-      try { await webpush.sendNotification(s, payload); out.push({ by: s.by || 'staff', host, tail, ok: true }); }
+      try { await webpush.sendNotification(s, payload, PUSH_OPTS); out.push({ by: s.by || 'staff', host, tail, ok: true }); }
       catch (e) { out.push({ by: s.by || 'staff', host, tail, ok: false, code: e && e.statusCode, why: String((e && e.body) || (e && e.message) || e).slice(0, 120) }); }
     }
-    res.json({ ok: true, tried: out.length, accepted: out.filter(x => x.ok).length, devices: out });
+    res.json({ ok: true, filteredBy: _who || null, tried: out.length, accepted: out.filter(x => x.ok).length, devices: out });
   });
 
   // Re-seed a note that already exists on a device but is missing on the server
@@ -2223,4 +2765,46 @@ function deleteDateTask(dateKey, id) {
   return state.dateTasks[dateKey].length !== before;
 }
 
-module.exports = { mount, setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
+// 📱 HOW MANY PHONES WOULD A PUSH ACTUALLY GO TO? Read-only, no send. server.js asks this
+// before telling Rodney an alert "did not reach you" — since 08 Sep, WhatsApp is no longer the
+// only route to his phone, and claiming an alert was lost when the board push delivered it is
+// how a warning stops being believed.
+function pushCount() { return (webpush && Array.isArray(state.subs)) ? state.subs.length : 0; }
+
+// 🆕 A NEW SHOE MUST LAND ON THE SHELF, NOT JUST IN THE CATALOGUE.
+// Rodney 2026-09-22: "so why would you only add it to the catalogue and not the shop list?
+// thats pretty stupid. were running a business you know we need it done."
+//
+// He is right. The split itself is sound - the catalogue is the menu, the shelf is the
+// truth, and Kiki sells only from the shelf because the site once advertised 33 pairs that
+// were already gone. But nothing ever connected the two, so a shoe added to the catalogue
+// was live on the website and invisible to Kiki for ever. It cost him three batches in three
+// days: five Vomero 5s, six Air Max Plus and a brown 95, every one of them in stock and
+// unsellable, while customers were told we did not carry them.
+//
+// SAFE BECAUSE IT ONLY EVER TOUCHES A SHOE THE SHELF HAS NEVER HEARD OF. A shoe that sold
+// out has a row - empty sizes, or sold:true - and is left strictly alone, so this can never
+// resurrect stock that is gone, which is the exact failure the shelf rule exists to prevent.
+// A brand-new shoe has no row at all, and its catalogue sizes are what somebody typed when
+// they added it minutes ago. That is the best information in the building, so use it.
+function seedNewShoes(catalogue, note) {
+  if (!Array.isArray(catalogue) || !catalogue.length) return 0;
+  if (!Array.isArray(state.shoes)) state.shoes = [];
+  const known = new Set(state.shoes.map(s => String(s.id)));
+  const gone = new Set((state.deleted || []).map(String));
+  let added = 0;
+  for (const c of catalogue) {
+    const id = c && c.id != null ? String(c.id) : '';
+    if (!id || known.has(id) || gone.has(id)) continue;
+    const sizes = (c.sizesRaw || c.sizes || []).map(String).filter(Boolean);
+    if (!sizes.length) continue;                       // nothing to put on the shelf
+    state.shoes.push({ id, sizes, price: c.price, sold: false,
+                       updatedAt: Date.now(), seededFromCatalogue: true });
+    added++;
+    if (note) note('shelf: seeded ' + id + ' (' + sizes.length + ' pairs) - it was in the catalogue with no shop row');
+  }
+  if (added) { persist('shoes.json'); bump(); }
+  return added;
+}
+
+module.exports = { pushCount, seedNewShoes, mount, addJob, setJobClosedHook, getJobs: () => (Array.isArray(state.jobs) ? state.jobs : []), setFallbackToken, setStaffSender, blastEmployees, blastOnDuty, isRestrictedStaff, mayReceive, onDutyNames, addAlert, sendPush, getShoes, getDeleted, recordStaffSale, recordStaffRestock, attachSaleProof, getProof, getEmployees: () => state.employees, getSales: () => (Array.isArray(state.sales) ? state.sales : []), getNotes: () => (Array.isArray(state.notes) ? state.notes : []), getDateTasks, getShifts, dayRoster };
