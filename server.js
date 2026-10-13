@@ -9435,6 +9435,16 @@ app.post('/ycloud/webhook', async (req, res) => {
       text = 'Hello! Can I get more info on this?';
       record(req, { endpoint: 'ycloud-unsupported-answered-as-opener', sub: from });
     }
+    // 📍 A LIVE LOCATION NEVER REACHES US (Rodney's test 2026-10-13 on Foot Fetish: a current-location
+    // pin arrived with coordinates; a live location arrived as type "unsupported", Meta error 131060
+    // "This message is unavailable" — the WhatsApp Cloud API does not carry live locations at all).
+    // It used to be dropped in silence, so a customer who shared live location heard nothing.
+    else if (!String(text).trim() && t === 'unsupported') {
+      text = '(SYSTEM: the customer just sent something WhatsApp could not deliver to us — almost always a LIVE location, which we cannot see. '
+        + 'Reply in ONE short line asking them to send their CURRENT location instead, e.g. "Live location doesn\'t come through on my end 🙏 Send your current location instead — tap 📎, Location, Send your current location". '
+        + 'Do not say you got their location, and do not say the team has it.)';
+      record(req, { endpoint: 'ycloud-unsupported-asked-for-pin', sub: from });
+    }
     if (!String(text).trim() && !ycImage) return;
     const store = (toNum && toNum.endsWith('4324406')) ? 'Foot Fetish' : waStoreFor(null);
     try { ycloudStore.set(from, store); saveYcloudStore(); } catch (_) {}
