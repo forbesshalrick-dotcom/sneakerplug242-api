@@ -1493,7 +1493,7 @@ const WEBSITE = (process.env.WEBSITE || '242plug.com').replace(/^https?:\/\//, '
 // of her replies without a code change if the site ever goes down.
 const SITE_LIVE = !/^(0|false|no|off)$/i.test(String(process.env.SITE_LIVE || '').trim());
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
-const END_OF_PHOTOS_MSG = `let me know if you like that one`;
+const END_OF_PHOTOS_MSG = `let me know if you need a delivery`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const FOLLOWUP_MSG = "";
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
@@ -1710,9 +1710,9 @@ const CLOSER_T = {
 };
 const END_OF_PHOTOS_T = {
   en: END_OF_PHOTOS_MSG,
-  es: `avísame si te gusta ese`,
-  ht: `fè m konnen si ou renmen sa a`,
-  fr: `dis-moi si celui-là te plaît`,
+  es: `avísame si necesitas entrega`,
+  ht: `fè m konnen si ou bezwen livrezon`,
+  fr: `dis-moi si tu as besoin d'une livraison`,
 };
 const DELIVERY_FOLLOWUP_T = {
   en: DELIVERY_FOLLOWUP_MSG,
