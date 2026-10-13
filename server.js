@@ -2905,6 +2905,7 @@ const EMPTY_ASK_T = {
 // download the audio file ManyChat points us at and transcribe it with Whisper,
 // then feed the text into the normal chat. Needs OPENAI_API_KEY in the env.
 const WHISPER_API = 'https://api.openai.com/v1/audio/transcriptions';
+const VOICE_HINT = 'Nassau, Bahamas sneaker shop. Places: Baha Mar, Cable Beach, Carmichael Road, Blue Hill Road, Prince Charles Drive, Fox Hill, Paradise Island, Coral Harbour, Golden Gates, Pinewood Gardens, Nassau Village, South Beach, Bay Street, Gladstone Road, Yamacraw, Eastern Road, Soldier Road, Mackey Street, Shirley Street, Robinson Road, Marathon Mall, Sea Breeze, Elizabeth Estates, Lyford Cay, Sandyport, Adelaide, Gambier, Wulff Road, Farrington Road, Bernard Road, Kemp Road, Palmdale, Oakes Field, Sunrise Highway, JFK Drive, Tonique Williams Highway, Harold Road, Cowpen Road, Faith Avenue, Millers Heights, Baillou Hill Road, East Street, Chippingham, Town Centre Mall, Fusion Superplex. Shoes: Air Force 1, Air Max 95, Air Max 97, Air Max Plus TN, VaporMax, Jordan 1, Jordan 4, Jordan 5, Jordan 11, Dunk, New Balance 9060, New Balance 1906, New Balance 2000, Nike Shox, Asics Gel-Kayano, Yeezy Foam Runner, Crocs. Sizes: 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13, ten and a half, thirteen.';
 async function transcribeAudio(url, mediaAuth) {
   if (!process.env.OPENAI_API_KEY) return null;
   // mediaAuth: WhatsApp Cloud API media URLs need a Bearer token to download.
@@ -2916,6 +2917,9 @@ async function transcribeAudio(url, mediaAuth) {
     const form = new FormData();
     form.append('file', new Blob([buf]), 'voice.ogg');
     form.append('model', model);
+    // A spelling hint, not a transcript: the places, shoes and sizes our customers actually say.
+    // 2026-10-13: "meet you by Baha Mar" came out as "by Bahama".
+    form.append('prompt', VOICE_HINT);
     const r = await fetch(WHISPER_API, {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY.trim()}` },
