@@ -2694,13 +2694,19 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
   // Look shoes up through the LIVE map so labels show current sizes and anything
   // marked sold/deleted on the website is dropped even if it slipped into `ids`.
   const live = liveShoeMap();
+  // The live map is keyed by catalogue ROW (0..n); a caller holding a REAL id ("c0414",
+  // "jordan4blackwhite001") got nothing back and the album silently sent 0 (2026-10-13: the
+  // photo-identified card never left, and the customer got "Ugh, the photos aren't sending"
+  // for a picture that was never attempted). Accept either key.
+  const byRealId = {};
+  for (const k in live) { const x = live[k]; if (x && x.id != null) byRealId[String(x.id)] = x; }
   // dedupe against a shared `seen` set so the SAME shoe never goes out twice —
   // not within one list, and not across size groups (a shoe in both size 7 and
   // size 8 is sent once, with its label still showing every size it comes in).
   const dedupe = (idList, seen) => {
     const s = seen || new Set();
     return (idList || []).filter(id => !s.has(id) && s.add(id))
-      .map(id => live[id]).filter(x => x && x.image);
+      .map(id => live[id] || byRealId[String(id)]).filter(x => x && x.image);
   };
   let sent = 0, requested = 0;
   const albumTrace = [];   // per-shoe record of what ManyChat answered — see below
@@ -2972,7 +2978,12 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
   // completely never trips it — and never told the customer OR Rodney anything either. A
   // "Catalog" customer got exactly this: 0 photos, then Kiki filled the silence herself with
   // a banned "trouble loading" excuse. Cover the gap here so code always answers, not a guess.
-  if (!brokeOnFailures && sent === 0 && requested > 0 && !manualStopped && !interrupted && !isStaff) {
+  // Only when a picture was actually TRIED (albumTrace has a row). If every id resolved to
+  // nothing there was no send to fail — say nothing, log it, and let the turn carry on.
+  if (!brokeOnFailures && sent === 0 && requested > 0 && albumTrace.length === 0 && !isStaff) {
+    try { recent.unshift({ at: new Date().toISOString(), endpoint: 'album-no-shoes-resolved', sub, ids: (ids || []).slice(0, 5) }); } catch (_) {}
+  }
+  if (!brokeOnFailures && sent === 0 && requested > 0 && albumTrace.length > 0 && !manualStopped && !interrupted && !isStaff) {
     try {
       sendChunk(sub, [{ type: 'text', text: "Ugh, the photos aren't sending on my end right now 😩 I'm on it and will follow up the second it's fixed 🙏" }], token).catch(() => {});
       waSendManager('📷 *PHOTOS FAILED TO SEND* — 0 of ' + requested + ' got through (below the 3-in-a-row breaker).\n👤 Customer: ' + sub + '\n⚠️ Check ManyChat / image URLs — the customer got a website link instead.', token).catch(() => {});
@@ -3681,6 +3692,7 @@ const ORDER_CHECKIN_FILE = (() => {
   return null;
 })();
 const orderCheckins = new Map();   // sub -> { shoe, size, price, store, phone, at }
+const orderStatusPingAt = new Map(); // sub -> last time a status question on a placed order pinged the owner
 const orderCheckinTimers = new Map();
 function saveOrderCheckins() {
   if (!ORDER_CHECKIN_FILE) return;
@@ -5373,6 +5385,38 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (e) { try { record(req, { endpoint: 'photo-shoe-send-error', sub, error: String(e).slice(0, 90) }); } catch (_) {} }
+  /* 📦 A PLACED ORDER ASKING "IS IT ON THE BOAT?" PINGS THE OWNER — EVERY TIME (Rodney 2026-10-13,
+   * "omg we missed this delivery"). Kaden Stubbs paid $130 at 12:45 for a 9060 to Eleuthera, told
+   * Kiki the freight cutoff was 4 PM, then asked "is it on the boat?" EIGHT times over five hours
+   * and called twice. Kiki answered every one with "the team's on it / a team member has the
+   * real-time update / it's locked in" — and no alert ever reached Rodney, because nothing fires
+   * on a follow-up and the model never calls get_agent for a polite question. The shoe missed the
+   * boat. Now: once an order is on file for this customer, any status / deadline message from them
+   * pings the owner (15-min dedupe) and Kiki is told the truth: she does not know, say so once. */
+  try {
+    const _oc = (!staffName && userText) ? orderCheckins.get(String(sub)) : null;
+    const _askRe = /\b(boat|freight|ship(ped|ping)?|mail ?boat|plane|flight|track(ing)?|receipt|on (the|da) way|is it (there|here|on|gone|ready|done|coming)|where('s| is| my)|how long|still coming|hope (it'?s|its)|cut ?off|stop(s)? taking|before \d|by \d)\b/i;
+    if (_oc && (Date.now() - (_oc.at || 0)) < 3 * 24 * 3600000 && _askRe.test(userText)) {
+      const _lastPing = orderStatusPingAt.get(String(sub)) || 0;
+      if (Date.now() - _lastPing > 15 * 60000) {
+        orderStatusPingAt.set(String(sub), Date.now());
+        const _ph = _oc.phone ? ('+' + _oc.phone) : '';
+        queueForOwner('🛒 *ORDER STILL WAITING — customer asking*\n'
+          + '👤 ' + (ctx.name || sub) + (_ph ? ('  ' + _ph + '  (wa.me/' + _oc.phone + ')') : '') + '\n'
+          + '👟 ' + (_oc.shoe || 'their order') + (_oc.size ? (' — size ' + _oc.size) : '') + (_oc.store ? ('  🏬 ' + _oc.store) : '') + '\n'
+          + '💬 "' + String(userText).replace(/\s+/g, ' ').slice(0, 160) + '"\n'
+          + '⚠️ Kiki told them you will confirm. Answer them yourself — she does not know where the shoe is.', 'Order still waiting', true);
+        record(req, { endpoint: 'order-status-ping', sub, store: ctx.store || '', text: String(userText).slice(0, 80) });
+      }
+      const _lu = history[history.length - 1];
+      if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
+        _lu.content[0].text = '(SYSTEM NOTE: this customer has a PLACED ORDER on file — ' + (_oc.shoe || 'their pair') + (_oc.size ? (' size ' + _oc.size) : '')
+          + ' — and this message is about its status or a deadline. The owner has been pinged on WhatsApp JUST NOW. You do NOT know where the shoe is, so do not guess. '
+          + 'Reply ONE short honest line and nothing else: the first time, "Let me check with the team and come right back to you 🙏"; if you already said that earlier in this chat, "Still checking — I\'ll message you the moment I hear 🙏". '
+          + 'NEVER say a team member is helping them / has the update / it\'s locked in / it\'s heading to the boat / it\'s on the way — those are promises you cannot keep.)\n\n' + _lu.content[0].text;
+      }
+    }
+  } catch (_) {}
   const turnSizeSearchSizes = [];       // sizes from pure size (±brand only) searches this turn
   const turnSizeSearchBrands = [];      // the brand filter on each of those searches ('' = none)
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
