@@ -1085,6 +1085,29 @@ function getToken(req) {
 }
 
 const ycloudStore = new Map();   // customer phone -> store, for numbers that came in through YCloud
+// Kept on the volume: after a restart a hand-typed inbox reply to a Foot Fetish customer must still
+// go out through YCloud, not to a ManyChat subscriber that does not exist (Rodney 2026-10-13).
+const YCLOUD_STORE_FILE = (() => {
+  for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+    try { if (require('fs').existsSync(d)) return require('path').join(d, 'ycloud-customers.json'); } catch (_) {}
+  }
+  return null;
+})();
+try {
+  if (YCLOUD_STORE_FILE && require('fs').existsSync(YCLOUD_STORE_FILE)) {
+    for (const [k, v] of Object.entries(JSON.parse(require('fs').readFileSync(YCLOUD_STORE_FILE, 'utf8')))) ycloudStore.set(k, v);
+    console.log('[ycloud] restored', ycloudStore.size, 'customers');
+  }
+} catch (e) { console.log('[ycloud] restore failed:', e.message); }
+let ycloudStoreSaveT = null;
+function saveYcloudStore() {
+  if (!YCLOUD_STORE_FILE) return;
+  clearTimeout(ycloudStoreSaveT);
+  ycloudStoreSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(YCLOUD_STORE_FILE, JSON.stringify(Object.fromEntries(ycloudStore))); } catch (_) {}
+  }, 1500);
+  if (ycloudStoreSaveT.unref) ycloudStoreSaveT.unref();
+}
 /* 📡 FOOT FETISH RUNS ON YCLOUD (ported 2026-10-13 - the Sep 3 reset dropped it and the line went
  * silent for 17 hours). Inbound arrives at /ycloud/webhook; replies and pictures go straight out
  * through the YCloud API, no browser in the loop. The key lives on the /data volume. */
@@ -9068,7 +9091,7 @@ app.post('/ycloud/webhook', async (req, res) => {
     }
     if (!String(text).trim() && !ycImage) return;
     const store = (toNum && toNum.endsWith('4324406')) ? 'Foot Fetish' : waStoreFor(null);
-    try { ycloudStore.set(from, store); } catch (_) {}
+    try { ycloudStore.set(from, store); saveYcloudStore(); } catch (_) {}
     try { if (toNum) ycloudFrom.set(from, String(toNum)); } catch (_) {}
     waLastInboundAt = new Date().toISOString();
     const shimReq = { method: 'POST', path: '/ycloud/webhook', headers: {}, query: {}, rawBody: null, body: {} };
@@ -9371,7 +9394,7 @@ app.post('/inbox/send', async (req, res) => {
   const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
     || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
     || lastToken || process.env.MANYCHAT_TOKEN || null;
-  if (!token && !waChannel.get(sub)) return res.json({ ok: false, error: 'No account token learned for this customer yet — have them message the bot once, then reply.' });
+  if (!token && !waChannel.get(sub) && !ycloudStore.has(String(sub))) return res.json({ ok: false, error: 'No account token learned for this customer yet — have them message the bot once, then reply.' });
   // The moment we reply as a human, Kiki pauses for this customer (refreshed each reply)
   // and any pending nudge is cancelled so she never talks over us.
   setHumanPause(sub);
