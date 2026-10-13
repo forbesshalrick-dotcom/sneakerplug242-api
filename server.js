@@ -9028,13 +9028,36 @@ app.post('/ycloud/webhook', async (req, res) => {
     } else {
       text = String((m.text && m.text.body) || '');
     }
-    record(req, { endpoint: 'ycloud-in', sub: from, to: toNum, kind, msgType: t, q: String(text).slice(0, 60) });
+    // The picture itself, not just its caption (2026-10-13: Foot Fetish customers' photos never reached
+    // the brain, so "do you have any of these?" got "what size you wear?"). YCloud media links want the
+    // API key; the bytes go to runChat the same way the Cloud API path hands them over.
+    let ycImage = null;
+    if (t === 'image' && m.image) {
+      const link = String(m.image.link || m.image.url || '');
+      if (link) {
+        try {
+          const hdr = process.env.YCLOUD_API_KEY ? { 'X-API-Key': process.env.YCLOUD_API_KEY } : {};
+          let r = await fetch(link, { headers: hdr, signal: AbortSignal.timeout(15000), redirect: 'follow' });
+          if (!r.ok && Object.keys(hdr).length) r = await fetch(link, { signal: AbortSignal.timeout(15000), redirect: 'follow' });
+          if (r.ok) {
+            const buf = Buffer.from(await r.arrayBuffer());
+            let ct = (r.headers.get('content-type') || m.image.mime_type || m.image.mimeType || 'image/jpeg').split(';')[0].trim().toLowerCase();
+            if (buf[0] === 0xFF && buf[1] === 0xD8) ct = 'image/jpeg'; else if (buf[0] === 0x89 && buf[1] === 0x50) ct = 'image/png';
+            if (buf.length > 0 && buf.length <= 4.5 * 1024 * 1024) ycImage = { data: buf.toString('base64'), media_type: ct };
+          }
+          record(req, { endpoint: ycImage ? 'ycloud-photo-in' : 'ycloud-photo-fetch-failed', sub: from, link: link.slice(0, 100) });
+        } catch (e) { record(req, { endpoint: 'ycloud-photo-fetch-failed', sub: from, error: String(e).slice(0, 100) }); }
+      } else {
+        record(req, { endpoint: 'ycloud-photo-no-link', sub: from, keys: Object.keys(m.image).join(',') });
+      }
+    }
+    record(req, { endpoint: 'ycloud-in', sub: from, to: toNum, kind, msgType: t, q: String(text).slice(0, 60), photo: !!ycImage });
     // A first message of type "unsupported" is a click-to-WhatsApp ad opener we cannot read: answer it as one.
     if (!String(text).trim() && t === 'unsupported' && !lastIncoming.has(from)) {
       text = 'Hello! Can I get more info on this?';
       record(req, { endpoint: 'ycloud-unsupported-answered-as-opener', sub: from });
     }
-    if (!String(text).trim()) return;
+    if (!String(text).trim() && !ycImage) return;
     const store = (toNum && toNum.endsWith('4324406')) ? 'Foot Fetish' : waStoreFor(null);
     try { ycloudStore.set(from, store); } catch (_) {}
     try { if (toNum) ycloudFrom.set(from, String(toNum)); } catch (_) {}
@@ -9043,7 +9066,7 @@ app.post('/ycloud/webhook', async (req, res) => {
     clearFollowUp(from);
     lastIncoming.set(from, Date.now());
     lastIncomingText.set(from, text || '');
-    await runChat(shimReq, from, text, '', { store, name: profileName, turnAt: Date.now(), chatUrl: null, ycloud: true, toNumber: toNum }, null);
+    await runChat(shimReq, from, text, '', { store, name: profileName, turnAt: Date.now(), chatUrl: null, ycloud: true, toNumber: toNum }, ycImage);
     waLastOutboundAt = new Date().toISOString();
   } catch (e) {
     try { record(req, { endpoint: 'ycloud-error', error: String(e).slice(0, 200) }); } catch (_) {}
