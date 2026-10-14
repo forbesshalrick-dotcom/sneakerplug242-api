@@ -1643,6 +1643,15 @@ function mount(app) {
     } catch (e) { out.clipError = String(e.message || e).slice(0, 120); }
     out.totalMB = +out.totalMB.toFixed(1);
     out.days.sort((a, b) => (a.date < b.date ? -1 : 1));
+    // The whole volume, not just clips (2026-10-14: uploads failed with ENOSPC while clips were only 349 MB).
+    try { const st = fs.statfsSync(DATA_DIR); out.diskMB = Math.round(st.blocks * st.bsize / 1048576); out.freeMB = Math.round(st.bavail * st.bsize / 1048576); } catch (e) { out.statfsError = String(e.message || e).slice(0, 80); }
+    try {
+      const sizeOf = (p) => { let n = 0; try { const st = fs.lstatSync(p); if (!st.isDirectory()) return st.size; for (const f of fs.readdirSync(p)) n += sizeOf(path.join(p, f)); } catch (_) {} return n; };
+      const countOf = (p) => { try { return fs.statSync(p).isDirectory() ? fs.readdirSync(p).length : 1; } catch (_) { return 0; } };
+      out.entries = fs.readdirSync(DATA_DIR).map(f => ({ name: f, mb: +(sizeOf(path.join(DATA_DIR, f)) / 1048576).toFixed(1), items: countOf(path.join(DATA_DIR, f)) }))
+        .sort((x, y) => y.mb - x.mb).slice(0, 40);
+    } catch (e) { out.entriesError = String(e.message || e).slice(0, 80); }
+    if (req.query.noprobe) return res.json(out);
     try {
       // ?mb=N so the probe can be pushed past the cliff the uploads hit. 8MB saves, 10MB does
       // not — and the upload fails in a quarter of a second, far too fast to have transferred
@@ -1652,7 +1661,7 @@ function mount(app) {
       fs.writeFileSync(probe, Buffer.alloc(mb * 1024 * 1024));
       fs.unlinkSync(probe);
       out.probeMB = mb; out.canWriteProbe = true;
-    } catch (e) { out.canWriteProbe = false; out.writeError = String((e && e.code) || (e && e.message) || e).slice(0, 80); }
+    } catch (e) { out.canWriteProbe = false; out.writeError = String((e && e.code) || (e && e.message) || e).slice(0, 80); try { fs.unlinkSync(path.join(DATA_DIR, '.diskprobe')); } catch (_) {} }
     res.json(out);
   });
   app.post('/shop/disk/purge', (req, res) => {
