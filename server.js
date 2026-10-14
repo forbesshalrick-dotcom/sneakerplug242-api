@@ -1155,6 +1155,7 @@ const ycloudBurst = new Map();  // customer phone -> { n, said } photos arriving
 // quotes, and nothing else. So every picture that leaves on this line (Kiki's sends AND Rodney's own
 // from the phone, which arrive as smb echoes) is remembered here, and a tagged reply gets that
 // picture handed back to Kiki as the thing they are pointing at.
+let _ycSendSampleLogged = false;   // one send answer per boot goes to /last, to see YCloud's real shape
 const ycloudSentMedia = new Map();   // wamid or YCloud id -> { link, caption, sub, at, ycloud }
 const YCLOUD_SENT_FILE = (() => { try { const fs = require('fs'); for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) if (fs.existsSync(d)) return require('path').join(d, 'ycloud-sent-media.json'); } catch (_) {} return null; })();
 try { if (YCLOUD_SENT_FILE && require('fs').existsSync(YCLOUD_SENT_FILE)) for (const [k, v] of JSON.parse(require('fs').readFileSync(YCLOUD_SENT_FILE, 'utf8'))) ycloudSentMedia.set(k, v); } catch (_) {}
@@ -1215,7 +1216,17 @@ async function ycloudSendMessages(phoneDigits, messages) {
         }
         if (!r.ok) return { ok: false, why: r.status + ' ' + t.slice(0, 160), n };
         n++;
-        if (body.type === 'image') { try { const j = JSON.parse(t); rememberYcloudSent([j.wamid, j.id], { link: body.image.link, caption: body.image.caption || '', sub: String(phoneDigits), at: Date.now() }); } catch (_) {} }
+        if (body.type === 'image') {
+          try {
+            // Every id in the answer, wherever YCloud puts it (top level, data, messages[]): a tag on this
+            // picture comes back as context.id = its wamid, and the lookup missed the first real tag (2026-10-14).
+            const j = JSON.parse(t); const ids = [];
+            (function walk(o, d) { if (!o || d > 4) return; if (typeof o === 'string') { if (/^wamid\./.test(o)) ids.push(o); return; }
+              if (typeof o !== 'object') return; for (const k in o) { if ((k === 'id' || k === 'wamid' || k === 'messageId') && typeof o[k] === 'string') ids.push(o[k]); walk(o[k], d + 1); } })(j, 0);
+            rememberYcloudSent(ids, { link: body.image.link, caption: body.image.caption || '', sub: String(phoneDigits), at: Date.now() });
+            if (!_ycSendSampleLogged) { _ycSendSampleLogged = true; recent.unshift({ at: new Date().toISOString(), endpoint: 'ycloud-send-sample', ids, body: t.slice(0, 400) }); }
+          } catch (_) {}
+        }
       } finally { clearTimeout(tm); }
       i++;
     }
