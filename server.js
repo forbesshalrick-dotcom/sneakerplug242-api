@@ -406,7 +406,13 @@ function levenshtein(a, b, max = 2) {
 // even when misspelled. `hay` is the joined lowercase text, `hayWords` its tokens.
 function wordMatches(hay, hayWords, w) {
   // Model numbers match as WHOLE words: "1" must find "Air Jordan 1" but NOT "11"/"12"/"1906".
-  if (/^\d+$/.test(w)) return hayWords.includes(w);
+  // A model number also matches its lettered version ("1906" finds the 1906R) but never a longer number.
+  if (/^\d+$/.test(w)) return hayWords.includes(w) || hayWords.some(h => h.length <= w.length + 2 && h.startsWith(w) && /^[a-z]{1,2}$/.test(h.slice(w.length)));
+  // 🔡 A SHORT WORD IS A WHOLE WORD (2026-10-14): "tn" was found inside "ligh-TN-ing" and a TN size-12
+  // album led with a Jordan 4 Lightning. The sweep found the same flaw in "nb" (Rai-NB-ow), "low"
+  // (yel-LOW, 20 shoes), "dn"/"mid" (MID-ni-gh-t) and "gs" (Bu-GS). Three letters or fewer must
+  // match a whole word (or its plural); the real partials live in aliasTokens.
+  if (w.length <= 3) return hayWords.includes(w) || hayWords.includes(w + 's') || (w.endsWith('s') && w.length > 2 && hayWords.includes(w.slice(0, -1)));
   if (hay.includes(w)) return true;                                          // direct substring (covers partials: "bred" in "bred reimagined")
   if (w.endsWith('s') && w.length > 3 && hay.includes(w.slice(0, -1))) return true;  // plural → singular ("thunders" → "thunder")
   if (hay.includes(w + 's')) return true;                                    // singular → plural
@@ -2439,6 +2445,13 @@ function aliasTokens(s) {
   if (brand.includes('new balance')) out.push('nb');
   if (brand.includes('jordan') || name.includes('jordan')) out.push('aj', 'jordans', 'js', 'jays', 'retro', 'retros');
   if (name.includes('air max plus')) out.push('tn');
+  // Real matches that used to ride on letters inside a longer word, kept on purpose once short
+  // words stopped matching inside other words (2026-10-14 sweep): VaporMax is an Air Max,
+  // "uni" is University Blue, Infrared is a red.
+  const _cn = ((s.color || '') + ' ' + (s.nickname || '')).toLowerCase();
+  if (name.includes('vapormax')) out.push('max');
+  if (_cn.includes('university')) out.push('uni');
+  if (_cn.includes('infrared')) out.push('red');
   if (name.includes('air force')) out.push('forces', 'force', 'af1', 'af');
   // FOAM / SLIPPER FAMILY (Rodney 2026-07-14): customers say slipper, slides, sandals,
   // mules, crocs or yeezys interchangeably — they're all the same foam comfort shoe to
@@ -2708,7 +2721,14 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
       'just', 'still', 'also', 'like', 'about', 'send', 'sent', 'saw', 'seen', 'tell',
       'know', 'much', 'many', 'my', 'mine', 'am', 'sum', 'lemme', 'gimme', 'yo']);
     // Normalise possessive shorthand so "J's"/"Js" → "js" (Jordans) survives tokenizing.
-    const words = query.toLowerCase().replace(/\bj'?s\b/g, ' js ').replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/)
+    // 🗂️ CATEGORY WORDS THAT MEAN ONE MODEL (2026-10-14 category sweep against the live shelf): "air max
+    // plus" also matched VaporMax Plus + Terrascape Plus (62 vs the 48 TNs we hold), "forces" matched the
+    // Lunar Force 1 Duckboot, and "j1"/"aj4" matched nothing at all.
+    const _q = query.toLowerCase();
+    let qn = _q.replace(/\bair\s*max\s*plus\b/g, ' tn ')
+      .replace(/\ba?j\s?(\d{1,2})s?\b/g, ' jordan $1 ');
+    if (!/\blunar\b/.test(qn)) qn = qn.replace(/\b(air\s*)?forces?\b/g, ' af1 ');
+    const words = qn.replace(/\bj'?s\b/g, ' js ').replace(/[^a-z0-9.\s]/g, ' ').split(/\s+/)
       .filter(w => w && !STOP.has(w))
       .filter(w => w.length >= 2 || /\d/.test(w))
       // "4s" / "11s" are model numbers said with an s ("Jordan 4s") → treat as "4" / "11".
