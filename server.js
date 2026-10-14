@@ -3361,6 +3361,12 @@ async function callClaude(messages, system, toolChoice, toolsOverride) {
       const data = await r.json().catch(() => ({}));
       if (r.ok) return { ok: true, status: r.status, data };
       last = { ok: false, status: r.status, data };
+      // A model or account that refuses the cache fields must never silence her: same call again, uncached.
+      if (r.status === 400 && body.cache_control && /cache|ttl/i.test(JSON.stringify(data))) {
+        delete body.cache_control; body.system = _sys; body.tools = toolsOverride || AI_TOOLS;
+        try { recent.unshift({ at: new Date().toISOString(), endpoint: 'prompt-cache-refused', error: JSON.stringify(data).slice(0, 160) }); } catch (_) {}
+        attempt--; continue;
+      }
       if (!RETRIABLE.has(r.status)) return last;   // permanent error — don't waste retries
     } catch (e) {
       last = { ok: false, status: 0, data: { error: String((e && e.message) || e) } };  // network/timeout — retriable
