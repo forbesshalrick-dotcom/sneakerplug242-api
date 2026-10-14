@@ -942,6 +942,8 @@ const MANAGER_ALIASES = {
   '12428033126': 'Manager OSC', // Official Sneaker Crew
 };
 const MANAGER_TAIL_NAMES = {};
+// Every WhatsApp number a Kiki answers on. A message from one of these is a bot, never a customer.
+const SHOP_LINE_TAILS = new Set(['12424324406', '12428256405', '12428033126', '12426367431'].map(n => n.slice(-10)));
 Object.keys(MANAGER_ALIASES).forEach(function (n) { MANAGER_TAIL_NAMES[n.replace(/\D/g, '').slice(-10)] = MANAGER_ALIASES[n]; });
 const EXTRA_STAFF = {};
 // 📱 SHOW-IN-INBOX NUMBERS: numbers to treat as a normal CUSTOMER (not staff) so their messages
@@ -5131,6 +5133,18 @@ function expectedFloatNow() {
   } catch (_) { return null; }
 }
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
+  // 🔁 OUR OWN SHOP LINES NEVER GET ANSWERED (2026-10-14 00:27: Rodney tested Luxury Boutique from the
+  // Trendy Kicks phone; TK's Kiki and Luxury Boutique's Kiki answered each other six times until both
+  // were paused). Every one of these numbers is run by a Kiki, so a message FROM one is another bot
+  // talking (a Kiki reply can say "out of stock", so no wording exception). Test from a number that
+  // is not a shop line.
+  try {
+    const _from = String(getPhone(req) || ((ctx.ycloud || isYcloudSub(sub)) ? sub : '') || '').replace(/\D/g, '').slice(-10);
+    if (_from && SHOP_LINE_TAILS.has(_from)) {
+      record(req, { endpoint: 'own-line-ignored', sub, from: _from, store: ctx.store || '', q: String(userText || '').slice(0, 60) });
+      return;
+    }
+  } catch (_) {}
   let _isStaffChat = staffNameFor(req);
   // A SALE/RESTOCK/FLOAT report from the owner's OWN line counts as a staff action even if that
   // number is set as a test customer — so "black/blue tn sold in 8.5" records the sale instead of
