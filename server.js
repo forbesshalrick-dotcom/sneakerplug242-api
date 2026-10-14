@@ -9571,6 +9571,7 @@ app.post('/ycloud/webhook', async (req, res) => {
   try {
     const body = (req.body && typeof req.body === 'object') ? req.body : {};
     const kind = String(body.type || body.event || '');
+    if (/^whatsapp\.call\./.test(kind)) { handleYcloudCallEvent(req, body).catch(e => { try { record(req, { endpoint: 'call-bridge-error', error: String(e).slice(0, 200) }); } catch (_) {} }); return; }
     // Pictures Rodney sends by hand from the phone (Coexistence echoes), and the wamid a status update
     // attaches to one of OUR sends — both feed the tag lookup below.
     const _wm = body.whatsappMessage || null;
@@ -9729,6 +9730,110 @@ app.post('/ycloud/webhook', async (req, res) => {
   } catch (e) {
     try { record(req, { endpoint: 'ycloud-error', error: String(e).slice(0, 200) }); } catch (_) {}
   }
+});
+// ── 📞 WHATSAPP CALLS → KIKI'S VOICE, FROM THE SERVER (2026-10-14, Rodney: "ok so build it") ──────────
+// Foot Fetish calls used to reach Kiki only through a WhatsApp Web window on the Mac (a call watcher clicks
+// Answer and a Retell page plays her voice into the mic). With YCloud's calling API switched on, each inbound
+// call arrives here as whatsapp.call.connect with Meta's WebRTC offer. wa-call-bridge.js answers it (werift),
+// joins Kiki's Retell call as a LiveKit participant, and carries the audio both ways. Proven end to end on the
+// Mac 2026-10-14 with a fake WhatsApp peer: Retell transcribed "Do you have the Jordan four in a size ten?" and
+// Kiki's answer came back down the WhatsApp leg. The module is loaded only when a call arrives, so a library
+// problem can never stop the shop from booting.
+const CALL_BRIDGE_FILE = (() => { try { const fs = require('fs'); for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) if (fs.existsSync(d)) return require('path').join(d, 'call-bridge.json'); } catch (_) {} return null; })();
+let callCfg = { on: true, agentId: 'agent_37fe420db7c0ea0b967e60b289', retellKey: process.env.RETELL_API_KEY || '', maxMinutes: 10 };
+try { if (CALL_BRIDGE_FILE && require('fs').existsSync(CALL_BRIDGE_FILE)) callCfg = Object.assign(callCfg, JSON.parse(require('fs').readFileSync(CALL_BRIDGE_FILE, 'utf8'))); } catch (_) {}
+function saveCallCfg() { try { if (CALL_BRIDGE_FILE) require('fs').writeFileSync(CALL_BRIDGE_FILE, JSON.stringify(callCfg), { mode: 0o600 }); } catch (_) {} }
+const activeCalls = new Map();   // wacid -> { wa, retell, phoneId, from, at, timer }
+async function ycloudCallApi(path, body) {
+  const r = await fetch('https://api.ycloud.com/v2/whatsapp/calls/' + path, {
+    method: 'POST', headers: { 'X-API-Key': process.env.YCLOUD_API_KEY || '', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body), signal: AbortSignal.timeout(15000) });
+  const t = await r.text();
+  return { ok: r.ok, status: r.status, body: t.slice(0, 200) };
+}
+async function endCall(wacid, why) {
+  const c = activeCalls.get(wacid); if (!c) return;
+  activeCalls.delete(wacid); clearTimeout(c.timer);
+  try { if (c.retell) await c.retell.close(); } catch (_) {}
+  try { if (c.wa) await c.wa.close(); } catch (_) {}
+  try { recent.unshift({ at: new Date().toISOString(), endpoint: 'call-ended', wacid, from: c.from, why, seconds: Math.round((Date.now() - c.at) / 1000), wa: c.wa && c.wa.stats(), retell: c.retell && c.retell.stats() }); } catch (_) {}
+}
+async function handleYcloudCallEvent(req, body) {
+  const kind = String(body.type || '');
+  if (kind === 'whatsapp.call.connect') {
+    const c = body.callingConnect || {};
+    const from = String(c.from || '').replace(/\D/g, ''), to = String(c.to || '').replace(/\D/g, '');
+    record(req, { endpoint: 'call-connect', from, to, direction: c.direction, wacid: c.wacid, hasSdp: !!c.sdp, on: !!callCfg.on, haveKey: !!callCfg.retellKey });
+    if (c.direction !== 'USER_INITIATED' || !c.sdp || !c.wacid) return;
+    if (!callCfg.on || !callCfg.retellKey) return;                     // not answering: the call rings on the phone/console
+    let bridge; try { bridge = require('./wa-call-bridge'); } catch (e) { record(req, { endpoint: 'call-bridge-load-failed', error: String(e).slice(0, 200) }); return; }
+    const entry = { phoneId: c.phoneId, from, at: Date.now(), wa: null, retell: null, timer: null };
+    activeCalls.set(c.wacid, entry);
+    entry.wa = await bridge.createWaLeg(c.sdp, { onCallerPcm: pcm => entry.retell && entry.retell.sendPcm(pcm) });
+    const pre = await ycloudCallApi('preAccept', { phoneId: c.phoneId, wacid: c.wacid, sdpType: 'answer', sdp: entry.wa.answerSdp });
+    const up = await Promise.race([entry.wa.connected, new Promise(r => setTimeout(() => r(false), 8000))]);
+    if (!up) { record(req, { endpoint: 'call-media-failed', wacid: c.wacid, pre }); await ycloudCallApi('reject', { phoneId: c.phoneId, wacid: c.wacid }).catch(() => {}); await endCall(c.wacid, 'media-failed'); return; }
+    const acc = await ycloudCallApi('accept', { phoneId: c.phoneId, wacid: c.wacid, sdpType: 'answer', sdp: entry.wa.answerSdp });
+    const store = (to.endsWith('4324406') ? 'Foot Fetish' : to.endsWith('6367431') ? 'Luxury Boutique' : 'Foot Fetish');
+    entry.retell = await bridge.createRetellLeg({ apiKey: callCfg.retellKey, agentId: callCfg.agentId,
+      metadata: { line: store, from, wacid: c.wacid, via: 'ycloud-calling' }, onAgentPcm: pcm => entry.wa && entry.wa.sendPcm(pcm) });
+    entry.timer = setTimeout(async () => { await ycloudCallApi('terminate', { phoneId: c.phoneId, wacid: c.wacid }).catch(() => {}); await endCall(c.wacid, 'max-minutes'); }, (callCfg.maxMinutes || 10) * 60000);
+    record(req, { endpoint: 'call-answered-by-kiki', from, store, wacid: c.wacid, pre: pre.status, accept: acc.status, retellCall: entry.retell.callId });
+    try { inboxRecord(store, from, { dir: 'in', sender: 'system', text: '📞 WhatsApp call — Kiki answered (Retell ' + entry.retell.callId + ')' }); } catch (_) {}
+  } else if (kind === 'whatsapp.call.terminate') {
+    const c = body.callingTerminate || {};
+    record(req, { endpoint: 'call-terminate', wacid: c.wacid, status: c.status, duration: c.duration });
+    await endCall(c.wacid, 'caller-hung-up');
+  } else {
+    record(req, { endpoint: 'call-event', kind, sample: JSON.stringify(body).slice(0, 300) });
+  }
+}
+// Setup + checks, from the Mac (x-console-key): store the Retell key, switch the bridge on/off, test that
+// this server can reach WhatsApp's media servers over UDP, and subscribe the YCloud webhook to call events.
+app.post('/admin/call-bridge', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  if (typeof b.retellKey === 'string' && b.retellKey.trim().length > 20) callCfg.retellKey = b.retellKey.trim();
+  if (typeof b.agentId === 'string' && b.agentId.trim()) callCfg.agentId = b.agentId.trim();
+  if (typeof b.on === 'boolean') callCfg.on = b.on;
+  if (Number(b.maxMinutes) > 0) callCfg.maxMinutes = Number(b.maxMinutes);
+  saveCallCfg();
+  res.json({ ok: true, on: callCfg.on, agentId: callCfg.agentId, haveKey: !!callCfg.retellKey, maxMinutes: callCfg.maxMinutes, active: activeCalls.size });
+});
+app.get('/admin/call-bridge-check', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const out = { on: callCfg.on, haveKey: !!callCfg.retellKey, active: activeCalls.size };
+  try { require('./wa-call-bridge'); out.bridgeLoads = true; } catch (e) { out.bridgeLoads = false; out.loadError = String(e).slice(0, 200); }
+  try {   // outbound UDP: does a STUN server answer us? (WhatsApp media is UDP)
+    const { RTCPeerConnection } = require('werift');
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pc.addTransceiver('audio', { direction: 'sendrecv' });
+    await pc.setLocalDescription(await pc.createOffer());
+    await new Promise(r => setTimeout(r, 4000));
+    const sdp = (pc.localDescription && pc.localDescription.sdp) || '';
+    out.udpReflexive = /typ srflx/.test(sdp); out.candidates = (sdp.match(/a=candidate[^\r\n]*/g) || []).map(x => x.split(' ').slice(4, 8).join(' ')).slice(0, 6);
+    await pc.close();
+  } catch (e) { out.udpError = String(e).slice(0, 200); }
+  res.json(out);
+});
+app.post('/admin/ycloud-webhook-calls', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  try {
+    const H = { 'X-API-Key': process.env.YCLOUD_API_KEY || '', 'Content-Type': 'application/json' };
+    const list = await (await fetch('https://api.ycloud.com/v2/webhookEndpoints?limit=100', { headers: H })).json();
+    const items = list.items || list.data || [];
+    const ours = items.filter(w => /ycloud\/webhook/.test(String(w.url || '')));
+    const CALL_EVENTS = ['whatsapp.call.connect', 'whatsapp.call.terminate', 'whatsapp.call.status.updated', 'whatsapp.call.recording.updated', 'whatsapp.call.transcription.updated'];
+    const done = [];
+    for (const w of ours) {
+      const want = [...new Set([...(w.enabledEvents || []), ...CALL_EVENTS])];
+      if (want.length === (w.enabledEvents || []).length) { done.push({ id: w.id, url: w.url, already: true }); continue; }
+      if ((req.body || {}).dry) { done.push({ id: w.id, url: w.url, wouldAdd: CALL_EVENTS.filter(e => !(w.enabledEvents || []).includes(e)) }); continue; }
+      const r = await fetch('https://api.ycloud.com/v2/webhookEndpoints/' + encodeURIComponent(w.id), { method: 'PATCH', headers: H, body: JSON.stringify({ enabledEvents: want }) });
+      done.push({ id: w.id, url: w.url, status: r.status, events: want.length });
+    }
+    res.json({ ok: true, endpoints: items.map(w => ({ id: w.id, url: w.url, events: (w.enabledEvents || []).length, status: w.status })), changed: done });
+  } catch (e) { res.json({ ok: false, error: String(e).slice(0, 200) }); }
 });
 // Inbox routes restored 2026-10-13 (the Sep 3 reset dropped them): driver dispatch flag, thread prune, contacts list.
 const driverDispatchedAt = new Map();   // sub -> when a human pressed "driver dispatched"
