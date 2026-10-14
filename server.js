@@ -5590,8 +5590,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
         const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
         if (_pickSh && _pickSh.id != null) {
-          turnSentIds.add(String(_pickSh.id));   // the size-claim guard checks this shoe; it is never re-sent
-          pinnedPickIds.add(String(_pickSh.id));
+          pinnedPickIds.add(String(_pickSh.id));   // the size-claim guard checks this shoe; nothing else may be sent this turn
           const _csz0 = custSize.get(sub);
           const _sz = (_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000) ? String(_csz0.size) : '';
           const _has = _sz && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_sz));
@@ -5603,7 +5602,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
               + ' Answer about THIS shoe only, in one short line, e.g. "That\'s the ' + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0) + ' — '
               + (_sz && !_has ? 'no ' + _sz + ' in that one right now, we only have it in ' + _sizes : 'we have it in ' + _sizes) + '". '
-              + 'Do NOT send this card back, do NOT send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.)\n\n' + _lu.content[0].text;
+              + 'If it comes in their size you may send its picture again. NEVER send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.)\n\n' + _lu.content[0].text;
           }
         }
       }
@@ -5773,7 +5772,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // in the turn as "(shoe id X)"; look them up by REAL id (lm is keyed by row).
         try {
           const _real = {}; for (const k in lm) { const x = lm[k]; if (x && x.id != null) _real[String(x.id)] = x; }
-          const _ids = [...String(userText || '').matchAll(/shoe id ([A-Za-z0-9_-]+)/g)].map(mm => mm[1]).concat([...turnSentIds]);
+          const _ids = [...String(userText || '').matchAll(/shoe id ([A-Za-z0-9_-]+)/g)].map(mm => mm[1]).concat([...turnSentIds], [...pinnedPickIds]);
           const _pin = _ids.map(i => _real[i] || lm[i]).filter(Boolean);
           if (_pin.length) cands = [..._pin, ...cands.filter(c => !_pin.includes(c))].slice(0, 6);
         } catch (_) {}
@@ -6007,12 +6006,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // 🎯 ALREADY PICKED = NO OTHER PICTURES (Rodney 2026-10-14: a customer forwarded our yellow/black TN card and
         // got two yellow/black TNs back — "once they're already picked, we'd like to go with the first option they
         // already picked"). When this turn has a pinned pick, every other shoe is dropped, and the pick itself is not
-        // re-sent (they are holding its card).
+        // may be sent again (Rodney: "I don't mind, I'll still send the photo if she has it").
         let droppedForPick = [];
         if (pinnedPickIds.size) {
           try {
             const liveP = liveShoeMap();
-            const keepPick = (id) => { const sh = liveP[id]; const real = sh && sh.id != null ? String(sh.id) : String(id); if (pinnedPickIds.has(real) || pinnedPickIds.has(String(id))) return false; droppedForPick.push(sh ? displayName(sh) : String(id)); return false; };
+            const keepPick = (id) => { const sh = liveP[id]; const real = sh && sh.id != null ? String(sh.id) : String(id); if (pinnedPickIds.has(real) || pinnedPickIds.has(String(id))) return true; droppedForPick.push(sh ? displayName(sh) : String(id)); return false; };
             if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keepPick);
             if (Array.isArray(inp.groups)) for (const g of inp.groups) { if (Array.isArray(g.ids)) g.ids = g.ids.filter(keepPick); }
             record(req, { endpoint: 'send-blocked-already-picked', sub, dropped: droppedForPick.slice(0, 6), pick: [...pinnedPickIds] });
@@ -6227,7 +6226,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           || !!(_csz && _csz.size && (Date.now() - (_csz.ts || 0)) < 12 * 60 * 60 * 1000);
         const _emptyAfterPick = pinnedPickIds.size && !(Array.isArray(inp.ids) && inp.ids.length) && !(Array.isArray(inp.groups) && inp.groups.some(g => g && g.ids && g.ids.length));
         result = _emptyAfterPick
-          ? { sent: 0, requested: 0, not_sent: 'They already PICKED the shoe on the card they forwarded; no other pictures go out. Answer about that shoe only: its price and the sizes it comes in (say plainly if their size is not in stock).', dropped: droppedForPick.slice(0, 6) }
+          ? { sent: 0, requested: 0, not_sent: 'They already PICKED the shoe on the card they forwarded; other shoes are never sent in its place. Answer about that shoe only: its price and the sizes it comes in (say plainly if their size is not in stock).', dropped: droppedForPick.slice(0, 6) }
           : await sendShoePhotos(sub, inp.ids, token, inp.groups, leadIn, _picsOnly, !!staffName, ctx.turnAt || 0, _sizeKnown);
         // 👠 Tell her the truth about the women's album she just sent, so her words match
         // the labels the customer is reading (Rodney 2026-08-04).
