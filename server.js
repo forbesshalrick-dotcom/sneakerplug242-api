@@ -615,7 +615,8 @@ const wa = messages => ({ version: 'v2', content: { type: 'whatsapp', messages: 
 // Unique per running process. If /health returns >1 distinct `boot` value across rapid
 // calls, more than one copy of the bot is running (which breaks in-memory dedupe/memory).
 const BOOT_ID = Math.random().toString(36).slice(2, 8);
-app.get('/health', (req, res) => res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null }));
+app.get('/health', (req, res) => res.json({ status: 'ok', shoes: catalog.length, boot: BOOT_ID, replica: process.env.RAILWAY_REPLICA_ID || null,
+  albums: (typeof albumsInFlight === 'number' ? albumsInFlight : null), calls: (typeof activeCalls !== 'undefined' ? activeCalls.size : null) }));
 
 // Meta / WhatsApp Business catalogue product feed (CSV). Connect this URL as a
 // SCHEDULED data feed in Meta Commerce Manager and Meta re-pulls it automatically,
@@ -2780,7 +2781,16 @@ function clusterShoesByModel(arr) {
 // Subs whose in-progress photo album the OWNER hit STOP on (manual halt from the chat) —
 // so a malfunctioning "sends all stock" dump can be cut off mid-album by hand.
 const sendAbort = new Set();
+// Albums going out RIGHT NOW. /health reports it so a deploy can wait for 0: the 2026-10-14 09:27 deploy restarted
+// the server in the middle of a 99-shoe album and killed the customer's queued photo with it.
+let albumsInFlight = 0;
 async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photosOnly = false, isStaff = false, requestAt = 0, sizeKnown = true) {
+  albumsInFlight++;
+  try {
+    return await _sendShoePhotos(sub, ids, token, groups, leadIn, photosOnly, isStaff, requestAt, sizeKnown);
+  } finally { albumsInFlight = Math.max(0, albumsInFlight - 1); }
+}
+async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photosOnly = false, isStaff = false, requestAt = 0, sizeKnown = true) {
   sendAbort.delete(sub); // fresh send — clear any stale stop flag so it isn't halted before it starts
   // Pictures go out bare: the name and price are printed on the card image itself, so
   // there is no text label under each photo and no order code (Rodney 2026-10-12).
@@ -2840,7 +2850,13 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
   // request"): a correction phrase or a different shoe/brand named mid-album halts the
   // pictures — the new message already has its own chat turn queued right behind this
   // album (chatLocks), so Kiki answers the NEW request the moment the album stops.
-  const REDIRECT = /\b(i meant|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|new balance|jordans?|jays?|j'?s|nikes?|asics|dunks?|vapor ?max(es)?|air ?max(es)?|air ?force|af1s?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|shox|mules?|yeezys?|scorpions?|balenciagas?)\b/i;
+  // Rodney 2026-10-14: "I meant Harachis", "I mean New Balance", "I mean Jordans" — "i mean" and the
+  // spellings customers really type now count, and so does "no I want…".
+  const REDIRECT = /\b(i meant|i mean|i ment|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|(no|nah),? i want|new balance|nb|jordans?|jays?|j'?s|nikes?|asics|dunks?|vapor ?max(es)?|air ?max(es)?|air ?force|af1s?|forces|tns?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|harachi?s?|huarachi?s?|hurache?s?|shox|mules?|yeezys?|scorpions?|balenciagas?)\b/i;
+  // A bare "no" mid-album, and a PICTURE sent mid-album (they are pointing at the shoe they want — the forwarded
+  // Dunk High card on 2026-10-14 sat unanswered behind a 99-shoe album), also stop the pictures.
+  const NO_ONLY = /^\s*(no+|nah+|nope|no no|no thanks?|no thank you)\s*[!.]*\s*$/i;
+  const PHOTO_IN = /manybot-files|^\[photo\]$|^https?:\/\/\S+\.(?:jpe?g|png|webp)(?:\?\S*)?$/i;
   // "that's it / that's all / i'm good / thank you" mid-album are polite Bahamian
   // wrap-ups, not browsing chatter — a customer said "ok that's it" then "thank you",
   // the album kept rolling, and they BLOCKED the account (2026-07-13). Better to halt
@@ -2851,7 +2867,7 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
     const t = lastIncoming.get(sub);
     if (!(t && t > startedAt)) return false;
     const txt = lastIncomingText.get(sub) || '';
-    return STOPPISH.test(txt) || REDIRECT.test(txt);
+    return STOPPISH.test(txt) || REDIRECT.test(txt) || NO_ONLY.test(txt) || PHOTO_IN.test(txt.trim());
   };
   // PAUSE-ANSWER-CONTINUE (Rodney 2026-07-14: a customer asked "How much" mid-album,
   // the pictures kept rolling and the question never got answered): a non-stop message
@@ -2867,7 +2883,7 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
     const t = lastIncoming.get(sub);
     if (!(t && t > startedAt && t > midAlbumHandledAt)) return;
     const q = lastIncomingText.get(sub) || '';
-    if (STOPPISH.test(q) || REDIRECT.test(q)) return; // the halt check owns those cases — never "Good question!" a change of mind
+    if (STOPPISH.test(q) || REDIRECT.test(q) || NO_ONLY.test(q) || PHOTO_IN.test(q.trim())) return; // the halt check owns those cases — never "Good question!" a change of mind
     // Only speak when it's actually a QUESTION (2026-07-14: "I don't want see no more"
     // got a cheery "Good question!" — a non-question mid-album is left for the queued
     // chat turn after the album; saying anything to it reads deaf).
@@ -3323,6 +3339,7 @@ const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same pho
 const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text message arriving twice (stops double replies)
 const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Kiki stays QUIET for that chat so staff can take over without her talking over them
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
+const lastInboundPhoto = new Map(); // sub -> { img (url or {data,media_type}), at } — the customer's latest photo, kept even if its own turn is lost
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
 // Persist recentlySent too (2026-07-13): a customer echoed back the exact NB photo Kiki had
 // just sent and she didn't recognise it — a restart had wiped this map mid-conversation.
@@ -5197,6 +5214,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       return;
     }
   } catch (_) {}
+  // 🖼️ "THESE ARE ?" / "THIS ONE?" RIGHT AFTER THEIR OWN PHOTO = ABOUT THAT PHOTO (2026-10-14, Sneaker 24 on TK: he
+  // forwarded our Dunk High card, then quote-replied "These are ?"; the photo's own turn was lost and Kiki said
+  // "I'm not seeing a picture come through"). ManyChat drops the tag, so the server re-attaches the customer's
+  // last photo (10 min) to a short pointing message.
+  try {
+    const _pt = String(userText || '').trim();
+    const _lp = lastInboundPhoto.get(String(sub));
+    if (!image && _lp && (Date.now() - _lp.at) < 10 * 60 * 1000 && _pt && !/^\(SYSTEM/.test(_pt)
+        && _pt.split(/\s+/).length <= 8 && /\b(this|these|that|those|dis|dem|dat|it|them|one|1)\b|^\W*$|\?$/i.test(_pt)) {
+      image = _lp.img;
+      userText = '(SYSTEM: this message is about the picture the customer sent a moment ago — it is attached again here. Answer about that shoe.)\n' + _pt;
+      record(req, { endpoint: 'pointer-photo-reattached', sub, q: _pt.slice(0, 40), agoS: Math.round((Date.now() - _lp.at) / 1000) });
+    }
+  } catch (_) {}
   // 👆 "THIS" WITH NOTHING ATTACHED (2026-10-14, Rodney's test on Trendy Kicks: he quote-replied "this" to
   // our picture; ManyChat passes the words and drops the tag, and Kiki answered "I'm not seeing a picture
   // come through" / "having trouble picking that up on my end"). The tag cannot be recovered on ManyChat,
@@ -5499,6 +5530,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastSearchIds = [];    // the ids that search matched — our pictures go to Kiki beside the customer's photo
   let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
   let feeBlocks = 0;         // the invented-fee guard may bounce one reply per turn
+  let blindBlocks = 0;       // the "I can't see your picture" guard may bounce one reply per turn
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
@@ -5732,6 +5764,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         }
       } catch (_) {}
+    }
+    /* 🙈 NEVER "I'M NOT SEEING A PICTURE" (Rodney 2026-10-13/14, over and over: "I'm not seeing a picture come through
+     * on my end", "having trouble picking that up on my end"). When she doesn't know which shoe they mean, the
+     * only line is "Which one? Send me that picture again 🙏". */
+    if (turnText && !staffName && blindBlocks < 1 && /(not seeing|can'?t see|cannot see|couldn'?t see|unable to see|having (some )?trouble (picking|seeing|loading|opening)|trouble picking that up|(did ?n'?t|didn'?t|not|isn'?t|wasn'?t) (come|coming|came) through|won'?t (load|open)|not loading)/i.test(turnText) && /(pic|picture|photo|image|that up|on my end)/i.test(turnText)) {
+      blindBlocks++;
+      record(req, { endpoint: 'blind-line-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: never tell a customer you cannot see, are not seeing, or are having trouble with a picture. If a picture is attached in this conversation, answer about it. If you genuinely do not know which shoe they mean, reply with exactly "Which one? Send me that picture again 🙏" and nothing else.)' });
+      continue;
     }
     /* 💲 NO INVENTED FEES (Rodney 2026-10-14, Berry on TK: "Card — pay?amount=95 (Dunk High $60 + Boat $10 +
      * $25 island fee)". There is no island fee; shipping is the boat $10 or the plane $35 and nothing else, and
@@ -6960,6 +7001,7 @@ function handleChat(req, res) {
   noteChannel(req, sub);        // remember whether this contact is WhatsApp / Messenger / Instagram
   lastIncoming.set(sub, turnAt); // stamps "they just spoke" (albums check this + the text below)
   lastIncomingText.set(sub, userText || ''); // so the album knows if it was a STOP or just a question
+  try { const _iu = getImageUrl(req) || ((/^https?:\/\/\S+$/i.test(String(userText || '').trim()) && (IMAGE_EXT.test(userText) || MEDIA_HOST.test(userText))) ? String(userText).trim() : ''); if (_iu) lastInboundPhoto.set(String(sub), { img: _iu, at: Date.now() }); } catch (_) {}
   // A message actually reached us, so the line is working again — drop any shaky-delivery
   // flag, and remember who this is so a "go read this thread" alert can name them.
   clearShakyDelivery(sub);
@@ -9712,7 +9754,8 @@ app.post('/ycloud/webhook', async (req, res) => {
     const shimReq = { method: 'POST', path: '/ycloud/webhook', headers: {}, query: {}, rawBody: null, body: {} };
     clearFollowUp(from);
     lastIncoming.set(from, Date.now());
-    lastIncomingText.set(from, text || '');
+    lastIncomingText.set(from, text || (ycImage ? '[photo]' : ''));   // a photo mid-album stops the album (PHOTO_IN)
+    if (ycImage) lastInboundPhoto.set(String(from), { img: ycImage, at: Date.now() });
     // Several photos arrive as several webhooks within a second or two. Hold each one briefly;
     // if more came in meanwhile, say once that she's looking, then answer them one at a time.
     if (ycImage) {
