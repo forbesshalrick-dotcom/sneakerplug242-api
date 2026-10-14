@@ -3109,6 +3109,10 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
     // ManyChat lands separate sends out of order: the closing line was arriving BEFORE the last
     // picture's sizes bubble (Rodney 2026-10-13). Give the last label a moment to land first.
     if (showSizes) await new Promise(r => setTimeout(r, 3000));
+    // A picture is fetched by WhatsApp from its link before it shows, a text is not, so on the YCloud lines
+    // the closing line overtook the last card (Rodney 2026-10-14, Foot Fetish: "let me know if you need a
+    // delivery" landed above the Crocs). Give the last picture time to land first.
+    if (isYcloudSub(sub)) await new Promise(r => setTimeout(r, showSizes ? 4000 : 7000));
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
@@ -3896,6 +3900,7 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
       // Translated here rather than at schedule time: by now learnLang() has had
       // minutes to finish, and a cached language costs nothing.
       const outText = await say(text, sub);
+      if (!String(outText || '').trim()) return;   // the 5-min follow-up is blank on purpose (FOLLOWUP_T); sending it logged a failed empty send
       await sendChunk(sub, [{ type: 'text', text: outText }], token);
       const h = convos.get(sub) || [];
       h.push({ role: 'assistant', content: outText }); // so Claude knows it asked — in the words actually sent
