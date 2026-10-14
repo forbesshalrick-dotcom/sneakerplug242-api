@@ -8101,19 +8101,28 @@ function syncInventory(){
     var changed=applyServerShoes(st.shoes, combinedDeleted);
     if(changed){ _suppressInvPush=true; try{ save(); }catch(e){} _suppressInvPush=false; }
     _rebuildInvSnap();
+    var _wasFailed=_invFailed, _firstShelf=!_invReady;
     _invFailed=false;
     _invReady=true;   // we have now seen the real shelf — safe to push changes from here on
-    // 🔁 ALWAYS REPAINT, not just when something changed and not just on the inventory page.
-    // Before this, the repaint was `if(changed) … if(#page-inventory.active)`. A shopper who
-    // tapped ENTER straight away kept the factory chips on screen, and on a cold device
-    // NOTHING changed server-side, so `changed` was false and it never repainted at all —
-    // leaving "Checking sizes…" up for good. The shelf is now known either way: redraw.
-    try{ renderInventory(); }catch(e){}
+    // 🔁 REPAINT ON THE FIRST SHELF, ON A REAL CHANGE, OR WHEN WE RECOVER FROM A FAILURE.
+    // The first-shelf repaint stays unconditional: a shopper who tapped ENTER straight away
+    // kept the factory chips on screen, and on a cold device NOTHING changed server-side, so
+    // `changed` was false and it never repainted — "Checking sizes…" up for good.
+    // But it must NOT be every sync. Rodney, 2026-10-14 13:13 (manager phone, mobile data):
+    // "my videos are flashing, not showing at all". A staff phone polls /shop/rev every 15 s
+    // and the rev moves on any note, log line, sale or shift - so the whole grid was rebuilt
+    // every 15-45 s with no shoe changed (measured: applyServerShoes()=false, _renderGen +1).
+    // Each rebuild throws away every card's spin and its preloaded frames, so on a phone the
+    // 36 frames never finished loading before the next rebuild: black boxes, flashing.
+    if(changed || _firstShelf || _wasFailed){ try{ renderInventory(); }catch(e){} }
   }).catch(function(){
     // ⚠️ THIS USED TO BE AN EMPTY CATCH. Silence here is what let a customer be shown a 9.5
     // that had been sold — the fetch failed, nobody knew, and the page kept its factory list.
+    // Repaint only when we flip into the failed state - a poll blip every 15 s must not
+    // rebuild the grid each time (same flashing as above).
+    var _wasFailedC=_invFailed;
     _invFailed=true;
-    try{ renderInventory(); }catch(e){}
+    if(!_wasFailedC){ try{ renderInventory(); }catch(e){} }
   });
 }
 // Every inventory change goes through save() — push the deltas afterward.
