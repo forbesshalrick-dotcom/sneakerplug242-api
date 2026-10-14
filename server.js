@@ -5744,6 +5744,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // shelf 5.5/6.5/7, customer asked 10.5 → "out of stock" on the next turn). When a sized search
         // finds nothing, look the same model up WITHOUT the size and hand back what it really comes in,
         // so the honest answer is in the tool result and never has to be guessed.
+        // ⚫⚪ NONE OF THAT MODEL IN BLACK (OR WHITE) IN THEIR SIZE → THE ALL-BLACK AND ALL-WHITE PAIRS IN
+        // THEIR SIZE (Rodney 2026-10-13: "we have no black in TNs so we send what we have in all black and
+        // all white"). Their colour and size are the ask; the model was only where they started.
+        const _sized = p.size != null || (Array.isArray(p.sizes) && p.sizes.length);
+        const _bw = (() => { const c = String(p.color || '').toLowerCase().trim(); if (/^(all |triple )?(black|white)$/.test(c)) return c.replace(/^(all|triple) /, '');
+          const qc = [...new Set((String(p.query || '').toLowerCase().match(/\b(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|multi)\b/g) || []))];
+          return (qc.length === 1 && (qc[0] === 'black' || qc[0] === 'white')) ? qc[0] : ''; })();
+        if (!found.length && _sized && _bw && (p.query || p.brand)) {
+          try {
+            const base = { size: p.size, sizes: p.sizes, size_match: p.size_match, womens: p.womens, sneakers_only: true };
+            const other = _bw === 'black' ? 'white' : 'black';
+            const alt = searchInventory(Object.assign({}, base, { color: _bw })).concat(searchInventory(Object.assign({}, base, { color: other })));
+            if (alt.length) {
+              found = alt; result = { shoes: alt };
+              const _sz = p.size != null ? String(p.size) : [].concat(p.sizes || []).join(' & ');
+              result.note = 'NONE of the shoe they named in ' + _bw + ' in their size. These are ALL the all-black and all-white pairs we have in their size, ' + _bw + ' first. '
+                + 'Send them now with lead_in "No all ' + _bw + ' ' + (String(p.query || p.brand || '').replace(/\b(all|triple)?\s*(black|white)\b/ig, '').trim() || 'ones') + ' in a ' + _sz + ' right now 🙏 This is what we have in all black and all white in your ' + _sz + ' 👇". Do not ask first.';
+              lastSearchCount = alt.length; lastSearchIds = alt.map(x => x && x.id).filter(x => x != null);
+              record(req, { endpoint: 'colour-fallback-bw', sub, asked: p, colour: _bw, found: alt.length });
+            }
+          } catch (_) {}
+        }
         if (!found.length && (p.size != null || (Array.isArray(p.sizes) && p.sizes.length)) && (p.query || p.brand || p.color)) {
           try {
             const q2 = Object.assign({}, p); delete q2.size; delete q2.sizes; delete q2.size_match; delete q2.exact_sizes;
