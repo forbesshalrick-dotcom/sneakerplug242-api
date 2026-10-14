@@ -9560,13 +9560,14 @@ app.post('/ycloud/webhook', async (req, res) => {
             if (buf.length > 0 && buf.length <= 4.5 * 1024 * 1024) ycImage = { data: buf.toString('base64'), media_type: ct };
           }
           record(req, { endpoint: ycImage ? 'ycloud-photo-in' : 'ycloud-photo-fetch-failed', sub: from, link: link.slice(0, 100) });
+          if (ycImage) rememberYcloudSent([m.wamid, m.id], { link, caption: (m.image && m.image.caption) || '', sub: from, at: Date.now(), ycloud: true, fromCustomer: true });
         } catch (e) { record(req, { endpoint: 'ycloud-photo-fetch-failed', sub: from, error: String(e).slice(0, 100) }); }
       } else {
         record(req, { endpoint: 'ycloud-photo-no-link', sub: from, keys: Object.keys(m.image).join(',') });
       }
     }
     // 🏷️ A TAGGED REPLY: they quoted one of our pictures. Hand Kiki that picture as the thing they mean.
-    const _ctxId = m.context && (m.context.id || m.context.wamid);
+    const _ctxId = m.context && (m.context.id || m.context.wamid || m.context.message_id || m.context.messageId);
     if (_ctxId) {
       const q = ycloudSentMedia.get(String(_ctxId));
       let qShoe = null;
@@ -9589,7 +9590,7 @@ app.post('/ycloud/webhook', async (req, res) => {
             }
           } catch (_) {}
         }
-        text = '(SYSTEM: the customer TAGGED one of OUR pictures — they quote-replied to it, and the attached picture IS the one they are pointing at'
+        text = '(SYSTEM: the customer TAGGED ' + (q.fromCustomer ? 'a picture THEY sent earlier' : 'one of OUR pictures') + ' — they quote-replied to it, and the attached picture IS the one they are pointing at'
           + (qShoe ? (': ' + displayName(qShoe) + ' (shoe id ' + qShoe.id + ')') : '')
           + '. Treat their message as being about exactly that shoe — answer about it, never ask "which one" or "got what?".)\n' + (text || '');
       } else {
