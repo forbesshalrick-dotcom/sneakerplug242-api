@@ -2560,6 +2560,18 @@ function liveCatalog() {
 
 function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes, sneakers_only } = {}) {
   let rows = liveCatalog();
+  // ⚫⚪ BLACK MEANS TRIPLE BLACK, WHITE MEANS TRIPLE WHITE (Rodney 2026-10-13: "TN plus black" in a
+  // size 8 got blue/red, blue and green/white TNs — every shoe with black ANYWHERE in it). When black
+  // or white is the ONLY colour they named, it is a colour filter on the shoe's colour, all of it,
+  // wherever the model put the word (the query or the colour field).
+  const _COLOURS = /\b(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|multi)\b/g;
+  if (!(color && color.trim()) && query) {
+    const qc = [...new Set((String(query).toLowerCase().match(_COLOURS) || []))];
+    if (qc.length === 1 && (qc[0] === 'black' || qc[0] === 'white')) {
+      color = qc[0];
+      query = String(query).replace(new RegExp('\\b(all|triple)?\\s*' + qc[0] + '\\b', 'ig'), ' ').replace(/\s+/g, ' ').trim();
+    }
+  }
   // Build the size filter from either `size` (one) or `sizes` (a list, e.g. a
   // range "9.5 to 10" or matching "9 and 7"). Normalise each to a clean number
   // string and drop junk/duplicates. When womens=true the customer gives WOMEN'S
@@ -2643,12 +2655,17 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     // limit instead of getting buried under multi-colour look-alikes (Rodney 2026-07-20: the
     // all-black TN3 in a 12 never showed for an "all black 11.5" ask — 28 loosely-black shoes
     // crowded it out). Stable within each group, so nothing is dropped — pure just ranks higher.
-    const COLOUR_FILLER = new Set(['all', 'and', 'the']);
+    // Finish and material words describe the black, they are not a second colour ("Black Gloss",
+    // "All Black/Suede", "Black Threaded" are all-black shoes).
+    const COLOUR_FILLER = new Set(['all', 'and', 'the', 'triple', 'gloss', 'glossy', 'patent', 'suede', 'leather', 'threaded', 'matte', 'mesh', 'knit', 'stripe', 'reflective']);
     const isPureColour = ({ s }) => {
       const toks = normC(s.color || '').split(/[^a-z]+/).filter(w => w.length >= 3 && !COLOUR_FILLER.has(w));
       return toks.length > 0 && toks.every(w => cWords.includes(w));
     };
-    rows = [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r))];
+    const _single = cWords.filter(w => !COLOUR_FILLER.has(w) && w !== 'triple');
+    rows = (_single.length === 1 && (_single[0] === 'black' || _single[0] === 'white'))
+      ? rows.filter(isPureColour)                                   // black = triple black, white = triple white
+      : [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r))];
   }
   // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
   // foam clogs (Rodney 2026-08-04). See SLIP_ON_RE.
