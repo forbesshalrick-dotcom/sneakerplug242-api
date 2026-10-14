@@ -4004,14 +4004,24 @@ function saveOwnerQueue() {
 function firstLine(t) {
   return String(t || '').split('\n')[0].replace(/[*_]/g, '').trim().slice(0, 80) || 'Delivery';
 }
+const ownerSeen = new Map();   // dedupe memory for queueForOwner: key -> when (30 min)
 function queueForOwner(text, title, noLink) {
   try {
     let t = String(text || '').trim();
     if (!t) return;
     const raw = t;
     const now = Date.now();
-    // The same alert twice in a minute is one order re-filed, not two orders.
-    if (ownerQueue.some(q => q.raw === raw && now - q.at < 60000)) return;
+    // The same alert twice is one order re-filed, not two orders. 60 s was too short: Kiki re-filed an
+    // "ORDER SET FOR LATER" three minutes later and the drivers' group got it twice (2026-10-13). An
+    // identical card inside 30 minutes is a duplicate; and a SET FOR LATER for the same customer
+    // number inside 30 minutes is the same booking, whatever the wording.
+    // (Acked alerts leave the queue, so the memory is kept separately in ownerSeen.)
+    for (const [k, t0] of ownerSeen) if (now - t0 > 30 * 60000) ownerSeen.delete(k);
+    const _phoneOf = (t) => ((String(t).match(/📞\s*\+?([\d\s()-]{10,20})/) || ['', ''])[1]).replace(/\D/g, '').slice(-10);
+    const _keys = ['raw:' + raw];
+    if (/SET FOR LATER/i.test(raw.split('\n')[0]) && _phoneOf(raw)) _keys.push('later:' + _phoneOf(raw));
+    if (_keys.some(k => ownerSeen.has(k))) return;
+    _keys.forEach(k => ownerSeen.set(k, now));
     // Only a real job gets the "tap when it's done" link; warnings never do.
     const isJob = !/^(✅|❌)/.test(raw)
       && (/^(📞|🛵|🛒|👟)/.test(raw) || /PHONE CALL|DELIVERY READY|NEW ORDER|ORDER —/i.test(raw.split('\n')[0]));
