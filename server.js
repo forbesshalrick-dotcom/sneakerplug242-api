@@ -5661,13 +5661,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       try {
         const lm = liveShoeMap();
         let cands = lastSearchIds.map(id => lm[id]).filter(Boolean).slice(0, 6);
+        // A shoe they TAGGED or that the photo matched never goes through a search, so it was never
+        // checked: "Got it in your size 11" for a TN that comes in 7/8/8.5/12 (2026-10-14). The ids ride
+        // in the turn as "(shoe id X)"; look them up by REAL id (lm is keyed by row).
+        try {
+          const _real = {}; for (const k in lm) { const x = lm[k]; if (x && x.id != null) _real[String(x.id)] = x; }
+          const _ids = [...String(userText || '').matchAll(/shoe id ([A-Za-z0-9_-]+)/g)].map(mm => mm[1]).concat([...turnSentIds]);
+          const _pin = _ids.map(i => _real[i] || lm[i]).filter(Boolean);
+          if (_pin.length) cands = [..._pin, ...cands.filter(c => !_pin.includes(c))].slice(0, 6);
+        } catch (_) {}
         if (!cands.length && ctx.listingTitle) cands = searchInventory({ query: ctx.listingTitle }).slice(0, 3).map(r => lm[r.id]).filter(Boolean);
         if (cands.length) {
           const shelf = new Set(); cands.forEach(s => (s.sizesRaw || []).forEach(x => shelf.add(String(parseFloat(x)))));
           const okSize = (n) => shelf.has(String(n)) || shelf.has(String(n - 1.5));   // men's, or a women's number
           const claimed = [];
-          const re = /\b(?:got|have|has|comes?|available|carry|stock)(?:\s+(?:it|that|those|them|one))?\s+(?:in|at)\s+(?:a|an|the|size|sizes)?\s*((?:\d{1,2}(?:\.5)?)(?:\s*(?:,|and|&|\/|or)\s*(?:a|an|the)?\s*\d{1,2}(?:\.5)?)*)/gi;
+          const re = /\b(?:got|have|has|comes?|available|carry|stock)(?:\s+(?:it|that|those|them|one))?\s+(?:in|at)\s+(?:(?:a|an|the|your|ur|size|sizes)\s+){0,3}((?:\d{1,2}(?:\.5)?)(?:\s*(?:,|and|&|\/|or)\s*(?:a|an|the)?\s*\d{1,2}(?:\.5)?)*)/gi;
           let m; while ((m = re.exec(turnText))) (m[1].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); });
+          const re2 = /\bin\s+(?:your|ur)\s+(?:size\s+)?(\d{1,2}(?:\.5)?)\b/gi;   // "$180 in your size 12"
+          while ((m = re2.exec(turnText))) { const n = parseFloat(m[1]); if (n >= 4 && n <= 15) claimed.push(n); }
           const wrong = [...new Set(claimed.filter(n => !okSize(n)))];
           const saysOut = /\b(out of stock|sold out|we(?:'re| are) out of (?:that|it|those|them)(?!\s+(?:one\s+)?in\b)|don'?t have (?:it|that|those) (?:any ?more|right now|in stock))\b/i.test(turnText) && shelf.size > 0;
           if (wrong.length || saysOut) {
