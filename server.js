@@ -5242,6 +5242,32 @@ try { if (SHIFT_SENT_FILE && require('fs').existsSync(SHIFT_SENT_FILE)) shiftSen
 const NASSAU_OFFSET_H = -4; // Bahamas summer time (EDT). Winter is -5; adjust then.
 function nassauNow() { return new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000); }
 
+// 🚫 NO DELIVERIES TODAY (Rodney 2026-10-14 19:05: "no deliveries for today"). A day switch, not a prompt edit,
+// so the next time he says it nothing has to be deployed:
+//   GET /kiki/no-delivery?key=CONSOLE_KEY                        -> what is switched off
+//   GET /kiki/no-delivery?key=CONSOLE_KEY&on=1[&date=2026-10-14]  (on=0 clears it; date defaults to today in Nassau)
+// Keyed by the Nassau date, so it switches itself off at midnight, and kept on /data so a deploy keeps it.
+// While it is on and the shop is open, Kiki keeps selling and books every order for tomorrow's first run (runChat).
+const NO_DELIVERY_FILE = REMINDERS_FILE ? REMINDERS_FILE.replace('reminders.json', 'no-delivery-days.json') : null;
+let noDeliveryDays = [];
+try {
+  if (NO_DELIVERY_FILE && require('fs').existsSync(NO_DELIVERY_FILE))
+    noDeliveryDays = JSON.parse(require('fs').readFileSync(NO_DELIVERY_FILE, 'utf8')) || [];
+} catch (_) { noDeliveryDays = []; }
+function nassauDay() { return nassauNow().toISOString().slice(0, 10); }
+function noDeliveryToday() { return Array.isArray(noDeliveryDays) && noDeliveryDays.includes(nassauDay()); }
+app.get('/kiki/no-delivery', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date || '')) ? String(req.query.date) : nassauDay();
+  if (req.query.on === '1' || req.query.on === '0') {
+    noDeliveryDays = (Array.isArray(noDeliveryDays) ? noDeliveryDays : []).filter(d => d !== day && d >= nassauDay());
+    if (req.query.on === '1') noDeliveryDays.push(day);
+    try { if (NO_DELIVERY_FILE) require('fs').writeFileSync(NO_DELIVERY_FILE, JSON.stringify(noDeliveryDays)); } catch (_) {}
+    record(req, { endpoint: 'no-delivery-set', date: day, on: req.query.on === '1' });
+  }
+  res.json({ today: nassauDay(), noDeliveryToday: noDeliveryToday(), days: noDeliveryDays, saved: !!NO_DELIVERY_FILE });
+});
+
 // ── Daily social-media posting rotation (Rodney 2026-07-26) ───────────────────
 // Employees were picking shoes to post by hand and kept re-posting the same ones
 // while others never got posted. This auto-picks 7 random IN-STOCK shoes every
@@ -5742,6 +5768,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const bahHour = bah.getUTCHours(); // bah is already shifted to Nassau time
     if (bahHour >= 22 || bahHour < 8) {   // open 8 AM–10 PM every day (Rodney 2026-10-07: "we close at 10pm every night")
       system += `\n\n🌙 WE ARE CLOSED RIGHT NOW (it is ${bah.toISOString().slice(11, 16)} in Nassau; we deliver 8 AM–10 PM). Do NOT promise a driver tonight and do NOT say anyone is heading out now. BUT DO NOT PUT THEM OFF EITHER — this is a real sale and you must finish it: still take the shoe, the size and the LOCATION right now, tell them warmly it goes out first thing in the morning from 8 AM ("I've got you down — first run is 8 AM and you're on it ⏰👟"), and still call notify_manager exactly as normal with the location prefixed "🌅 MORNING DELIVERY (8 AM) — " plus remind_in_hours set to the hours from now until about 7:30 AM. ⚠️ NEVER tell them to send their location later or in the morning — a customer who goes to sleep on it goes cold, and asking twice loses the sale.`;
+    } else if (noDeliveryToday()) {
+      // 🚫 Rodney 2026-10-14: "no deliveries for today" (switched on at /kiki/no-delivery). Same shape as the closed
+      // block above: the sale still closes, only the day moves - and the hours to tomorrow 7:30 are worked out here.
+      const _toMorning = Math.max(1, Math.round((24 - bahHour + 7.5 - bah.getUTCMinutes() / 60) * 10) / 10);
+      system += `\n\n🚫 NO DELIVERIES TODAY — the owner has switched deliveries off for today. Nothing goes out until TOMORROW's first run from 8 AM. Keep selling exactly as normal (answer, send pictures, give prices, close the sale) — only the delivery day changes:\n• Never promise a driver today or tonight, never say anyone is heading out, and never say "today" about a delivery or a try-on at the door — it is TOMORROW ("we can bring both sizes tomorrow for you to try").\n• Bring it up only when delivery comes up (they ask about delivery or when it can come, they commit, or you were about to mention delivery) — don't open a chat with it, and never give a reason.\n• When they commit: still take the shoe, the size and the LOCATION right now, and tell them warmly it goes out first thing tomorrow ("No deliveries today — I've got you down for tomorrow's first run from 8 AM ⏰👟"). Call notify_manager exactly as normal with the location prefixed "📅 TOMORROW (8 AM) — " and remind_in_hours: ${_toMorning}. ⚠️ NEVER tell them to send their location later — a customer who goes to sleep on it goes cold.`;
     }
   } catch (_) {}
   // 📣 SHOES CURRENTLY RUNNING AS ADS (Rodney tags each relaunched ad 2026-07-16):
