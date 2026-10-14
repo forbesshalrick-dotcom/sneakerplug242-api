@@ -3860,12 +3860,17 @@ function nextNineAmAfter(ms) {
 function armOrderCheckin(sub) {
   const e = orderCheckins.get(String(sub)); if (!e) return;
   const due = nextNineAmAfter(e.at);
-  if (Date.now() - due > 6 * 3600000) { orderCheckins.delete(String(sub)); saveOrderCheckins(); return; }   // too old to chase
+  if (Date.now() - e.at > 3 * 24 * 3600000) { orderCheckins.delete(String(sub)); saveOrderCheckins(); return; }   // past the 3-day status window
+  if (e.ready || e.checkedIn || Date.now() - due > 6 * 3600000) return;   // nothing to chase (delivery set up / already asked / too late)
   clearTimeout(orderCheckinTimers.get(String(sub)));
   const t = setTimeout(async () => {
     orderCheckinTimers.delete(String(sub));
     const cur = orderCheckins.get(String(sub)); if (!cur) return;
-    orderCheckins.delete(String(sub)); saveOrderCheckins();
+    // Kept (not deleted) so a paid order's "is it on the boat?" still pings the owner for 3 days; marked so it
+    // never fires twice. An order that already had its delivery set up is NEVER chased (2026-10-14: a customer
+    // who got his NB 1000 delivered the night before was asked at 9 AM "Still want the New Balance 1000?").
+    if (cur.checkedIn || cur.ready) return;
+    cur.checkedIn = true; saveOrderCheckins();
     try {
       if (isHumanPaused(sub) || isComposeSub(sub)) return;
       const size = cur.size ? ' in a ' + cur.size : '';
@@ -3882,8 +3887,10 @@ function armOrderCheckin(sub) {
 }
 function noteOrderForCheckin(sub, info) {
   try {
+    const prev = orderCheckins.get(String(sub)) || {};
     orderCheckins.set(String(sub), { shoe: String(info.shoe || '').slice(0, 80), size: info.size != null ? String(info.size) : '', price: info.price || '',
-                                     store: info.store || '', phone: String(info.phone || '').replace(/\D/g, ''), at: Date.now() });
+                                     store: info.store || '', phone: String(info.phone || '').replace(/\D/g, ''), at: Date.now(),
+                                     ready: !!(info.ready || prev.ready), checkedIn: !!prev.checkedIn });
     saveOrderCheckins(); armOrderCheckin(sub);
   } catch (_) {}
 }
@@ -5245,6 +5252,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       return;
     }
   } catch (_) {}
+  // 🙏 "I PURCHASED YESTERDAY" = THANK YOU (Rodney 2026-10-14: "If the guy purchased yesterday, why do you need to know
+  // which shoe? It's already gone. Just say thank you for the purchase / thank you for your business." Kiki had
+  // asked "what shoe did you grab yesterday, and what size?").
+  try {
+    const _p = String(userText || '').trim();
+    const PURCHASED = /\b(i |we )?(already |just )?(purchased|bought|got (it|them|mine|the shoes?|the pair|my shoes?)|received (it|them|the shoes?))\b.{0,30}\b(yesterday|already|last night|earlier|this morning|the other day|from (you|u))\b|^(i )?already (got|bought|purchased|received)\b/i;   // not "paid": a paid island order still needs confirming + filing
+    if (!image && _p && !/\?/.test(_p) && _p.split(/\s+/).length <= 12 && PURCHASED.test(_p)) {
+      try { clearFollowUp(sub); } catch (_) {}
+      try { const e = orderCheckins.get(String(sub)); if (e) { e.checkedIn = true; e.ready = true; saveOrderCheckins(); } } catch (_) {}
+      try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _p, name: ctx.name }); } catch (_) {}
+      const line = await say('Thank you for your business 🙏', sub).catch(() => 'Thank you for your business 🙏');
+      await sendChunk(sub, [{ type: 'text', text: line }], token).catch(() => {});
+      try { const h = convos.get(sub) || []; h.push({ role: 'user', content: _p }); h.push({ role: 'assistant', content: line }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
+      record(req, { endpoint: 'thank-you-for-business', sub, q: _p.slice(0, 40) });
+      return;
+    }
+  } catch (_) {}
   // 👀 "JUST LOOKING" GETS RODNEY'S LINE, WORD FOR WORD (2026-10-14: "I just looking at the shoes atm" got
   // "👍 Take your time! Let me know when something catches your eye 👟" — "the message should have read, take
   // your time. Just let me know when you're ready."). Fixed text, no model, and the follow-up nudge is cancelled.
@@ -6400,7 +6424,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         ].filter(Boolean).join('\n');
         let alertImg = null;
         try { const sh = liveShoeMap()[inp.shoe_id]; if (sh && sh.image) alertImg = sh.image; } catch (_) {}
-        if (!forLater && !staffName) noteOrderForCheckin(sub, { shoe: inp.shoe, size: inp.size, price: inp.price, store: ctx.store, phone: custPhone });
+        if (!forLater && !staffName) noteOrderForCheckin(sub, { shoe: inp.shoe, size: inp.size, price: inp.price, store: ctx.store, phone: custPhone, ready: !earlyStage });
         // Log it for tonight's "did these go through?" check — but only orders meant for TODAY.
         // A future booking isn't a delivery that can have failed yet, and listing it would be
         // the same false alarm in a different costume.
