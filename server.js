@@ -1738,6 +1738,10 @@ const DELIVERY_FOLLOWUP_MSG = "Just to let you know — we're still on the way! 
 // After the welcome, if the customer goes quiet, nudge them once ~5 min later.
 const WELCOME_NUDGE_MS = Number(process.env.WELCOME_NUDGE_MS) || 5 * 60 * 1000; // 5 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
+// 📏 HER DRAFT ASKING A CUSTOMER WHAT SIZE THEY WEAR. Only the QUESTION shapes — a
+// confirmation like "in a 13?" or "want it in your size?" is not a re-ask and must still
+// get through. Used by the guard in the chat loop (search: size-reask-blocked).
+const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s+|ur\s+|the\s+|you\s+)?size\b|\bsize\s+(?:you|u|ya)\b|\byour\s+size\s*\?/i;
 // ⚠️ WHOLESALE gets a DIFFERENT nudge (Rodney 2026-08-17). On Sneaker Inventory the
 // catalogue has ALREADY gone out as the website link plus the trade password, and there
 // are far too many styles to send as pictures over WhatsApp. The retail wording above
@@ -3450,6 +3454,129 @@ const convos = new Map();    // subscriberId -> message history
 // said it once (history gets trimmed to 24 msgs, so a size given early can fall out — this
 // survives that). Set when Kiki searches a single size; injected back into her context.
 const custSize = new Map();   // sub -> { size, ts }
+
+// 📏 READ THE SIZE OUT OF THE CUSTOMER'S OWN WORDS — not just out of Kiki's searches.
+//
+// Rodney 2026-09-06, a real Trendy Kicks chat that cost a repeat customer. He wrote
+// "I already check the site. Yall don't carry 14 or 15" and Kiki's very next line was
+// "what size do you wear?". He wrote "14/15 I'm a big guy" and she offered him a 13,
+// "some of these run big, so they might work for you". He had said his size TWICE.
+//
+// The prompt has told her never to re-ask a size for months, and the map above was meant to
+// be the belt and braces behind it. It never fired — because custSize was only ever written
+// from INSIDE the search tool, so a size was only remembered once Kiki had actually searched
+// it. A size we do not stock is exactly the size she never searches. So the one customer who
+// most needs to be heard was the one customer the safety net was never armed for. This reads
+// the size straight off what he typed, before she writes a word.
+const SIZE_MIN = 3, SIZE_MAX = 18;
+function normSize(x) {
+  const n = parseFloat(String(x).toLowerCase().replace(/\s*1\/2/, '.5').replace(/\s+and\s+a\s+half/, '.5'));
+  return isNaN(n) ? '' : String(n);
+}
+function sizeFromCustomerWords(text) {
+  // Strip the things that LOOK like a size and are not — money, pair counts, phone numbers,
+  // times. Reading "$120" as a size would be worse than reading nothing at all.
+  const s = String(text || '').toLowerCase().replace(/[\u2019\u2018]/g, "'")
+    .replace(/\$\s*\d+(?:\.\d+)?/g, ' ')
+    .replace(/\b\d+\s*(?:dollars?|bucks|pairs?|pair|pcs?|%)\b/g, ' ')
+    .replace(/\b\d[\d\s().-]{6,}\b/g, ' ')
+    .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ')
+  // "size 7:5" / "7,5" is a 7.5 typed fast (Tami 10-14 got a 7 album's worth of guesswork from it).
+  .replace(/\b(\d{1,2})[:,]5\b/g, '$1.5')
+  // 🗣️ A SPOKEN SIZE IS STILL A SIZE. (Rodney 2026-09-23: a customer sent a voice note -
+  // "That's the same one, if you get size nine or ten" - and was asked his size twice more
+  // afterwards.) Every pattern below reads DIGITS, and Whisper writes spoken numbers out as
+  // words, so a size given by voice has never once registered: not the size memory, not the
+  // "never ask again" blocker, nothing. People say numbers out loud far more than they type
+  // them, which makes this the quietest hole in the whole size machinery.
+  // The article is LEFT ALONE on purpose: the cues below read "in a 11" / "wears an 11", so
+  // swallowing the "a"/"an" here would break the very pattern that has to match next.
+  .replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen)\b/g,
+           (m, w) => ' ' + ({ one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9,
+                              ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15 })[w] + ' ')
+  // "ten and a half", "nine n a half" - said aloud far more often than "10.5".
+  .replace(/\b(\d{1,2})\s*(?:and|n|\u0027n)?\s*a\s*half\b/g, '$1.5')
+  .replace(/\b(\d{1,2})\s*point\s*(?:five|5)\b/g, '$1.5');
+  const HALF = '(?:\\.5|\\s*1/2|\\s+and\\s+a\\s+half)?';
+  const NUM = '(\\d{1,2}' + HALF + ')';
+  const ok = (x) => { const n = parseFloat(normSize(x)); return n >= SIZE_MIN && n <= SIZE_MAX; };
+  // 👟 "THE BLUE 5s" IS A JORDAN 5, NOT A SIZE 5.
+  // Rodney 2026-09-28: "customer ask for jordan 5: size". A customer wrote "Tota yll have the
+  // blue awake 5s?" and was answered "This is what we have in blue in your 5 rite now" - a
+  // size-5 album full of Jordan 4s. He named a MODEL and we heard a shoe size.
+  // Jordan model numbers and shoe sizes are the same numbers, so the words around them are the
+  // only thing that can tell them apart. A colour or a model word anywhere in front of "<n>s"
+  // makes it the shoe: "the blue 5s", "black 4s", "Jordan 11s", "the blue awake 5s".
+  // "Shoot me the 8s" stays a size - it has its own send/shoot/gimme cue below, and no colour.
+  const MODELISH = new RegExp('\\b(?:blue|black|red|white|green|grey|pink|purple|orange|yellow|brown'
+    + '|cream|navy|gold|silver|tan|jordan|aj|retro|dunk|max|plus|foam|dn|tn)\\b[^.?!]{0,25}?\\b\\d{1,2}s\\b');
+  const plainNumS = !MODELISH.test(s);
+  // A RANGE first — "14/15", "14 or 15", "14-15". Two sizes in one breath is a big-foot
+  // customer telling you he sits between them; keep BOTH so nobody quietly rounds him down.
+  const r = s.match(new RegExp(NUM + '\\s*(?:/|-|\\bor\\b|\\bto\\b)\\s*' + NUM));
+  if (r && ok(r[1]) && ok(r[2])) {
+    const a = normSize(r[1]), b = normSize(r[2]);
+    return a === b ? a : (a + '/' + b);
+  }
+  // 🔢 A MESSAGE THAT IS NOTHING BUT A NUMBER IS A SIZE.
+  // Rodney 2026-09-28: "when kiki gets the size she forgets what shoe she was speaking about."
+  // 829-2664 was asked "What size you looking for?" and answered "10". Nothing recorded it -
+  // every cue below needs a size WORD next to the number, and he used none, because he had just
+  // been ASKED. So custSize stayed empty, knownSize stayed empty, and the guard that stops her
+  // re-asking never armed: two hours later she asked "What size you wear?" all over again, and
+  // when he said "10" a second time she sent 67 pictures of everything in a 10 instead of the
+  // New Balance 2000 from the ad they had been discussing all morning.
+  // A lone number in a shoe shop is a shoe size - it is the commonest possible answer to the
+  // commonest possible question, and it was the one shape we could not read. Money, pair counts,
+  // phone numbers and times are already stripped above, so what reaches here is genuinely bare.
+  const _bare = s.trim().replace(/[.!?\s]+$/, '');
+  if (new RegExp('^' + NUM + '$').test(_bare) && ok(_bare)) return normSize(_bare);
+  // Then a single size that has a size WORD attached to it, so a stray number in an ordinary
+  // sentence is never mistaken for one.
+  // Never read "send 3 pics" or "2 pairs" as a size.
+  const NOTCOUNT = '(?!\\s*(?:pics?|photos?|pictures?|pairs?|shoes?|kicks?))';
+  for (const cue of [
+    // 🏷️ "Size: 9" - with a COLON - is how every order off the website arrives, and the
+    // colon broke this. Rodney 2026-09-25: "why ask this guy for a size?" A customer sent the
+    // website card ("Jordan 4 Retro ... Size: 9 ... how do I pay?"), had it confirmed back to
+    // him at a 9, and was asked his size five minutes later - because nothing had recorded it.
+    // A dash does the same ("size - 9"). Both allowed now.
+    'size\\s*[:\\-\\u2013\\u2014]?\\s*(?:is\\s*)?' + NUM, NUM + '\\s*(?:in\\s+)?size\\b',
+    'wears?\\s+(?:a\\s+|an\\s+)?' + NUM, "i'?m\\s+(?:a\\s+|an\\s+)" + NUM,
+    'need\\s+(?:a\\s+|an\\s+)' + NUM, 'take\\s+(?:a\\s+|an\\s+)' + NUM,
+    'in\\s+(?:a\\s+|an\\s+)' + NUM,
+    // 👟 "THE BLUE 5s" IS A JORDAN 5, NOT A SIZE 5.
+    // Rodney 2026-09-28: "customer ask for jordan 5: size". A customer wrote "Tota yll have the
+    // blue awake 5s?" and was answered "This is what we have in blue in your 5 rite now" - a
+    // size-5 album full of Jordan 4s. He named a MODEL and we heard a shoe size.
+    // Jordan model numbers and shoe sizes are the same numbers, so the words around them are the
+    // only thing that tells them apart. A colour or a model word in front of it - "the blue 5s",
+    // "black 4s", "Jordan 11s" - makes it the shoe. "Shoot me the 8s" is still a size and is
+    // caught by the send/shoot/gimme cue above, so nothing that worked stops working.
+    NUM + 's\\b',
+    // "send 10.5", "shoot me the 8s", "lemme get a 12" — Bahamians talk short.
+    '(?:send|shoot|show|get|gimme|lemme have)\\s+(?:me\\s+)?(?:a\\s+|an\\s+|the\\s+)?' + NUM + NOTCOUNT + '\\b',
+    // A half size is only ever a shoe size — "10 and a half", "9 1/2", or a bare "10.5".
+    '(\\d{1,2}\\s*(?:1/2|and\\s+a\\s+half))', '(\\d{1,2}\\.5)' + NOTCOUNT + '\\b',
+  ]) {
+    if (cue === NUM + 's\\b' && !plainNumS) continue;   // a model number, not a size
+    const m = s.match(new RegExp('\\b' + cue));
+    if (m && ok(m[1])) return normSize(m[1]);
+  }
+  return '';
+}
+// Every men's size actually on the shelf right now. Used to tell the difference between
+// "we're out of his size today" and "we do not go that big at all".
+function sizesWeStock() {
+  const out = new Set();
+  try {
+    const m = liveShoeMap();
+    for (const id in m) for (const x of ((m[id] && m[id].sizesRaw) || [])) {
+      const n = parseFloat(x); if (!isNaN(n)) out.add(n);
+    }
+  } catch (_) {}
+  return out;
+}
 // sub -> ts of the last 🙋 AGENT NEEDED alert, so one chat can't spam the owner's phone
 const humanAskAlerted = new Map();
 // PERSIST conversations to the /data volume so a redeploy/restart mid-chat doesn't
@@ -4127,6 +4254,15 @@ function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, 
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token, wholesale) {
   if (isComposeSub(sub)) return;
+  // 📏 Don't open with "What size you looking for?" to somebody who already told us (Rodney
+  // 2026-09-06). A customer back inside the 12h size window has said it once already.
+  const cs = custSize.get(sub);
+  if (!wholesale && cs && cs.size && (Date.now() - (cs.ts || 0)) < 12 * 60 * 60 * 1000) {
+    let carried = true;
+    try { const have = sizesWeStock(); if (have.size) carried = String(cs.size).split('/').map(parseFloat).filter(n => !isNaN(n)).some(n => have.has(n)); } catch (_) {}
+    if (!carried) return;             // we don't go that big — leave him alone
+    return scheduleNudge(sub, token, `Want me to send what we got in a ${cs.size}? 👟`, WELCOME_NUDGE_MS);
+  }
   scheduleNudge(sub, token, wholesale ? L(WS_ASKME_T, sub) : L(ASKME_T, sub), WELCOME_NUDGE_MS);
 }
 
@@ -5711,10 +5847,35 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     ownerNotes.delete(sub); // consume once
   }
   // 📏 REMEMBERED SIZE: the customer already told you their size earlier — reuse it, don't re-ask.
+  // Read it off THIS message first (see sizeFromCustomerWords) so the net is armed on the very
+  // turn he says it — the turn AFTER is the one he has already walked away on.
+  try {
+    // Only the CUSTOMER'S words: a "(SYSTEM: …)" line or a [bracketed] note riding in front of them (a Facebook
+    // album pointer, a listing) can carry a shoe's stock sizes, and reading those as his size is the 10-04 Wade
+    // failure ("you wear an 8.5" to a man who never said it).
+    const saidNow = sizeFromCustomerWords(String(userText || '').replace(/\(SYSTEM[^)]*\)/gi, ' ').replace(/\[[^\]]*(?:\]|$)/g, ' '));
+    if (saidNow) { custSize.set(sub, { size: saidNow, ts: Date.now(), fromCustomer: true }); saveConvos(); }
+  } catch (_) {}
   let sizeCtx = '';
   const cs = custSize.get(sub);
+  let knownSize = '';
   if (cs && cs.size && (Date.now() - (cs.ts || 0)) < 12 * 60 * 60 * 1000) {
-    sizeCtx = `\n\n[THIS CUSTOMER'S SIZE = ${cs.size} (they told you earlier in this chat). When they ask to see ANY other shoe, brand or model next — "any New Balance?", "show me Jordans", "what you got in ___" — go STRAIGHT to search_inventory + send_photos in size ${cs.size} on this turn. Do NOT reply "what size you looking for?" — you already know it. Only ask again if they clearly want a DIFFERENT size.]`;
+    knownSize = String(cs.size);
+    // Do we actually go that big / that small? "Out of his size today" and "we do not carry
+    // that size at all" are two completely different conversations, and the second one is
+    // the one that went wrong: she asked again, then pushed a 13 at a man who wears a 15.
+    let ceiling = 0, carried = true;
+    try {
+      const have = sizesWeStock();
+      if (have.size) {
+        ceiling = Math.max.apply(null, Array.from(have));
+        const wanted = knownSize.split('/').map(parseFloat).filter(n => !isNaN(n));
+        carried = !wanted.length || wanted.some(n => have.has(n));
+      }
+    } catch (_) {}
+    sizeCtx = carried
+      ? `\n\n[THIS CUSTOMER'S SIZE = ${knownSize} (they told you earlier in this chat). When they ask to see ANY other shoe, brand or model next — "any New Balance?", "show me Jordans", "what you got in ___" — go STRAIGHT to search_inventory + send_photos in size ${knownSize} on this turn. Do NOT reply "what size you looking for?" — you already know it. Only ask again if they clearly want a DIFFERENT size.]`
+      : `\n\n[THIS CUSTOMER'S SIZE = ${knownSize}, AND WE DO NOT CARRY IT. They have already told you — NEVER ask their size again, not once. The biggest size on our shelf right now is a ${ceiling}. Do NOT offer them anything more than ONE size below what they asked for: a ${ceiling} to somebody who wears a ${knownSize} is not "the closest we can get you", it is a shoe that does not fit, and "some of these run big" is a sales line, not help. Do NOT use the try-on offer to bridge that gap either — bringing him two shoes that are both too small is still bringing him nothing. Say plainly and warmly that we top out at a ${ceiling} right now, and then STOP SELLING — that is a complete answer on its own. Offer NOTHING on the end of it (Rodney 2026-09-06, his exact words: "no callback just say sorry no we dont") — no call back, no taking his name or number, no get_agent, no nearest size, no try-on. "Nah sorry — we stop at a ${ceiling} right now 🙏" is the whole message. If he asks again, answer again just as short; if he asks for something else, help him with that as normal.]`;
   }
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
@@ -5786,6 +5947,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
   let internalLeaks = 0;       // how many times this turn her reply talked about her own machinery
+  let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
   let forcedPhotosOnce = false; // guard so the force above can only fire once per turn (never loops)
   // 🎯 SIZE-ALBUM COMPLETENESS tracking (Rodney 2026-07-19: "what you got in 10.5 11" showed
@@ -6139,6 +6301,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'invented-fee-blocked', sub, store: ctx.store || '', bad: bad.slice(0, 3), text: turnText.slice(0, 140) });
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply named a fee we do not charge (' + bad.slice(0, 2).join('; ') + '). There are NO island, service, card or handling fees. The ONLY extra cost that exists is shipping to another island: boat $10 or plane $35. Local delivery in Nassau is free. Rewrite the reply with the total = shoe price + that shipping only, and put that exact total in the pay link. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
         continue;
+      }
+    }
+    // 📏 NEVER ASK A SIZE THEY ALREADY GAVE (Rodney 2026-09-06, ported back 10-14 after the 10-12 reset: Lady Resh's
+    // daughter's 7.5 was asked for again). knownSize is read off the customer's own words above, not only off searches.
+    if (turnText && knownSize && SIZE_REASK_RE.test(turnText)) {
+      sizeReAsks++;
+      record(req, { endpoint: 'size-reask-blocked', sub, store: ctx.store || '', size: knownSize, attempt: sizeReAsks, text: turnText.slice(0, 200) });
+      if (sizeReAsks === 1) {
+        history.push({ role: 'user', content: `(SYSTEM NOTE — the customer cannot see this: you just asked this customer what size they wear and THEY HAVE ALREADY TOLD YOU — it is ${knownSize}. Asking again tells them nobody is reading, and it is the single fastest way to lose them. Write your reply again using the size you already have, and do not ask for it. If we genuinely don't carry that size, say so plainly and STOP THERE — do not push a smaller size at them, and do not offer a call back or take their details either. The customer never saw your first draft, so do not apologise or say "my bad". Do not mention this note.)` });
+        continue;                       // one clean retry
       }
     }
     /* 💵 NO "PAY FIRST" IN NASSAU (Rodney 2026-10-14: "just send over your payment receipt and drop your location pin" — "you don't
