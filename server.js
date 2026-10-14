@@ -1113,7 +1113,7 @@ function isYcloudSub(sub) {
   if (ycloudStore.has(s)) return true;
   try {
     const sidx = inboxSubIndex.get(s); const t = sidx ? inboxThreads.get(sidx) : null;
-    if (t && String(t.account || '') === 'Foot Fetish') { ycloudStore.set(s, 'Foot Fetish'); saveYcloudStore(); return true; }
+    if (t && /^(Foot Fetish|Luxury Boutique)$/.test(String(t.account || ''))) { ycloudStore.set(s, String(t.account)); saveYcloudStore(); return true; }
   } catch (_) {}
   return false;
 }
@@ -9589,7 +9589,10 @@ app.post('/ycloud/webhook', async (req, res) => {
       record(req, { endpoint: 'ycloud-unsupported-asked-for-pin', sub: from });
     }
     if (!String(text).trim() && !ycImage) return;
-    const store = (toNum && toNum.endsWith('4324406')) ? 'Foot Fetish' : waStoreFor(null);
+    // Which shop a YCloud number answers as. 636-7431 was connected 2026-10-13 under the WhatsApp name
+    // "Luxury Boutique" (its own WABA, BM "Sneaker crew"); customers see that name, so Kiki uses it too.
+    const YCLOUD_SHOPS = { '4324406': 'Foot Fetish', '6367431': 'Luxury Boutique' };
+    const store = YCLOUD_SHOPS[String(toNum || '').slice(-7)] || waStoreFor(null);
     try { ycloudStore.set(from, store); saveYcloudStore(); } catch (_) {}
     try { if (toNum) ycloudFrom.set(from, String(toNum)); } catch (_) {}
     waLastInboundAt = new Date().toISOString();
