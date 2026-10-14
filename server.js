@@ -6134,7 +6134,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (bad.length) {
         feeBlocks++;
         record(req, { endpoint: 'invented-fee-blocked', sub, store: ctx.store || '', bad: bad.slice(0, 3), text: turnText.slice(0, 140) });
-        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply named a fee we do not charge (' + bad.slice(0, 2).join('; ') + '). There are NO island, service, card or handling fees. The ONLY extra cost that exists is shipping to another island: boat $10 or plane $35. Local delivery in Nassau is free. Rewrite the reply with the total = shoe price + that shipping only, and put that exact total in the pay link.)' });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply named a fee we do not charge (' + bad.slice(0, 2).join('; ') + '). There are NO island, service, card or handling fees. The ONLY extra cost that exists is shipping to another island: boat $10 or plane $35. Local delivery in Nassau is free. Rewrite the reply with the total = shoe price + that shipping only, and put that exact total in the pay link. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
         continue;
       }
     }
@@ -6147,7 +6147,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         && !/\b(boat|plane|ship(ping)?|island|freight|abaco|eleuthera|exuma|andros|bimini|freeport|grand bahama|long island|cat island|inagua|harbour island|berry)\b/i.test(turnText + ' ' + JSON.stringify(history.slice(-12)).slice(-6000))) {
       feeBlocks++;
       record(req, { endpoint: 'pay-first-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
-      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply made paying first a step before we deliver. In Nassau they pay when we arrive — cash in hand, card, or bank transfer — or online by card with the link if they prefer. Rewrite it: keep the link only if they asked to pay online, say plainly they can also pay when we arrive, and ask for their location pin. Never ask for a receipt before delivery.)' });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply made paying first a step before we deliver. In Nassau they pay when we arrive — cash in hand, card, or bank transfer — or online by card with the link if they prefer. Rewrite it: keep the link only if they asked to pay online, say plainly they can also pay when we arrive, and ask for their location pin. Never ask for a receipt before delivery. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
       continue;
     }
     /* 🔗 NO "[TOTAL]" LINK (Rodney 2026-10-14: "How can I do a online payment…" got pay?amount=[TOTAL] and "just replace
@@ -6156,7 +6156,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (turnText && !staffName && feeBlocks < 1 && /\[\s*(TOTAL|AMOUNT|PRICE)\s*\]|amount=(?!\d)/i.test(turnText)) {
       feeBlocks++;
       record(req, { endpoint: 'pay-placeholder-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
-      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message.)' });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
       continue;
     }
     // Remembered for the safety net only AFTER every guard above passed it — set before them, a blocked reply (a fee
