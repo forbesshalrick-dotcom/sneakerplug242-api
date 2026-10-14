@@ -1148,6 +1148,25 @@ try {
 const ycloudFrom = new Map();   // customer phone -> the business number they wrote to
 const ycloudChain = new Map();  // customer phone -> the turn in flight, so replies never cross
 const ycloudBurst = new Map();  // customer phone -> { n, said } photos arriving together
+// 🏷️ WHAT WE SENT, BY WHATSAPP MESSAGE ID (2026-10-13, Rodney: "a lot of people just tag the shoe
+// instead of sending it again"). A quote-reply arrives with context.id = the wamid of the message it
+// quotes, and nothing else. So every picture that leaves on this line (Kiki's sends AND Rodney's own
+// from the phone, which arrive as smb echoes) is remembered here, and a tagged reply gets that
+// picture handed back to Kiki as the thing they are pointing at.
+const ycloudSentMedia = new Map();   // wamid or YCloud id -> { link, caption, sub, at, ycloud }
+const YCLOUD_SENT_FILE = (() => { try { const fs = require('fs'); for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) if (fs.existsSync(d)) return require('path').join(d, 'ycloud-sent-media.json'); } catch (_) {} return null; })();
+try { if (YCLOUD_SENT_FILE && require('fs').existsSync(YCLOUD_SENT_FILE)) for (const [k, v] of JSON.parse(require('fs').readFileSync(YCLOUD_SENT_FILE, 'utf8'))) ycloudSentMedia.set(k, v); } catch (_) {}
+let _ycSentSaveT = null;
+function rememberYcloudSent(keys, rec) {
+  try {
+    for (const k of keys) if (k) ycloudSentMedia.set(String(k), rec);
+    while (ycloudSentMedia.size > 4000) ycloudSentMedia.delete(ycloudSentMedia.keys().next().value);
+    if (!YCLOUD_SENT_FILE) return;
+    clearTimeout(_ycSentSaveT);
+    _ycSentSaveT = setTimeout(() => { try { require('fs').writeFileSync(YCLOUD_SENT_FILE, JSON.stringify([...ycloudSentMedia])); } catch (_) {} }, 3000);
+    if (_ycSentSaveT.unref) _ycSentSaveT.unref();
+  } catch (_) {}
+}
 async function ycloudSendMessages(phoneDigits, messages) {
   try {
     const key = process.env.YCLOUD_API_KEY;
@@ -1194,6 +1213,7 @@ async function ycloudSendMessages(phoneDigits, messages) {
         }
         if (!r.ok) return { ok: false, why: r.status + ' ' + t.slice(0, 160), n };
         n++;
+        if (body.type === 'image') { try { const j = JSON.parse(t); rememberYcloudSent([j.wamid, j.id], { link: body.image.link, caption: body.image.caption || '', sub: String(phoneDigits), at: Date.now() }); } catch (_) {} }
       } finally { clearTimeout(tm); }
       i++;
     }
@@ -9367,6 +9387,19 @@ app.post('/ycloud/webhook', async (req, res) => {
   try {
     const body = (req.body && typeof req.body === 'object') ? req.body : {};
     const kind = String(body.type || body.event || '');
+    // Pictures Rodney sends by hand from the phone (Coexistence echoes), and the wamid a status update
+    // attaches to one of OUR sends — both feed the tag lookup below.
+    const _wm = body.whatsappMessage || null;
+    if (_wm && (/echo/i.test(kind) || /status|updated|sent|delivered|read/i.test(kind))) {
+      try {
+        if (_wm.type === 'image' && _wm.image && /echo/i.test(kind)) {
+          rememberYcloudSent([_wm.wamid, _wm.id], { link: String(_wm.image.link || ''), caption: _wm.image.caption || '', sub: String(_wm.to || '').replace(/\D/g, ''), at: Date.now(), ycloud: true, byHand: true });
+        } else if (_wm.wamid && _wm.id && ycloudSentMedia.has(String(_wm.id)) && !ycloudSentMedia.has(String(_wm.wamid))) {
+          rememberYcloudSent([_wm.wamid], ycloudSentMedia.get(String(_wm.id)));
+        }
+      } catch (_) {}
+      if (/echo/i.test(kind)) { record(req, { endpoint: 'ycloud-echo', msgType: _wm.type || '', to: String(_wm.to || '').slice(-7) }); return; }
+    }
     if (/status|sent|delivered|read|failed/i.test(kind) && !/inbound|received/i.test(kind)) return;
     const m = ycloudPickMessage(body);
     if (!m) { record(req, { endpoint: 'ycloud-unmapped', kind, keys: Object.keys(body).slice(0, 12).join(','), sample: JSON.stringify(body).slice(0, 400) }); return; }
@@ -9428,6 +9461,38 @@ app.post('/ycloud/webhook', async (req, res) => {
       } else {
         record(req, { endpoint: 'ycloud-photo-no-link', sub: from, keys: Object.keys(m.image).join(',') });
       }
+    }
+    // 🏷️ A TAGGED REPLY: they quoted one of our pictures. Hand Kiki that picture as the thing they mean.
+    const _ctxId = m.context && (m.context.id || m.context.wamid);
+    if (_ctxId) {
+      const q = ycloudSentMedia.get(String(_ctxId));
+      let qShoe = null;
+      if (q && q.link) {
+        try {
+          const lm = liveShoeMap();
+          const fid = (String(q.link).match(/\/([^\/?#]+?)-(?:card|thumb|\d+)\.(?:jpe?g|png|webp)/i) || [])[1] || '';
+          for (const k in lm) { const x = lm[k]; if (x && ((x.image && String(x.image) === q.link) || (fid && String(x.id) === fid))) { qShoe = x; break; } }
+        } catch (_) {}
+        if (!ycImage) {
+          try {
+            const hdr = (q.ycloud && process.env.YCLOUD_API_KEY) ? { 'X-API-Key': process.env.YCLOUD_API_KEY } : {};
+            let r = await fetch(q.link, { headers: hdr, signal: AbortSignal.timeout(15000), redirect: 'follow' });
+            if (!r.ok && Object.keys(hdr).length) r = await fetch(q.link, { signal: AbortSignal.timeout(15000), redirect: 'follow' });
+            if (r.ok) {
+              const buf = Buffer.from(await r.arrayBuffer());
+              let ct = (r.headers.get('content-type') || 'image/jpeg').split(';')[0].trim().toLowerCase();
+              if (buf[0] === 0xFF && buf[1] === 0xD8) ct = 'image/jpeg'; else if (buf[0] === 0x89 && buf[1] === 0x50) ct = 'image/png';
+              if (buf.length > 0 && buf.length <= 4.5 * 1024 * 1024) ycImage = { data: buf.toString('base64'), media_type: ct };
+            }
+          } catch (_) {}
+        }
+        text = '(SYSTEM: the customer TAGGED one of OUR pictures — they quote-replied to it, and the attached picture IS the one they are pointing at'
+          + (qShoe ? (': ' + displayName(qShoe) + ' (shoe id ' + qShoe.id + ')') : '')
+          + '. Treat their message as being about exactly that shoe — answer about it, never ask "which one" or "got what?".)\n' + (text || '');
+      } else {
+        text = '(SYSTEM: the customer quote-replied to an earlier message we no longer have. If it is unclear what they mean, ask them to send that picture again.)\n' + (text || '');
+      }
+      record(req, { endpoint: 'ycloud-tag', sub: from, found: !!(q && q.link), shoe: qShoe ? String(qShoe.id) : '', gotPic: !!ycImage });
     }
     record(req, { endpoint: 'ycloud-in', sub: from, to: toNum, kind, msgType: t, q: String(text).slice(0, 60), photo: !!ycImage });
     // A first message of type "unsupported" is a click-to-WhatsApp ad opener we cannot read: answer it as one.
