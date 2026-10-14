@@ -5493,6 +5493,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let lastSearchIds = [];    // the ids that search matched — our pictures go to Kiki beside the customer's photo
   let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
+  let feeBlocks = 0;         // the invented-fee guard may bounce one reply per turn
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
   let forceSearchNext = false; // set when she CHATTED about a shoe photo instead of searching → push her to look
@@ -5726,6 +5727,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         }
       } catch (_) {}
+    }
+    /* 💲 NO INVENTED FEES (Rodney 2026-10-14, Berry on TK: "Card — pay?amount=95 (Dunk High $60 + Boat $10 +
+     * $25 island fee)". There is no island fee; shipping is the boat $10 or the plane $35 and nothing else, and
+     * local delivery is free.) Any fee word with a dollar amount that is not one of those, or any named
+     * surcharge, is sent back to be rewritten before the customer sees it. */
+    if (turnText && !staffName && feeBlocks < 1) {
+      const _feeRe = /\$\s*(\d+(?:\.\d+)?)\s*(?:\w+\s+){0,2}(?:fee|charge|surcharge|tax)\b|\b(?:island|service|handling|processing|shipping|delivery|card|transfer|extra)\s+(?:fee|charge|surcharge)\b[^.\n]{0,25}?\$\s*(\d+(?:\.\d+)?)|\b(?:island|service|handling|processing|card|transfer)\s+(?:fee|charge|surcharge)\b/gi;
+      const bad = [];
+      let fm; while ((fm = _feeRe.exec(turnText))) { const amt = parseFloat(fm[1] || fm[2] || 'NaN'); if (isNaN(amt) || (amt !== 10 && amt !== 35)) bad.push(fm[0].trim()); }
+      if (bad.length) {
+        feeBlocks++;
+        record(req, { endpoint: 'invented-fee-blocked', sub, store: ctx.store || '', bad: bad.slice(0, 3), text: turnText.slice(0, 140) });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply named a fee we do not charge (' + bad.slice(0, 2).join('; ') + '). There are NO island, service, card or handling fees. The ONLY extra cost that exists is shipping to another island: boat $10 or plane $35. Local delivery in Nassau is free. Rewrite the reply with the total = shoe price + that shipping only, and put that exact total in the pay link.)' });
+        continue;
+      }
     }
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
