@@ -9332,7 +9332,13 @@ app.post('/social/reply', async (req, res) => {
         .replace(/\bsizes?\s*[:\-]?\s*[\d.,\s/&+]+/ig, ' ').replace(/\s{2,}/g, ' ').trim().slice(0, 160),
     };
     const shim = { method: 'POST', path: '/social/reply', headers: {}, query: {}, body: {}, rawBody: null };
-    await runChat(shim, sub, text, '', ctx, b.image ? String(b.image) : null);
+    // 👉 A pointer the Mac resolved ('bottom left' of a Messenger album -> the shoe), or any other
+    // one-sentence fact the caller worked out (M5 Facebook2, 2026-10-13: album_pointer.py). Rides in
+    // front of the customer's words as a SYSTEM line; the customer never sees it.
+    const extra = String(b.extra || b.pointer || '').replace(/\s+/g, ' ').trim().slice(0, 600);
+    const turnText = extra ? ('(SYSTEM: ' + extra + ' Answer about exactly that shoe; never say you can\'t tell which one.)\n' + text) : text;
+    if (extra) record(req, { endpoint: 'social-reply-extra', sub, extra: extra.slice(0, 120) });
+    await runChat(shim, sub, turnText, '', ctx, b.image ? String(b.image) : null);
     const messages = sink.map(m => (m && m.type === 'image')
       ? { type: 'image', url: (m.url || (m.payload && m.payload.url) || '') }
       : { type: 'text', text: String((m && m.text) || '') })
