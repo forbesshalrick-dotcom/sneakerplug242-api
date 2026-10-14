@@ -3132,7 +3132,33 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
     const now = Date.now();
     if (!endMsgSentAt[sub] || now - endMsgSentAt[sub] > 45000) {
       endMsgSentAt[sub] = now;
-      let closing = L(END_OF_PHOTOS_T, sub);
+      // Rodney 2026-10-14: the line AFTER the pictures is "This is what we have in <category>" — "in TNs", "in
+      // Jordans" — and "let me know if you need a delivery" moved to the later follow-up. The category is read
+      // off the shoes that actually went out: one model → that model; one brand → the brand; a mix → their size.
+      let what = '';
+      try {
+        const fam = (sh) => { const n = ((sh.brand || '') + ' ' + (sh.name || '')).toLowerCase();
+          if (/vapor ?max/.test(n)) return ['VaporMax', 'Air Max'];
+          if (/air max plus/.test(n)) return ['TNs', 'Air Max'];
+          const am = n.match(/air max (\d+|dn)\b/); if (am) return ['Air Max ' + am[1].toUpperCase().replace(/^DN$/, 'DN') + 's', 'Air Max'];
+          const jm = n.match(/jordan (\d+)\b/); if (jm) return ['Jordan ' + jm[1] + 's', 'Jordans'];
+          if (/jordan/.test(n)) return ['Jordans', 'Jordans'];
+          if (/air force|af1/.test(n)) return ['Air Force 1s', 'Nike'];
+          if (/dunk/.test(n)) return ['Dunks', 'Nike'];
+          const nb = n.match(/new balance.*?\b(\d{3,4})/); if (/new balance/.test(n)) return [nb ? nb[1] + 's' : 'New Balance', 'New Balance'];
+          if (/asics/.test(n)) return ['ASICS', 'ASICS'];
+          if (/croc|mule|mind 0|slide|foam/.test(n)) return ['slides', 'slides'];
+          if (/yeezy/.test(n)) return ['Yeezys', 'Yeezys'];
+          if (/scorpion/.test(n)) return ['Scorpions', 'Nike'];
+          if (/shox/.test(n)) return ['Shox', 'Nike'];
+          return [null, (sh.brand || '').trim() || null]; };
+        const went = albumTrace.filter(t => t && (t.status === 200 || /success|sent|ghost|timeout/i.test(String(t.body || '')))).map(t => byRealId[String(t.id)] || live[t.id]).filter(Boolean);
+        const fams = went.map(fam);
+        const one = (k) => { const v = fams.map(f => f[k]); return v.length && v[0] && v.every(x => x === v[0]) ? v[0] : ''; };
+        what = one(0) || one(1);
+        if (!what) { const _cs = custSize.get(sub); if (_cs && _cs.size) what = 'a ' + _cs.size; }
+      } catch (_) {}
+      let closing = what ? ('This is what we have in ' + what + ' 👟') : 'This is what we have 👟';
       try { await sendChunk(sub, [{ type: 'text', text: await say(closing, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
@@ -3934,7 +3960,9 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
 // Chain ends at the CLOSER ("Okay, I guess you didn't find anything") — that is the
 // LAST follow-up. Rodney 2026-07-17: the old 4th "Let me know if you'd like the catalog"
 // nudge read like the chat was STARTING OVER; Kiki should never sound like a restart.
-function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(CLOSER_T, sub), ms: CLOSER_MS, isCloser: true }); }
+// The later follow-up is "let me know if you need a delivery" (Rodney 2026-10-14), replacing the "Still here whenever
+// you're ready… (If you already replied and I missed it…)" closer. END_OF_PHOTOS_T carries that line in every language.
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(END_OF_PHOTOS_T, sub), ms: CLOSER_MS, isCloser: true }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token, wholesale) {
   if (isComposeSub(sub)) return;
@@ -5214,6 +5242,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       try { clearFollowUp(sub); } catch (_) {}
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _ack, name: ctx.name }); } catch (_) {}
       record(req, { endpoint: 'ack-after-album-quiet', sub, q: _ack.slice(0, 30) });
+      return;
+    }
+  } catch (_) {}
+  // 👀 "JUST LOOKING" GETS RODNEY'S LINE, WORD FOR WORD (2026-10-14: "I just looking at the shoes atm" got
+  // "👍 Take your time! Let me know when something catches your eye 👟" — "the message should have read, take
+  // your time. Just let me know when you're ready."). Fixed text, no model, and the follow-up nudge is cancelled.
+  try {
+    const _b = String(userText || '').trim();
+    const BROWSING = /^(i'?m |im |i |am |i am |just |jus |still )*(just |jus |still )?(looking|lookin|browsing|checking|lookin round|looking (at|thru|through) (the |them |these |your )?(shoes|pics|pictures|them|it|everything)|checking (them|it|the shoes) out|let me (look|see|check)( (them|it) over)?|lemme (look|see|check)|give me (a )?(min|minute|sec|second)|i'?ll let (you|u) know|will let (you|u) know|i'?ll get back to (you|u)|thinking about it)\b[^?]{0,25}$/i;
+    if (!image && _b && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !/\b(size|how much|price|deliver|\d)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
+      try { clearFollowUp(sub); } catch (_) {}
+      try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _b, name: ctx.name }); } catch (_) {}
+      const line = await say("Take your time. Just let me know when you're ready.", sub).catch(() => "Take your time. Just let me know when you're ready.");
+      await sendChunk(sub, [{ type: 'text', text: line }], token).catch(() => {});
+      try { const h = convos.get(sub) || []; h.push({ role: 'user', content: _b }); h.push({ role: 'assistant', content: line }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
+      record(req, { endpoint: 'just-looking-line', sub, q: _b.slice(0, 40) });
       return;
     }
   } catch (_) {}
