@@ -5562,8 +5562,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (_pickSh && _pickSh.id != null) {
           const _csz0 = custSize.get(sub);
           const _szKnown = !!(_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000);
+          // "got it in your 8.5" only when it really comes in their size (2026-10-14: it was said blind).
+          const _hasTheirs = _szKnown && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_csz0.size));
           const _lead = "That's the " + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0)
-            + (_szKnown ? ' — got it in your ' + _csz0.size + ' 👇' : ' — we only have these sizes available 👇');
+            + (_hasTheirs ? ' — got it in your ' + _csz0.size + ' 👇'
+              : _szKnown ? ' — no ' + _csz0.size + ' in that one right now, we only have it in ' + (sizesOf(_pickSh) || 'other sizes') + ' 👇'
+              : ' — we only have these sizes available 👇');
           const _rr = await sendShoePhotos(sub, [_pickSh.id], token, null, _lead, false, false, ctx.turnAt || 0, _szKnown).catch(() => null);
           if (_rr && _rr.sent > 0) {
             photosSentRun = true; sentToCustomer = true; turnSentIds.add(String(_pickSh.id)); photoCompareSent = true;
@@ -5574,6 +5578,30 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
                 + (_szKnown ? '' : ' with its sizes printed under it') + '. Do NOT search, do NOT send photos, and do NOT name it again. '
                 + 'If their message asked nothing else, reply with nothing at all. If it did ask something (price, delivery, a size), answer only that in one short line.)\n\n' + _lu.content[0].text;
             }
+          }
+        }
+      } else if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && /KIND:\s*CARD/i.test(_idVerdict)) {
+        /* 🃏 THEY FORWARDED ONE OF OUR CARDS (2026-10-14, Rodney: a customer forwarded our "Nike Air Max 97 Golf
+         * Green" card, the reader named it exactly, but it only comes in a 9.5, he wears an 8.5 — and Kiki sent a
+         * Jordan 3 Pine Green (green, in an 8.5), called it "Air Max 97 Blue Green" and invented "runs a touch
+         * big"). The card already IS the shoe: the server pins it, with its real sizes, and she answers about
+         * that shoe only. No re-send of the card they already have, no substitute, no fit advice. */
+        const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
+        const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
+        if (_pickSh && _pickSh.id != null) {
+          turnSentIds.add(String(_pickSh.id));   // the size-claim guard checks this shoe; it is never re-sent
+          const _csz0 = custSize.get(sub);
+          const _sz = (_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000) ? String(_csz0.size) : '';
+          const _has = _sz && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_sz));
+          const _sizes = sizesOf(_pickSh) || 'none right now';
+          record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has });
+          const _lu = history[history.length - 1];
+          if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
+            _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
+              + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
+              + ' Answer about THIS shoe only, in one short line, e.g. "That\'s the ' + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0) + ' — '
+              + (_sz && !_has ? 'no ' + _sz + ' in that one right now, we only have it in ' + _sizes : 'we have it in ' + _sizes) + '". '
+              + 'Do NOT send this card back, do NOT send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.)\n\n' + _lu.content[0].text;
           }
         }
       }
