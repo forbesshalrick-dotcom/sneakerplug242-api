@@ -5176,6 +5176,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       return;
     }
   } catch (_) {}
+  // 👍 "OK COOL" AFTER PICTURES GETS NOTHING BACK (Rodney 2026-10-14, a TK customer: album, then "Ok cool",
+  // then Kiki sent "You just saw everything we got in your size! … Which one caught your eye?", a 👍, and
+  // 20 minutes later the "Still here whenever you're ready" closer — "these 2 messages not needed"). The
+  // prompt already said to reply with nothing and she replied anyway, so the code decides: a bare
+  // acknowledgement within 45 min of an album is logged, the follow-up is cancelled, and no reply goes out.
+  try {
+    const _ack = String(userText || '').trim();
+    const ACK_ONLY = /^(ok(ay)?|o+k+|k+|kk|alright|aight|ight|cool|cool cool|ok(ay)? (cool|bet|thanks?|thank you|then|den)|bet|nice|great|got it|thanks?|thank you|ty|tyvm|👍|👌|🙏|👍🏾|👍🏽|👍🏿|👍🏼|👍🏻)[\s!.]*$/i;
+    const _rs = recentlySent.get(sub);
+    if (!image && _ack && ACK_ONLY.test(_ack) && _rs && (Date.now() - _rs.ts) < 45 * 60 * 1000) {
+      try { clearFollowUp(sub); } catch (_) {}
+      try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _ack, name: ctx.name }); } catch (_) {}
+      record(req, { endpoint: 'ack-after-album-quiet', sub, q: _ack.slice(0, 30) });
+      return;
+    }
+  } catch (_) {}
   // 👆 "THIS" WITH NOTHING ATTACHED (2026-10-14, Rodney's test on Trendy Kicks: he quote-replied "this" to
   // our picture; ManyChat passes the words and drops the tag, and Kiki answered "I'm not seeing a picture
   // come through" / "having trouble picking that up on my end"). The tag cannot be recovered on ManyChat,
