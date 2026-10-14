@@ -3294,11 +3294,14 @@ const CONVOS_FILE = (() => {
 try {
   if (CONVOS_FILE && require('fs').existsSync(CONVOS_FILE)) {
     const saved = JSON.parse(require('fs').readFileSync(CONVOS_FILE, 'utf8'));
-    const cutoff = Date.now() - 6 * 60 * 60 * 1000; // only chats active in the last 6h
+    // 7 DAYS, NOT 6 HOURS (2026-10-14: Kaden Stubbs paid for a 9060 to Eleuthera, last wrote at 7:15 PM; the
+    // night's deploys restored only chats active in the last 6 h, so at 6:57 AM Kiki greeted him as a stranger
+    // and asked four times what he had ordered while he asked if it was on the plane).
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const entries = Object.entries(saved.chats || {})
       .filter(([, v]) => v && v.ts > cutoff && Array.isArray(v.h))
       .sort((a, b) => b[1].ts - a[1].ts)
-      .slice(0, 400); // safety cap
+      .slice(0, 3000); // safety cap
     for (const [sub, v] of entries) { convos.set(sub, v.h); convoTouched.set(sub, v.ts); }
     // Restore remembered sizes on their OWN 12h window (matches the TTL where sizeCtx is
     // built) — deliberately longer than the 6h chat cutoff above, because knowing the
