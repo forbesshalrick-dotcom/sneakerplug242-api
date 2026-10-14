@@ -2468,6 +2468,39 @@ const AI_TOOLS = [
 // Shorthand customers actually use that isn't in a shoe's stored text. We fold
 // these into the searchable haystack so "NB 9060", "TN", "AJ 4" all land:
 //   NB = New Balance · TN = Air Max Plus · AJ/Jordans = (Air) Jordan.
+/* 🎯 WHICH SHOE DID THEY NAME? (Rodney 2026-10-06 "he said vapormax", ported back 2026-10-14 after the 10-12 reset lost it.)
+ * "Vape" → "Got it — VaporMax, what size?" → "10" → two Jordan 4s: the bare size was searched alone and the shoe he named was
+ * dropped. Same again 2026-10-14 on Foot Fetish: "how much is the new balance" → "size 8 an size 7 in ahalf" → every brand.
+ * Read off our own live shelf (models, nicknames, brands), so it only ever knows shoes we sell. */
+let _modelVocab = null, _modelVocabAt = 0;
+function modelVocab() {
+  if (_modelVocab && Date.now() - _modelVocabAt < 10 * 60 * 1000) return _modelVocab;
+  const m = new Map();   // phrase -> the query to search with
+  try {
+    for (const sh of Object.values(liveShoeMap())) {
+      const br = String(sh.brand || '').toLowerCase().trim();
+      if (br.length >= 4) m.set(br, br);
+      const nm = String(sh.name || '').toLowerCase().replace(/^(nike|adidas|new balance|puma|asics|reebok|converse)\s+/, '').replace(/\s+0\d{2,}$/, '').trim();
+      if (nm.length >= 4) m.set(nm, nm);
+      const nick = String(sh.nickname || '').toLowerCase().trim();
+      if (nick.length >= 4) m.set(nick, nick);
+    }
+    for (const [k, v] of [['nb', 'new balance'], ['jordans', 'jordan'], ['js', 'jordan'], ['jays', 'jordan'], ['tn', 'air max plus'], ['tns', 'air max plus'], ['vapormax', 'vapormax'], ['vape', 'vapormax'], ['vapes', 'vapormax'], ['forces', 'air force 1'], ['af1', 'air force 1'], ['dunks', 'dunk'], ['crocs', 'crocs'], ['slides', 'slide']]) m.set(k, v);
+  } catch (_) {}
+  if (m.size) { _modelVocab = m; _modelVocabAt = Date.now(); }
+  return _modelVocab || m;
+}
+// The LAST model or brand named in this text, or ''. Longest phrase wins at the same position ("air max plus" beats "air max").
+function lastModelNamed(text) {
+  const t = ' ' + String(text || '').toLowerCase().replace(/[^a-z0-9. ]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  let bestAt = -1, best = '', bestLen = 0;
+  for (const [phrase, query] of modelVocab()) {
+    const at = t.lastIndexOf(' ' + phrase + ' ');
+    if (at < 0) continue;
+    if (at > bestAt || (at === bestAt && phrase.length > bestLen)) { bestAt = at; best = query; bestLen = phrase.length; }
+  }
+  return best;
+}
 function aliasTokens(s) {
   const out = [];
   const brand = (s.brand || '').toLowerCase();
@@ -5896,6 +5929,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
   } catch (_) {}
   const turnSizeSearchSizes = [];       // sizes from pure size (±brand only) searches this turn
+  let turnMatchingPair = false;         // a search this turn wanted pairs in EVERY size given (size_match "all") — never widened
   const turnSizeSearchBrands = [];      // the brand filter on each of those searches ('' = none)
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
   let turnGenericSizeAlbum = false;     // an album went out with a size-only lead-in (no brand/model/colour)
@@ -5922,6 +5956,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       ? AI_TOOLS.filter(t => t.name !== 'send_photos')
       : null;
   try {
+  // 🎯 A bare size answers the question about the shoe they already named — search THAT shoe in it (see lastModelNamed).
+  let namedModel = '';
+  try {
+    const _txt = (h) => typeof h.content === 'string' ? h.content : (Array.isArray(h.content) ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : '');
+    let _said = String(userText || '').split('(SYSTEM')[0];
+    // "Yes" / "ok send" right after their sizes is the sizes message going ahead (Lady Resh: sizes, Kiki asked "matching?", "Yes").
+    if (/^\W*(y(e|a)s+|yeah|yea|yep|ok(ay)?|sure|please|pls|send( it| them)?|go ahead)\W*$/i.test(_said.trim())) {
+      const _prevUser = history.slice(0, -1).filter(h => h && h.role === 'user').map(_txt).filter(t => t && !/^\(SYSTEM/.test(t)).pop() || '';
+      _said = _prevUser.split('(SYSTEM')[0];
+    }
+    if (!staffName && !image && _said.split(/\s+/).length <= 12 && !lastModelNamed(_said)
+        && /\b(1[0-5]|[4-9])(\.5)?\b|\b(four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)\b/i.test(_said)) {
+      const _recent = history.slice(-9, -1).map(_txt).join(' \n ');
+      namedModel = lastModelNamed(_recent);
+      if (namedModel) {
+        system += '\n\n⚠️ THEY ALREADY NAMED THE SHOE: **' + namedModel + '**. The size they just sent is for THAT shoe — the answer to the question '
+          + 'you asked, not a request for the whole shelf. Call search_inventory with query "' + namedModel + '" and their size(s), and send what it finds. '
+          + 'If we do not have it in their size, say so plainly and give the sizes it DOES come in before offering anything else.';
+        record(req, { endpoint: 'bare-size-kept-the-shoe', sub, model: namedModel, q: _said.slice(0, 30) });
+      }
+    }
+  } catch (_) {}
   for (let step = 0; step < 6; step++) {
     // On the FIRST move of a photo turn, FORCE Kiki to search inventory — so she can't
     // answer "what size?" or "we're out" without actually looking first. This is the
@@ -6275,6 +6331,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // specific and must NOT be widened to the whole size.
         const hasSize = p.size != null || (Array.isArray(p.sizes) && p.sizes.length);
         const restrictive = !!(p.color || p.query || p.max_price != null || p.min_price != null || p.womens);
+        if (String(p.size_match || '').toLowerCase() === 'all') turnMatchingPair = true;
         if (restrictive) turnHadRestrictiveSearch = true;
         if (hasSize && !restrictive) {
           [].concat(Array.isArray(p.sizes) ? p.sizes : (p.sizes != null ? [p.sizes] : []))
@@ -6487,7 +6544,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
                 : (Array.isArray(m.content) ? m.content.filter(bl => bl && bl.type === 'text').map(bl => bl.text || '').join(' ') : ''))
           ).join(' ');
           const _brandKeys = [...new Set(turnSizeSearchBrands)];
-          if (!staffName && turnGenericSizeAlbum && !turnHadRestrictiveSearch
+          // Not after a matching-pair search (2026-10-14, Foot Fetish, Lady Resh: "size 8 an size 7 in ahalf" → 18 shoes that come
+          // in both, then this top-up added every shoe in EITHER size and 100+ pictures went out).
+          if (!staffName && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
               && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1) {
             const _onlyBrand = _brandKeys[0] ? _brandKeys[0].split('+') : null;
             const _full = searchInventory(Object.assign(
