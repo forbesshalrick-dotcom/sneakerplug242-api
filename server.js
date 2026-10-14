@@ -1691,6 +1691,7 @@ const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 min
 const END_OF_PHOTOS_MSG = `let me know if you need a delivery`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const lastAsk = new Map(); // sub -> { p, ids, at }: the last search_inventory ask, so the closing line repeats what they asked for
+const cardBurst = new Map(); // sub -> [{ id, at }]: our shoes from pictures held back because another picture was right behind
 const FOLLOWUP_MSG = "";
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
@@ -2864,11 +2865,14 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   // a shoe early than lose the contact forever; if they actually wanted more they'll
   // just say so. ("thanks" only counts MID-album — this regex only ever runs there.)
   const STOPPISH = /\b(stop|enough|never ?mind|nvm|don'?t send|dont send|leave it|forget it|chill|hold (on|up)|wait( a (minute|min|sec|second))?|unsubscribe|that'?s? (it|all|good|fine|plenty|okay|ok)|i'?m (good|okay|ok|fine|straight|set|done)|we('re| are)? (good|done)|all set|no thanks|no more( pic(ture)?s)?|don'?t want (to )?see|done look(ing)?|thanks|thank you|tanks|ty)\b/i;
+  // A picture stops an ALBUM, never a single shoe: Van Roberts (TK, 2026-10-14) forwarded three cards in a row and
+  // each card's one picture was cut off by the next card, leaving "Here it is 👇" over nothing.
+  const _oneShoe = ((Array.isArray(groups) && groups.length) ? groups.flatMap(g => g.ids || []) : (ids || [])).length <= 1;
   const customerSpoke = () => {
     const t = lastIncoming.get(sub);
     if (!(t && t > startedAt)) return false;
     const txt = lastIncomingText.get(sub) || '';
-    return STOPPISH.test(txt) || REDIRECT.test(txt) || NO_ONLY.test(txt) || PHOTO_IN.test(txt.trim());
+    return STOPPISH.test(txt) || REDIRECT.test(txt) || NO_ONLY.test(txt) || (!_oneShoe && PHOTO_IN.test(txt.trim()));
   };
   // PAUSE-ANSWER-CONTINUE (Rodney 2026-07-14: a customer asked "How much" mid-album,
   // the pictures kept rolling and the question never got answered): a non-stop message
@@ -5613,6 +5617,29 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     } catch (_) {}
   }
+  // 🃏 A BURST OF PICTURES IS ONE ANSWER (Rodney 2026-10-14: Van Roberts on TK forwarded three of our cards in four
+  // seconds and got six texts, one answer per card). When this picture names one of our shoes and the customer has
+  // already sent another picture behind it, hold it; the last picture's turn answers them all in one message.
+  let heldPicks = [];
+  if (image && _idVerdict && !staffName) {
+    try {
+      const _mo0 = _idVerdict.match(/OURS:\s*([^\n]+)/i), _o0 = _mo0 ? _mo0[1].trim() : '';
+      const _sh0 = _o0 && !/NOT IN STOCK|NOT A SHOE/i.test(_o0)
+        ? (stockLineIds.get(normStockLine(_o0.replace(/^[\-*•\s]+/, ''))) || []).slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0] : null;
+      const _held = (cardBurst.get(sub) || []).filter(h => Date.now() - h.at < 3 * 60000);
+      const _picBehind = (lastIncoming.get(sub) || 0) > (ctx.turnAt || 0)
+        && /manybot-files|^\[photo\]$|^https?:\/\/\S+\.(?:jpe?g|png|webp)/i.test(String(lastIncomingText.get(sub) || '').trim());
+      if (_sh0 && _sh0.id != null && _picBehind) {
+        if (!_held.some(h => h.id === String(_sh0.id))) _held.push({ id: String(_sh0.id), at: Date.now() });
+        cardBurst.set(sub, _held);
+        record(req, { endpoint: 'card-burst-held', sub, shoe: String(_sh0.id), held: _held.length });
+        return;
+      }
+      const _lv = liveShoeMap();
+      heldPicks = _held.filter(h => !_sh0 || h.id !== String(_sh0.id)).map(h => _lv[h.id]).filter(Boolean);
+      cardBurst.delete(sub);
+    } catch (_) {}
+  }
   const userMsg = {
     role: 'user',
     content: image
@@ -5656,7 +5683,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (_idVerdict && !staffName) {
       const _mo = _idVerdict.match(/OURS:\s*([^\n]+)/i);
       const _ours = _mo ? _mo[1].trim() : '';
-      if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !/KIND:\s*CARD/i.test(_idVerdict)) {
+      const _isCard = /KIND:\s*CARD/i.test(_idVerdict) || heldPicks.length > 0;   // a burst is answered like forwarded cards
+      if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !_isCard) {
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
         const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
         if (_pickSh && _pickSh.id != null) {
@@ -5680,7 +5708,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             }
           }
         }
-      } else if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && /KIND:\s*CARD/i.test(_idVerdict)) {
+      } else if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && _isCard) {
         /* 🃏 THEY FORWARDED ONE OF OUR CARDS (2026-10-14, Rodney: a customer forwarded our "Nike Air Max 97 Golf
          * Green" card, the reader named it exactly, but it only comes in a 9.5, he wears an 8.5 — and Kiki sent a
          * Jordan 3 Pine Green (green, in an 8.5), called it "Air Max 97 Blue Green" and invented "runs a touch
@@ -5695,8 +5723,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _has = _sz && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_sz));
           const _sizes = sizesOf(_pickSh) || 'none right now';
           record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has });
+          const _all = [_pickSh].concat(heldPicks.filter(h => String(h.id) !== String(_pickSh.id)));
+          _all.forEach(x => pinnedPickIds.add(String(x.id)));
           const _lu = history[history.length - 1];
-          if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
+          if (_all.length > 1 && _lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
+            const _one = (x) => { const h = _sz && (x.sizesRaw || []).some(y => parseFloat(y) === parseFloat(_sz));
+              return 'the ' + displayName(x) + ' (shoe id ' + x.id + '), $' + (parseFloat(x.price) || 0) + ', ONLY in: ' + (sizesOf(x) || 'none right now') + (_sz ? (h ? ' (has their ' + _sz + ')' : ' (NOT in their ' + _sz + ')') : ''); };
+            _lu.content[0].text = '(SYSTEM: they sent ' + _all.length + ' pictures of OUR shoes one after another: ' + _all.map(_one).join('; ')
+              + '. Answer ALL of them in ONE short message: each shoe with its price and its sizes, then ' + (_sz ? 'say which come in their ' + _sz : 'ask their size once')
+              + '. Send NO pictures, they already have them. NEVER send or name a different shoe, never give fit advice.)\n\n' + _lu.content[0].text;
+          } else if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
               + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
               + ' Answer about THIS shoe only, in one short line, e.g. "That\'s the ' + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0) + ' — '
@@ -5707,6 +5743,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (e) { try { record(req, { endpoint: 'photo-shoe-send-error', sub, error: String(e).slice(0, 90) }); } catch (_) {} }
+  if (heldPicks.length && !pinnedPickIds.size) {   // the burst ended on a picture that is not one of ours: still answer the held ones
+    const _lu = history[history.length - 1];
+    if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text')
+      _lu.content[0].text = '(SYSTEM: just before this picture they sent pictures of OUR shoes: ' + heldPicks.map(x => 'the ' + displayName(x) + ', $' + (parseFloat(x.price) || 0) + ', ONLY in: ' + (sizesOf(x) || 'none right now')).join('; ')
+        + '. Answer those in the same one message as this picture, with their prices and sizes.)\n\n' + _lu.content[0].text;
+  }
   /* 📦 A PLACED ORDER ASKING "IS IT ON THE BOAT?" PINGS THE OWNER — EVERY TIME (Rodney 2026-10-13,
    * "omg we missed this delivery"). Kaden Stubbs paid $130 at 12:45 for a 9060 to Eleuthera, told
    * Kiki the freight cutoff was 4 PM, then asked "is it on the boat?" EIGHT times over five hours
@@ -5979,7 +6021,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // function available to me. The tools I have are for searching inventory, notifying the
       // manager, escalating to an agent...". A wholesale buyer read our internal tool list.
       // Suppressing the forced CALL was never enough; the note itself had to stop being sent.
-      if (!wholesale && !staffName && !photosSentRun && lastSearchCount > 0 && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
+      // A forwarded card is excluded: they already hold its picture, and the forced send came out as a second line
+      // ("Yep, that's the Nike Shox All Black! Here it is 👇") under her answer (Van Roberts, TK, 2026-10-14).
+      if (!wholesale && !staffName && !photosSentRun && !pinnedPickIds.size && lastSearchCount > 0 && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
         record(req, { endpoint: 'force-photo-after-text', sub, q: (turnText || '').slice(0, 60) });
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just described a specific shoe with its price/sizes in WORDS but never sent its picture, so the customer is left having to ask for a pic. Call send_photos NOW for that exact shoe you just found (a short lead_in like "Here it is 👇"). The photo, with its name/price/sizes label, IS the answer — never make them ask to see it.)' });
         forcePhotosNext = true; forcedPhotosOnce = true;
@@ -10742,9 +10786,11 @@ app.post('/inbox/send-shoe', async (req, res) => {
         const batchIds = batches[i];
         const isLast = (i === batches.length - 1);
         inboxAlbumInFlight.set(sub, { what: what || 'that', total: allIds.length, batch: i + 1, batches: batches.length, startedAt: Date.now() });
-        // Last batch gets the lead-in built into sendShoePhotos; earlier ones are photos-only
-        const batchLeadIn = isLast ? leadIn : '';
-        const r = await sendShoePhotos(sub, batchIds, token, null, batchLeadIn, i > 0);
+        // The lead-in already went out above, and the closing line belongs after the LAST batch only (Rodney
+        // 2026-10-14, .SlimShady: one 50-pair size-12 send read as two — "This is what we have 👟" after batch 1,
+        // then the size-12 lead-in again before batch 3). The closing names the whole album, from this ask.
+        if (isLast) lastAsk.set(sub, { p: { size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query }, ids: new Set(allIds.map(String)), at: Date.now() });
+        const r = await sendShoePhotos(sub, batchIds, token, null, '', !isLast);
         totalSent += r.sent;
         // A stop inside a batch ends the WHOLE album, not just that batch.
         if (r.interrupted) { stopped = true; break; }
