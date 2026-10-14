@@ -3218,7 +3218,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   // the code" line, leaving the customer with no idea what to do). Only a manual ✋ STOP, a
   // mid-album redirect (they changed the request — answered next turn), photos-only mode, or a
   // staff chat suppress it now.
-  if (sent > 0 && !manualStopped && !redirectedMidAlbum && !photosOnly && !isStaff) {
+  // One picture is not an album: re-sending the shoe they picked closed with "This is what we have in ASICS" (Foot Fetish,
+  // 2026-10-14) — the closing line is for albums only.
+  if (sent > 1 && !manualStopped && !redirectedMidAlbum && !photosOnly && !isStaff) {
     // ManyChat lands separate sends out of order: the closing line was arriving BEFORE the last
     // picture's sizes bubble (Rodney 2026-10-13). Give the last label a moment to land first.
     if (showSizes) await new Promise(r => setTimeout(r, 3000));
