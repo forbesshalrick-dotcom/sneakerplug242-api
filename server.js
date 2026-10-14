@@ -1339,6 +1339,7 @@ async function waSendChunk(to, messages, phoneNumberId) {
 const THINK_PAIR_RE = /<\s*(thinking|thought|scratchpad|reasoning|internal)\s*>[\s\S]*?<\s*\/\s*\1\s*>/gi;
 const THINK_OPEN_RE = /<\s*(?:thinking|thought|scratchpad|reasoning|internal)\s*>[\s\S]*$/i;
 const THINK_CLOSE_RE = /^[\s\S]*<\s*\/\s*(?:thinking|thought|scratchpad|reasoning|internal)\s*>/i;
+const SELF_INTRO_RE = /\b(?:I['’]?m|I am|this is|it['’]?s)\s+Kiki\s+(?:from|with|at|here at|over at)\s+[A-Z][\w'’&]*(?:\s+[A-Z][\w'’&]*){0,3}\s*(?:[—–\-,!.]\s*)?/g;
 function stripThinking(s) {
   if (!s) return '';
   let out = String(s).replace(THINK_PAIR_RE, '');
@@ -1497,6 +1498,11 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       leaked = true;
       const kept = stripThinking(mm.text);
       if (kept) mm.text = kept; else messages.splice(i, 1);
+    }
+    // No self-introduction (Rodney 2026-10-14: "Hey! I'm Kiki from Trendy Kicks — I'm here on WhatsApp…"). Her name
+    // only answers "what's your name?", which never comes with "from <shop>".
+    for (const mm of (messages || [])) {
+      if (mm && mm.type === 'text' && mm.text && SELF_INTRO_RE.test(mm.text)) mm.text = mm.text.replace(SELF_INTRO_RE, '').replace(/^\s*[—–\-,]\s*/, '').trim();
     }
     if (leaked) {
       recent.unshift({ at: new Date().toISOString(), endpoint: 'thinking-stripped', sub: subscriberId });
@@ -1696,7 +1702,23 @@ const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 min
 const END_OF_PHOTOS_MSG = `let me know if you need a delivery`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const lastAsk = new Map(); // sub -> { p, ids, at }: the last search_inventory ask, so the closing line repeats what they asked for
-const cardBurst = new Map(); // sub -> [{ id, at }]: our shoes from pictures held back because another picture was right behind
+const cardBurst = new Map(); // sub -> [{ id | gone, at }]: shoes from pictures held back because another picture was right behind
+// What a picture-reader verdict names: one of our shoes ({sh}), or a shoe we don't have, by what it shows ({gone}).
+function shoeFromVerdict(v) {
+  const m = String(v || '').match(/OURS:\s*([^\n]+)/i), o = m ? m[1].trim() : '';
+  if (!o || /NOT A SHOE/i.test(o)) return {};
+  if (!/NOT IN STOCK/i.test(o)) {
+    const sh = (stockLineIds.get(normStockLine(o.replace(/^[\-*•\s]+/, ''))) || []).slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
+    if (sh && sh.id != null) return { sh };
+  }
+  const seen = (String(v).match(/SEEN:\s*([^\n]+)/i) || [])[1] || '';
+  const first = seen.split(/[.;]/)[0].replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+  const parts = first.split(/,|\s+in\s+(?:an?\s+|the\s+)?/);
+  const model = parts[0].trim();
+  const colour = (parts[1] || '').split(/\s+with\s+|\s+and\s+(?:a|an|the)\s+/)[0]
+    .replace(/\b(upper|gradient|colou?rway|suede|leather|mesh|nubuck|midsole|sole|fade)\b/gi, '').replace(/\s+/g, ' ').trim();
+  return model ? { gone: (colour && colour.split(' ').length <= 4 ? colour + ' ' : '') + model } : {};
+}
 const FOLLOWUP_MSG = "";
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
@@ -2055,7 +2077,7 @@ Do you want some pictures? 👟
 ${SITE_LIVE ? '' : `
 🚧 TEMPORARY — OUR WEBSITE IS DOWN (CRITICAL, overrides anything below): the online store is offline right now, so DO NOT send the website link, do NOT tell customers to "browse/search/shop on our site", and do NOT offer paying "on the website / with card online" — those all lead to a dead page. Sell 100% IN THE CHAT: show shoes as PHOTOS here and take the order here. If a customer asks for the website or "the full lineup", say the site is down for maintenance and offer to send photos in their size instead ("Our site's down for a lil maintenance 🙈 tell me your size and I'll show you everything we got right here 👟"). Payment options while the site is down: 💵 cash on delivery, 🏦 bank transfer (Scotiabank or CIBC), or 📲 SunCash — never card-on-website. This rule wins over every other mention of the website anywhere in these instructions.
 `}
-YOUR NAME IS KIKI. You're part of the ${storeName} team. If a customer asks your name, you're Kiki 😊. Never call yourself "Claude", an "AI", a "bot", or "automated", and don't bring it up. If someone asks straight up if you're a bot or a real person, keep it light and friendly and steer back to helping them find shoes (e.g. "Haha I'm Kiki from ${storeName} 😊 what size you looking for?").
+YOUR NAME IS KIKI. You're part of the ${storeName} team. Never introduce yourself or say your name unprompted — no "I'm Kiki", no "Kiki from ${storeName}" (Rodney 2026-10-14: "she don't have to mention her name or introduce herself"). Only if a customer asks your name, you're Kiki 😊. Never call yourself "Claude", an "AI", a "bot", or "automated", and don't bring it up. If someone asks straight up if you're a bot or a real person, keep it light and friendly and steer back to helping them find shoes (e.g. "Haha I'm with ${storeName} 😊 what size you looking for?").
 
 How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
@@ -5333,7 +5355,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _pt = String(userText || '').trim();
     const _lp = lastInboundPhoto.get(String(sub));
     if (!image && _lp && (Date.now() - _lp.at) < 10 * 60 * 1000 && _pt && !/^\(SYSTEM/.test(_pt)
-        && _pt.split(/\s+/).length <= 8 && /\b(this|these|that|those|dis|dem|dat|it|them|one|1)\b|^\W*$|\?$/i.test(_pt)) {
+        && _pt.split(/\s+/).length <= 8 && /\b(this|these|that|those|dis|dem|dat|it|them|one|1)\b|^\W*$/i.test(_pt)
+        // Only a pointing message. Any short question used to count, so "Where you located ?" and "Do you have a store
+        // front?" brought the Foam Runner card back and it was sent again (2026-10-14, TK).
+        && !/\b(where|located|location|store ?front|shop|open|close|deliver|delivery|bring|pick ?up|pay|payment|cash|card|call)\b/i.test(_pt)) {
       image = _lp.img;
       userText = '(SYSTEM: this message is about the picture the customer sent a moment ago — it is attached again here. Answer about that shoe.)\n' + _pt;
       record(req, { endpoint: 'pointer-photo-reattached', sub, q: _pt.slice(0, 40), agoS: Math.round((Date.now() - _lp.at) / 1000) });
@@ -5623,25 +5648,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     } catch (_) {}
   }
   // 🃏 A BURST OF PICTURES IS ONE ANSWER (Rodney 2026-10-14: Van Roberts on TK forwarded three of our cards in four
-  // seconds and got six texts, one answer per card). When this picture names one of our shoes and the customer has
-  // already sent another picture behind it, hold it; the last picture's turn answers them all in one message.
-  let heldPicks = [];
+  // seconds and got six texts, one answer per card). When this picture is a shoe and the customer has already sent
+  // another picture behind it, hold it — ours by id, a sold-out one by what the picture shows; the last picture's turn
+  // answers them all in one message.
+  let burstHeld = [];
   if (image && _idVerdict && !staffName) {
     try {
-      const _mo0 = _idVerdict.match(/OURS:\s*([^\n]+)/i), _o0 = _mo0 ? _mo0[1].trim() : '';
-      const _sh0 = _o0 && !/NOT IN STOCK|NOT A SHOE/i.test(_o0)
-        ? (stockLineIds.get(normStockLine(_o0.replace(/^[\-*•\s]+/, ''))) || []).slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0] : null;
+      const _v0 = shoeFromVerdict(_idVerdict);
       const _held = (cardBurst.get(sub) || []).filter(h => Date.now() - h.at < 3 * 60000);
       const _picBehind = (lastIncoming.get(sub) || 0) > (ctx.turnAt || 0)
         && /manybot-files|^\[photo\]$|^https?:\/\/\S+\.(?:jpe?g|png|webp)/i.test(String(lastIncomingText.get(sub) || '').trim());
-      if (_sh0 && _sh0.id != null && _picBehind) {
-        if (!_held.some(h => h.id === String(_sh0.id))) _held.push({ id: String(_sh0.id), at: Date.now() });
+      if ((_v0.sh || _v0.gone) && _picBehind) {
+        _held.push(_v0.sh ? { id: String(_v0.sh.id), at: Date.now() } : { gone: _v0.gone, at: Date.now() });
         cardBurst.set(sub, _held);
-        record(req, { endpoint: 'card-burst-held', sub, shoe: String(_sh0.id), held: _held.length });
+        record(req, { endpoint: 'card-burst-held', sub, shoe: _v0.sh ? String(_v0.sh.id) : _v0.gone, held: _held.length });
         return;
       }
-      const _lv = liveShoeMap();
-      heldPicks = _held.filter(h => !_sh0 || h.id !== String(_sh0.id)).map(h => _lv[h.id]).filter(Boolean);
+      burstHeld = _held;
       cardBurst.delete(sub);
     } catch (_) {}
   }
@@ -5685,10 +5708,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
    * sends THAT card itself and tells Kiki to answer in words (name, price, ask size). Our own
    * cards coming back at us (KIND: CARD) are left to the normal flow - that is the echo case. */
   try {
-    if (_idVerdict && !staffName) {
+    if (_idVerdict && !staffName && !burstHeld.length) {   // a burst is answered as one, below
       const _mo = _idVerdict.match(/OURS:\s*([^\n]+)/i);
       const _ours = _mo ? _mo[1].trim() : '';
-      const _isCard = /KIND:\s*CARD/i.test(_idVerdict) || heldPicks.length > 0;   // a burst is answered like forwarded cards
+      const _isCard = /KIND:\s*CARD/i.test(_idVerdict);
       if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !_isCard) {
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
         const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
@@ -5728,29 +5751,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _has = _sz && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_sz));
           const _sizes = sizesOf(_pickSh) || 'none right now';
           record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has });
-          const _all = [_pickSh].concat(heldPicks.filter(h => String(h.id) !== String(_pickSh.id)));
-          _all.forEach(x => pinnedPickIds.add(String(x.id)));
           const _lu = history[history.length - 1];
-          if (_all.length > 1) {
-            /* 🧾 SEVERAL OF OUR SHOES SENT BACK IS A SHOPPING LIST (Rodney 2026-10-08, ported back 2026-10-14 — the 10-12
-             * reset lost it): "if he sent four pictures back he is interested in four". Each with its price, the total,
-             * and his deal: $10 OFF EACH PAIR when they take 2 or more. Written by code, sent once per burst. */
-            const _inSz = (x) => _sz && (x.sizesRaw || []).some(y => parseFloat(y) === parseFloat(_sz));
-            const _total = _all.reduce((n, x) => n + (parseFloat(x.price) || 0), 0);
-            const _deal = _total - 10 * _all.length;
-            const _have = _all.filter(_inSz);
-            const _msg = 'Good picks \u{1F44C}\n' + _all.map(x => '• ' + displayName(x) + ' — $' + (parseFloat(x.price) || 0) + ' (' + (sizesOf(x) || 'sold out right now') + ')').join('\n')
-              + '\n\nThat’s $' + _total + ' for the ' + _all.length + ' — take them all together an I’ll do $' + _deal + ' \u{1F45F}'
-              + (!_sz ? '\n\nFree delivery — what size you wear?'
-                : _have.length === _all.length ? '\n\nAll in your ' + _sz + '. Free delivery — where you want them brought?'
-                : _have.length ? '\n\nIn your ' + _sz + ': ' + _have.map(x => 'the ' + displayName(x)).join(' and ') + '. Free delivery — where you want them brought?'
-                : '\n\nNone of these come in a ' + _sz + ' right now \u{1F64F} only the sizes above.');
-            try { await sendChunk(sub, [{ type: 'text', text: await say(_msg, sub) }], token); sentToCustomer = true; } catch (_) {}
-            record(req, { endpoint: 'picks-totalled-with-deal', sub, store: ctx.store || '', picks: _all.length, total: _total, deal: _deal });
-            if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text')
-              _lu.content[0].text = '(✅ ALREADY SENT TO THEM: "' + _msg + '". They sent ' + _all.length + ' pictures of our shoes in a row and that message answers all of them. '
-                + 'Send NO pictures and do NOT repeat it. If their message asked nothing else, reply with nothing at all; if it did, answer only that in one short line.)\n\n' + _lu.content[0].text;
-          } else if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
+          if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
               + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
               + ' Answer about THIS shoe only, in one short line, e.g. "That\'s the ' + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0) + ' — '
@@ -5761,11 +5763,54 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (e) { try { record(req, { endpoint: 'photo-shoe-send-error', sub, error: String(e).slice(0, 90) }); } catch (_) {} }
-  if (heldPicks.length && !pinnedPickIds.size) {   // the burst ended on a picture that is not one of ours: still answer the held ones
-    const _lu = history[history.length - 1];
-    if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text')
-      _lu.content[0].text = '(SYSTEM: just before this picture they sent pictures of OUR shoes: ' + heldPicks.map(x => 'the ' + displayName(x) + ', $' + (parseFloat(x.price) || 0) + ', ONLY in: ' + (sizesOf(x) || 'none right now')).join('; ')
-        + '. Answer those in the same one message as this picture, with their prices and sizes.)\n\n' + _lu.content[0].text;
+  /* 🧾 THE BURST, ANSWERED ONCE. Several of our shoes sent back is a shopping list (Rodney 2026-10-08, ported back
+   * 2026-10-14 after the 10-12 reset lost it): each with its price, the total, and his deal — $10 OFF EACH PAIR when
+   * they take 2 or more. Some of them sold out (Rodney 2026-10-14: "if someone sends 4 pictures and she only has 2,
+   * send back the 2 that she has and say we only have these 2 … the blue and red, those two are sold out"): the
+   * pictures of the ones we have go back, and the others are named as sold out. Written by code, sent once. */
+  if (burstHeld.length) {
+    try {
+      const _lv = liveShoeMap(), _cur = shoeFromVerdict(_idVerdict || '');
+      const _items = burstHeld.concat(_cur.sh ? [{ id: String(_cur.sh.id) }] : _cur.gone ? [{ gone: _cur.gone }] : []);
+      const _have = [], _gone = [];
+      for (const h of _items) {
+        const x = h.id != null ? _lv[h.id] : null;
+        if (x && (x.sizesRaw || []).length) { if (!_have.some(y => String(y.id) === String(x.id))) _have.push(x); }
+        else { const n = x ? displayName(x) : h.gone; if (n && !_gone.includes(n)) _gone.push(n); }
+      }
+      _have.forEach(x => pinnedPickIds.add(String(x.id)));
+      const _csz = custSize.get(sub);
+      const _sz = (_csz && _csz.size && (Date.now() - (_csz.ts || 0)) < 12 * 60 * 60 * 1000) ? String(_csz.size) : '';
+      const _inSz = (x) => _sz && (x.sizesRaw || []).some(y => parseFloat(y) === parseFloat(_sz));
+      const _and = (a) => a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+      const _total = _have.reduce((n, x) => n + (parseFloat(x.price) || 0), 0), _deal = _total - 10 * _have.length;
+      const _list = _have.map(x => '• ' + displayName(x) + ' — $' + (parseFloat(x.price) || 0) + ' (' + sizesOf(x) + ')').join('\n');
+      const _mine = _have.filter(_inSz);
+      const _tail = !_have.length ? '\n\nWhat size you wear? I\u2019ll show you what we have \u{1F45F}'
+        : !_sz ? '\n\nFree delivery — what size you wear?'
+        : _mine.length === _have.length ? '\n\n' + (_have.length > 1 ? 'All' : 'It\u2019s') + ' in your ' + _sz + '. Free delivery — where you want ' + (_have.length > 1 ? 'them' : 'it') + ' brought?'
+        : _mine.length ? '\n\nIn your ' + _sz + ': ' + _and(_mine.map(x => 'the ' + displayName(x))) + '. Free delivery — where you want them brought?'
+        : '\n\nNo ' + _sz + ' in ' + (_have.length > 1 ? 'these' : 'that one') + ' right now \u{1F64F} only the sizes above.';
+      const _dealLine = _have.length > 1 ? '\n\nThat\u2019s $' + _total + ' for the ' + _have.length + ' — take them all together an I\u2019ll do $' + _deal + ' \u{1F45F}' : '';
+      let _msg;
+      if (!_gone.length) _msg = 'Good picks \u{1F44C}\n' + _list + _dealLine + _tail;
+      else {
+        if (_have.length) {
+          await sendChunk(sub, [{ type: 'text', text: await say(_have.length === 1 ? 'We only have this one \u{1F447}' : 'We only have these ' + _have.length + ' \u{1F447}', sub) }], token).catch(() => {});
+          const _rr = await sendShoePhotos(sub, _have.map(x => x.id), token, null, '', true, false, ctx.turnAt || 0, true).catch(() => null);
+          if (_rr && _rr.sent) { photosSentRun = true; _have.forEach(x => turnSentIds.add(String(x.id))); }
+          await new Promise(r => setTimeout(r, isYcloudSub(sub) ? 7000 : 3000));   // the text must land under the pictures
+        }
+        _msg = (_gone.length === 1 ? 'The ' + _gone[0] + ' is' : 'The ' + _and(_gone) + ' are') + ' sold out right now \u{1F64F}'
+          + (_have.length ? '\n\n' + _list : '') + _dealLine + _tail;
+      }
+      await sendChunk(sub, [{ type: 'text', text: await say(_msg, sub) }], token).then(() => { sentToCustomer = true; }).catch(() => {});
+      record(req, { endpoint: 'picks-totalled-with-deal', sub, store: ctx.store || '', have: _have.map(x => String(x.id)), gone: _gone, total: _total, deal: _have.length > 1 ? _deal : null });
+      const _lu = history[history.length - 1];
+      if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text')
+        _lu.content[0].text = '(✅ ALREADY SENT TO THEM: ' + (_gone.length && _have.length ? 'the pictures of the ones we have, then ' : '') + '"' + _msg + '". They sent '
+          + _items.length + ' pictures of shoes in a row and that answers all of them. Send NO pictures and do NOT repeat it. If their message asked nothing else, reply with nothing at all; if it did, answer only that in one short line.)\n\n' + _lu.content[0].text;
+    } catch (e) { record(req, { endpoint: 'picks-total-error', sub, error: String(e).slice(0, 90) }); }
   }
   /* 📦 A PLACED ORDER ASKING "IS IT ON THE BOAT?" PINGS THE OWNER — EVERY TIME (Rodney 2026-10-13,
    * "omg we missed this delivery"). Kaden Stubbs paid $130 at 12:45 for a 9060 to Eleuthera, told
@@ -5979,6 +6024,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply named a fee we do not charge (' + bad.slice(0, 2).join('; ') + '). There are NO island, service, card or handling fees. The ONLY extra cost that exists is shipping to another island: boat $10 or plane $35. Local delivery in Nassau is free. Rewrite the reply with the total = shoe price + that shipping only, and put that exact total in the pay link.)' });
         continue;
       }
+    }
+    /* 🔗 NO "[TOTAL]" LINK (Rodney 2026-10-14: "How can I do a online payment…" got pay?amount=[TOTAL] and "just replace
+     * [TOTAL] with the shoe price"; the pay page refuses a link with no amount). No shoe picked yet = no link: ask which
+     * shoe and size, and the exact link follows. */
+    if (turnText && !staffName && feeBlocks < 1 && /\[\s*(TOTAL|AMOUNT|PRICE)\s*\]|amount=(?!\d)/i.test(turnText)) {
+      feeBlocks++;
+      record(req, { endpoint: 'pay-placeholder-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message.)' });
+      continue;
     }
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
