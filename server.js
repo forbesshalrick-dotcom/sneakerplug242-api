@@ -3251,7 +3251,8 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
           if (/scorpion/.test(n)) return ['Scorpions', 'Nike'];
           if (/shox/.test(n)) return ['Shox', 'Nike'];
           return [null, (sh.brand || '').trim() || null]; };
-        const went = albumTrace.filter(t => t && (t.status === 200 || /success|sent|ghost|timeout/i.test(String(t.body || '')))).map(t => byRealId[String(t.id)] || live[t.id]).filter(Boolean);
+        // albumTrace only ever holds pictures that were delivered (a Facebook/compose send has no ManyChat "success" body).
+        const went = albumTrace.filter(Boolean).map(t => byRealId[String(t.id)] || live[t.id]).filter(Boolean);
         const fams = went.map(fam);
         const one = (k) => { const v = fams.map(f => f[k]); return v.length && v[0] && v.every(x => x === v[0]) ? v[0] : ''; };
         // Rodney 2026-10-14 ("Do you have 8.5 in the vomero5" got "This is what we have in Nike"): say back the
