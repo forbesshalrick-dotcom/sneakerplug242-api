@@ -2297,7 +2297,7 @@ BAHAMIAN "COMING" PHRASING (IMPORTANT — locals often ask questions with no que
 
 SPECIAL CONTACTS:
 - If the customer's message is just the name "Rodney" (spelled R-O-D-N-E-Y), it's probably Rodney's mom. First reply ONLY with: "Hey! Is this Mommy? 😊" If she replies yes, then reply warmly: "Hi Mo! How are you doing? Love you. Hope everything is okay! 💛"
-${who ? `- The customer's saved name is "${who}".\n` : ''}- If the customer's saved name is exactly "Deashinique", greet her with: "Hey Deashinique! What's up? 👟" (always spell it exactly "Deashinique").
+- The customer's saved name, if we have one, is in the CUSTOMER DETAILS block at the very end.\n- If the customer's saved name is exactly "Deashinique", greet her with: "Hey Deashinique! What's up? 👟" (always spell it exactly "Deashinique").
 
 FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get sorted?" and they reply: if they say NO / nothing caught their eye → reply "Okay, no worries! Maybe next time. Have a good day! 👟". If they say YES / they liked something → ask them for the CODE on the photo, e.g. "Nice! 😍 What's the code on the one you liked? It's the *A1* right under the photo 👟" — then look it up and help them order.
 
@@ -2614,6 +2614,28 @@ function liveCatalog() {
   return Object.keys(m).map(id => ({ s: m[id], id: +id }));
 }
 
+/* 🏷️ "WHITE THUNDER" IS A SHOE, NOT THE COLOUR WHITE (Rodney 2026-10-10 "why can't Kiki understand shoe names?", ported back
+ * 2026-10-14 — the 10-12 reset lost it, and the black/white = pure colour rule made it worse: "white thunder" became "all-white
+ * shoes only" and dropped the White Thunder). A shoe's own nickname — from the live shelf, so "Cozy Girl" and "Red Toro" count —
+ * is cut out before colours are read. Re-read every 10 minutes because shoes are added during the day. */
+let _nickPhrases = null, _nickAt = 0;
+function nicknamePhrases() {
+  if (_nickPhrases && Date.now() - _nickAt < 10 * 60 * 1000) return _nickPhrases;
+  const set = new Set();
+  try {
+    for (const sh of Object.values(liveShoeMap())) {
+      const n = String((sh && sh.nickname) || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (n.length >= 5 && n.indexOf(' ') !== -1) set.add(n);
+    }
+  } catch (_) {}
+  if (set.size) { _nickPhrases = [...set].sort((x, y) => y.length - x.length); _nickAt = Date.now(); }
+  return _nickPhrases || [];
+}
+function stripNicknames(t) {
+  let out = ' ' + String(t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ') + ' ';
+  for (const n of nicknamePhrases()) if (out.indexOf(' ' + n + ' ') !== -1) out = out.split(' ' + n + ' ').join('  ');
+  return out;
+}
 function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes, sneakers_only } = {}) {
   let rows = liveCatalog();
   // ⚫⚪ BLACK MEANS TRIPLE BLACK, WHITE MEANS TRIPLE WHITE (Rodney 2026-10-13: "TN plus black" in a
@@ -2622,7 +2644,7 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
   // wherever the model put the word (the query or the colour field).
   const _COLOURS = /\b(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|multi)\b/g;
   if (!(color && color.trim()) && query) {
-    const qc = [...new Set((String(query).toLowerCase().match(_COLOURS) || []))];
+    const qc = [...new Set((stripNicknames(query).match(_COLOURS) || []))];
     if (qc.length === 1 && (qc[0] === 'black' || qc[0] === 'white')) {
       color = qc[0];
       query = String(query).replace(new RegExp('\\b(all|triple)?\\s*' + qc[0] + '\\b', 'ig'), ' ').replace(/\s+/g, ' ').trim();
@@ -3303,8 +3325,20 @@ async function transcribeAudio(url, mediaAuth, extraHeaders) {
   return await tryModel('whisper-1').catch(() => null);
 }
 
+/* 💰 THE PROMPT IS CACHED (Rodney 2026-09-28 / 10-10 "cut the price as much as possible", ported back 2026-10-14 — the 10-12
+ * reset dropped all of it). The rules + tools are ~40,000 tokens and every customer message runs 2-6 calls, all at full price.
+ * The part that is the same for everyone is cached for an hour (read back at a tenth of the price); the per-turn part — the
+ * clock, the customer's name, the closed notice, ads — sits after SYS_SPLIT and is never cached, because one changed byte in a
+ * cached block makes it a fresh write. The conversation is cached too, so the tool loop re-reads it cheaply. Verified on the
+ * API 2026-10-14: the second call read 12,722 tokens from cache. Nothing she is told changes. */
+const SYS_SPLIT = '\n\n\u241e-PER-TURN-\u241e\n';
 async function callClaude(messages, system, toolChoice, toolsOverride) {
-  const body = { model: AI_MODEL, max_tokens: 1024, system: system || buildSystemPrompt(), tools: toolsOverride || AI_TOOLS, messages };
+  const _sys = system || buildSystemPrompt();
+  const _i = _sys.indexOf(SYS_SPLIT);
+  const _head = _i < 0 ? _sys : _sys.slice(0, _i), _tail = _i < 0 ? '' : _sys.slice(_i + SYS_SPLIT.length).trim();
+  const _system = [{ type: 'text', text: _head, cache_control: { type: 'ephemeral', ttl: '1h' } }].concat(_tail ? [{ type: 'text', text: _tail }] : []);
+  const _tools = (toolsOverride || AI_TOOLS).map((t, i, a) => i === a.length - 1 ? Object.assign({}, t, { cache_control: { type: 'ephemeral', ttl: '1h' } }) : t);
+  const body = { model: AI_MODEL, max_tokens: 1024, system: _system, tools: _tools, messages, cache_control: { type: 'ephemeral' } };
   if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
   // AUTO-RETRY transient failures (overloaded 529 / rate-limit 429 / 5xx / network blips).
   // These are common with vision and used to drop STRAIGHT to the "hiccup" message on the
@@ -3985,6 +4019,12 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
     if (isHumanPaused(sub)) return;
     // 🙅 They told us they'd get back to us — don't chase them. Kill the whole chain.
     if (DEFER_RE.test(lastIncomingText.get(sub) || '')) { clearFollowUp(sub); return; }
+    // "We're still on the way 🚗" only when a driver really was sent (the dispatch button). It used to go out 20 min
+    // after every order, dispatched or not (dropped fix ded99b6/76f4547, ported back 2026-10-14).
+    if ((Object.values(DELIVERY_FOLLOWUP_T).includes(text) || text === L(DELIVERY_FOLLOWUP_T, sub)) && !driverDispatchedAt.has(String(sub))) {
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'on-the-way-skipped-not-dispatched', sub }); if (recent.length > 120) recent.length = 120;
+      return;
+    }
     // 🚩 Don't tell someone they weren't interested when we can't trust the line.
     // If this subscriber's sends have been ghosting/timing out, their silence is just as
     // likely to be ManyChat swallowing their replies (proven 2026-08-13: three "A3" replies
@@ -5470,7 +5510,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const wasNewConvo = history.length === 0; // their very first message → we reply with the welcome
   // Greet ONLY on the very first message of the chat — decided here in code, not by Kiki —
   // so "yo"/"hello"/"sup" fired back-to-back can't each trigger their own "Welcome!".
-  let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo, phone: getPhone(req) });
+  // Everything added to the prompt from here on changes per turn, so it goes after SYS_SPLIT and is never cached.
+  let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo, phone: getPhone(req) }) + SYS_SPLIT
+    + (ctx.name && String(ctx.name).trim() ? '--- CUSTOMER DETAILS FOR THIS CHAT ONLY ---\nSaved name: ' + String(ctx.name).trim() + '\n' : '');
   if (ctx.personal) {
     system += '\n\n🙋 PERSONAL ACCOUNT (Rodney 2026-09-07: "personal accounts dont need introducing just sell"): this conversation is on a personal Facebook/Instagram/TikTok account, not a shop page. Never introduce a shop, never say a shop name, no welcome script - just answer and sell as a person. The pictures you send arrive as Messenger images.';
   }
@@ -5510,7 +5552,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       decide it in code and hand over the answer.
     */
     const bahHour = bah.getUTCHours(); // bah is already shifted to Nassau time
-    if (bahHour >= 23 || bahHour < 7) {
+    if (bahHour >= 22 || bahHour < 8) {   // open 8 AM–10 PM every day (Rodney 2026-10-07: "we close at 10pm every night")
       system += `\n\n🌙 WE ARE CLOSED RIGHT NOW (it is ${bah.toISOString().slice(11, 16)} in Nassau; we deliver 8 AM–10 PM). Do NOT promise a driver tonight and do NOT say anyone is heading out now. BUT DO NOT PUT THEM OFF EITHER — this is a real sale and you must finish it: still take the shoe, the size and the LOCATION right now, tell them warmly it goes out first thing in the morning from 8 AM ("I've got you down — first run is 8 AM and you're on it ⏰👟"), and still call notify_manager exactly as normal with the location prefixed "🌅 MORNING DELIVERY (8 AM) — " plus remind_in_hours set to the hours from now until about 7:30 AM. ⚠️ NEVER tell them to send their location later or in the morning — a customer who goes to sleep on it goes cold, and asking twice loses the sale.`;
     }
   } catch (_) {}
@@ -5922,7 +5964,6 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         turnText = withPw;
       }
     }
-    if (turnText) lastText = turnText; // remember it in case nothing else lands
     // Stay quiet while searching. On a send_photos turn, DON'T send the text here —
     // it's handed to sendShoePhotos as the lead-in so it lands RIGHT BEFORE the
     // photos (👇 points at them), no matter how the model sequences its turns.
@@ -6034,6 +6075,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message.)' });
       continue;
     }
+    // Remembered for the safety net only AFTER every guard above passed it — set before them, a blocked reply (a fee
+    // we don't charge, a [TOTAL] link, "I can't see your picture") went out anyway when the retry came back empty.
+    if (turnText) lastText = turnText;
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
@@ -6159,7 +6203,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // all white"). Their colour and size are the ask; the model was only where they started.
         const _sized = p.size != null || (Array.isArray(p.sizes) && p.sizes.length);
         const _bw = (() => { const c = String(p.color || '').toLowerCase().trim(); if (/^(all |triple )?(black|white)$/.test(c)) return c.replace(/^(all|triple) /, '');
-          const qc = [...new Set((String(p.query || '').toLowerCase().match(/\b(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|multi)\b/g) || []))];
+          const qc = [...new Set((stripNicknames(p.query || '').match(/\b(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|multi)\b/g) || []))];
           return (qc.length === 1 && (qc[0] === 'black' || qc[0] === 'white')) ? qc[0] : ''; })();
         if (!found.length && _sized && _bw && (p.query || p.brand)) {
           try {
