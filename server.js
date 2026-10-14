@@ -5156,6 +5156,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       return;
     }
   } catch (_) {}
+  // 👆 "THIS" WITH NOTHING ATTACHED (2026-10-14, Rodney's test on Trendy Kicks: he quote-replied "this" to
+  // our picture; ManyChat passes the words and drops the tag, and Kiki answered "I'm not seeing a picture
+  // come through" / "having trouble picking that up on my end"). The tag cannot be recovered on ManyChat,
+  // so the server decides: one shoe shown recently = that shoe; otherwise ask once, plainly, for the picture.
+  try {
+    const _plain = String(userText || '').trim();
+    const POINTER_ONLY = /^(can\s+i\s+(have|get)\s+|i\s+want\s+|i'?ll\s+take\s+|gimme\s+|give\s+me\s+|lemme\s+get\s+)?(this|that|these|those|dis|dat|dem)(\s+(one|1|pair|pls|please)){0,2}\s*[!?.👆☝️👈]*$/i;
+    if (!image && _plain && !/^\(SYSTEM/.test(_plain) && POINTER_ONLY.test(_plain)) {
+      const rs = recentlySent.get(sub);
+      const fresh = rs && rs.names && rs.names.length && (Date.now() - rs.ts) < 45 * 60 * 1000;
+      if (fresh && rs.names.length === 1) {
+        userText = '(SYSTEM: "' + _plain + '" means the ' + rs.names[0] + ' — the one shoe you just sent them. They are picking it. Name it and carry on from there; never say you cannot see a picture.)\n' + _plain;
+      } else {
+        userText = '(SYSTEM: they pointed at a picture ("' + _plain + '") but the tag does not reach us' + (fresh ? ' and you sent several shoes' : '') + '. Reply with exactly this and nothing else: "Which one? Send me that picture again 🙏". Never say you are not seeing a picture or having trouble on your end.)\n' + _plain;
+      }
+      record(req, { endpoint: 'bare-pointer', sub, q: _plain.slice(0, 40), resolved: !!(fresh && rs.names.length === 1) });
+    }
+  } catch (_) {}
   let _isStaffChat = staffNameFor(req);
   // A SALE/RESTOCK/FLOAT report from the owner's OWN line counts as a staff action even if that
   // number is set as a test customer — so "black/blue tn sold in 8.5" records the sale instead of
