@@ -2236,7 +2236,7 @@ The two flows:
 
 You also answer these common questions yourself, in your own short friendly words (do NOT call a tool for these):
 
-PAYMENT (ONLY when THEY ask — NEVER bring it up yourself): Do NOT ask the customer how they want to pay, and do NOT make payment a step before you take their location. Payment is handled on delivery/arrival by default — you never need to "sort payment" to move a sale forward. ONLY if the CUSTOMER asks about payment — "how do I pay?", "how do you accept payment?", "you take card?", "bank info?", "cash?" — then explain the options: 💳 pay by card at https://242plug.com/pay?amount=[TOTAL] (replace [TOTAL] with the shoe price + $15 if island shipping), 💵 cash on delivery, 🏦 bank transfer (Scotiabank or CIBC), or 📲 SunCash voucher. Whatever's easiest for them. If they pick bank transfer, ask which bank they prefer — Scotiabank or CIBC — then send the matching details. ⛔ THE WORD "CARD" NEVER GOES OUT WITHOUT THE LINK AND THE EXACT AMOUNT (Rodney 2026-10-13: a Red Toro customer got "we take 💳 card, 🏦 bank transfer, or 📱 SunCash" with no link — useless to him): every time you mention paying by card, write the full link with the real total in it, e.g. https://242plug.com/pay?amount=180 for a $180 pair — never "[TOTAL]", never "card" alone.
+PAYMENT (ONLY when THEY ask — NEVER bring it up yourself): Do NOT ask the customer how they want to pay, and do NOT make payment a step before you take their location. Payment is handled on delivery/arrival by default — you never need to "sort payment" to move a sale forward. ONLY if the CUSTOMER asks about payment — "how do I pay?", "how do you accept payment?", "you take card?", "bank info?", "cash?" — then explain the options: 💳 pay by card online with the link (its real total in it), OR pay when we arrive — 💵 cash in hand, 💳 card, or 🏦 bank transfer (Scotiabank or CIBC), or 📲 SunCash voucher. Whatever's easiest for them. 🚫 IN NASSAU NEVER MAKE PAYING FIRST A STEP (Rodney 2026-10-14: "you don't have to tell them pay before we come — it makes it look more like a scam"): never "send over your payment receipt and drop your pin", never "once your payment comes through we'll bring it". Every time you send the pay link, say in the same message that they can also just pay when we arrive — cash, card or bank transfer. The next step is always their location pin. (Island shipping by boat or plane is the one case that is paid before it ships.) If they pick bank transfer, ask which bank they prefer — Scotiabank or CIBC — then send the matching details. ⛔ THE WORD "CARD" NEVER GOES OUT WITHOUT THE LINK AND THE EXACT AMOUNT (Rodney 2026-10-13: a Red Toro customer got "we take 💳 card, 🏦 bank transfer, or 📱 SunCash" with no link — useless to him): every time you mention paying by card, write the full link with the real total in it, e.g. https://242plug.com/pay?amount=180 for a $180 pair — never "[TOTAL]", never "card" alone.
 - 🚗 "IS THERE A DELIVERY FEE?" = "NO — DELIVERY IS FREE" (Rodney 2026-10-13: the same customer asked "is there a delivery fee?" and got the payment-options speech instead of an answer): "delivery fee?", "how much is delivery?", "you charge for delivery?", "delivery cost?" — answer the question, ONE line: "No fee — delivery is free 🚗 you just pay the $[price] for the shoes". That is NOT a question about how to pay, so do not list payment options unless they ask how to pay.
 ⚠️ CRITICAL BANK-DETAILS RULES (money fails if you get this wrong):
 1. Send ONLY the block for the EXACT bank they named. Scotiabank request → send the Scotiabank block ONLY. CIBC request → send the CIBC block ONLY. NEVER send one bank's details under the other's name.
@@ -3003,6 +3003,16 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
       ids = keep;
     }
   }
+  // One shoe is "the", never "all" (Rodney 2026-10-14: "Here's all the Yeezy Foam RNRs we got in your size" over ONE picture
+  // — "there's only one. So you should just say here is the").
+  try {
+    const _n = ((Array.isArray(groups) && groups.length) ? dedupe(groups.flatMap(g => g.ids || [])) : dedupe(ids || [])).length;
+    if (_n === 1 && leadIn) leadIn = String(leadIn)
+      .replace(/\b(here'?s|here is|this is|these are|that'?s)\s+all\s+(of\s+)?(the|our)\s+/i, (m, a1, a2, a3) => (/^these/i.test(a1) ? 'This is' : a1) + ' ' + a3 + ' ')
+      .replace(/\ball\s+(the|our)\s+/i, '$1 ')
+      .replace(/\b(the|our)\s+([\w' -]{2,40}?)s\b(?=\s+(we|in|for|that|rite|right|👇))/i, '$1 $2')
+      .replace(/\bthese are\b/i, 'this is').replace(/\bhere are\b/i, "Here's");
+  } catch (_) {}
   // Lead-in line goes out FIRST so the 👇 points down at the photos that follow.
   if (leadIn && String(leadIn).trim()) {
     try { await sendChunk(sub, [{ type: 'text', text: String(leadIn).trim() }], token); } catch (e) { /* non-fatal */ }
@@ -6071,6 +6081,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply named a fee we do not charge (' + bad.slice(0, 2).join('; ') + '). There are NO island, service, card or handling fees. The ONLY extra cost that exists is shipping to another island: boat $10 or plane $35. Local delivery in Nassau is free. Rewrite the reply with the total = shoe price + that shipping only, and put that exact total in the pay link.)' });
         continue;
       }
+    }
+    /* 💵 NO "PAY FIRST" IN NASSAU (Rodney 2026-10-14: "just send over your payment receipt and drop your location pin" — "you don't
+     * have to tell them pay before we come. It makes it look more like a scam … always mention they can pay when we arrive, cash in
+     * hand, or bank transfer"). Island shipping (boat/plane) is paid before it ships, so a chat about an island is left alone. */
+    if (turnText && !staffName && feeBlocks < 1
+        && /\b(once (your |the )?payment (comes|goes) through|once you('ve| have)? paid|after you pay|send (me |over )?(the |your )?(payment|receipt)|payment receipt and|pay (first|before))\b/i.test(turnText)
+        && !/\b(when we (arrive|reach|get there|pull up)|on arrival|cash in hand|cash on delivery)\b/i.test(turnText)
+        && !/\b(boat|plane|ship(ping)?|island|freight|abaco|eleuthera|exuma|andros|bimini|freeport|grand bahama|long island|cat island|inagua|harbour island|berry)\b/i.test(turnText + ' ' + JSON.stringify(history.slice(-12)).slice(-6000))) {
+      feeBlocks++;
+      record(req, { endpoint: 'pay-first-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply made paying first a step before we deliver. In Nassau they pay when we arrive — cash in hand, card, or bank transfer — or online by card with the link if they prefer. Rewrite it: keep the link only if they asked to pay online, say plainly they can also pay when we arrive, and ask for their location pin. Never ask for a receipt before delivery.)' });
+      continue;
     }
     /* 🔗 NO "[TOTAL]" LINK (Rodney 2026-10-14: "How can I do a online payment…" got pay?amount=[TOTAL] and "just replace
      * [TOTAL] with the shoe price"; the pay page refuses a link with no amount). No shoe picked yet = no link: ask which
