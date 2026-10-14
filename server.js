@@ -1080,9 +1080,14 @@ function getAudioUrl(req) {
 
 // A photo URL, if the customer sent an image. We can't SEE it, but knowing one
 // arrived lets us reply ("what's the shoe + your size?") instead of going silent.
+/* 🎞️ A VIDEO IS NOT A PHOTO (Rodney 2026-10-06, ported back 2026-10-14 after the 10-12 reset lost it): +1 242
+ * 823-7131 sent four pictures and an .mp4 in seven seconds; the mp4 came off the same ManyChat media host, went to
+ * the AI as an image, the request was refused and the turn died. */
+const VIDEO_EXT = /\.(mp4|mov|m4v|3gp|webm|avi|mkv|qt)(\?|$)/i;
 function getImageUrl(req) {
   for (const { key, url } of collectUrls(req)) {
     if (AUDIO_FIELDS.has(key) || AUDIO_EXT.test(url)) continue; // not a voice note
+    if (VIDEO_EXT.test(url)) continue;                          // and not a video
     if (IMAGE_FIELDS.has(key) || IMAGE_EXT.test(url)) return url;
     if (MEDIA_HOST.test(url)) return url; // WhatsApp/ManyChat media link (arrives via Last Text Input) → the customer's photo
   }
@@ -5726,12 +5731,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _all = [_pickSh].concat(heldPicks.filter(h => String(h.id) !== String(_pickSh.id)));
           _all.forEach(x => pinnedPickIds.add(String(x.id)));
           const _lu = history[history.length - 1];
-          if (_all.length > 1 && _lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
-            const _one = (x) => { const h = _sz && (x.sizesRaw || []).some(y => parseFloat(y) === parseFloat(_sz));
-              return 'the ' + displayName(x) + ' (shoe id ' + x.id + '), $' + (parseFloat(x.price) || 0) + ', ONLY in: ' + (sizesOf(x) || 'none right now') + (_sz ? (h ? ' (has their ' + _sz + ')' : ' (NOT in their ' + _sz + ')') : ''); };
-            _lu.content[0].text = '(SYSTEM: they sent ' + _all.length + ' pictures of OUR shoes one after another: ' + _all.map(_one).join('; ')
-              + '. Answer ALL of them in ONE short message: each shoe with its price and its sizes, then ' + (_sz ? 'say which come in their ' + _sz : 'ask their size once')
-              + '. Send NO pictures, they already have them. NEVER send or name a different shoe, never give fit advice.)\n\n' + _lu.content[0].text;
+          if (_all.length > 1) {
+            /* 🧾 SEVERAL OF OUR SHOES SENT BACK IS A SHOPPING LIST (Rodney 2026-10-08, ported back 2026-10-14 — the 10-12
+             * reset lost it): "if he sent four pictures back he is interested in four". Each with its price, the total,
+             * and his deal: $10 OFF EACH PAIR when they take 2 or more. Written by code, sent once per burst. */
+            const _inSz = (x) => _sz && (x.sizesRaw || []).some(y => parseFloat(y) === parseFloat(_sz));
+            const _total = _all.reduce((n, x) => n + (parseFloat(x.price) || 0), 0);
+            const _deal = _total - 10 * _all.length;
+            const _have = _all.filter(_inSz);
+            const _msg = 'Good picks \u{1F44C}\n' + _all.map(x => '• ' + displayName(x) + ' — $' + (parseFloat(x.price) || 0) + ' (' + (sizesOf(x) || 'sold out right now') + ')').join('\n')
+              + '\n\nThat’s $' + _total + ' for the ' + _all.length + ' — take them all together an I’ll do $' + _deal + ' \u{1F45F}'
+              + (!_sz ? '\n\nFree delivery — what size you wear?'
+                : _have.length === _all.length ? '\n\nAll in your ' + _sz + '. Free delivery — where you want them brought?'
+                : _have.length ? '\n\nIn your ' + _sz + ': ' + _have.map(x => 'the ' + displayName(x)).join(' and ') + '. Free delivery — where you want them brought?'
+                : '\n\nNone of these come in a ' + _sz + ' right now \u{1F64F} only the sizes above.');
+            try { await sendChunk(sub, [{ type: 'text', text: await say(_msg, sub) }], token); sentToCustomer = true; } catch (_) {}
+            record(req, { endpoint: 'picks-totalled-with-deal', sub, store: ctx.store || '', picks: _all.length, total: _total, deal: _deal });
+            if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text')
+              _lu.content[0].text = '(✅ ALREADY SENT TO THEM: "' + _msg + '". They sent ' + _all.length + ' pictures of our shoes in a row and that message answers all of them. '
+                + 'Send NO pictures and do NOT repeat it. If their message asked nothing else, reply with nothing at all; if it did, answer only that in one short line.)\n\n' + _lu.content[0].text;
           } else if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
               + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
@@ -6986,7 +7004,9 @@ function handleChat(req, res) {
   // instead of reading a raw URL out loud.
   if (!imageUrl && !audioUrl) {
     const t = (userText || '').trim();
-    if (/^https?:\/\/\S+$/i.test(t) && !AUDIO_EXT.test(t)) {
+    if (/^https?:\/\/\S+$/i.test(t) && VIDEO_EXT.test(t)) {
+      userText = '(The customer sent a short VIDEO. You cannot play videos: do not say so and do not say "not a shoe". If the chat already shows what they want, carry on with that; otherwise warmly ask which shoe and size they are after.)';
+    } else if (/^https?:\/\/\S+$/i.test(t) && !AUDIO_EXT.test(t)) {
       if (IMAGE_EXT.test(t) || MEDIA_HOST.test(t)) {
         imageUrl = t; // a real photo link (WhatsApp/ManyChat media) → look at it
       } else {
