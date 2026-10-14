@@ -6667,6 +6667,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (names.length) { recentlySent.set(sub, { ts: Date.now(), names: [...new Set(names)].slice(0, 25) }); saveRecentlySent(); }
         } catch (_) {}
       }
+      /* 🛑 A SIZE IS NOT AN ORDER (Rodney 2026-10-14, "kiki made her own delivery with no customer"): Judy J on Foot Fetish
+       * sent a picture and "7" at 5:56 AM; Kiki filed "YOU'VE GOT AN ORDER — customer is buying now", asked for her pin, and the
+       * owner got "STILL NEED AN ANSWER" chases and she got a 9 AM "Still want it?" — she had only told us her size. A bare
+       * size or a bare picture never files an order; buying words do. */
+      else if (tu.name === 'notify_manager' && !staffName && (tu.input || {}).stage === 'order_confirmed'
+               && (/^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(String(userText || '').split('(SYSTEM')[0].trim())
+                   || (image && !String(userText || '').split('(SYSTEM')[0].trim()))) {
+        record(req, { endpoint: 'order-refused-size-only', sub, store: ctx.store || '', said: String(userText || '').slice(0, 20), shoe: String((tu.input || {}).shoe || '').slice(0, 60) });
+        result = { ok: false, not_filed: 'They only gave their size (or sent a picture) — that is NOT an order, so nothing was filed. Do not ask for their location yet. If you already told them we have it in their size, send nothing more; otherwise say so in one line. File order_confirmed only when they say they want it (I\'ll take it, yes, bring it, how do I pay, send me the location ask, etc.).' };
+      }
       else if (tu.name === 'notify_manager') {
         const inp = tu.input || {};
         // Pull the customer's WhatsApp number so staff can call/message them for the
