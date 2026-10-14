@@ -5546,6 +5546,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // top it up with the rest. Only pure size (±brand) searches count; a colour/query/price
   // search means the customer wanted something specific, so we never widen those.
   const turnSentIds = new Set();        // shoe ids actually sent this turn
+  const pinnedPickIds = new Set();      // the shoe(s) the customer already PICKED this turn (a forwarded card): nothing else may be sent
   /* 🎯 THE SHOE THE PHOTO NAMED GOES OUT FIRST, FROM THE SERVER (ported 2026-10-13 from the Oct 10
    * brain). The identifier said "New Balance 9060 Black/White" every time and the chat model
    * still sent a different 9060, or a 1000, depending on the run: the recognition was right,
@@ -5590,6 +5591,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
         if (_pickSh && _pickSh.id != null) {
           turnSentIds.add(String(_pickSh.id));   // the size-claim guard checks this shoe; it is never re-sent
+          pinnedPickIds.add(String(_pickSh.id));
           const _csz0 = custSize.get(sub);
           const _sz = (_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000) ? String(_csz0.size) : '';
           const _has = _sz && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_sz));
@@ -6002,6 +6004,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
+        // 🎯 ALREADY PICKED = NO OTHER PICTURES (Rodney 2026-10-14: a customer forwarded our yellow/black TN card and
+        // got two yellow/black TNs back — "once they're already picked, we'd like to go with the first option they
+        // already picked"). When this turn has a pinned pick, every other shoe is dropped, and the pick itself is not
+        // re-sent (they are holding its card).
+        let droppedForPick = [];
+        if (pinnedPickIds.size) {
+          try {
+            const liveP = liveShoeMap();
+            const keepPick = (id) => { const sh = liveP[id]; const real = sh && sh.id != null ? String(sh.id) : String(id); if (pinnedPickIds.has(real) || pinnedPickIds.has(String(id))) return false; droppedForPick.push(sh ? displayName(sh) : String(id)); return false; };
+            if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(keepPick);
+            if (Array.isArray(inp.groups)) for (const g of inp.groups) { if (Array.isArray(g.ids)) g.ids = g.ids.filter(keepPick); }
+            record(req, { endpoint: 'send-blocked-already-picked', sub, dropped: droppedForPick.slice(0, 6), pick: [...pinnedPickIds] });
+          } catch (_) {}
+        }
         // SIZE GUARD (2026-07-13 — a "size 9" album went out including the Nike Shox,
         // which comes in no 9 or 9.5): when the customer's size is known, hard-drop any
         // shoe that doesn't actually come in it (or its half-size up; women's = her
@@ -6209,7 +6225,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _csz = custSize.get(sub);
         const _sizeKnown = !!(inp.size && String(inp.size).trim()) || (Array.isArray(inp.groups) && inp.groups.length > 0)
           || !!(_csz && _csz.size && (Date.now() - (_csz.ts || 0)) < 12 * 60 * 60 * 1000);
-        result = await sendShoePhotos(sub, inp.ids, token, inp.groups, leadIn, _picsOnly, !!staffName, ctx.turnAt || 0, _sizeKnown);
+        const _emptyAfterPick = pinnedPickIds.size && !(Array.isArray(inp.ids) && inp.ids.length) && !(Array.isArray(inp.groups) && inp.groups.some(g => g && g.ids && g.ids.length));
+        result = _emptyAfterPick
+          ? { sent: 0, requested: 0, not_sent: 'They already PICKED the shoe on the card they forwarded; no other pictures go out. Answer about that shoe only: its price and the sizes it comes in (say plainly if their size is not in stock).', dropped: droppedForPick.slice(0, 6) }
+          : await sendShoePhotos(sub, inp.ids, token, inp.groups, leadIn, _picsOnly, !!staffName, ctx.turnAt || 0, _sizeKnown);
         // 👠 Tell her the truth about the women's album she just sent, so her words match
         // the labels the customer is reading (Rodney 2026-08-04).
         if (womensExactCount != null && womensTotalCount > 0) {
