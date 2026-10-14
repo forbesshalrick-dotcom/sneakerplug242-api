@@ -1690,6 +1690,7 @@ const SITE_LIVE = !/^(0|false|no|off)$/i.test(String(process.env.SITE_LIVE || ''
 const FOLLOWUP_MS = Number(process.env.FOLLOWUP_MS) || 10 * 60 * 1000; // 10 minutes (reverted 2026-07-13 — 1-min nudges spammed)
 const END_OF_PHOTOS_MSG = `let me know if you need a delivery`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
+const lastAsk = new Map(); // sub -> { p, ids, at }: the last search_inventory ask, so the closing line repeats what they asked for
 const FOLLOWUP_MSG = "";
 // If they're STILL quiet ~10 min after that nudge, send one final graceful closer
 // (with our hours) and then stop — no more messages until they reply.
@@ -2175,7 +2176,7 @@ ${modelList}
 - SHOW ME EVERYTHING (we carry 350+ shoes, WhatsApp can't photo-dump them all): when a customer asks to see EVERYTHING / "all you have" / "the whole catalog" — ask their size ("What size you wear? 👟") and send the full album in that size. If they won't give a size, ask what brand or style they like and send that. Never send the website link.
 - CONFIRM A NAMED SHOE WITH ITS PHOTO (IMPORTANT): Whenever you tell the customer about ONE specific shoe — its price, or that we have it (e.g. they ask "how much for the Gamma Blue 11?" and you find it) — do NOT answer in words only. Call send_photos for that shoe so they SEE the exact pair; its name, price and sizes print right under the photo, which confirms you both mean the same one. Put your short confirming line in the send_photos lead_in (e.g. lead_in = "Got it! The Air Jordan 11 (Gamma Blue) is $180 👇"). Showing the pair always beats just describing it — a customer should never have to take your word for which shoe it is.
 - When you DO send photos, always send ALL the matching shoes with send_photos — never just a few.
-- NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Your ONE short lead-in line MUST be passed as the send_photos lead_in argument — NOT typed as a separate message. The system puts it right before the photos so the 👇 points down at them. Do NOT also write any other text on the turn you call send_photos. In the "SHOW OPTIONS AS PHOTOS" case above, that lead_in is your choice-framing line (e.g. "Here's the grey New Balance we've got 👇 Which one you like?"). In every other case the lead_in MUST keep this exact shape (including "rite now"): "This is what we have in {what} rite now 👇 Ready to Order!". Fill {what} with the BEST short description of what the customer actually asked for, using ALL the useful info they gave — colour, brand or model, and/or size. Pick the most meaningful descriptor, don't just default to the size: if they asked for "grey" and the matches are all their one size, say "This is what we have in grey rite now 👇 Ready to Order!"; if they only gave a size, use that, e.g. "This is what we have in 7.5 rite now 👇 Ready to Order!"; you can combine them when it reads naturally, e.g. "grey size 8". If the customer gave NO useful descriptor (general browsing), drop the "in {what}" part: "This is what we have rite now 👇 Ready to Order!".
+- NEVER narrate what you're doing. Do not say "one sec", "let me check", "let me pull that up", "now let me send the photos", or anything similar. Call search_inventory SILENTLY with no message at all. Your ONE short lead-in line MUST be passed as the send_photos lead_in argument — NOT typed as a separate message. The system puts it right before the photos so the 👇 points down at them. Do NOT also write any other text on the turn you call send_photos. In the "SHOW OPTIONS AS PHOTOS" case above, that lead_in is your choice-framing line (e.g. "Here's the grey New Balance we've got 👇 Which one you like?"). In every other case the lead_in MUST keep this exact shape (including "rite now"): "This is what we have in {what} rite now 👇 Ready to Order!". Fill {what} with EVERYTHING the customer asked for, in their words — size, women's, colour, model, price (Rodney 2026-10-14: "Do you have 8.5 in the vomero5" got "in 8.5" — it must be "in 8.5 in the Nike Vomero 5"). Examples: "8.5 in the Nike Vomero 5", "women's 8.5", "Jordans for $100", "grey", "7.5" (they only gave a size). If the customer gave NO useful descriptor (general browsing), drop the "in {what}" part: "This is what we have rite now 👇 Ready to Order!".
 - 🧠🚫 NEVER SEND YOUR THINKING — REPLY IS WORD-FOR-WORD (Rodney 2026-07-19, a customer got Kiki's whole thought process): whatever you type is delivered to the customer EXACTLY as written — so it must contain ONLY the words a customer should read, never your analysis, planning, or self-talk about what they meant or what you should do next. Work all of that out SILENTLY in your head, then send just the one short final reply. ⛔ NEVER write lines like "That's asking about…", "But wait", "Let me back up", "Let me get the details", "they want to know", "they're asking", "we haven't locked in", "I don't have their order yet", "so I'll…", "now I need to…" — those are THOUGHTS, not messages. If you catch yourself explaining the situation to yourself, delete all of it and keep only the friendly line you'd actually say.
   ⛔ AND NEVER WRAP YOUR THINKING IN TAGS. Do NOT write \`<thinking>\`, \`</thinking>\`, \`<thought>\`, \`<scratchpad>\` or ANY tag like them. Tags do NOT hide anything — the customer sees every character, tags included. Lamar was sent this word for word on 2026-08-01: "<thinking>The customer just said 'Ok' — this is a simple acknowledgement. The order is already confirmed and locked in… I should just give a warm, short closing.</thinking> Respect 🤛". He should have received ONLY "Respect 🤛". There is NO private channel in your reply — if you type it, it is sent. Think without writing, then write only the message.
   ❌ WRONG (this really went out): "That's asking about delivery arrival timing — they want to know when the driver is coming. But wait — I don't have their order yet! Let me back up and get the details: What size you need in that Air Max 97? 👟 And where should we meet you? 📍"
@@ -3155,7 +3156,37 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
         const went = albumTrace.filter(t => t && (t.status === 200 || /success|sent|ghost|timeout/i.test(String(t.body || '')))).map(t => byRealId[String(t.id)] || live[t.id]).filter(Boolean);
         const fams = went.map(fam);
         const one = (k) => { const v = fams.map(f => f[k]); return v.length && v[0] && v.every(x => x === v[0]) ? v[0] : ''; };
-        what = one(0) || one(1);
+        // Rodney 2026-10-14 ("Do you have 8.5 in the vomero5" got "This is what we have in Nike"): say back the
+        // customer's whole ask — "in 8.5 in the Nike Vomero 5", "in women's 8.5", "in Jordans for $100". The ask
+        // is the search these shoes came from; an inbox album with shoes from no recent search uses the shoes.
+        const ask = lastAsk.get(sub);
+        const p = ask && Date.now() - ask.at < 20 * 60000 && went.some(sh => ask.ids.has(String(sh.id))) ? ask.p : null;
+        if (p) {
+          const sz = p.size != null && !/all/i.test(String(p.size)) ? String(p.size).trim()
+            : (Array.isArray(p.sizes) && p.sizes.length ? p.sizes.map(String).join(' & ') : '');
+          const sizePart = sz ? (p.womens ? "women's " + sz : sz) : '';
+          const COLOURS = /\b(all|triple|black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|multi|and)\b/ig;
+          const raw = String(p.query || '');
+          const colour = [String(p.color || '').trim(), (raw.match(COLOURS) || []).join(' ').replace(/^(and )+|( and)+$/ig, '')].find(Boolean) || '';
+          const q = raw.replace(COLOURS, ' ').replace(/\b(size|sz|in|the|a|an|any|some|pair|pairs|shoes?|sneakers?|men'?s|women'?s|womens|ladies)\b/ig, ' ')
+            .replace(sz ? new RegExp('(^|\\s)' + sz.replace('.', '\\.') + '(?=\\s|$)', 'g') : /$^/, ' ').replace(/\s+/g, ' ').trim();
+          const brand = String(p.brand || (Array.isArray(p.brands) ? p.brands.join(' & ') : '') || '').trim();
+          let model = '', named = false;
+          if (q) {
+            model = /^tns?$/i.test(q) ? 'TNs' : (fam({ brand, name: q })[0] || '');
+            if (!model) {
+              named = true;
+              model = q.replace(/([a-z])(\d)/ig, '$1 $2').split(' ').map(w => /\d/.test(w) && /[a-z]/i.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+              const br = brand || one(1);
+              if (br && !model.toLowerCase().includes(br.toLowerCase().replace(/s$/, ''))) model = br + ' ' + model;
+            }
+          } else if (brand) model = fam({ brand, name: '' })[0] || brand;
+          if (colour) model = model ? colour.toLowerCase() + ' ' + model : colour.toLowerCase();
+          const price = p.max_price != null && p.min_price != null ? 'from $' + p.min_price + ' to $' + p.max_price
+            : p.max_price != null ? 'for $' + p.max_price : p.min_price != null ? 'over $' + p.min_price : '';
+          what = [sizePart, sizePart && model ? (named ? 'in the ' : 'in ') + model : model, price].filter(Boolean).join(' ');
+        }
+        if (!what) what = one(0) || one(1);
         if (!what) { const _cs = custSize.get(sub); if (_cs && _cs.size) what = 'a ' + _cs.size; }
       } catch (_) {}
       let closing = what ? ('This is what we have in ' + what + ' 👟') : 'This is what we have 👟';
@@ -5962,7 +5993,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       let result;
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
-        let found;
+        let found, askP = null;   // what the customer asked for, as the shoes that came back answer it
         if (ctx.store === SI.STORE) {
           // 10,000+ styles that change when stock lands, on another host. The
           // reply carries the filtered catalog link, which is what Kiki sends
@@ -5999,6 +6030,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         } catch (_) {}
         found = searchInventory(p);
+        askP = p;
         lastSearchCount = found.length;
         lastSearchIds = found.map(x => x && x.id).filter(x => x != null);
         result = { shoes: found };
@@ -6024,6 +6056,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               result.note = 'NONE of the shoe they named in ' + _bw + ' in their size. These are ALL the all-black and all-white pairs we have in their size, ' + _bw + ' first. '
                 + 'Send them now with lead_in "No all ' + _bw + ' ' + (String(p.query || p.brand || '').replace(/\b(all|triple)?\s*(black|white)\b/ig, '').trim() || 'ones') + ' in a ' + _sz + ' right now 🙏 This is what we have in all black and all white in your ' + _sz + ' 👇". Do not ask first.';
               lastSearchCount = alt.length; lastSearchIds = alt.map(x => x && x.id).filter(x => x != null);
+              askP = { size: p.size, sizes: p.sizes, womens: p.womens, color: 'all black and all white' };
               record(req, { endpoint: 'colour-fallback-bw', sub, asked: p, colour: _bw, found: alt.length });
             }
           } catch (_) {}
@@ -6036,6 +6069,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               result.same_model_other_sizes = anySize.map(s => ({ id: s.id, name: s.name, price: s.price, sizes: s.sizes }));
               result.note = 'NOTHING in the size asked. We DO carry this model — the ONLY sizes it comes in are listed in same_model_other_sizes. Tell the customer exactly those sizes ("that one only comes in 5.5, 6.5 and 7 right now"). NEVER say "out of stock", NEVER name any other size, NEVER offer a size that is not in that list.';
               lastSearchIds = anySize.map(x => x && x.id).filter(x => x != null);
+              askP = q2;
             }
           } catch (_) {}
         }
@@ -6047,6 +6081,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
         record(req, { endpoint: 'search', sub, params: p, found: found.length });
+        if (askP) lastAsk.set(sub, { p: askP, ids: new Set((lastSearchIds || []).map(String)), at: Date.now() });
         // Completeness tracking: a PURE size search (size ± brand only) is a size-batch
         // request; a colour/query/price/womens search means the customer wanted something
         // specific and must NOT be widened to the whole size.
