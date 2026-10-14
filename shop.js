@@ -1615,7 +1615,10 @@ function mount(app) {
    * its API for a few seconds. Measured 2026-09-23: 25 mb fine, 60 mb fatal.
    * Piping the request straight into the file keeps memory flat whatever the size.
    */
-  const CLIP_MAX_BYTES = 120 * 1024 * 1024;
+  // 300 MB (was 120): an iPhone records 4K by default, ~170 MB a minute, and the page allowed 140 MB — a clip between the two
+  // passed the page, was cut off here mid-upload, and showed as "Upload failed — network" (Deashinique, 2026-10-14).
+  // Keep this and CLIP_MAX in tasks.html the same.
+  const CLIP_MAX_BYTES = 300 * 1024 * 1024;
   /* 💽 HOW FULL IS THE DISK, AND CAN WE CLEAR IT (Rodney 2026-10-05: "also the videos cant
    * upload"). Measured from outside: a 5MB clip saves, a 10MB clip fails in under 3 seconds
    * with "could not save" — that is the write stream erroring, not a timeout and not the size
