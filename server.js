@@ -6939,14 +6939,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             let _extra = _full.map(r => String(r.id)).filter(id => !_have.has(id) && !turnSentIds.has(id));
             const _capN = (() => { const v = parseInt(process.env.NEAR_SIZE_MAX, 10); return isNaN(v) ? 6 : Math.max(0, v); })();
             if (_capN > 0) {
-              const _nearIn = [..._have].filter(id => !_isPrim(id)).length;
-              const _nearExtra = _extra.filter(id => !_isPrim(id));
-              const _room = Math.max(0, _capN - _nearIn);
-              if (_nearExtra.length > _room) {
-                const _keepN = new Set(_nearExtra.slice(0, _room));
-                nearSizeTrimmed += _nearExtra.length - _room;
-                _extra = _extra.filter(id => _isPrim(id) || _keepN.has(id));
+              // The cap also holds when she sent the album with no size field (then the size guard above never ran and
+              // all 37 9.5-only pairs could ride along with the 44 nines): at most _capN companion-only pairs in total.
+              const _nearInList = [..._have].filter(id => !_isPrim(id));
+              let _cut = 0;
+              if (_nearInList.length > _capN) {
+                const _drop = new Set(_nearInList.slice(_capN));
+                _cut = _drop.size;
+                _drop.forEach(id => turnSentIds.delete(id));
+                if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(id => !_drop.has(String(id)));
+                if (Array.isArray(inp.groups)) for (const g of inp.groups) { if (Array.isArray(g.ids)) g.ids = g.ids.filter(id => !_drop.has(String(id))); }
               }
+              const _nearExtra = _extra.filter(id => !_isPrim(id));
+              const _room = Math.max(0, _capN - Math.min(_nearInList.length, _capN));
+              const _keepN = new Set(_nearExtra.slice(0, _room));
+              _extra = _extra.filter(id => _isPrim(id) || _keepN.has(id));
+              // Every companion-only pair not going out, counted once (the guard above may already have counted some).
+              const _notOut = _cut + Math.max(0, _nearExtra.length - _room);
+              if (_notOut > nearSizeTrimmed) nearSizeTrimmed = _notOut;
             }
             if (_extra.length) {
               // Appended with NO label, so it flows on as part of the same album rather than
