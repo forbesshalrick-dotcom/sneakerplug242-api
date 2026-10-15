@@ -5803,6 +5803,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // automatically when the window ends, or instantly on "hand back to Kiki".
   if (!_isStaffChat && isHumanPaused(sub)) {
     try { record(req, { endpoint: 'kiki-human-paused', sub, until: new Date(pausedUntilOf(sub)).toISOString() }); } catch (_) {}
+    // A picture that arrives while Kiki is paused was never answered, so its re-send after the hand-back must not be
+    // dropped as a duplicate (TK +1 242 814-6476 10-15 18:23: picked the Jordan 5 White/Black mid-album, sent it again
+    // 28s later right after the resume, photo-dupe-skip, no answer).
+    try { if (image) for (const k of [...recentImageSeen.keys()]) if (k.startsWith(String(sub) + '|')) recentImageSeen.delete(k); } catch (_) {}
     // 📍 A PIN OR "COME / CALL ME" WHILE YOU'RE HANDLING THE CHAT STILL REACHES YOU (Rodney 10-15, Bj on Trendy Kicks: he
     // offered $110 from the Inbox, Bj said "Ok", "I can send the location where I live", dropped his pin and "Just call my
     // phone" — Kiki was paused, so no order alert went anywhere: "no notification"). Kiki stays quiet; the owner is pinged.
