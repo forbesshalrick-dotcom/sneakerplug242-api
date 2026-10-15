@@ -6827,25 +6827,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
-        let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
-        // 📏 SAY THE HALF SIZE UP OUT LOUD (Rodney 10-15: "not many options in 7.5. That's why we send size 8 options as
-        // well for 7.5. Just allow them to try it on when we reach."). Every men's album already carries the half size up;
-        // when some pairs in it are ONLY the half size up, "here's what we have in 7.5" is untrue for those pairs, so the
-        // lead-in names both sizes and she is told to offer the try-on.
-        let halfUpOnly = 0, halfUpSize = null;
-        try {
-          if (!isNaN(wantN) && inp.womens !== true && leadIn) {
-            const lmH = liveShoeMap();
-            const outH = (Array.isArray(inp.groups) && inp.groups.length) ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
-            const has = (id, n) => { const x = lmH[id]; return !!x && (x.sizesRaw || []).some(z => parseFloat(z) === n); };
-            halfUpSize = wantN + 0.5;
-            halfUpOnly = outH.filter(id => !has(id, wantN) && has(id, halfUpSize)).length;
-            const w = String(wantN).replace('.', '\\.'), u = String(halfUpSize).replace('.', '\\.');
-            if (halfUpOnly && !new RegExp('\\b' + u + '(?:s)?\\b').test(leadIn)) {
-              leadIn = leadIn.replace(new RegExp('\\b' + w + '\\b(?![.\\d])'), `${wantN} and ${halfUpSize}`);
-            }
-          }
-        } catch (_) {}
+        const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         // Completeness tracking: record which ids actually went out, and whether THIS album's
         // lead-in is a GENERIC size batch (mentions no brand, model or colour) — the case where
         // it must show every brand in the size. A lead-in naming a brand/model/colour (e.g.
@@ -6960,10 +6942,6 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           result.dropped_not_sneakers = droppedSlipOn;
           result.note = (result.note ? result.note + ' ' : '')
             + `These are NOT sneakers so they were NOT sent — the customer asked for tennis/sneakers: ${droppedSlipOn.join('; ')}. Do not describe them as sneakers. You may mention at the END that we also carry Crocs/slides if they want to see those too.`;
-        }
-        if (halfUpOnly > 0 && result && result.sent) {
-          result.note = (result.note ? result.note + ' ' : '')
-            + `${halfUpOnly} of those pairs come in a ${halfUpSize}, not a ${wantN} (we send the half size up on purpose: not many options in some sizes). Do NOT call them all a ${wantN}. In your line after the photos say plainly some are a ${halfUpSize} and they can try them on when we reach, e.g. "some of those are a ${halfUpSize} — you can try them on when we reach 👟".`;
         }
         if (nearSizeTrimmed > 0) {
           record(req, { endpoint: 'near-size-trimmed', sub, size: inp.size, trimmed: nearSizeTrimmed, sent: outIdCount });
