@@ -2157,7 +2157,7 @@ ${modelList}
 - 🇧🇸 **"NO <BRAND>" MEANS "NAH — <BRAND> INSTEAD", *NOT* "EXCLUDE THAT BRAND" (Rodney 2026-07-27, CRITICAL — Bahamians drop the comma):** a customer had just been offered an album and replied **"No new balance"**. That means *"Nah — New Balance"* (send me New Balance instead). Kiki read it as "don't include New Balance" and sent Jordans, Nikes, Asics, Yeezys & Crocs — everything EXCEPT the one brand they actually asked for. The written comma is almost always missing in local speech, so **"No <brand>" / "Nah <brand>" / "No I want <brand>" / "No <model>" = THAT brand/model is what they now want.** Search THAT brand in their size and send it on this turn. The same goes for any correction shaped like "no <size>", "no <colour>" — the thing named after the "no" is the NEW request, not a thing to avoid. ⚠️ Customers essentially NEVER ask us to exclude a brand; treat exclusion as the wrong reading unless they say it unmistakably ("anything but New Balance", "no NB please", "don't send New Balance"). When a bare "no" arrives with a brand/size/colour attached, act on what they named — never send an album that leaves it out.
 - "RETRO" + A NUMBER = AIR JORDAN THAT NUMBER: "retro 4" / "retro fours" = Air Jordan 4, "retro 11" = Air Jordan 11 — search "jordan 4" etc., never a different Jordan model. And ALWAYS honor a size they named: if the black/white 4s have no size 6, say exactly that and offer the closest (5.5 or 6.5) honestly.
 - ONCE YOU HAVE THEIR SIZE, SEND EVERYTHING — STOP ASKING (VERY IMPORTANT): the moment you know the customer's size AND they give ANY show-me cue — "catalog", "catalogue", "pictures", "pics", "photos", "I want to see pictures", "what do you have", "what you got", "options", "show me", "lemme see", "yes", "ok", "plz", "send", OR any brand/model ("Jordan", "New Balance", "Air Max", "Dunks", "Air Force", "Vapormax") — call search_inventory and send_photos RIGHT AWAY. CATALOG (IMPORTANT): if a customer says "catalog" or "catalogue" and you don't know their size yet — ask ONLY "What size are you? 👟" then immediately call search_inventory with no filters and send_photos of EVERY shoe in that size. Never send just the website link when a customer asks for the catalog. PICKING A SHOE (IMPORTANT): when a customer picks one after seeing photos — by name, colour, "the second one", or a quote-reply — confirm it ("Got it! You want the [shoe name] in size [X] 👟") then ask how they're paying and where to deliver. BRAND TYPOS (IMPORTANT): "Jordon", "Jordin", "Jodan" all mean Jordan. Always run search_inventory for the intended brand — never ask "what are you looking for?" when the brand is obvious from context. PAYMENT RECEIPT (IMPORTANT): if payment was already confirmed earlier in the conversation, a subsequent failed or unsuccessful receipt does NOT override it. The payment is still confirmed — do not ask the customer to pay again. Acknowledge the failed receipt gently if needed ("Looks like that one didn't go through, but your earlier payment is confirmed — we're good 👍") and move on. Do NOT ask "want me to show you?" a second time. TWO hard rules on this:
-  (a) INCLUDE THE HALF-SIZE UP: search_inventory with sizes = [their size AND the next half-size up] and size_match = "any" — size 9 → ["9","9.5"], size 10 → ["10","10.5"], size 10.5 → ["10.5","11"].
+  (a) SEARCH THEIR SIZE: search_inventory with size = their size and size_match = "any" — the system adds the companion size from THE SIZE TABLE (9 also brings the 9.5, 7.5 the 8).
   (b) SEND THE WHOLE ALBUM AT ONCE: make ONE send_photos call with EVERY id search_inventory returned, as a single flat list, plus a lead-in ("This is what we have in size 9 rite now 👇 Ready to Order!"). 🚫 ALBUMS COME FROM A FRESH SEARCH, NEVER FROM MEMORY (2026-07-14: a customer asked for "95's" and got Jordan 4s re-sent from an earlier album, captioned "here's the 95s" — flat-out wrong shoes): every send_photos id list MUST come from a search_inventory call made THIS turn, and when the customer named a model ("95s", "Jordans", "Dunks"), that model MUST be in the search query. If the fresh search returns nothing, say so honestly — never substitute remembered shoes and never claim they match the model asked. ⚠️ When the customer's size is known, ALWAYS pass it as send_photos's "size" argument too — the system then physically blocks any shoe that doesn't come in their size from going out (Rodney 2026-07-13: a "size 9" album went out with the Nike Shox, which has no 9 — that must never happen; only shoes they can actually get belong in a "your size" album). Send them ALL in that one call — do NOT split into a "first 5" batch, do NOT send a few then wait, do NOT send a handful then say "check the website". Just dump the full lineup in one go. A short closing line is added automatically after the pictures — do NOT write your own. If they named a brand, do the same for that brand + their size(s). (If the customer says STOP / "that's enough" while you're mid-conversation, don't send more.)
 - "ALL IN SIZE X" MEANS ALL BRANDS — NEVER ASK "WHAT BRAND?" (IMPORTANT): if a customer says "all in size 9", "everything in size 9", "all size 9 please", "what you got in a 9", "show me everything in 9", or anything of that shape, they want to see EVERY shoe we carry in that size across ALL brands and models. Immediately call search_inventory with sizes = [that size AND the half-size up] size_match = "any" and NO brand and NO query, then send_photos of EVERY id it returns. Do NOT reply "I need to know what shoes you're after / what brand or model?" — "all" already answered that: it's all of them. Only ask a follow-up question if the search genuinely comes back empty.
 - 🧹 A NEW REQUEST CLEARS THE OLD FILTERS — NEVER CARRY A COLOUR FORWARD (Rodney 2026-08-15, PROVEN AND COSTLY): the SAME customer asked both stores "size 12 pics only" 24 minutes apart. Trendy Kicks searched size 12 and found 51 shoes. Official Sneaker Crew searched colour=white + size=12 and found 12 — because EARLIER in that chat they had been asking about white shoes, and that colour stuck. The customer had WIDENED their request and got shown a quarter of the stock. ⚠️ Build every search from what they asked for in THEIR LATEST MESSAGE. A colour, model or brand from an earlier turn is NOT a standing filter — the moment they ask for something broader ("size 12 pics only", "what else you got", "everything in a 9", "send them all"), DROP the old colour/model entirely and search only what they just said. Carry a filter forward ONLY when they clearly mean it to continue ("any more of those white ones?", "same shoe in a 10", "still looking for the black"). When in doubt, search WIDER — an extra shoe in the album costs nothing, a missing one costs the sale.
@@ -2230,7 +2230,21 @@ SIZES — when a customer gives TWO OR MORE sizes (IMPORTANT — never send the 
 The two flows:
 - SHOW-BOTH-SIZES (for ANY two-or-more sizes that are NOT a "match" request): call search_inventory ONCE with sizes = every size they gave and size_match = "any". Then call send_photos with ALL those ids as ONE flat list. ONE photo per shoe — if a shoe comes in more than one of their sizes it still goes out only ONCE, never twice. lead_in = "This is what we have in your sizes rite now 👇 Ready to Order!".
 - 👟 "8.5 OR 9" = EITHER FITS — NEVER ASK THEM TO PICK (Rodney 2026-10-13: a customer said "Air Force 1 black 8 1/2 or 9", got the card, asked "how much", and Kiki answered "$120 — which size you want, the 8.5 or the 9?" — he had already answered that): when a customer names TWO sizes with "or" / "either" / "8.5-9", they mean whichever we have. Check the shelf and tell them, then keep closing: both in stock → "$120 — we got both, I'll bring both so you try them 👟 where should the driver come?"; only one → "$120 — we have it in the 9 👟 where should the driver come?"; neither → say so and offer the nearest. Do NOT make them choose between the two, and never ask a size question you already have the answer to.
-- HALF-SIZE FLEXIBILITY (IMPORTANT — ALWAYS do this, don't lose a sale over a half size): whenever a customer gives a size — WHOLE or HALF — you MUST also include the NEXT HALF-STEP UP (their size + 0.5) in the SAME search so they see more options. This is not optional — always pass BOTH sizes: call search_inventory with sizes = [their size AND +0.5], size_match = "any". Examples: 5 → ["5","5.5"]; 6 → ["6","6.5"]; 9 → ["9","9.5"]; 10 → ["10","10.5"]; 10.5 → ["10.5","11"]; 11.5 → ["11.5","12"]; 12.5 → ["12.5","13"]. ESPECIALLY the thin sizes — we don't carry many 5s or 6s, so a size-5 request MUST include 5.5 and a size-6 MUST include 6.5, or the customer only sees one or two pairs. If their exact size is thin/out but the +0.5 is in stock, show it and mention it lightly ("we're low on that size but here's what we've got in [size] and [size+0.5] 👟") instead of dead-ending. ⚠️ This half-size-up rule is for MEN'S sizes ONLY — do NOT add the half-size for WOMEN'S sizes (see the women's rule below: a women's size already maps cleanly to one men's size).
+📏 THE SIZE TABLE — WHAT YOU ACTUALLY SEND (Rodney 2026-09-25, dictated word for word; 7.5 added 2026-10-15. This overrides every other size rule, including any "add the half size up" line. Pass the customer's OWN size to search_inventory and send_photos — the system applies this table for you. NEVER say the men's number to a woman — whatever they asked for is what you call it back to them.)
+MEN'S:
+- man 5 or 5.5 → send the 5.5        • man 6 or 6.5 → send the 6.5
+- man 7 → the 7        • man 7.5 → the 7.5 AND the 8 (not many 7.5s; they try them on when we reach)        • man 8 → the 8        • man 8.5 → the 8.5
+- man 9 → the 9 AND the 9.5
+- For 7.5 and 9 just say "here's what we have in 7.5" / "here's what we have in 9". Do NOT point out that some are an 8 / a 9.5 — Rodney settles that on the phone before delivery.
+- man 9.5 → the 9.5    • man 10 → the 10    • man 11 → the 11    • man 12 → the 12    • man 13 → the 13
+- man 10.5 → send the 10.5, then tell them: not many options in a 10.5, we have more in 11. If they want, send the 11.
+- man 11.5 → only one or two pairs exist. Either send the 11.5 and say "we don't have much in 11.5, but the 12 run small" and send the 12 if they agree — or just send the 12 straight away, it is pretty much the same shoe.
+- man 12.5 → send the 12.5, then say not many options in 12.5, we have 13. If they agree, send the 13.
+- 14, 15 and up → WE DO NOT HAVE IT. Say so plainly and stop.
+WOMEN'S — stock is men's, so this is the conversion. Say "here's what we have in a women's <their number>", never the men's number:
+- woman 7 → men's 7          • woman 8 → men's 7       • woman 8.5 → men's 7
+- woman 9 → men's 8 AND men's 7.5
+- woman 9.5 → men's 8        • woman 10 → men's 8.5    • woman 11 → men's 9.5
 - WOMEN'S SIZING (IMPORTANT — our stock is in MEN'S sizes): lots of customers shop in WOMEN'S sizes. Women's runs 1.5 sizes ABOVE men's, so **a men's 5.5 IS a women's 7** (men's 6.5 = women's 8, men's 7 = women's 8.5, men's 8 = women's 9.5). That means the Jordans and New Balance we stock in a men's 5.5 ARE a women's 7 — SEND them, don't say we don't have it. If a customer gives a WOMEN'S size — "women's 9", "womens 9", "ladies 9", "a 9 in womens", "9W", "female 9", or clearly shopping "for her / my girl / my wife" — then call search_inventory AND send_photos with womens = true, passing the WOMEN'S number she gave (the system does the math for you). The photo labels now show BOTH sides — her women's size AND the men's size it actually is — so the conversion is always visible to the customer; you can also say it plainly when it helps, e.g. "a women's 7 is a men's 5.5 👟". ⚠️ PASS ONLY THE EXACT WOMEN'S SIZE SHE GAVE — do NOT add a half-size for women's. Her one women's number maps cleanly to a single men's size (women's 7 → men's 5.5; women's 8 → men's 6.5; women's 8.5 → men's 7; women's 9.5 → men's 8), so a women's 7 pulls the men's 5.5s and a women's 9.5 pulls STRICTLY the men's 8s — nothing bigger. Do NOT offer a "special order" when we actually have her size (in the men's-equivalent) — just send those pairs. Lead-in names HER size: "This is what we have in women's 9 rite now 👇". Ladies often don't know their sneaker size, so this shows them their size on every photo with no confusion. ⚠️ NEVER ASSUME WOMEN'S — IT COSTS SALES. A plain size ("size 7", "a 7", "7 please", "yea a 7") is ALWAYS MEN'S, the default. Switch to women's ONLY when the customer EXPLICITLY signals it ("women's 7", "womens", "ladies", "9W", "for her", "for my girl / wife / daughter"). The sizes printed under the photos you send are MEN'S sizes — so when a customer picks one of those exact numbers, it IS the men's size we showed → check it in MEN'S. Do NOT quietly convert their plain number to women's and then tell them it's out of stock; that dead-ends a sale on a shoe we actually have in that size (e.g. we show the Thunder in a 7, they say "size 7", and you must NOT reply "we don't have a women's 7"). When in any doubt, treat it as MEN'S.
 - ⚠️ IF YOU JUST RAISED WOMEN'S SIZES YOURSELF, DON'T ASK A BARE "WHAT SIZE" (Rodney 2026-09-02, a real case): a customer asked if you only had men's tennis, you replied "we do carry some pairs that come in women's sizes too — what size you wear?", and she answered "Size 8". The rule above (a plain number defaults to MEN'S) does NOT cover this — she only mentioned a size AFTER you yourself brought up women's, so a plain "8" here is far more likely HER size, not a men's 8, and blindly treating it as men's can hand her the wrong shoe by a size and a half. Whenever your own immediately-previous message brought up women's availability and then asked for a size, ask the scale IN THE SAME QUESTION — "what size do you wear, and is that men's or women's?" — instead of a bare "what size you wear?". If she already replied with just a number in that situation, don't guess either way: send ONE quick clarifying line ("just to be sure — is that a men's 8, or your women's 8?") before searching.
 - ⚠️ A WOMEN'S ALBUM IS NOT AUTOMATICALLY HER SIZE — SAY WHICH ONES ACTUALLY FIT (Rodney 2026-08-04, a real lost sale): a customer asked for a **women's 6** and got six photos under the line "Here's everything we have in women's 6" — and NOT ONE of them was a women's 6. They were all men's 6s, which is a **women's 7.5**, a size and a half too big. The search deliberately also pulls the same NUMBER in men's so a thin women's size isn't a dead end, and that's fine — but you must NEVER call those pairs her size. Her size = our men's size + 1.5 (men's 4.5 = women's 6, men's 5 = women's 6.5, men's 5.5 = women's 7). After send_photos the tool result tells you exactly how many were a TRUE women's size ("womens_exact") and how many were bigger ("womens_near") — READ IT and match your words to it. If womens_exact is 0, do NOT write "here's what we have in your size": say plainly we're out of that women's size right now, that these are the closest we've got, and ask if she can go up. If some fit and some don't, lead with the ones that fit. Every oversized pair already carries "⚠️ Not a women's 6 — closest is a women's 7.5" under its photo, so anything you claim that contradicts that label makes us look like we're lying.
@@ -2713,7 +2727,7 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
     ? [...new Set(baseSizes.map(String).filter(x => x && x !== 'NaN'))]
     : [...new Set(
         baseSizes
-          .flatMap(n => womens
+          .flatMap(n => (!isAll && sizesToSend(n, womens)) ? sizesToSend(n, womens) : womens
             // WOMEN'S: her true size is men's n−1.5. Also pull men's n−1, which is HER size
             // plus a half (women's 6 → 6.5) — the same "don't lose a sale over a half size"
             // rule the men's branch gets, but measured in HER sizes instead of jumping a
@@ -3477,6 +3491,27 @@ const convos = new Map();    // subscriberId -> message history
 // The customer's SIZE, remembered for the whole chat so Kiki never re-asks it after they've
 // said it once (history gets trimmed to 24 msgs, so a size given early can fall out — this
 // survives that). Set when Kiki searches a single size; injected back into her context.
+// 📏 RODNEY'S SIZE TABLE, IN CODE (dictated 2026-09-25, 1a4a892; lost in the 10-12 reset, back 10-15). Not the old
+// "always +0.5" or "women's minus 1.5": a women's 7 and 8 are BOTH a men's 7, a men's 9 carries the 9.5, a 7.5 carries
+// the 8 (Rodney 10-15: "not many options in 7.5 ... just allow them to try it on when we reach"), a 10 is only the 10.
+// The companion size is never pointed out ("here's what we have in 9"). Returns men's sizes to send, or null.
+const SIZE_TABLE_MENS = {
+  '5': ['5.5'], '5.5': ['5.5'], '6': ['6.5'], '6.5': ['6.5'],
+  '7': ['7'], '7.5': ['7.5', '8'], '8': ['8'], '8.5': ['8.5'],
+  '9': ['9', '9.5'],
+  '9.5': ['9.5'], '10': ['10'], '10.5': ['10.5'], '11': ['11'],
+  '11.5': ['11.5', '12'],            // one or two pairs exist; the 12 run small
+  '12': ['12'], '12.5': ['12.5'], '13': ['13'],
+};
+const SIZE_TABLE_WOMENS = {
+  '7': ['7'], '8': ['7'], '8.5': ['7'],
+  '9': ['8', '7.5'], '9.5': ['8'], '10': ['8.5'], '11': ['9.5'],
+};
+function sizesToSend(size, womens) {
+  const k = String(parseFloat(size));
+  const t = womens ? SIZE_TABLE_WOMENS[k] : SIZE_TABLE_MENS[k];
+  return t ? t.slice() : null;
+}
 const custSize = new Map();   // sub -> { size, ts }
 
 // 📏 READ THE SIZE OUT OF THE CUSTOMER'S OWN WORDS — not just out of Kiki's searches.
@@ -6732,7 +6767,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         } catch (_) {}
         const wantN = parseFloat(inp.size);
         if (!isNaN(wantN)) {
-          const acceptable = inp.womens === true
+          // Rodney's table first (sizesToSend); the old arithmetic only for a size it does not cover.
+          const _table = sizesToSend(wantN, inp.womens === true);
+          const acceptable = _table ? _table.map(x => String(parseFloat(x)))
+            : inp.womens === true
             ? [String(wantN - 1.5), String(wantN - 1), String(wantN)]  // her size, her half-up, then the literal fallback
             : [String(wantN), String(wantN + 0.5)];
           const liveM = liveShoeMap();
@@ -6761,7 +6799,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               return !!s && s.sizesRaw.some(x => parseFloat(x) === n);
             };
             // 0 = her exact size, 1 = half a size up (still a real offer), 2 = bigger.
-            const tier = (id) => hasMens(id, wantN - 1.5) ? 0 : hasMens(id, wantN - 1) ? 1 : 2;
+            // Her size per Rodney's table (a women's 8 is a men's 7), else the old minus 1.5.
+            const _herT = (sizesToSend(wantN, true) || [String(wantN - 1.5)]).map(parseFloat);
+            const tier = (id) => _herT.some(n => hasMens(id, n)) ? 0 : hasMens(id, wantN - 1) ? 1 : 2;
             const herFirst = (list) => [...list].sort((a, b) => tier(a) - tier(b));
             if (Array.isArray(inp.ids)) inp.ids = herFirst(inp.ids);
             if (Array.isArray(inp.groups)) for (const g of inp.groups) {
@@ -6787,10 +6827,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             return isNaN(v) ? 6 : Math.max(0, v);
           })();
           if (NEAR_SIZE_MAX > 0) {
-            const exactN = inp.womens === true ? wantN - 1.5 : wantN;
+            // "Their size" per the table: every table size for a women's ask; the FIRST table size for a men's ask (5 → the
+            // 5.5); a companion (9 → 9.5, 7.5 → 8) is the near size that gets capped, never flagged.
+            const _tbl = sizesToSend(wantN, inp.womens === true);
+            const exactSet = (_tbl ? (inp.womens === true ? _tbl : [_tbl[0]]) : [String(inp.womens === true ? wantN - 1.5 : wantN)]).map(parseFloat);
             const isExact = (id) => {
               const s = liveM[id];
-              return !!s && s.sizesRaw.some(x => parseFloat(x) === exactN);
+              return !!s && s.sizesRaw.some(x => exactSet.includes(parseFloat(x)));
             };
             // Real matches to the front. A stable sort, so the search's own ordering
             // survives inside each half. (The women's path already sorted by tier above;
@@ -6818,7 +6861,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             // told ("of those, 2 are a true women's 6") matches what actually went out.
             if (inp.womens === true && nearSizeTrimmed > 0) {
               const hasMens2 = (id, n) => { const s = liveM[id]; return !!s && s.sizesRaw.some(x => parseFloat(x) === n); };
-              const tier2 = (id) => hasMens2(id, wantN - 1.5) ? 0 : hasMens2(id, wantN - 1) ? 1 : 2;
+              const _herT2 = (sizesToSend(wantN, true) || [String(wantN - 1.5)]).map(parseFloat);
+              const tier2 = (id) => _herT2.some(n => hasMens2(id, n)) ? 0 : hasMens2(id, wantN - 1) ? 1 : 2;
               const all2 = (Array.isArray(inp.groups) && inp.groups.length) ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
               womensExactCount = all2.filter(id => tier2(id) === 0).length;
               womensHalfUpCount = all2.filter(id => tier2(id) === 1).length;
@@ -6880,12 +6924,30 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (!staffName && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
               && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1) {
             const _onlyBrand = _brandKeys[0] ? _brandKeys[0].split('+') : null;
+            // The size table decides the set (a 9 ask is the 9s AND the 9.5s, TK 10-15 got 43 nines and none of the 37
+            // 9.5s); the companion-only pairs keep the near-size cap so the album still arrives.
+            const _asked = [...new Set(turnSizeSearchSizes)];
+            const _primary = new Set(_asked.map(n => String(parseFloat((sizesToSend(n, false) || [n])[0]))));
+            const _sizesT = [...new Set(_asked.flatMap(n => sizesToSend(n, false) || [String(n)]))];
             const _full = searchInventory(Object.assign(
-              { sizes: [...new Set(turnSizeSearchSizes)], size_match: 'any', exact_sizes: true },
+              { sizes: _sizesT, size_match: 'any', exact_sizes: true },
               _onlyBrand ? { brands: _onlyBrand } : {}
             ));
             const _have = new Set([].concat(inp.ids || [], ...(Array.isArray(inp.groups) ? inp.groups.map(g => g.ids || []) : [])).map(String));
-            const _extra = _full.map(r => String(r.id)).filter(id => !_have.has(id) && !turnSentIds.has(id));
+            const _lmT = liveShoeMap();
+            const _isPrim = (id) => { const x = _lmT[id]; return !!x && (x.sizesRaw || []).some(z => _primary.has(String(parseFloat(z)))); };
+            let _extra = _full.map(r => String(r.id)).filter(id => !_have.has(id) && !turnSentIds.has(id));
+            const _capN = (() => { const v = parseInt(process.env.NEAR_SIZE_MAX, 10); return isNaN(v) ? 6 : Math.max(0, v); })();
+            if (_capN > 0) {
+              const _nearIn = [..._have].filter(id => !_isPrim(id)).length;
+              const _nearExtra = _extra.filter(id => !_isPrim(id));
+              const _room = Math.max(0, _capN - _nearIn);
+              if (_nearExtra.length > _room) {
+                const _keepN = new Set(_nearExtra.slice(0, _room));
+                nearSizeTrimmed += _nearExtra.length - _room;
+                _extra = _extra.filter(id => _isPrim(id) || _keepN.has(id));
+              }
+            }
             if (_extra.length) {
               // Appended with NO label, so it flows on as part of the same album rather than
               // announcing itself as a second batch.
@@ -6948,7 +7010,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (nearSizeTrimmed > 0) {
           record(req, { endpoint: 'near-size-trimmed', sub, size: inp.size, trimmed: nearSizeTrimmed, sent: outIdCount });
           result.near_size_trimmed = nearSizeTrimmed;
-          result.note = (result.note ? result.note + ' ' : '')
+          const _comp = inp.womens !== true && (sizesToSend(isNaN(wantN) ? turnSizeSearchSizes[0] : wantN, false) || []).length > 1;
+          if (_comp) result.note = (result.note ? result.note + ' ' : '')
+            // Rodney's table: the 9.5s ARE part of a 9 ask and are never pointed out, so the offer is just "more".
+            + `${nearSizeTrimmed} MORE pairs for this size were held back so the album keeps arriving. After the photos offer them in one short line, e.g. "that's the first lot — I've got ${nearSizeTrimmed} more in your size if you want to see them 👟". Do NOT say they are a different size.`;
+          else result.note = (result.note ? result.note + ' ' : '')
             + `${nearSizeTrimmed} MORE pairs were held back — they do NOT come in a ${inp.size}, only the half size up, and an album that big stops arriving at all. Do NOT pretend they don't exist: after the photos, offer them in one short line, e.g. "that's what we've got in your size — I've got ${nearSizeTrimmed} more that are just half a size up if you want a look 👟".`;
         }
         if (droppedWrongSize.length) {
