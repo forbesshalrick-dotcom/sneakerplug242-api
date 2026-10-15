@@ -5803,6 +5803,27 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // automatically when the window ends, or instantly on "hand back to Kiki".
   if (!_isStaffChat && isHumanPaused(sub)) {
     try { record(req, { endpoint: 'kiki-human-paused', sub, until: new Date(pausedUntilOf(sub)).toISOString() }); } catch (_) {}
+    // 📍 A PIN OR "COME / CALL ME" WHILE YOU'RE HANDLING THE CHAT STILL REACHES YOU (Rodney 10-15, Bj on Trendy Kicks: he
+    // offered $110 from the Inbox, Bj said "Ok", "I can send the location where I live", dropped his pin and "Just call my
+    // phone" — Kiki was paused, so no order alert went anywhere: "no notification"). Kiki stays quiet; the owner is pinged.
+    try {
+      const _raw = String(userText || '');
+      const _w = customerWordsOnly(_raw);
+      const _pin = /LOCATION PIN/i.test(_raw) || /RE-DELIVERY of the customer|non-?text (message|thing)|dropped (a |their )?(pin|location)/i.test(_raw);
+      const _go = /\b(location|pin|where i live|my address|call (?:me|my phone)|i'?m (?:home|here|outside)|on my way|coming|deal|bet|i'?ll take|send (?:it|them)|bring (?:it|them))\b/i.test(_w);
+      global.__pausedPingAt = global.__pausedPingAt || new Map();
+      if ((_pin || _go) && Date.now() - (global.__pausedPingAt.get(String(sub)) || 0) > 10 * 60 * 1000) {
+        global.__pausedPingAt.set(String(sub), Date.now());
+        const _rs = (typeof recentlySent !== 'undefined' && recentlySent.get(sub)) || null;
+        const _ph = getPhone(req) || '';
+        record(req, { endpoint: 'paused-chat-pinged-owner', sub, pin: _pin, said: _w.slice(0, 100) });
+        waSendManager('📍 *' + (ctx.name || 'Customer') + (_pin ? ' just sent a LOCATION PIN' : ' is ready for delivery') + '* — you\'re handling this chat, Kiki is paused'
+          + (ctx.store ? '\n🏬 ' + ctx.store : '') + (_ph ? '\n📞 ' + _ph : '')
+          + (_w && !_pin ? '\n💬 "' + _w.slice(0, 240) + '"' : '')
+          + (_rs && _rs.names && _rs.names.length ? '\n👟 Last shown: ' + _rs.names.slice(0, 2).join(', ') : '')
+          + (ctx.chatUrl ? '\n💬 Open the chat: ' + ctx.chatUrl : ''), token).catch(() => {});
+      }
+    } catch (_) {}
     // Keep Kiki's memory in sync while a human handles it: fold the customer's words
     // into the convo so that when she resumes she has the FULL thread, not a gap.
     try {
