@@ -3345,6 +3345,20 @@ const photoConfirmSeen = new Map();
 // Fetish 10-15: picked the Vomero 5 Black/Pink at 10:31, said size 10, came back at 14:22 with "You can come with tennis
 // size 10" and got an 18-picture size-10 album as if she were starting over.
 const lastPickBySub = new Map();
+// The women's size a customer typed: sub -> { size, at }. Foot Fetish 10-15 17:00: "I were an 10.5 in women", Kiki converted
+// it herself (9) AND passed womens:true, so the search took off another 1.5 and she was sent "women's 9".
+const womensSaid = new Map();
+function undoWomensDoubleConvert(sub, p, record, req) {
+  try {
+    const w = womensSaid.get(String(sub));
+    if (!p || p.womens !== true || !w || Date.now() - w.at > 12 * 3600 * 1000) return;
+    const fix = (x) => (x != null && parseFloat(x) === w.size - 1.5) ? String(w.size) : x;
+    const before = JSON.stringify([p.size, p.sizes]);
+    if (p.size != null) p.size = fix(p.size);
+    if (Array.isArray(p.sizes)) p.sizes = p.sizes.map(fix);
+    if (JSON.stringify([p.size, p.sizes]) !== before) record(req, { endpoint: 'womens-double-convert-fixed', sub, said: w.size, was: before });
+  } catch (_) {}
+}
 const lastIncomingText = new Map(); // sub -> the text of that latest message
 const lastReplayAt = new Map(); // sub -> when a non-text replay (pin/sticker/undelivered photo) last arrived
 const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
@@ -5965,6 +5979,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // rule text "in an 8" - Claudia/Ricky 10-14 19:59 was told "in a size 8" off that), so only the words before it count.
     const saidNow = sizeFromCustomerWords(customerWordsOnly(userText));
     if (saidNow) { custSize.set(sub, { size: saidNow, ts: Date.now(), fromCustomer: true }); saveConvos(); }
+    // Her own women's number, kept apart: a search overwrites custSize with whatever Kiki passed.
+    if (saidNow && /\b(wom[ae]n'?s?|ladies|lady|female|girls?|for her|my (?:wife|girl|daughter|mom|mother|sister))\b/i.test(customerWordsOnly(userText))) womensSaid.set(String(sub), { size: parseFloat(saidNow), at: Date.now() });
   } catch (_) {}
   let sizeCtx = '';
   const cs = custSize.get(sub);
@@ -6719,6 +6735,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       let result;
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
+        undoWomensDoubleConvert(sub, p, record, req);
         let found, askP = null;   // what the customer asked for, as the shoes that came back answer it
         if (ctx.store === SI.STORE) {
           // 10,000+ styles that change when stock lands, on another host. The
@@ -6833,6 +6850,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
+        undoWomensDoubleConvert(sub, inp, record, req);
         // 🎯 ALREADY PICKED = NO OTHER PICTURES (Rodney 2026-10-14: a customer forwarded our yellow/black TN card and
         // got two yellow/black TNs back — "once they're already picked, we'd like to go with the first option they
         // already picked"). When this turn has a pinned pick, every other shoe is dropped, and the pick itself is not
