@@ -1688,6 +1688,10 @@ const INTERNAL_LEAK_RE = new RegExp([
   'my (?:actual )?role (?:here )?is',
   'in (?:your|the) system prompt',
   'anything else i should adjust',                                    // she asked the OWNER, in public
+  // Her own reasoning, sent to the customer (Raymond Neymour, TK 10-11/12: "(This is a re-delivery of their previous 👍 —
+  // nothing new to act on, so I'll leave it there.)" and "You're right — my mistake. Nothing to do here.").
+  'nothing (?:new )?to (?:act on|do here|reply to|respond to)', 're-?delivery of (?:their|the|a|his|her) ',
+  'i\\047?ll leave it there', '^\\s*\\((?:this|that|no|nothing|they|the customer|customer|re-?delivery)\\b',
 ].join('|'), 'i');
 
 const STORE_DEFAULT = 'THE PLUG 242';
@@ -6218,6 +6222,39 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       ? AI_TOOLS.filter(t => t.name !== 'send_photos')
       : null;
   try {
+  // 📦 THEY ALREADY ORDERED (Rodney 10-15, Raymond Neymour on TK: paid Sunday by card for a boat to Staniel Cay. Monday he
+  // wrote "The tennis can come on the Lady Francis going to Staniel Cay Exuma" and forwarded her freight schedule; Kiki said
+  // "You're good 👟" and nobody was told, so it went on the Grand Master to George Town. Wednesday the order had fallen out
+  // of her 24-message memory and she asked what island and whether he'd paid.) The order alert is the record: it rides in
+  // every turn for 21 days, and anything the customer says about the boat, the package or the shipping goes to the team.
+  try {
+    if (!staffName) {
+      const _cut = Date.now() - 21 * 86400000;
+      const _ord = (require('./shop').getNotes() || [])
+        .filter(n => n && String(n.sub || '') === String(sub) && /DELIVERY READY|YOU'VE GOT AN ORDER/.test(n.text || '') && new Date(n.createdAt).getTime() > _cut)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      if (_ord) {
+        const _when = new Date(_ord.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Nassau' });
+        const _facts = String(_ord.text || '').split('\n').filter(l => /👤|👟|💰|📍/.test(l)).join(' · ').slice(0, 400);
+        system += '\n\n📦 THIS CUSTOMER ALREADY ORDERED (' + _when + '), the team has it: ' + _facts + '. Treat it as fact: never ask again what they want, '
+          + 'the island, the receiver or whether they paid (a card/transfer order here is PAID). You do NOT know if or when it went out — if they ask, '
+          + 'say you have passed it to the team and they will update them. Never tell them "you\'re good" about a boat, a date or a change; the team decides.';
+        const _said = customerWordsOnly(userText);
+        const _ship = /\b(boat|mail ?boat|ferr(?:y|ies)|lady|m\/v|freight|dock|cargo|plane|flight|airport|ship(?:ped|ping|ment)?|package|parcel|tracking|bill of lading|went out|sent it|arriv\\w*|reach\\w*|island|cay|pick ?up|collect)\b/i;
+        const _isShip = /SHIPMENT|boat|plane|island/i.test(_ord.text || '');
+        global.__orderRelayAt = global.__orderRelayAt || new Map();
+        const _last = global.__orderRelayAt.get(String(sub)) || 0;
+        if (_isShip && _said && (_ship.test(_said) || _said.length > 150) && Date.now() - _last > 20 * 60 * 1000) {
+          global.__orderRelayAt.set(String(sub), Date.now());
+          const _who = (String(_ord.text || '').match(/👤\s*([^\n]+)/) || [])[1] || '';
+          const _ph = (String(_ord.text || '').match(/📞\s*([^\n(]+)/) || [])[1] || '';
+          record(req, { endpoint: 'order-followup-relayed', sub, store: ctx.store || '', said: _said.slice(0, 160) });
+          waSendManager('📦 *SHIPPING MESSAGE from a customer who already ordered* — please read' + (_who ? '\n👤 ' + _who.trim() : '') + (_ph ? '\n📞 ' + _ph.trim() : '')
+            + '\n🧾 Order (' + _when + '): ' + _facts.slice(0, 220) + '\n💬 They said: "' + _said.slice(0, 500) + '"' + (ctx.store ? '\n🏬 ' + ctx.store : ''), token).catch(() => {});
+        }
+      }
+    }
+  } catch (_) {}
   // 🎯 A bare size answers the question about the shoe they already named — search THAT shoe in it (see lastModelNamed).
   let namedModel = '';
   try {
