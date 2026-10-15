@@ -6066,6 +6066,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // top it up with the rest. Only pure size (±brand) searches count; a colour/query/price
   // search means the customer wanted something specific, so we never widen those.
   const turnSentIds = new Set();        // shoe ids actually sent this turn
+  let orderRefusedAfterText = false;   // a size-only "order" was refused after her reply already went: end the turn there
   const pinnedPickIds = new Set();      // the shoe(s) the customer already PICKED this turn (a forwarded card): nothing else may be sent
   /* 🎯 THE SHOE THE PHOTO NAMED GOES OUT FIRST, FROM THE SERVER (ported 2026-10-13 from the Oct 10
    * brain). The identifier said "New Balance 9060 Black/White" every time and the chat model
@@ -6474,8 +6475,34 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _VOC = /\b(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|peach|sail|bone)\b/gi;
           const _cset = (t) => [...new Set((String(t || '').match(_VOC) || []).map(c => c.toLowerCase().replace('gray', 'grey')))];
           const scopedWrong = [], scopedShoes = [];
+          // 📌 THE LISTING'S OWN SHOE (Salethia, Tami 10-15 14:53: "Air Max 90 Green/Cream" listing, shelf 6.5 only, she said 8
+          // and got "Got it in a size 8" because the Green/Black/White carries an 8). In a listing chat a size named with no
+          // colour means the listing's colourway, so it is checked against that shoe alone.
+          let _listShelf = null; const _listShoes = [];
+          try {
+            const _ltl = String(ctx.listingTitle || '').replace(/\[[^\]]*\]?/g, ' ').replace(/\$\s*\d+/g, ' ').replace(/\bBSD\d+\b/gi, ' ').replace(/\s{2,}/g, ' ').toLowerCase();
+            const _lc = _cset(_ltl);
+            if (_lc.length) {
+              const _pool = Object.values(lm).filter(x => x && x.name && _ltl.includes(String(x.name).toLowerCase().replace(/^nike\s+/, '')));
+              const _hit = _pool.filter(x => { const h = _cset((x.color || '') + ' ' + (x.nickname || '')); return h.length === _lc.length && _lc.every(c => h.includes(c)); });
+              if (_hit.length && _hit.length <= 3) {
+                _listShelf = new Set(); _hit.forEach(x => { _listShoes.push(x); (x.sizesRaw || []).forEach(z => _listShelf.add(String(parseFloat(z)))); });
+                // Its sizes are real stock too ("only the Green/Cream in a 6.5" is true even when the search found other colours).
+                _listShelf.forEach(z => shelf.add(z)); cands = [..._listShoes, ...cands.filter(c => !_listShoes.includes(c))].slice(0, 6);
+              }
+            }
+          } catch (_) {}
           const _scopeCheck = (sen, nums) => {
-            const want = _cset(sen); if (!want.length || !nums.length) return;
+            const want = _cset(sen); if (!nums.length) return;
+            if (!want.length) {
+              if (_listShelf) {
+                // A plain size is MEN'S; the women's allowance (n - 1.5) only when the sentence says women's.
+                const _w = /\b(women'?s|womens|ladies|female|w)\b/i.test(sen);
+                const bad = nums.filter(n => !_listShelf.has(String(n)) && !(_w && _listShelf.has(String(n - 1.5))));
+                if (bad.length) { scopedWrong.push(...bad); _listShoes.forEach(x => { if (!scopedShoes.includes(x)) scopedShoes.push(x); }); }
+              }
+              return;
+            }
             const models = new Set(cands.map(c => c.name));
             const pool = Object.values(lm).filter(x => x && models.has(x.name));
             const same = (x) => { const h = _cset((x.color || '') + ' ' + (x.nickname || '')); return h.length === want.length && want.every(c => h.includes(c)); };
@@ -6483,7 +6510,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (!hit.length) hit = pool.filter(x => { const h = _cset((x.color || '') + ' ' + (x.nickname || '')); return want.every(c => h.includes(c)); });
             if (!hit.length || hit.length > 4) return;
             const sh = new Set(); hit.forEach(x => (x.sizesRaw || []).forEach(z => sh.add(String(parseFloat(z)))));
-            const bad = nums.filter(n => !sh.has(String(n)) && !sh.has(String(n - 1.5)));
+            const _w2 = /\b(women'?s|womens|ladies|female|w)\b/i.test(sen);
+            const bad = nums.filter(n => !sh.has(String(n)) && !(_w2 && sh.has(String(n - 1.5))));
             if (bad.length) { scopedWrong.push(...bad); hit.forEach(x => { if (!scopedShoes.includes(x)) scopedShoes.push(x); }); }
           };
           try {
@@ -6601,6 +6629,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'pay-placeholder-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
       continue;
+    }
+    /* 📍 A SIZE IS NOT A MEETING (Salethia, Tami 10-15: "8" got "…Where should we meet you? 📍"). Their size alone never gets a
+     * location or meet-up ask; it is cut before it goes out. */
+    if (turnText && !staffName && /^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(customerWordsOnly(userText))) {
+      const _locAsk = /\b(where (?:should|can|do|shall) (?:we|i) (?:meet|bring|deliver|drop)|where (?:you|u) (?:at|located)|send (?:me )?(?:your|ur|a) (?:location|pin|address)|drop (?:me )?(?:a|your) pin|what'?s (?:your|ur) (?:location|address))\b/i;
+      const _parts = turnText.split(/(?<=[.!?\n])\s+|(?<=\p{Extended_Pictographic})\s+/u);
+      if (_parts.some(x => _locAsk.test(x))) {
+        const _keep = _parts.filter(x => !_locAsk.test(x)).join(' ').replace(/\s{2,}/g, ' ').trim();
+        record(req, { endpoint: 'location-ask-cut', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
+        if (_keep) turnText = _keep;
+      }
     }
     // Remembered for the safety net only AFTER every guard above passed it — set before them, a blocked reply (a fee
     // we don't charge, a [TOTAL] link, "I can't see your picture") went out anyway when the retry came back empty.
@@ -7161,6 +7200,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
                && (/^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(String(userText || '').split('(SYSTEM')[0].trim())
                    || (image && !String(userText || '').split('(SYSTEM')[0].trim()))) {
         record(req, { endpoint: 'order-refused-size-only', sub, store: ctx.store || '', said: String(userText || '').slice(0, 20), shoe: String((tu.input || {}).shoe || '').slice(0, 60) });
+        // Her words already went out with this call: one reply is the whole answer, never a second "My bad —" tacked on.
+        if (sentToCustomer) orderRefusedAfterText = true;
         result = { ok: false, not_filed: 'They only gave their size (or sent a picture) — that is NOT an order, so nothing was filed. Do not ask for their location yet. If you already told them we have it in their size, send nothing more; otherwise say so in one line. File order_confirmed only when they say they want it (I\'ll take it, yes, bring it, how do I pay, send me the location ask, etc.).' };
       }
       else if (tu.name === 'notify_manager') {
@@ -7590,6 +7631,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // Photos (and the auto closing message) are out — stop here so the model can't
     // append a trailing lead-in AFTER the photos on the next turn.
     if (photosSent) break;
+    if (orderRefusedAfterText) break;
   }
   } catch (e) {
     record(req, { endpoint: 'chat-loop-error', sub, error: String(e && e.stack || e).slice(0, 300) });
