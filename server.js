@@ -3430,7 +3430,9 @@ async function callClaude(messages, system, toolChoice, toolsOverride) {
   const _head = _i < 0 ? _sys : _sys.slice(0, _i), _tail = _i < 0 ? '' : _sys.slice(_i + SYS_SPLIT.length).trim();
   const _system = [{ type: 'text', text: _head, cache_control: { type: 'ephemeral', ttl: '1h' } }].concat(_tail ? [{ type: 'text', text: _tail }] : []);
   const _tools = (toolsOverride || AI_TOOLS).map((t, i, a) => i === a.length - 1 ? Object.assign({}, t, { cache_control: { type: 'ephemeral', ttl: '1h' } }) : t);
-  const body = { model: AI_MODEL, max_tokens: 1024, system: _system, tools: _tools, messages, cache_control: { type: 'ephemeral' } };
+  // 4096, not 1024 (Williams, Foot Fetish 10-15 13:00): a size-7 search found 166 shoes, the send_photos call listing every
+  // id ran past 1024 tokens and was cut off, so the "👇" lead-in went out and not one picture followed — no error logged.
+  const body = { model: AI_MODEL, max_tokens: 4096, system: _system, tools: _tools, messages, cache_control: { type: 'ephemeral' } };
   if (toolChoice) body.tool_choice = toolChoice; // e.g. force a search on the first move of a photo
   // AUTO-RETRY transient failures (overloaded 529 / rate-limit 429 / 5xx / network blips).
   // These are common with vision and used to drop STRAIGHT to the "hiccup" message on the
@@ -3448,9 +3450,12 @@ async function callClaude(messages, system, toolChoice, toolsOverride) {
           'content-type': 'application/json',
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(60000),
       });
       const data = await r.json().catch(() => ({}));
+      if (r.ok && data && data.stop_reason === 'max_tokens') {
+        try { recent.unshift({ at: new Date().toISOString(), endpoint: 'reply-truncated', tools: (data.content || []).filter(c => c && c.type === 'tool_use').map(c => c.name) }); } catch (_) {}
+      }
       if (r.ok) return { ok: true, status: r.status, data };
       last = { ok: false, status: r.status, data };
       // A model or account that refuses the cache fields must never silence her: same call again, uncached.
