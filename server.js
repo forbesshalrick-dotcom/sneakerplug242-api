@@ -3382,7 +3382,31 @@ async function transcribeAudio(url, mediaAuth, extraHeaders) {
  * cached block makes it a fresh write. The conversation is cached too, so the tool loop re-reads it cheaply. Verified on the
  * API 2026-10-14: the second call read 12,722 tokens from cache. Nothing she is told changes. */
 const SYS_SPLIT = '\n\n\u241e-PER-TURN-\u241e\n';
+// 🔧 Every tool_use needs its tool_result in the very next message, or the API answers 400 and the customer gets the
+// "didn't come through" fallback (Tami/Dicienzo 10-15 07:34: a guard bounced a draft that had a search in it, the
+// SYSTEM NOTE went in where the search result belonged). Fill any missing result in place, in the history itself.
+function repairToolPairs(h) {
+  for (let i = 0; i < h.length - 1; i++) {
+    const a = h[i];
+    if (!a || a.role !== 'assistant' || !Array.isArray(a.content)) continue;
+    const ids = a.content.filter(b => b && b.type === 'tool_use').map(b => b.id);
+    if (!ids.length) continue;
+    const nx = h[i + 1];
+    const have = new Set(nx && nx.role === 'user' && Array.isArray(nx.content) ? nx.content.filter(b => b && b.type === 'tool_result').map(b => b.tool_use_id) : []);
+    const miss = ids.filter(id => !have.has(id)).map(id => ({ type: 'tool_result', tool_use_id: id, content: 'Not run - your reply was sent back for a rewrite. Read the note below.' }));
+    if (!miss.length) continue;
+    if (nx && nx.role === 'user') {
+      const rest = Array.isArray(nx.content) ? nx.content.filter(b => !(b && b.type === 'tool_result')) : [{ type: 'text', text: String(nx.content || '') }];
+      const kept = Array.isArray(nx.content) ? nx.content.filter(b => b && b.type === 'tool_result') : [];
+      nx.content = [...kept, ...miss, ...rest.filter(b => !(b.type === 'text' && !String(b.text || '').trim()))];
+    } else {
+      h.splice(i + 1, 0, { role: 'user', content: miss });
+    }
+  }
+  return h;
+}
 async function callClaude(messages, system, toolChoice, toolsOverride) {
+  try { repairToolPairs(messages); } catch (_) {}
   const _sys = system || buildSystemPrompt();
   const _i = _sys.indexOf(SYS_SPLIT);
   const _head = _i < 0 ? _sys : _sys.slice(0, _i), _tail = _i < 0 ? '' : _sys.slice(_i + SYS_SPLIT.length).trim();
@@ -6316,7 +6340,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // (Claudia drill 10-14, no 8 on the shelf) walked past the short form above. A "don't have / no / not" in
           // front is a true "we don't have it in an 8" and is never a claim.
           const re3 = /\b(?:got|have|has|carry|stock)\b([^.!?\n]{1,60}?)\bin\s+(?:(?:a|an|the|your|ur|size|sizes|men'?s|mens|women'?s)\s+){0,3}((?:\d{1,2}(?:\.5)?)(?:\s*(?:,|and|&|\/|or)\s*(?:a|an|the)?\s*\d{1,2}(?:\.5)?)*)/gi;
-          const negated = (at, span) => /\b(?:don'?t|do not|doesn'?t|not|no|aren'?t|isn'?t|out of|without|except)\b/i.test(turnText.slice(Math.max(0, at - 30), at) + ' ' + span);
+          // "Let me check what we have in a 5.5 and 6" is a look, not a claim (Dicienzo 10-15 07:34 was blocked on it).
+          const negated = (at, span) => /\b(?:don'?t|do not|doesn'?t|not|no|aren'?t|isn'?t|out of|without|except|check|checking|see if|see what|look|looking|lemme|let me|what we)\b/i.test(turnText.slice(Math.max(0, at - 30), at) + ' ' + span);
           let m; while ((m = re.exec(turnText))) { if (negated(m.index, '')) continue; (m[1].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); }); }
           // A size with a price on it is a claim too: "Air Max 97 Silver/Red in a size 8 is $130" (Ricky, Claudia 19:59).
           const re4 = /\bin\s+(?:a\s+|an\s+|your\s+|ur\s+)?size\s+(\d{1,2}(?:\.5)?)\s+(?:is|for|at|=|-|\u2014)\s*\$/gi;
@@ -6372,6 +6397,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _cut = turnText.replace(/\s*[\u2014\u2013-]?\s*,?\s*(?:is it|is that|are you|you|maybe|like|prob(?:ably)?)?\s*(?:a|an)\s+(\d{1,2}(?:\.5)?)(?:\s*(?:or|\/)\s*(?:a|an)?\s*(\d{1,2}(?:\.5)?))?\s*\?/gi,
         (all, a, b) => [a, b].filter(Boolean).every(x => _said.has(String(parseFloat(x)))) ? all : '?');
       if (_cut !== turnText) { record(req, { endpoint: 'size-guess-cut', sub, store: ctx.store || '', text: turnText.slice(0, 160) }); turnText = _cut.replace(/\?\s*\?/g, '?'); }
+    }
+    // 🙈 AN UNREADABLE ITEM RIGHT AFTER WE ASKED THE SIZE: don't ask it again 11 s later (Dicienzo 10-15 07:33, M5
+    // Facebook1's catch). The pic line stands alone; the size question is still on the screen above it.
+    if (turnText && /^\s*\[sent something I could not read\]\s*$/i.test(String(userText || ''))) {
+      const _prevA = [...history].reverse().find(m => m && m.role === 'assistant' && m !== history[history.length - 1]);
+      const _prevTxt = _prevA ? (typeof _prevA.content === 'string' ? _prevA.content : (Array.isArray(_prevA.content) ? _prevA.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')) : '';
+      if (SIZE_REASK_RE.test(_prevTxt) && SIZE_REASK_RE.test(turnText)) {
+        const _kept = turnText.split(/(?<=[.!?\u{1F648}])\s+/u).filter(x => !SIZE_REASK_RE.test(x)).join(' ').trim();
+        record(req, { endpoint: 'unreadable-size-reask-cut', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
+        turnText = _kept || 'Pic still loading, data freaking out \u{1F648}';
+      }
     }
     // Only when the customer really typed that size in this chat: a remembered size from anywhere else (a search, a
     // listing note) must never stop her asking a man who has not said one (Ricky 10-14: blocked "What size you need?").
