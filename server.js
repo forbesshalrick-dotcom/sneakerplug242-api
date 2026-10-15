@@ -3565,6 +3565,11 @@ function sizeFromCustomerWords(text) {
   }
   return '';
 }
+// The customer's own words in a turn: drops a "(SYSTEM: …)" line and everything from the first "[" (a Facebook
+// listing note, which quotes stock sizes and our own rule text) so neither is ever read as their size.
+function customerWordsOnly(text) {
+  return String(text || '').replace(/\(SYSTEM[\s\S]*?\)\n?/gi, ' ').replace(/\[[\s\S]*$/, ' ').trim();
+}
 // Every men's size actually on the shelf right now. Used to tell the difference between
 // "we're out of his size today" and "we do not go that big at all".
 function sizesWeStock() {
@@ -5884,7 +5889,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // Only the CUSTOMER'S words: a "(SYSTEM: …)" line or a [bracketed] note riding in front of them (a Facebook
     // album pointer, a listing) can carry a shoe's stock sizes, and reading those as his size is the 10-04 Wade
     // failure ("you wear an 8.5" to a man who never said it).
-    const saidNow = sizeFromCustomerWords(String(userText || '').replace(/\(SYSTEM[^)]*\)/gi, ' ').replace(/\[[^\]]*(?:\]|$)/g, ' '));
+    // Everything from the first "[" on is the Mac's listing note (it can hold its own "[hidden information]" and our
+    // rule text "in an 8" - Claudia/Ricky 10-14 19:59 was told "in a size 8" off that), so only the words before it count.
+    const saidNow = sizeFromCustomerWords(customerWordsOnly(userText));
     if (saidNow) { custSize.set(sub, { size: saidNow, ts: Date.now(), fromCustomer: true }); saveConvos(); }
   } catch (_) {}
   let sizeCtx = '';
@@ -6336,7 +6343,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     // 📏 NEVER ASK A SIZE THEY ALREADY GAVE (Rodney 2026-09-06, ported back 10-14 after the 10-12 reset: Lady Resh's
     // daughter's 7.5 was asked for again). knownSize is read off the customer's own words above, not only off searches.
-    if (turnText && knownSize && SIZE_REASK_RE.test(turnText)) {
+    // Only when the customer really typed that size in this chat: a remembered size from anywhere else (a search, a
+    // listing note) must never stop her asking a man who has not said one (Ricky 10-14: blocked "What size you need?").
+    if (turnText && knownSize && SIZE_REASK_RE.test(turnText)
+        && history.some(m => m && m.role === 'user' && !/^\(SYSTEM NOTE/.test(typeof m.content === 'string' ? m.content : '')
+             && sizeFromCustomerWords(customerWordsOnly(typeof m.content === 'string' ? m.content
+                  : (Array.isArray(m.content) ? m.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))) === knownSize)) {
       sizeReAsks++;
       record(req, { endpoint: 'size-reask-blocked', sub, store: ctx.store || '', size: knownSize, attempt: sizeReAsks, text: turnText.slice(0, 200) });
       if (sizeReAsks === 1) {
