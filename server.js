@@ -6362,6 +6362,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     // 📏 NEVER ASK A SIZE THEY ALREADY GAVE (Rodney 2026-09-06, ported back 10-14 after the 10-12 reset: Lady Resh's
     // daughter's 7.5 was asked for again). knownSize is read off the customer's own words above, not only off searches.
+    // 🎯 NEVER GUESS THEIR SIZE INSIDE THE QUESTION (Tami/Dicienzo 10-15 07:33: "What size you need in the Scorpion —
+    // is it a 7 or an 8?" to a man who wears 12/13; the numbers came off the listing, and that pair has no 8). A size
+    // question ends at the question unless the customer said that number. Cut, not asked nicely.
+    if (turnText && SIZE_REASK_RE.test(turnText)) {
+      const _said = new Set(history.filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\(SYSTEM NOTE/.test(m.content))
+        .map(m => sizeFromCustomerWords(customerWordsOnly(m.content))).concat(sizeFromCustomerWords(customerWordsOnly(userText)))
+        .join('/').split('/').filter(Boolean));
+      const _cut = turnText.replace(/\s*[\u2014\u2013-]?\s*,?\s*(?:is it|is that|are you|you|maybe|like|prob(?:ably)?)?\s*(?:a|an)\s+(\d{1,2}(?:\.5)?)(?:\s*(?:or|\/)\s*(?:a|an)?\s*(\d{1,2}(?:\.5)?))?\s*\?/gi,
+        (all, a, b) => [a, b].filter(Boolean).every(x => _said.has(String(parseFloat(x)))) ? all : '?');
+      if (_cut !== turnText) { record(req, { endpoint: 'size-guess-cut', sub, store: ctx.store || '', text: turnText.slice(0, 160) }); turnText = _cut.replace(/\?\s*\?/g, '?'); }
+    }
     // Only when the customer really typed that size in this chat: a remembered size from anywhere else (a search, a
     // listing note) must never stop her asking a man who has not said one (Ricky 10-14: blocked "What size you need?").
     if (turnText && knownSize && SIZE_REASK_RE.test(turnText)
