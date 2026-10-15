@@ -1741,7 +1741,7 @@ const WELCOME_NUDGE_MSG = "What size you looking for? 👟";
 // 📏 HER DRAFT ASKING A CUSTOMER WHAT SIZE THEY WEAR. Only the QUESTION shapes — a
 // confirmation like "in a 13?" or "want it in your size?" is not a re-ask and must still
 // get through. Used by the guard in the chat loop (search: size-reask-blocked).
-const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s+|ur\s+|the\s+|you\s+)?size\b|\bsize\s+(?:you|u|ya)\b|\byour\s+size\s*\?/i;
+const SIZE_REASK_RE = /\b(?:what|which|wat|wah)(?:'?s|\s+is|\s+are)?\s+(?:your\s+|ur\s+|the\s+|you\s+)?size\b|\bsize\s+(?:you|u|ya)\b|(?<!\bin\s)\byour\s+size\s*\?/i;   // \"…Jordan 11s we got in your size?\" is an offer, not a size question (Gamma Blue drill 10-15)
 // ⚠️ WHOLESALE gets a DIFFERENT nudge (Rodney 2026-08-17). On Sneaker Inventory the
 // catalogue has ALREADY gone out as the website link plus the trade password, and there
 // are far too many styles to send as pictures over WhatsApp. The retail wording above
