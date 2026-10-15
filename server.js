@@ -6356,9 +6356,34 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // size 8", "in a size 8 is $130", "have both the 5.5 and 6", "got it in both", "in both a 5.5 and a 6"). Any size
           // number in a sentence that is not a "no / not / out / only / closest" sentence must be on the shelf; "both / all /
           // each" with no number claims every size the customer just named.
+          // A "closest / nearest is a 9.5" is a claim that the 9.5 exists, and a colour named in the sentence ("in that
+          // same Cream/Grey") means THAT colourway's shelf, not every 9060's (Spolied 10-14: a Cream/Grey 9060 has no
+          // 9.5, a Green/Grey/Cream one does, and "nearest is a 9.5 in that same Cream/Grey" walked through).
+          const _VOC = /\b(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|peach|sail|bone)\b/gi;
+          const _cset = (t) => [...new Set((String(t || '').match(_VOC) || []).map(c => c.toLowerCase().replace('gray', 'grey')))];
+          const scopedWrong = [], scopedShoes = [];
+          const _scopeCheck = (sen, nums) => {
+            const want = _cset(sen); if (!want.length || !nums.length) return;
+            const models = new Set(cands.map(c => c.name));
+            const pool = Object.values(lm).filter(x => x && models.has(x.name));
+            const same = (x) => { const h = _cset((x.color || '') + ' ' + (x.nickname || '')); return h.length === want.length && want.every(c => h.includes(c)); };
+            let hit = pool.filter(same);
+            if (!hit.length) hit = pool.filter(x => { const h = _cset((x.color || '') + ' ' + (x.nickname || '')); return want.every(c => h.includes(c)); });
+            if (!hit.length || hit.length > 4) return;
+            const sh = new Set(); hit.forEach(x => (x.sizesRaw || []).forEach(z => sh.add(String(parseFloat(z)))));
+            const bad = nums.filter(n => !sh.has(String(n)) && !sh.has(String(n - 1.5)));
+            if (bad.length) { scopedWrong.push(...bad); hit.forEach(x => { if (!scopedShoes.includes(x)) scopedShoes.push(x); }); }
+          };
           try {
             const _custNums = (customerWordsOnly(userText).match(/\b\d{1,2}(?:\.5)?\b/g) || []).map(parseFloat).filter(n => n >= 4 && n <= 15);
             for (const sen of turnText.split(/(?<=[.!?\n])\s+|\s+[\u2014\u2013]\s+|(?<=\p{Extended_Pictographic})\s+/u)) {
+              const _near = sen.match(/\b(?:closest|nearest)\b([\s\S]*)$/i);
+              if (_near && !/\b(no|not|don'?t|doesn'?t|out|sold|isn'?t|aren'?t)\b|\?/i.test(_near[1])) {
+                const nn = [...(_near[1].replace(/\$\s*\d+(?:\.\d+)?/g, ' ').matchAll(/\b(\d{1,2}(?:\.5)?)\b(?!\s*(?:pairs?|pics?|photos?|%|am|pm|mins?|hours?|days?|left|of))/gi))].map(x => parseFloat(x[1])).filter(n => n >= 4 && n <= 15);
+                nn.forEach(n => claimed.push(n));
+                _scopeCheck(_near[1], nn);
+                continue;
+              }
               if (/\b(no|not|don'?t|doesn'?t|out|sold|isn'?t|aren'?t|only|except|closest|nearest|instead|which|what|wear|need|after|check|checking|look|see)\b|\?/i.test(sen)) continue;
               if (!/\b(got|have|has|carry|stock|in stock|available|here)\b/i.test(sen)) continue;
               const nums = [...sen.replace(/\$\s*\d+(?:\.\d+)?/g, ' ')
@@ -6366,13 +6391,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
                 .matchAll(/\b(\d{1,2}(?:\.5)?)\b(?!\s*(?:pairs?|pics?|photos?|%|am|pm|mins?|hours?|days?|colou?rs?|styles?|left|of))/gi)].map(x => parseFloat(x[1])).filter(n => n >= 4 && n <= 15);
               if (!nums.length && /\b(both|all of (?:them|those|em)|each)\b/i.test(sen)) nums.push(..._custNums);
               nums.forEach(n => claimed.push(n));
+              _scopeCheck(sen, nums);
             }
           } catch (_) {}
-          const wrong = [...new Set(claimed.filter(n => !okSize(n)))];
+          const wrong = [...new Set(claimed.filter(n => !okSize(n)).concat(scopedWrong))];
           const saysOut = /\b(out of stock|sold out|we(?:'re| are) out of (?:that|it|those|them)(?!\s+(?:one\s+)?in\b)|don'?t have (?:it|that|those) (?:any ?more|right now|in stock))\b/i.test(turnText) && shelf.size > 0;
           if (wrong.length || saysOut) {
             sizeClaimBlocks++;
-            const real = cands.map(s => `${displayName(s)}: ${sizesOf(s) || 'none'}`).join('; ');
+            const real = [...scopedShoes, ...cands.filter(c => !scopedShoes.includes(c))].slice(0, 6).map(s => `${displayName(s)}: ${sizesOf(s) || 'none'}`).join('; ');
             record(req, { endpoint: 'size-claim-blocked', sub, store: ctx.store || '', wrong, saysOut, text: turnText.slice(0, 120), real: real.slice(0, 160) });
             history.push({ role: 'user', content: `(SYSTEM NOTE — the customer cannot see this: your last reply ${wrong.length ? 'claimed size(s) ' + wrong.join(', ') + ' that we do NOT have' : 'said we are out of stock while we have pairs on the shelf'}. The ONLY sizes on the shelf right now: ${real}. Rewrite your reply using ONLY those sizes — if their size is not there, say exactly which sizes it comes in and offer the nearest. Never name a size that is not in this list. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)` });
             continue;
@@ -6801,7 +6827,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
-        const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        // 📏 SAY THE HALF SIZE UP OUT LOUD (Rodney 10-15: "not many options in 7.5. That's why we send size 8 options as
+        // well for 7.5. Just allow them to try it on when we reach."). Every men's album already carries the half size up;
+        // when some pairs in it are ONLY the half size up, "here's what we have in 7.5" is untrue for those pairs, so the
+        // lead-in names both sizes and she is told to offer the try-on.
+        let halfUpOnly = 0, halfUpSize = null;
+        try {
+          if (!isNaN(wantN) && inp.womens !== true && leadIn) {
+            const lmH = liveShoeMap();
+            const outH = (Array.isArray(inp.groups) && inp.groups.length) ? inp.groups.flatMap(g => g.ids || []) : (inp.ids || []);
+            const has = (id, n) => { const x = lmH[id]; return !!x && (x.sizesRaw || []).some(z => parseFloat(z) === n); };
+            halfUpSize = wantN + 0.5;
+            halfUpOnly = outH.filter(id => !has(id, wantN) && has(id, halfUpSize)).length;
+            const w = String(wantN).replace('.', '\\.'), u = String(halfUpSize).replace('.', '\\.');
+            if (halfUpOnly && !new RegExp('\\b' + u + '(?:s)?\\b').test(leadIn)) {
+              leadIn = leadIn.replace(new RegExp('\\b' + w + '\\b(?![.\\d])'), `${wantN} and ${halfUpSize}`);
+            }
+          }
+        } catch (_) {}
         // Completeness tracking: record which ids actually went out, and whether THIS album's
         // lead-in is a GENERIC size batch (mentions no brand, model or colour) — the case where
         // it must show every brand in the size. A lead-in naming a brand/model/colour (e.g.
@@ -6916,6 +6960,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           result.dropped_not_sneakers = droppedSlipOn;
           result.note = (result.note ? result.note + ' ' : '')
             + `These are NOT sneakers so they were NOT sent — the customer asked for tennis/sneakers: ${droppedSlipOn.join('; ')}. Do not describe them as sneakers. You may mention at the END that we also carry Crocs/slides if they want to see those too.`;
+        }
+        if (halfUpOnly > 0 && result && result.sent) {
+          result.note = (result.note ? result.note + ' ' : '')
+            + `${halfUpOnly} of those pairs come in a ${halfUpSize}, not a ${wantN} (we send the half size up on purpose: not many options in some sizes). Do NOT call them all a ${wantN}. In your line after the photos say plainly some are a ${halfUpSize} and they can try them on when we reach, e.g. "some of those are a ${halfUpSize} — you can try them on when we reach 👟".`;
         }
         if (nearSizeTrimmed > 0) {
           record(req, { endpoint: 'near-size-trimmed', sub, size: inp.size, trimmed: nearSizeTrimmed, sent: outIdCount });
