@@ -6302,7 +6302,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const okSize = (n) => shelf.has(String(n)) || shelf.has(String(n - 1.5));   // men's, or a women's number
           const claimed = [];
           const re = /\b(?:got|have|has|comes?|available|carry|stock)(?:\s+(?:it|that|those|them|one))?\s+(?:in|at)\s+(?:(?:a|an|the|your|ur|size|sizes)\s+){0,3}((?:\d{1,2}(?:\.5)?)(?:\s*(?:,|and|&|\/|or)\s*(?:a|an|the)?\s*\d{1,2}(?:\.5)?)*)/gi;
-          let m; while ((m = re.exec(turnText))) (m[1].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); });
+          // The shoe's name can sit between the verb and the size: "We've got the Air Max 97 Silver/Red in a size 8"
+          // (Claudia drill 10-14, no 8 on the shelf) walked past the short form above. A "don't have / no / not" in
+          // front is a true "we don't have it in an 8" and is never a claim.
+          const re3 = /\b(?:got|have|has|carry|stock)\b([^.!?\n]{1,60}?)\bin\s+(?:(?:a|an|the|your|ur|size|sizes|men'?s|mens|women'?s)\s+){0,3}((?:\d{1,2}(?:\.5)?)(?:\s*(?:,|and|&|\/|or)\s*(?:a|an|the)?\s*\d{1,2}(?:\.5)?)*)/gi;
+          const negated = (at, span) => /\b(?:don'?t|do not|doesn'?t|not|no|aren'?t|isn'?t|out of|without|except)\b/i.test(turnText.slice(Math.max(0, at - 30), at) + ' ' + span);
+          let m; while ((m = re.exec(turnText))) { if (negated(m.index, '')) continue; (m[1].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); }); }
+          // A size with a price on it is a claim too: "Air Max 97 Silver/Red in a size 8 is $130" (Ricky, Claudia 19:59).
+          const re4 = /\bin\s+(?:a\s+|an\s+|your\s+|ur\s+)?size\s+(\d{1,2}(?:\.5)?)\s+(?:is|for|at|=|-|\u2014)\s*\$/gi;
+          while ((m = re4.exec(turnText))) { if (negated(m.index, '')) continue; const n = parseFloat(m[1]); if (n >= 4 && n <= 15) claimed.push(n); }
+          while ((m = re3.exec(turnText))) { if (negated(m.index, m[1])) continue; (m[2].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); }); }
           const re2 = /\bin\s+(?:your|ur)\s+(?:size\s+)?(\d{1,2}(?:\.5)?)\b/gi;   // "$180 in your size 12"
           while ((m = re2.exec(turnText))) { const n = parseFloat(m[1]); if (n >= 4 && n <= 15) claimed.push(n); }
           const wrong = [...new Set(claimed.filter(n => !okSize(n)))];
