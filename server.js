@@ -6352,13 +6352,29 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           while ((m = re3.exec(turnText))) { if (negated(m.index, m[1])) continue; (m[2].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); }); }
           const re2 = /\bin\s+(?:your|ur)\s+(?:size\s+)?(\d{1,2}(?:\.5)?)\b/gi;   // "$180 in your size 12"
           while ((m = re2.exec(turnText))) { const n = parseFloat(m[1]); if (n >= 4 && n <= 15) claimed.push(n); }
+          // 🧹 THE GENERAL NET, because every wording above was found by a customer first (10-14/15: "got the <name> in a
+          // size 8", "in a size 8 is $130", "have both the 5.5 and 6", "got it in both", "in both a 5.5 and a 6"). Any size
+          // number in a sentence that is not a "no / not / out / only / closest" sentence must be on the shelf; "both / all /
+          // each" with no number claims every size the customer just named.
+          try {
+            const _custNums = (customerWordsOnly(userText).match(/\b\d{1,2}(?:\.5)?\b/g) || []).map(parseFloat).filter(n => n >= 4 && n <= 15);
+            for (const sen of turnText.split(/(?<=[.!?\n])\s+|\s+[\u2014\u2013]\s+|(?<=\p{Extended_Pictographic})\s+/u)) {
+              if (/\b(no|not|don'?t|doesn'?t|out|sold|isn'?t|aren'?t|only|except|closest|nearest|instead|which|what|wear|need|after|check|checking|look|see)\b|\?/i.test(sen)) continue;
+              if (!/\b(got|have|has|carry|stock|in stock|available|here)\b/i.test(sen)) continue;
+              const nums = [...sen.replace(/\$\s*\d+(?:\.\d+)?/g, ' ')
+                .replace(/\b(?:jordan|aj|retro|max|force|forces|dunk|balance|nb|yeezy|boost|foam|gel|kayano|dn|tn|plus|vomero|pegasus|zoom|kobe|lebron|kd|foamposite|scorpion|air)\s+\d{1,2}\b/gi, ' ')
+                .matchAll(/\b(\d{1,2}(?:\.5)?)\b(?!\s*(?:pairs?|pics?|photos?|%|am|pm|mins?|hours?|days?|colou?rs?|styles?|left|of))/gi)].map(x => parseFloat(x[1])).filter(n => n >= 4 && n <= 15);
+              if (!nums.length && /\b(both|all of (?:them|those|em)|each)\b/i.test(sen)) nums.push(..._custNums);
+              nums.forEach(n => claimed.push(n));
+            }
+          } catch (_) {}
           const wrong = [...new Set(claimed.filter(n => !okSize(n)))];
           const saysOut = /\b(out of stock|sold out|we(?:'re| are) out of (?:that|it|those|them)(?!\s+(?:one\s+)?in\b)|don'?t have (?:it|that|those) (?:any ?more|right now|in stock))\b/i.test(turnText) && shelf.size > 0;
           if (wrong.length || saysOut) {
             sizeClaimBlocks++;
             const real = cands.map(s => `${displayName(s)}: ${sizesOf(s) || 'none'}`).join('; ');
             record(req, { endpoint: 'size-claim-blocked', sub, store: ctx.store || '', wrong, saysOut, text: turnText.slice(0, 120), real: real.slice(0, 160) });
-            history.push({ role: 'user', content: `(SYSTEM NOTE — the customer cannot see this: your last reply ${wrong.length ? 'claimed size(s) ' + wrong.join(', ') + ' that we do NOT have' : 'said we are out of stock while we have pairs on the shelf'}. The ONLY sizes on the shelf right now: ${real}. Rewrite your reply using ONLY those sizes — if their size is not there, say exactly which sizes it comes in and offer the nearest. Never name a size that is not in this list.)` });
+            history.push({ role: 'user', content: `(SYSTEM NOTE — the customer cannot see this: your last reply ${wrong.length ? 'claimed size(s) ' + wrong.join(', ') + ' that we do NOT have' : 'said we are out of stock while we have pairs on the shelf'}. The ONLY sizes on the shelf right now: ${real}. Rewrite your reply using ONLY those sizes — if their size is not there, say exactly which sizes it comes in and offer the nearest. Never name a size that is not in this list. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)` });
             continue;
           }
         }
@@ -6403,7 +6419,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     // 🙈 AN UNREADABLE ITEM RIGHT AFTER WE ASKED THE SIZE: don't ask it again 11 s later (Dicienzo 10-15 07:33, M5
     // Facebook1's catch). The pic line stands alone; the size question is still on the screen above it.
-    if (turnText && /^\s*\[sent something I could not read\]\s*$/i.test(String(userText || ''))) {
+    if (turnText && /^\s*\[sent something I could not read\]/i.test(String(userText || ''))) {
       const _prevA = [...history].reverse().find(m => m && m.role === 'assistant' && m !== history[history.length - 1]);
       const _prevTxt = _prevA ? (typeof _prevA.content === 'string' ? _prevA.content : (Array.isArray(_prevA.content) ? _prevA.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')) : '';
       record(req, { endpoint: 'unreadable-check', sub, prev: _prevTxt.slice(0, 80), now: turnText.slice(0, 80), hist: history.length });
