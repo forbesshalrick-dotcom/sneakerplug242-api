@@ -6636,7 +6636,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _locAsk = /\b(where (?:should|can|do|shall) (?:we|i) (?:meet|bring|deliver|drop)|where (?:you|u) (?:at|located)|send (?:me )?(?:your|ur|a) (?:location|pin|address)|drop (?:me )?(?:a|your) pin|what'?s (?:your|ur) (?:location|address))\b/i;
       const _parts = turnText.split(/(?<=[.!?\n])\s+|(?<=\p{Extended_Pictographic})\s+/u);
       if (_parts.some(x => _locAsk.test(x))) {
-        const _keep = _parts.filter(x => !_locAsk.test(x)).join(' ').replace(/\s{2,}/g, ' ').trim();
+        const _keep = _parts.filter(x => !_locAsk.test(x)).join(' ').replace(/\s*\u{1F4CD}\s*$/u, '').replace(/\s{2,}/g, ' ').trim();
         record(req, { endpoint: 'location-ask-cut', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
         if (_keep) turnText = _keep;
       }
