@@ -6908,7 +6908,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _emptyAfterPick = pinnedPickIds.size && !(Array.isArray(inp.ids) && inp.ids.length) && !(Array.isArray(inp.groups) && inp.groups.some(g => g && g.ids && g.ids.length));
         result = _emptyAfterPick
           ? { sent: 0, requested: 0, not_sent: 'They already PICKED the shoe on the card they forwarded; other shoes are never sent in its place. Answer about that shoe only: its price and the sizes it comes in (say plainly if their size is not in stock).', dropped: droppedForPick.slice(0, 6) }
-          : await sendShoePhotos(sub, inp.ids, token, inp.groups, leadIn, _picsOnly, !!staffName, ctx.turnAt || 0, _sizeKnown);
+          // No shoe to send = no "in your 5.5 👇" either (Dicienzo drill 10-15: she called send_photos with no ids after a
+          // size bounce, and the lead-in went out pointing at nothing).
+          : await sendShoePhotos(sub, inp.ids, token, inp.groups, ((inp.ids || []).length || (Array.isArray(inp.groups) && inp.groups.some(g => g && g.ids && g.ids.length))) ? leadIn : '', _picsOnly, !!staffName, ctx.turnAt || 0, _sizeKnown);
         // 👠 Tell her the truth about the women's album she just sent, so her words match
         // the labels the customer is reading (Rodney 2026-08-04).
         if (womensExactCount != null && womensTotalCount > 0) {
@@ -6968,7 +6970,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // customer staring at a promise of pictures that never came.
         else if (!result.interrupted) {
           record(req, { endpoint: 'album-sent-nothing', sub, asked: outIdCount, droppedForSize: droppedWrongSize.length, leadIn: String(leadIn || '').slice(0, 100) });
-          result.note = (result.note ? result.note + ' ' : '')
+          if (!outIdCount) result.note = (result.note ? result.note + ' ' : '')
+            + 'You passed no shoes, so nothing was sent and the customer saw nothing yet. Answer them in words on this turn: the sizes and price of the shoe they asked about.';
+          else result.note = (result.note ? result.note + ' ' : '')
             + 'CRITICAL — ZERO photos actually reached this customer, but your lead-in already promised them pictures. DO NOT go silent and DO NOT just retry the same album. Reply NOW in words on this turn: name the pairs we have in their size with the price of each. They are waiting on a promise you already made.';
         }
         // Customer asked to STOP mid-album — end this turn, but CLOSE the tool call
