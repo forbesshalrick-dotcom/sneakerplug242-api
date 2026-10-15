@@ -6346,6 +6346,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // A size with a price on it is a claim too: "Air Max 97 Silver/Red in a size 8 is $130" (Ricky, Claudia 19:59).
           const re4 = /\bin\s+(?:a\s+|an\s+|your\s+|ur\s+)?size\s+(\d{1,2}(?:\.5)?)\s+(?:is|for|at|=|-|\u2014)\s*\$/gi;
           while ((m = re4.exec(turnText))) { if (negated(m.index, '')) continue; const n = parseFloat(m[1]); if (n >= 4 && n <= 15) claimed.push(n); }
+          // "We have both the 5.5 and 6" - sizes straight after the verb (Dicienzo drill 10-15: that pair has no 6).
+          const re5 = /\b(?:have|got)\s+(?:both\s+)?(?:the\s+|a\s+|an\s+)?(?:size\s+|sizes\s+)?(\d{1,2}(?:\.5)?(?:\s*(?:,|and|&|\/|or)\s*(?:the\s+|a\s+|an\s+)?\d{1,2}(?:\.5)?)*)(?!\s*(?:pairs?|pics?|photos?|colou?rs?|styles?|of|%|\$|left))\b/gi;
+          while ((m = re5.exec(turnText))) { if (negated(m.index, '')) continue; (m[1].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); }); }
           while ((m = re3.exec(turnText))) { if (negated(m.index, m[1])) continue; (m[2].match(/\d{1,2}(?:\.5)?/g) || []).forEach(x => { const n = parseFloat(x); if (n >= 4 && n <= 15) claimed.push(n); }); }
           const re2 = /\bin\s+(?:your|ur)\s+(?:size\s+)?(\d{1,2}(?:\.5)?)\b/gi;   // "$180 in your size 12"
           while ((m = re2.exec(turnText))) { const n = parseFloat(m[1]); if (n >= 4 && n <= 15) claimed.push(n); }
@@ -6403,6 +6406,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (turnText && /^\s*\[sent something I could not read\]\s*$/i.test(String(userText || ''))) {
       const _prevA = [...history].reverse().find(m => m && m.role === 'assistant' && m !== history[history.length - 1]);
       const _prevTxt = _prevA ? (typeof _prevA.content === 'string' ? _prevA.content : (Array.isArray(_prevA.content) ? _prevA.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')) : '';
+      record(req, { endpoint: 'unreadable-check', sub, prev: _prevTxt.slice(0, 80), now: turnText.slice(0, 80), hist: history.length });
       if (SIZE_REASK_RE.test(_prevTxt) && SIZE_REASK_RE.test(turnText)) {
         const _kept = turnText.split(/(?<=[.!?\u{1F648}])\s+/u).filter(x => !SIZE_REASK_RE.test(x)).join(' ').trim();
         record(req, { endpoint: 'unreadable-size-reask-cut', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
@@ -6412,6 +6416,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // Only when the customer really typed that size in this chat: a remembered size from anywhere else (a search, a
     // listing note) must never stop her asking a man who has not said one (Ricky 10-14: blocked "What size you need?").
     if (turnText && knownSize && SIZE_REASK_RE.test(turnText)
+        && !/\bwhich\s+(?:size|one)\s+(?:works|you want|do you want|you need|you prefer|is better|you like|fits)/i.test(turnText)
         && history.some(m => m && m.role === 'user' && !/^\(SYSTEM NOTE/.test(typeof m.content === 'string' ? m.content : '')
              && sizeFromCustomerWords(customerWordsOnly(typeof m.content === 'string' ? m.content
                   : (Array.isArray(m.content) ? m.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))) === knownSize)) {
