@@ -3341,6 +3341,10 @@ const lastIncoming = new Map();
 // said "Done — size 10 removed" TWICE with no photo, no tool call, and no removal —
 // the photo-confirm rule now has teeth the model can't skip).
 const photoConfirmSeen = new Map();
+// The ONE shoe a customer picked (tagged our card, sent its photo, or ordered it): sub -> { id, at }. Bless Child, Foot
+// Fetish 10-15: picked the Vomero 5 Black/Pink at 10:31, said size 10, came back at 14:22 with "You can come with tennis
+// size 10" and got an 18-picture size-10 album as if she were starting over.
+const lastPickBySub = new Map();
 const lastIncomingText = new Map(); // sub -> the text of that latest message
 const lastReplayAt = new Map(); // sub -> when a non-text replay (pin/sticker/undelivered photo) last arrived
 const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
@@ -6073,7 +6077,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (_idVerdict && !staffName && !burstHeld.length) {   // a burst is answered as one, below
       const _mo = _idVerdict.match(/OURS:\s*([^\n]+)/i);
       const _ours = _mo ? _mo[1].trim() : '';
-      const _isCard = /KIND:\s*CARD/i.test(_idVerdict);
+      let _isCard = /KIND:\s*CARD/i.test(_idVerdict);
+      // A shoe whose picture this chat already got (they quote-replied it, or sent it back) is not news: answer about it,
+      // never send the same card again (Bless Child 10-15 14:23: quoted the Vomero, got the Vomero card a second time).
+      try {
+        const _c0 = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
+        if (!_isCard && _c0.some(x => x && x.id != null && Date.now() - (photoConfirmSeen.get(sub + '|' + x.id) || 0) < 24 * 3600 * 1000)) {
+          _isCard = true; record(req, { endpoint: 'photo-already-sent-not-resent', sub, shoe: String((_c0[0] || {}).id || '') });
+        }
+      } catch (_) {}
       if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !_isCard) {
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
         const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
@@ -6090,6 +6102,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (_rr && _rr.sent > 0) {
             photosSentRun = true; sentToCustomer = true; turnSentIds.add(String(_pickSh.id)); photoCompareSent = true;
             record(req, { endpoint: 'photo-shoe-sent-by-server', sub, store: ctx.store || '', shoe: String(_pickSh.id), said: _ours.slice(0, 80) });
+            lastPickBySub.set(String(sub), { id: String(_pickSh.id), at: Date.now() });
             const _lu = history[history.length - 1];
             if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
               _lu.content[0].text = '(✅ ALREADY SENT TO THEM, IN THIS ORDER: "' + _lead + '", then the picture of the ' + displayName(_pickSh)
@@ -6113,6 +6126,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _has = _sz && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_sz));
           const _sizes = sizesOf(_pickSh) || 'none right now';
           record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has });
+          lastPickBySub.set(String(sub), { id: String(_pickSh.id), at: Date.now() });
           const _lu = history[history.length - 1];
           if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
@@ -6227,6 +6241,27 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       ? AI_TOOLS.filter(t => t.name !== 'send_photos')
       : null;
   try {
+  // 🛵 GOING AHEAD WITH THE SHOE THEY PICKED IS NOT A NEW BROWSE (Bless Child, Foot Fetish 10-15 14:22: "You can come with
+  // tennis size 10", four hours after picking the Vomero 5 Black/Pink, got an 18-picture size-10 album). A delivery cue or a
+  // bare size within 24h of a pick pins that shoe: the album guard then lets nothing else out, and she confirms the order.
+  try {
+    const _lp = lastPickBySub.get(String(sub));
+    const _w = customerWordsOnly(userText);
+    if (_lp && !image && !staffName && !pinnedPickIds.size && Date.now() - _lp.at < 24 * 3600 * 1000 && _w
+        && (/\b(come|coming|bring|drop|deliver|driver|ready|on my way|meet|i(?:'| a)?ll take|take it|want it|get it)\b/i.test(_w) || /^\W*(?:size\s*)?\d{1,2}(?:\.5)?\W*$/i.test(_w))
+        && !/\b(other|different|more|else|another|show|pics?|pictures?|photos?|options?|what (?:else|you got|you have))\b/i.test(_w)) {
+      const _lmP = liveShoeMap(); let _shP = null;
+      for (const k in _lmP) { const x = _lmP[k]; if (x && String(x.id) === _lp.id) { _shP = x; break; } }
+      if (_shP) {
+        pinnedPickIds.add(String(_shP.id));
+        record(req, { endpoint: 'pick-carried-forward', sub, shoe: String(_shP.id), said: _w.slice(0, 80) });
+        system += '\n\n🛵 THEY ALREADY PICKED THE ' + displayName(_shP) + ' ($' + (parseFloat(_shP.price) || 0) + ', comes in ' + (sizesOf(_shP) || 'no sizes right now')
+          + '). This message is them going ahead with THAT shoe — not a new browse. Do NOT search and do NOT send an album or any other shoe. '
+          + 'In one short line confirm the ' + displayName(_shP) + ' in their size (say plainly if that size is not in stock), and take the delivery: '
+          + 'ask for their location pin if you do not have it, and call notify_manager with this shoe.';
+      }
+    }
+  } catch (_) {}
   // 📦 THEY ALREADY ORDERED (Rodney 10-15, Raymond Neymour on TK: paid Sunday by card for a boat to Staniel Cay. Monday he
   // wrote "The tennis can come on the Lady Francis going to Staniel Cay Exuma" and forwarded her freight schedule; Kiki said
   // "You're good 👟" and nobody was told, so it went on the Grand Master to George Town. Wednesday the order had fallen out
@@ -7221,6 +7256,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try { staffWa = await require('./shop').blastOnDuty(lines, null); } catch (_) {}
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
         record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', remindH: inp.remind_in_hours || null, waOk, staffWa, staffOk });
+        if (inp.shoe_id && !staffName) lastPickBySub.set(String(sub), { id: String(inp.shoe_id), at: Date.now() });
         // FUTURE ORDER → also re-alert the owner when the day the customer named arrives
         // (Rodney's design 2026-07-13: heads-up now + a ⏰ reminder at the time it's for).
         const remindH = Number(inp.remind_in_hours);
