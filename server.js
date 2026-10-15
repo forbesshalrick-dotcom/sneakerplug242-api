@@ -6296,7 +6296,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _pin = _ids.map(i => _real[i] || lm[i]).filter(Boolean);
           if (_pin.length) cands = [..._pin, ...cands.filter(c => !_pin.includes(c))].slice(0, 6);
         } catch (_) {}
-        if (!cands.length && ctx.listingTitle) cands = searchInventory({ query: ctx.listingTitle }).slice(0, 3).map(r => lm[r.id]).filter(Boolean);
+        // The listing title carries "$130", "BSD130", "[hidden information]", a post number - none of it is the shoe,
+        // and with it in the query the search found nothing, so a claimed size had nothing to be checked against
+        // (Claudia drill 10-14: "Got it in a size 8 — where should we meet you?" for a 8.5/9.5/10 shoe went out).
+        if (!cands.length && ctx.listingTitle) {
+          const _lt = String(ctx.listingTitle).replace(/\[[^\]]*\]?/g, ' ').replace(/\$\s*\d+/g, ' ').replace(/\bBSD\d+\b/gi, ' ')
+            .replace(/\b\d{5,}\b/g, ' ').replace(/\bsizes?\b.*$/i, ' ').replace(/[-\u2013\u2014|]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+          for (const q of [_lt, _lt.split(' ').slice(0, 4).join(' ')]) {
+            if (!q || cands.length) continue;
+            try { cands = searchInventory({ query: q }).slice(0, 3).map(r => lm[r.id]).filter(Boolean); } catch (_) {}
+          }
+        }
         if (cands.length) {
           const shelf = new Set(); cands.forEach(s => (s.sizesRaw || []).forEach(x => shelf.add(String(parseFloat(x)))));
           const okSize = (n) => shelf.has(String(n)) || shelf.has(String(n - 1.5));   // men's, or a women's number
