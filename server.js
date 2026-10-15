@@ -6240,7 +6240,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           + 'the island, the receiver or whether they paid (a card/transfer order here is PAID). You do NOT know if or when it went out — if they ask, '
           + 'say you have passed it to the team and they will update them. Never tell them "you\'re good" about a boat, a date or a change; the team decides.';
         const _said = customerWordsOnly(userText);
-        const _ship = /\b(boat|mail ?boat|ferr(?:y|ies)|lady|m\/v|freight|dock|cargo|plane|flight|airport|ship(?:ped|ping|ment)?|package|parcel|tracking|bill of lading|went out|sent it|arriv\\w*|reach\\w*|island|cay|pick ?up|collect)\b/i;
+        const _ship = /\b(boat|mail ?boat|ferr(?:y|ies)|lady|m\/v|freight|dock|cargo|plane|flight|airport|ship(?:ped|ping|ment)?|package|parcel|tracking|bill of lading|went out|sent it|arriv\w*|reach\w*|island|cay|pick ?up|collect)\b/i;
         const _isShip = /SHIPMENT|boat|plane|island/i.test(_ord.text || '');
         global.__orderRelayAt = global.__orderRelayAt || new Map();
         const _last = global.__orderRelayAt.get(String(sub)) || 0;
