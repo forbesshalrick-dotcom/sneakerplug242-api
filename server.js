@@ -7482,17 +7482,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         onlyBrand ? { brands: onlyBrand } : {}
       ));
       const missing = full.filter(r => !turnSentIds.has(String(r.id))).map(r => r.id);
+      // 🚫 NEVER A SECOND "AND HERE'S THE REST" (Rodney 10-15, Trendy Kicks +1242463518x: a 43-picture size-9 album, the
+      // closing line, then "And here's the rest we've got in 9 👇" and ONE Croc she had left out on purpose). The rest of
+      // the size is folded into the first album (size-topup-merged); whatever that left out stays out. Recorded only.
       if (missing.length) {
-        record(req, { endpoint: 'size-album-topup', sub, sizes: wantSizes, brand: onlyBrand || null, alreadySent: turnSentIds.size, missing: missing.length });
-        const label = wantSizes.join(' and ');
-        // Name the brand when the top-up is scoped to one, so the line reads like an answer
-        // to what they asked ("the rest of the Asics we've got in 9") not a random pile.
-        const leadIn = onlyBrand
-          ? "And here's the rest of the " + onlyBrand.map(b => b.replace(/\b\w/g, c => c.toUpperCase())).join(' / ') + " we've got in " + label + ' 👇'
-          : "And here's the rest we've got in " + label + ' 👇';
-        endMsgSentAt[sub] = 0; // the top-up is the TRUE end of the album — always close after it, even if the first batch's closer was recent
-        const r = await sendShoePhotos(sub, missing, token, null, leadIn, false, false, ctx.turnAt || 0).catch(() => null);
-        if (r && r.sent > 0) sentToCustomer = true;
+        record(req, { endpoint: 'size-album-topup-skipped', sub, sizes: wantSizes, brand: onlyBrand || null, alreadySent: turnSentIds.size, missing: missing.length, ids: missing.slice(0, 6) });
       }
       }
     } catch (e) { record(req, { endpoint: 'size-topup-error', sub, error: String(e).slice(0, 120) }); }
