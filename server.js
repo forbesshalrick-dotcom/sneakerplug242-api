@@ -8016,6 +8016,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           inp.shoe ? `👟 ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : (inp.size ? `👟 size ${inp.size}` : null),
           inp.price ? `💰 ${inp.price}${inp.payment ? ` (${inp.payment})` : ''}` : (inp.payment ? `💰 ${inp.payment}` : null),
           `📍 ${inp.location || '(no location given)'}`,
+          // 🗺️ THE PIN ITSELF, when we have its coordinates (Rodney 10-16: the Foot Fetish phone died and the card only said "open
+          // the chat to see it" — nobody could). A pin that reached us as coordinates (YCloud, Graph) rides on the card as a maps link.
+          (() => { try {
+            const _hist = [String(userText || '')].concat(history.filter(h => h && h.role === 'user' && typeof h.content === 'string').slice(-12).map(h => h.content).reverse());
+            for (const t of _hist) { const m = t.match(/https?:\/\/maps\.google\.com\/\?q=-?[\d.]+,-?[\d.]+/); if (m && !String(inp.location || '').includes(m[0])) return '🗺️ ' + m[0]; }
+          } catch (_) {} return null; })(),
           // The "pin" may actually have been a photo/sticker WhatsApp couldn't deliver
           // (2026-07-14: a shoe PHOTO arrived as a text-replay → "Got your pin!" → driver
           // alert with NO real location in the chat). Tell the team to VERIFY.
