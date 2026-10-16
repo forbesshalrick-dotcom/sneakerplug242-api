@@ -3471,7 +3471,7 @@ function tableLearn(sub, text) {
          * writes "Nike Mind" — so an exact name test never matched the shoe she had just
          * named. Only a LEADING-ZERO tail is dropped: "001" is a code, while 270, 720 and
          * 9060 are the shoe's actual name and must survive. */
-        const nmShort = nm.replace(/\s+0\d{2,}$/, '').trim();
+        const nmShort = nm.replace(/\s+0\d{2,}$/, '').replace(/\s+retro$/, '').trim();   // "Air Jordan 5 (White/Black)" is the "Air Jordan 5 Retro"
         if (said.indexOf(nm) === -1 && (nmShort.length < 4 || said.indexOf(nmShort) === -1)) continue;
         const parts = col.split(/[^a-z0-9]+/).filter(w => w.length > 2);
         if (!parts.length || !parts.every(w => said.indexOf(w) !== -1)) continue;
@@ -6440,6 +6440,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       : null;
   try {
   try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
+  // "I bay 2" with exactly two shoes quoted = one of EACH (drill 10-16 01:41: read as two Air Max 90s + the Jordan 5, $420).
+  try {
+    const _mB = customerWordsOnly(userText).match(/\b(?:buy|bay|take|takin|taking|want|get|cop|grab|gimme|give me)\s+(?:all\s+|the\s+|them\s+|dem\s+|both\s+)?(2|two|3|three|4|four|both|all)\b/i);
+    const _row = onTheTable.get(String(sub));
+    const _items = ((_row && _row.items) || []).filter(i => !i.at || Date.now() - i.at < 90 * 60 * 1000);
+    const _n = _mB ? ({ '2': 2, two: 2, both: 2, '3': 3, three: 3, '4': 4, four: 4 }[String(_mB[1]).toLowerCase()] || (/all/i.test(_mB[1]) ? _items.length : 0)) : 0;
+    if (_n >= 2 && _items.length === _n && !staffName) {
+      const _tot = _items.reduce((t, i) => t + (parseFloat(String(i.price || '').replace(/[^0-9.]/g, '')) || 0), 0);
+      system += '\n\n🧾 "' + _mB[0] + '" MEANS ONE OF EACH OF THE ' + _n + ' SHOES ALREADY QUOTED: ' + _items.map(i => i.name + (i.price ? ' $' + String(i.price).replace(/[^0-9.]/g, '') : '')).join(' + ')
+        + (_tot ? ' = $' + _tot + ' total (full price each)' : '') + '. Not two of the same shoe. Do not ask which ones and do not send their pictures again: say them back with the total, confirm the size for each, and ask where it goes.';
+      record(req, { endpoint: 'take-n-means-the-table', sub, n: _n });
+    }
+  } catch (_) {}
   // 🛵 GOING AHEAD WITH THE SHOE THEY PICKED IS NOT A NEW BROWSE (Bless Child, Foot Fetish 10-15 14:22: "You can come with
   // tennis size 10", four hours after picking the Vomero 5 Black/Pink, got an 18-picture size-10 album). A delivery cue or a
   // bare size within 24h of a pick pins that shoe: the album guard then lets nothing else out, and she confirms the order.
@@ -7376,6 +7389,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         undoWomensDoubleConvert(sub, inp, record, req);
+        // 🔁 A PICTURE THEY JUST GOT IS NOT SENT AGAIN (Rodney 10-15: "Kiki sent pictures over again, like she was making another
+        // order"; drill 10-16: "I bay 2" re-sent the three cards from the message before). Only when they ask to see it again.
+        try {
+          if (!staffName && !/\b(pics?|pictures?|photos?|show|send|see|again|resend|look)\b/i.test(customerWordsOnly(userText))) {
+            const _lmR = liveShoeMap(); const _recent = (id) => { const x = _lmR[id]; return !!x && Date.now() - (photoConfirmSeen.get(sub + '|' + x.id) || 0) < 60 * 60 * 1000; };
+            const _before = (inp.ids || []).length + (Array.isArray(inp.groups) ? inp.groups.reduce((n, g) => n + ((g && g.ids) || []).length, 0) : 0);
+            if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(id => !_recent(id));
+            if (Array.isArray(inp.groups)) for (const g of inp.groups) if (g && Array.isArray(g.ids)) g.ids = g.ids.filter(id => !_recent(id));
+            const _after = (inp.ids || []).length + (Array.isArray(inp.groups) ? inp.groups.reduce((n, g) => n + ((g && g.ids) || []).length, 0) : 0);
+            if (_after < _before) record(req, { endpoint: 'resend-dropped', sub, dropped: _before - _after, kept: _after });
+          }
+        } catch (_) {}
         // 🎯 ALREADY PICKED = NO OTHER PICTURES (Rodney 2026-10-14: a customer forwarded our yellow/black TN card and
         // got two yellow/black TNs back — "once they're already picked, we'd like to go with the first option they
         // already picked"). When this turn has a pinned pick, every other shoe is dropped, and the pick itself is not
