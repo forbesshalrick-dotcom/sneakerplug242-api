@@ -6565,6 +6565,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (bad.length) { scopedWrong.push(...bad); hit.forEach(x => { if (!scopedShoes.includes(x)) scopedShoes.push(x); }); }
           };
           try {
+            const _modelNums = new Set(cands.flatMap(c => (String(c.name || '').match(/\b\d{1,2}\b/g) || []).map(Number)));
             // A model number is not a size: "jordan 11 in 8.5 or 9" gave [11, 8.5, 9] and "both your sizes" was blocked on the 11.
             const _custNums = (customerWordsOnly(userText).replace(/\b(?:jordan|aj|retro|max|force|forces|dunk|balance|nb|yeezy|boost|foam|gel|kayano|dn|tn|plus|vomero|pegasus|zoom|kobe|lebron|kd|foamposite|scorpion|air|j)\s*\d{1,2}s?\b/gi, ' ')
               .match(/\b\d{1,2}(?:\.5)?\b/g) || []).map(parseFloat).filter(n => n >= 4 && n <= 15);
@@ -6580,7 +6581,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               if (!/\b(got|have|has|carry|stock|in stock|available|here)\b/i.test(sen)) continue;
               const nums = [...sen.replace(/\$\s*\d+(?:\.\d+)?/g, ' ')
                 .replace(/\b(?:jordan|aj|retro|max|force|forces|dunk|balance|nb|yeezy|boost|foam|gel|kayano|dn|tn|plus|vomero|pegasus|zoom|kobe|lebron|kd|foamposite|scorpion|air)\s+\d{1,2}\b/gi, ' ')
-                .matchAll(/\b(\d{1,2}(?:\.5)?)\b(?!\s*(?:pairs?|pics?|photos?|%|am|pm|mins?|hours?|days?|colou?rs?|styles?|left|of))/gi)].map(x => parseFloat(x[1])).filter(n => n >= 4 && n <= 15);
+                .matchAll(/\b(\d{1,2}(?:\.5)?)\b(?!\s*(?:pairs?|pics?|photos?|%|am|pm|mins?|hours?|days?|colou?rs?|styles?|left|of))/gi)]
+                // A number that is the model of a shoe in play, followed by "in …" / "s" / "retro", is the shoe ("the Black/Volt 11 in
+                // both 8.5 and 9", drill 10-16 00:51), not a size.
+                .filter(x => !(_modelNums.has(parseFloat(x[1])) && /^\s*(?:s\b|in\b|retro\b|is\b|are\b|for\b|[\u2014\u2013-])/i.test(sen.slice(x.index + x[0].length))))
+                .map(x => parseFloat(x[1])).filter(n => n >= 4 && n <= 15);
               if (!nums.length && /\b(both|all of (?:them|those|em)|each)\b/i.test(sen)) nums.push(..._custNums);
               nums.forEach(n => claimed.push(n));
               _scopeCheck(sen, nums);
