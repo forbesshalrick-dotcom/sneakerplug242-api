@@ -7260,7 +7260,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // Suppressing the forced CALL was never enough; the note itself had to stop being sent.
       // A forwarded card is excluded: they already hold its picture, and the forced send came out as a second line
       // ("Yep, that's the Nike Shox All Black! Here it is 👇") under her answer (Van Roberts, TK, 2026-10-14).
-      if (!wholesale && !staffName && !photosSentRun && !pinnedPickIds.size && lastSearchCount > 0 && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
+      if (!wholesale && !staffName && !photosSentRun && !pinnedPickIds.size && !resendDroppedNames.length && lastSearchCount > 0 && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
         record(req, { endpoint: 'force-photo-after-text', sub, q: (turnText || '').slice(0, 60) });
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just described a specific shoe with its price/sizes in WORDS but never sent its picture, so the customer is left having to ask for a pic. Call send_photos NOW for that exact shoe you just found (a short lead_in like "Here it is 👇"). The photo, with its name/price/sizes label, IS the answer — never make them ask to see it.)' });
         forcePhotosNext = true; forcedPhotosOnce = true;
@@ -7316,6 +7316,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         lastSearchCount = found.length;
         lastSearchIds = found.map(x => x && x.id).filter(x => x != null);
         result = { shoes: found };
+        /* 👠 HER SIZE, SPELLED OUT ON EVERY SHOE (drill 10-16 01:54: the women's 10.5 search found 3, the list showed men's sizes
+         * "9, 9.5, …", she saw no "10.5" and told the customer we don't have it). Each shoe says whether it comes in her size. */
+        try {
+          if (p.womens === true && p.size != null && found.length) {
+            const _wn = parseFloat(p.size);
+            const _hers = (sizesToSend(_wn, true) || [String(_wn - 1.5)]).map(parseFloat);
+            const _lmW = liveShoeMap();
+            let _fit = 0;
+            result.shoes = found.map(x => {
+              const sh = _lmW[x.id];
+              const ok = !!sh && (sh.sizesRaw || []).some(z => _hers.includes(parseFloat(z)));
+              if (ok) _fit++;
+              return Object.assign({}, x, { in_her_womens_size: ok ? "YES — comes in her women's " + _wn : 'no' });
+            });
+            result.note = (result.note ? result.note + ' ' : '') + "The sizes listed are MEN'S. Her women's " + _wn + ' is men\'s ' + _hers.join(' / ') + '. '
+              + (_fit ? _fit + ' of these DO come in her size (in_her_womens_size: YES) — never tell her we don\'t have her size. Call it women\'s ' + _wn + ', never the men\'s number.'
+                      : 'None of these come in her women\'s ' + _wn + ' — say so plainly.');
+          }
+        } catch (_) {}
         // 🧯 ZERO IN THAT SIZE IS NOT "OUT OF STOCK" (Facebook1/2, 2026-10-13: Jordan 11 Gamma Blue,
         // shelf 5.5/6.5/7, customer asked 10.5 → "out of stock" on the next turn). When a sized search
         // finds nothing, look the same model up WITHOUT the size and hand back what it really comes in,
