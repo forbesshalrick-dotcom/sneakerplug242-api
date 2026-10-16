@@ -6525,6 +6525,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         && /\b(1[0-5]|[4-9])(\.5)?\b|\b(four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)\b/i.test(_said)) {
       const _recent = history.slice(-9, -1).map(_txt).join(' \n ');
       namedModel = lastModelNamed(_recent);
+      // A bare brand is not "the shoe they named" ("Nike adidas" then "8" searched Nike with no size, 38 pictures, drill 10-16 07:29).
+      if (/^(nike|adidas|jordans?|new balance|nb|asics|puma|yeezys?|crocs|reebok|converse)$/i.test(String(namedModel || '').trim())) namedModel = '';
       if (namedModel) {
         system += '\n\n⚠️ THEY ALREADY NAMED THE SHOE: **' + namedModel + '**. The size they just sent is for THAT shoe — the answer to the question '
           + 'you asked, not a request for the whole shelf. Call search_inventory with query "' + namedModel + '" and their size(s), and send what it finds. '
@@ -7309,6 +7311,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
         undoWomensDoubleConvert(sub, p, record, req);
+        // brand: '["Nike", "adidas"]' (a list typed as text, drill 10-16 07:28) or "Nike and adidas" is two brands.
+        try {
+          if (typeof p.brand === 'string' && /[\[,]|\band\b|&|\//.test(p.brand) && !(Array.isArray(p.brands) && p.brands.length)) {
+            let _bl = null; try { const j = JSON.parse(p.brand); if (Array.isArray(j)) _bl = j.map(String); } catch (_) {}
+            if (!_bl) _bl = p.brand.replace(/[\[\]"]/g, '').split(/\s*(?:,|&|\/|\band\b)\s*/i).map(x => x.trim()).filter(Boolean);
+            if (_bl.length > 1) { p.brands = _bl; delete p.brand; record(req, { endpoint: 'brand-list-split', sub, brands: _bl }); }
+          }
+        } catch (_) {}
         let found, askP = null;   // what the customer asked for, as the shoes that came back answer it
         if (ctx.store === SI.STORE) {
           // 10,000+ styles that change when stock lands, on another host. The
