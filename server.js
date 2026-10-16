@@ -6245,6 +6245,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let askedPermission = 0;     // "want me to send those?" instead of just sending
+  let resendDroppedNames = [];  // pictures not re-sent this turn because the chat already has them
   let whichShoeAsks = 0;       // "which one?" after they said "I'll take 2" and two are on the table
   let feeBlocks = 0;         // the invented-fee guard may bounce one reply per turn
   let blindBlocks = 0;       // the "I can't see your picture" guard may bounce one reply per turn
@@ -7394,11 +7395,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try {
           if (!staffName && !/\b(pics?|pictures?|photos?|show|send|see|again|resend|look)\b/i.test(customerWordsOnly(userText))) {
             const _lmR = liveShoeMap(); const _recent = (id) => { const x = _lmR[id]; return !!x && Date.now() - (photoConfirmSeen.get(sub + '|' + x.id) || 0) < 60 * 60 * 1000; };
-            const _before = (inp.ids || []).length + (Array.isArray(inp.groups) ? inp.groups.reduce((n, g) => n + ((g && g.ids) || []).length, 0) : 0);
+            const _beforeIds = [].concat(inp.ids || [], ...(Array.isArray(inp.groups) ? inp.groups.map(g => (g && g.ids) || []) : []));
+            const _before = _beforeIds.length;
             if (Array.isArray(inp.ids)) inp.ids = inp.ids.filter(id => !_recent(id));
             if (Array.isArray(inp.groups)) for (const g of inp.groups) if (g && Array.isArray(g.ids)) g.ids = g.ids.filter(id => !_recent(id));
             const _after = (inp.ids || []).length + (Array.isArray(inp.groups) ? inp.groups.reduce((n, g) => n + ((g && g.ids) || []).length, 0) : 0);
             if (_after < _before) record(req, { endpoint: 'resend-dropped', sub, dropped: _before - _after, kept: _after });
+            if (_after < _before) {
+              resendDroppedNames = [...new Set((_beforeIds || []).filter(id => _recent(id)).map(id => _lmR[id] && displayName(_lmR[id])).filter(Boolean))].slice(0, 6);
+            }
           }
         } catch (_) {}
         // 🎯 ALREADY PICKED = NO OTHER PICTURES (Rodney 2026-10-14: a customer forwarded our yellow/black TN card and
@@ -7740,7 +7745,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // customer staring at a promise of pictures that never came.
         else if (!result.interrupted) {
           record(req, { endpoint: 'album-sent-nothing', sub, asked: outIdCount, droppedForSize: droppedWrongSize.length, leadIn: String(leadIn || '').slice(0, 100) });
-          if (!outIdCount) result.note = (result.note ? result.note + ' ' : '')
+          if (!outIdCount && resendDroppedNames.length) result.note = (result.note ? result.note + ' ' : '')
+            + 'Nothing new was sent: they ALREADY HAVE these pictures from earlier in this chat — ' + resendDroppedNames.join('; ') + '. Do NOT say you are sending anything and do NOT apologise. In one short line point them at those pictures above for what they asked (e.g. "the ' + resendDroppedNames[0] + ' up there comes in your size 👆"), with the price.';
+          else if (!outIdCount) result.note = (result.note ? result.note + ' ' : '')
             + 'You passed no shoes, so nothing was sent and the customer saw nothing yet. Answer them in words on this turn: the sizes and price of the shoe they asked about.';
           else result.note = (result.note ? result.note + ' ' : '')
             + 'CRITICAL — ZERO photos actually reached this customer, but your lead-in already promised them pictures. DO NOT go silent and DO NOT just retry the same album. Reply NOW in words on this turn: name the pairs we have in their size with the price of each. They are waiting on a promise you already made.';
