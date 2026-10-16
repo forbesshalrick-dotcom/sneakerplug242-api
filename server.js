@@ -3352,7 +3352,10 @@ function undoWomensDoubleConvert(sub, p, record, req) {
   try {
     const w = womensSaid.get(String(sub));
     if (!p || p.womens !== true || !w || Date.now() - w.at > 12 * 3600 * 1000) return;
-    const fix = (x) => (x != null && parseFloat(x) === w.size - 1.5) ? String(w.size) : x;
+    // The turn she says it (2 min), her number IS the search — Kiki also passed 8.5 for a women's 10.5 (drill 10-15 22:02,
+    // she got one men's 7-8.5 pair called "women's 10.5"). Later turns only undo the exact double conversion (N - 1.5).
+    const fresh = Date.now() - w.at < 2 * 60 * 1000;
+    const fix = (x) => (x != null && (fresh ? parseFloat(x) !== w.size : parseFloat(x) === w.size - 1.5)) ? String(w.size) : x;
     const before = JSON.stringify([p.size, p.sizes]);
     if (p.size != null) p.size = fix(p.size);
     if (Array.isArray(p.sizes)) p.sizes = p.sizes.map(fix);
@@ -7080,6 +7083,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _brandKeys = [...new Set(turnSizeSearchBrands)];
           // Not after a matching-pair search (2026-10-14, Foot Fetish, Lady Resh: "size 8 an size 7 in ahalf" → 18 shoes that come
           // in both, then this top-up added every shoe in EITHER size and 100+ pictures went out).
+          if (!(!staffName && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
+              && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1)) {
+            record(req, { endpoint: 'size-topup-not-merged', sub, why: { staff: !!staffName, generic: !!turnGenericSizeAlbum, restrictive: !!turnHadRestrictiveSearch,
+              matching: !!turnMatchingPair, namedModel: namedModel || '', sizes: turnSizeSearchSizes.slice(0, 4), brandWord: ((_cust.match(BRAND_WORD_RE) || [])[0] || ''), brands: _brandKeys } });
+          }
           if (!staffName && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
               && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1) {
             const _onlyBrand = _brandKeys[0] ? _brandKeys[0].split('+') : null;
