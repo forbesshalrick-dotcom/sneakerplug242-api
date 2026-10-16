@@ -1207,6 +1207,7 @@ async function ycloudSendMessages(phoneDigits, messages) {
       let body = null;
       if (m && m.type === 'text' && String(m.text || '').trim()) body = { type: 'text', text: { body: String(m.text) } };
       else if (m && m.type === 'image' && (m.url || m.image_url)) body = { type: 'image', image: Object.assign({ link: String(m.url || m.image_url) }, m._cap ? { caption: m._cap } : {}) };
+      else if (m && m.type === 'audio' && m.url) body = { type: 'audio', audio: { link: String(m.url) } };
       if (!body) { i++; continue; }
       // Adaptive spacing for WhatsApp rate limits: 0.7s, +0.5s per ten messages, capped at 5s.
       const delayMs = Math.min(700 + (Math.floor(i / 10) * 500), 5000);
@@ -3528,6 +3529,32 @@ const EMPTY_ASK_T = {
 // ── Voice notes → text (OpenAI Whisper) ───────────────────────────────────────
 // Claude can't hear audio, so when a customer sends a WhatsApp voice note we
 // download the audio file ManyChat points us at and transcribe it with Whisper,
+// 🔊 KIKI ANSWERS A VOICE NOTE WITH A VOICE NOTE (Rodney 10-16: "and then send voicenotes"). A customer who spoke to her gets
+// her text reply AND the same words as a WhatsApp voice note (OpenAI speech, ogg/opus = a real WhatsApp voice note). YCloud
+// lines (Foot Fetish, Luxury Boutique) and the Graph line send it natively; ManyChat lines only when VOICE_REPLY_MANYCHAT=1,
+// because ManyChat has silently dropped audio before. VOICE_REPLY=0 turns the whole thing off.
+const voiceInAt = new Map();   // sub -> ts of the last voice note the customer sent
+const PUBLIC_BASE = (process.env.PUBLIC_BASE || 'https://sneakerplug242-api-production.up.railway.app').replace(/\/+$/, '');
+async function speakToVoiceNote(text) {
+  if (!process.env.OPENAI_API_KEY) return null;
+  const words = String(text || '')
+    .replace(/https?:\/\/\S+/g, ' the link ')
+    .replace(/[*_~`]/g, '')
+    .replace(/\p{Extended_Pictographic}|\uFE0F|\u200D/gu, '')
+    .replace(/\$(\d+)/g, '$1 dollars')
+    .replace(/\s+/g, ' ').trim().slice(0, 600);
+  if (words.length < 3) return null;
+  const r = await fetch('https://api.openai.com/v1/audio/speech', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY.trim(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: process.env.TTS_MODEL || 'gpt-4o-mini-tts', voice: process.env.TTS_VOICE || 'nova', input: words, response_format: 'opus',
+      instructions: 'Warm, friendly young Bahamian woman texting a customer about sneakers. Relaxed, upbeat, natural pace.' }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!r.ok) throw new Error('tts ' + r.status + ' ' + (await r.text()).slice(0, 120));
+  const buf = Buffer.from(await r.arrayBuffer());
+  const id = stashInboxMedia(buf, 'audio/ogg');
+  return id ? PUBLIC_BASE + '/inbox/media/' + id : null;
+}
 // then feed the text into the normal chat. Needs OPENAI_API_KEY in the env.
 const WHISPER_API = 'https://api.openai.com/v1/audio/transcriptions';
 const VOICE_HINT = 'Nassau, Bahamas sneaker shop. Places: Baha Mar, Cable Beach, Carmichael Road, Blue Hill Road, Prince Charles Drive, Fox Hill, Paradise Island, Coral Harbour, Golden Gates, Pinewood Gardens, Nassau Village, South Beach, Bay Street, Gladstone Road, Yamacraw, Eastern Road, Soldier Road, Mackey Street, Shirley Street, Robinson Road, Marathon Mall, Sea Breeze, Elizabeth Estates, Lyford Cay, Sandyport, Adelaide, Gambier, Wulff Road, Farrington Road, Bernard Road, Kemp Road, Palmdale, Oakes Field, Sunrise Highway, JFK Drive, Tonique Williams Highway, Harold Road, Cowpen Road, Faith Avenue, Millers Heights, Baillou Hill Road, East Street, Chippingham, Town Centre Mall, Fusion Superplex. Shoes: Air Force 1, Air Max 95, Air Max 97, Air Max Plus TN, VaporMax, Jordan 1, Jordan 4, Jordan 5, Jordan 11, Dunk, New Balance 9060, New Balance 1906, New Balance 2000, Nike Shox, Asics Gel-Kayano, Yeezy Foam Runner, Crocs. Sizes: 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13, ten and a half, thirteen.';
@@ -8449,6 +8476,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     } catch (e) { record(req, { endpoint: 'size-topup-error', sub, error: String(e).slice(0, 120) }); }
   }
   try { if (!staffName) tableLearn(sub, lastText); } catch (_) {}
+  try {
+    const _vin = voiceInAt.get(String(sub)) || 0;
+    const _native = isYcloudSub(sub) || !!waChannel.get(sub) || process.env.VOICE_REPLY_MANYCHAT === '1';
+    if (process.env.VOICE_REPLY !== '0' && !staffName && sentToCustomer && lastText && Date.now() - _vin < 3 * 60 * 1000 && _native) {
+      voiceInAt.delete(String(sub));
+      const _url = await speakToVoiceNote(lastText);
+      if (_url) {
+        const _r = await sendChunk(sub, [{ type: 'audio', url: _url }], token).catch(() => null);
+        record(req, { endpoint: 'voice-note-reply', sub, ok: !!(_r && _r.ok), url: _url, body: String((_r && _r.body) || '').slice(0, 120) });
+        try { if (_r && _r.ok) inboxRecord(ctx.store, sub, { dir: 'out', sender: 'kiki', text: '🎙 voice note' }); } catch (_) {}
+      }
+    }
+  } catch (e) { record(req, { endpoint: 'voice-note-reply-error', sub, error: String(e).slice(0, 160) }); }
   // SAFETY NET: never leave the customer hanging. If the whole turn produced no
   // message to them (model fumbled, every send failed, or it errored mid-loop),
   // send a friendly recovery line so they always get a reply.
@@ -8753,6 +8793,7 @@ function handleChat(req, res) {
         return;
       }
       text = t;
+      voiceInAt.set(String(sub), Date.now());
     }
     // Customer sent a PHOTO (its link arrives via Last Text Input). Pass the URL straight
     // to Kiki — Anthropic fetches + resizes the image itself, so even full-res photos work
@@ -11479,7 +11520,7 @@ app.post('/ycloud/webhook', async (req, res) => {
         tr = await transcribeAudio(link, null, hdr).catch(() => null);
       }
       record(req, { endpoint: 'ycloud-voice-transcribe', sub: from, ok: !!tr, transcript: String(tr || '').slice(0, 160), hasLink: !!link });
-      if (tr && tr.trim()) text = tr.trim();
+      if (tr && tr.trim()) { text = tr.trim(); voiceInAt.set(String(from), Date.now()); }
       else {
         try { await sendChunk(from, [{ type: 'text', text: "Sorry, I couldn't quite catch that voice note 🙉 mind typing it or sending it again?" }], ''); } catch (_) {}
         return;
@@ -11971,6 +12012,12 @@ function pruneInboxMedia() {
 function stashInboxMedia(buf, type) {
   try { const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8); inboxMedia.set(id, { buf, type: type || 'image/jpeg', ts: Date.now() }); pruneInboxMedia(); return id; } catch (_) { return ''; }
 }
+// Hear Kiki's voice-note voice before a customer does: ?key=…&text=… → { url } of the ogg it would send.
+app.get('/inbox/tts-test', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  try { const url = await speakToVoiceNote(String(req.query.text || "Hey! We got that Jordan 4 in your 10, it's 180 dollars. Want me to send it?")); res.json({ ok: !!url, url }); }
+  catch (e) { res.json({ ok: false, error: String(e).slice(0, 200) }); }
+});
 app.post('/inbox/upload', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
