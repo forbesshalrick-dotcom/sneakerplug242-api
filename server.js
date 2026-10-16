@@ -5864,6 +5864,39 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'pointer-photo-reattached', sub, q: _pt.slice(0, 40), agoS: Math.round((Date.now() - _lp.at) / 1000) });
     }
   } catch (_) {}
+  // 🏷️ ASK THE MAC WHICH CARD THEY TAGGED (see /social/tag-requests). ManyChat lines only, a short pointing message within 45 min
+  // of pictures that were more than one shoe, and only while the Mac reader is polling.
+  try {
+    const _pt = String(userText || '').trim();
+    const _url = (req.body && req.body.live_chat_url) ? String(req.body.live_chat_url) : '';
+    const _rs = recentlySent.get(sub);
+    if (!image && _url && /manychat\.com/.test(_url) && !/^\(SYSTEM/.test(_pt) && _pt.split(/\s+/).length <= 10
+        && /\b(this|these|that|those|dis|dem|dat|it|one|1)\b/i.test(_pt)
+        && _rs && _rs.names && _rs.names.length > 1 && Date.now() - _rs.ts < 45 * 60 * 1000
+        && Date.now() - tagReaderSeenAt < 3 * 60 * 1000) {
+      tagRequests.set(String(sub), { sub: String(sub), store: ctx.store || '', url: _url, text: _pt.slice(0, 80), at: Date.now(), done: false, shoeId: '' });
+      if (tagRequests.size > 200) tagRequests.delete(tagRequests.keys().next().value);
+      record(req, { endpoint: 'tag-request', sub, q: _pt.slice(0, 40) });
+      const _t0 = Date.now();
+      while (Date.now() - _t0 < 40000) {
+        const r = tagRequests.get(String(sub));
+        if (r && r.done) break;
+        await new Promise(z => setTimeout(z, 1000));
+      }
+      const r = tagRequests.get(String(sub));
+      if (r && r.shoeId) {
+        const _lmT = liveShoeMap(); let _sh = null;
+        for (const k in _lmT) { if (_lmT[k] && String(_lmT[k].id) === r.shoeId) { _sh = _lmT[k]; break; } }
+        if (_sh) {
+          userText = '(SYSTEM: they quote-replied OUR picture of the ' + displayName(_sh) + ' (shoe id ' + _sh.id + '), $' + (parseFloat(_sh.price) || 0) + ', comes in ' + (sizesOf(_sh) || 'no sizes right now')
+            + '. That is the shoe they mean — answer about it by name; never ask which one.)\n' + _pt;
+          lastPickBySub.set(String(sub), { id: String(_sh.id), at: Date.now() });
+          try { tableAdd(sub, { name: displayName(_sh), id: _sh.id, price: _sh.price }); } catch (_) {}
+          record(req, { endpoint: 'tag-resolved', sub, shoe: String(_sh.id), waitedMs: Date.now() - _t0 });
+        }
+      } else record(req, { endpoint: 'tag-unresolved', sub, waitedMs: Date.now() - _t0 });
+    }
+  } catch (_) {}
   // 👆 "THIS" WITH NOTHING ATTACHED (2026-10-14, Rodney's test on Trendy Kicks: he quote-replied "this" to
   // our picture; ManyChat passes the words and drops the tag, and Kiki answered "I'm not seeing a picture
   // come through" / "having trouble picking that up on my end"). The tag cannot be recovered on ManyChat,
@@ -11199,6 +11232,35 @@ app.post('/social/pin-coords', (req, res) => {
   waSendManager('📍 *THE PIN* for ' + (ho && ho.name ? ho.name : (r.name || 'customer')) + (r.phone ? ' (' + r.phone + ')' : '') + ' on ' + (r.store || 'WhatsApp')
     + (ho ? '\n👟 ' + ho.shoe + (ho.size ? ' — size ' + ho.size : '') : '') + '\n🗺️ ' + maps, r.token || null).catch(() => {});
   res.json({ ok: true, maps });
+});
+/* 🏷️ THE TAG, READ ON THE MAC (Rodney 10-16, twice: "why is she not seeing the tags anymore?"). On ManyChat (TK, OSC) a
+ * quote-reply reaches us as bare words ("I could get this"); ManyChat's own chat page shows the quoted card, whose image URL
+ * carries the shoe id (…/c0644-card.jpg). A pointing message is queued here; the Mac reads the quote and posts the id back
+ * while runChat holds the reply (up to 40 s, only while the Mac reader is polling). */
+const tagRequests = new Map();   // sub -> { sub, store, url, text, at, done, shoeId }
+let tagReaderSeenAt = 0;
+app.get('/social/tag-requests', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  tagReaderSeenAt = Date.now();
+  const cut = Date.now() - 10 * 60 * 1000;
+  res.json({ ok: true, items: [...tagRequests.values()].filter(r => !r.done && r.at > cut).map(r => ({ sub: r.sub, store: r.store, url: r.url, text: r.text, at: new Date(r.at).toISOString() })) });
+});
+app.post('/social/tag-found', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/\D/g, '');
+  const r = tagRequests.get(sub);
+  if (!r) return res.status(404).json({ ok: false, error: 'no tag request for that sub' });
+  r.done = true;
+  if (b.none) { record(req, { endpoint: 'tag-found-none', sub }); return res.json({ ok: true, none: true }); }
+  let id = String(b.shoe_id || '').trim();
+  if (!id && b.image_url) id = ((String(b.image_url).match(/\/([A-Za-z0-9_-]+)-card\.jpg/) || [])[1]) || '';
+  const lm = liveShoeMap(); let sh = null;
+  for (const k in lm) { if (lm[k] && String(lm[k].id) === id) { sh = lm[k]; break; } }
+  if (!sh) { record(req, { endpoint: 'tag-found-unknown', sub, id }); return res.status(404).json({ ok: false, error: 'unknown shoe id ' + id }); }
+  r.shoeId = String(sh.id);
+  record(req, { endpoint: 'tag-found', sub, shoe: r.shoeId });
+  res.json({ ok: true, shoe: displayName(sh) });
 });
 app.post('/social/handoff', (req, res) => {
   if (!consoleAuth(req, res)) return;
