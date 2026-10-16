@@ -7279,6 +7279,27 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'which-shoe-q-replaced', sub, store: ctx.store || '', was: turnText.slice(0, 120), now: _q });
       turnText = _q;
     }
+    /* ✌️ THEY ALREADY GAVE BOTH SIZES (Rodney 10-16, Lamar Curling TK: "10 1/2 - 11", picked the Wet Cement, got "You want the
+     * Air Jordan 4 Retro (Wet Cement) in size 10.5 or 11?" — "The guy already asked for 10 and a half or 11. Why ask him again").
+     * When the customer named both sizes, the question is replaced by bringing both to try on. */
+    if (turnText && !staffName) {
+      const _mq = turnText.match(/\b(?:in\s+)?(?:a\s+|size\s+)?(\d{1,2}(?:\.5)?)\s+or\s+(?:a\s+|an\s+|size\s+)?(\d{1,2}(?:\.5)?)\s*\?/i);
+      if (_mq) {
+        const _said = history.filter(h => h && h.role === 'user' && typeof h.content === 'string').slice(-8).map(h => customerWordsOnly(h.content)).concat([customerWordsOnly(userText)]).join(' ')
+          .replace(/(\d{1,2})\s*(?:1\/2|½|and a half|\.5|\/50|,5)/gi, '$1.5');
+        const _nums = (_said.match(/\b\d{1,2}(?:\.5)?\b/g) || []).map(parseFloat);
+        const a = parseFloat(_mq[1]), b2 = parseFloat(_mq[2]);
+        // Only when the shoe in play really has BOTH sizes on the shelf (its pick, else the newest shoe on the order table).
+        const _lmB = liveShoeMap(); const _idB = (lastPickBySub.get(String(sub)) || {}).id || ((((onTheTable.get(String(sub)) || {}).items) || []).slice(-1)[0] || {}).id;
+        let _shB = null; for (const k in _lmB) { if (_lmB[k] && String(_lmB[k].id) === String(_idB || '')) { _shB = _lmB[k]; break; } }
+        const _hasB = (n) => !!_shB && (_shB.sizesRaw || []).some(z => parseFloat(z) === n);
+        if (_nums.includes(a) && _nums.includes(b2) && _hasB(a) && _hasB(b2)) {
+          const _bf = turnText.slice(0, _mq.index).replace(/\s*(?:you want|want|do you want|which one|which)\s*(?:the\s+)?[^.!?\n]*$/i, '').trim();
+          turnText = ((_bf ? _bf + ' ' : '') + displayName(_shB) + ' — bet 🔥 we\'ll bring the ' + _mq[1] + ' and the ' + _mq[2] + ' so you can try them on. Send me your location 📍 — we can come right now 👟').replace(/\s{2,}/g, ' ').trim();
+          record(req, { endpoint: 'both-sizes-not-reasked', sub, a: _mq[1], b: _mq[2] });
+        }
+      }
+    }
     /* ❓ "YOU'RE GOOD IN YOUR 8.5" IS A QUESTION (Rodney 10-16: "Don't say you good in your 8.5. Say, do you want the 8.5?"). */
     if (turnText && !staffName) {
       const _yg = /\s*[—–-]?\s*\byou(?:'re|’re| are)?\s+(?:good|set|straight|covered)\s+(?:in|with|for)\s+(?:your|ur|a|an|the)?\s*(?:size\s+)?(\d{1,2}(?:\.5)?)\b[^.!?\n]*[.!]?/i;
