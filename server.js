@@ -7292,6 +7292,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Only when the shoe in play really has BOTH sizes on the shelf (its pick, else the newest shoe on the order table).
         const _lmB = liveShoeMap(); const _idB = (lastPickBySub.get(String(sub)) || {}).id || ((((onTheTable.get(String(sub)) || {}).items) || []).slice(-1)[0] || {}).id;
         let _shB = null; for (const k in _lmB) { if (_lmB[k] && String(_lmB[k].id) === String(_idB || '')) { _shB = _lmB[k]; break; } }
+        if (!_shB) {   // the shoe she names in this very reply ("the Air Jordan 4 Retro (Wet Cement)")
+          const _tl = String(turnText).toLowerCase();
+          for (const k in _lmB) {
+            const x = _lmB[k]; if (!x) continue;
+            const nick = String(x.nickname || '').toLowerCase().trim();
+            const nm = String(x.name || '').toLowerCase().replace(/^(nike|adidas|new balance)\s+/, '').replace(/\s+retro$/, '').trim();
+            const cols = String(x.color || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 2);
+            if ((nick.length >= 4 && _tl.includes(nick) && _tl.includes(nm.split(' ').slice(-1)[0])) || (nm.length >= 4 && _tl.includes(nm) && cols.length && cols.every(w => _tl.includes(w)))) { _shB = x; break; }
+          }
+        }
         const _hasB = (n) => !!_shB && (_shB.sizesRaw || []).some(z => parseFloat(z) === n);
         if (_nums.includes(a) && _nums.includes(b2) && _hasB(a) && _hasB(b2)) {
           const _bf = turnText.slice(0, _mq.index).replace(/\s*(?:you want|want|do you want|which one|which)\s*(?:the\s+)?[^.!?\n]*$/i, '').trim();
