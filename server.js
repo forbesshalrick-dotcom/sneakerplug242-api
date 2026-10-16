@@ -6492,6 +6492,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (_ord) {
         const _when = new Date(_ord.createdAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/Nassau' });
         const _facts = String(_ord.text || '').split('\n').filter(l => /👤|👟|💰|📍/.test(l)).join(' · ').slice(0, 400);
+        // 🧾 WHAT THE OWNER ALREADY TOLD THEM ABOUT THE SHIPMENT (Rodney 10-16: "I gave you shipping info" — on 10-14 11:23 he sent
+        // Kaden the receipt and "Your 9060 is on Bahamas Ferries to Rock Sound, booking #2026101462" from the Inbox; it scrolled
+        // out of her memory and she answered "let me check with the team" four times over two days).
+        let _ownerShip = '';
+        try {
+          const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+          const _om = ((_th && _th.msgs) || []).filter(m => m && m.dir === 'out' && m.sender === 'rodney' && m.text && Date.now() - (m.ts || 0) < 21 * 86400000
+            && /\b(ferr(?:y|ies)|boat|mail ?boat|flight|plane|airport|booking|receipt|bill of lading|b\/?l|tracking|dock|shipped|checked in|on the way|arriv|leav(?:es|ing)|depart|pick ?up|collect)\b/i.test(m.text)).slice(-4);
+          if (_om.length) _ownerShip = _om.map(m => new Date(m.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Nassau' }) + ': "' + String(m.text).replace(/\s+/g, ' ').slice(0, 220) + '"').join(' | ');
+        } catch (_) {}
+        if (_ownerShip) system += '\n\n🚢 THE OWNER ALREADY TOLD THIS CUSTOMER ABOUT THE SHIPMENT: ' + _ownerShip + '. (oldest first — the LAST one is the current plan; an earlier plan it replaced no longer stands). Answer "where is it / is it at the office / when does it leave" FROM THIS — say what it went on, where, and the booking number. Only for something it does not cover (an exact time not given here) say you are checking with the team.';
         system += '\n\n📦 THIS CUSTOMER ALREADY ORDERED (' + _when + '), the team has it: ' + _facts + '. Treat it as fact: never ask again what they want, '
           + 'the island, the receiver or whether they paid (a card/transfer order here is PAID). You do NOT know if or when it went out — if they ask, '
           + 'say you have passed it to the team and they will update them. Never tell them "you\'re good" about a boat, a date or a change; the team decides.';
