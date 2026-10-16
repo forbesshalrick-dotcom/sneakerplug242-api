@@ -6245,6 +6245,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let askedPermission = 0;     // "want me to send those?" instead of just sending
+  let whichShoeAsks = 0;       // "which one?" after they said "I'll take 2" and two are on the table
   let feeBlocks = 0;         // the invented-fee guard may bounce one reply per turn
   let blindBlocks = 0;       // the "I can't see your picture" guard may bounce one reply per turn
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
@@ -6629,6 +6630,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _ids = [...String(userText || '').matchAll(/shoe id ([A-Za-z0-9_-]+)/g)].map(mm => mm[1]).concat([...turnSentIds], [...pinnedPickIds]);
           const _pin = _ids.map(i => _real[i] || lm[i]).filter(Boolean);
           if (_pin.length) cands = [..._pin, ...cands.filter(c => !_pin.includes(c))].slice(0, 6);
+          /* She can answer from memory with no search this turn ("size 8" → "Got you down for the Air Force 1 Red/White in size 8",
+           * drill 10-16 01:36, that shoe only comes in a 7): then the shoes this chat was shown or quoted are the ones in play. */
+          if (!cands.length) {
+            const _seen = [];
+            for (const [k, t] of photoConfirmSeen) if (k.startsWith(String(sub) + '|') && Date.now() - t < 3 * 3600 * 1000) _seen.push([k.slice(String(sub).length + 1), t]);
+            _seen.sort((x, y) => y[1] - x[1]);
+            const _tb = ((onTheTable.get(String(sub)) || {}).items || []).map(i => i.id).filter(Boolean);
+            const _lp = lastPickBySub.get(String(sub));
+            const _ids2 = [...(_lp ? [_lp.id] : []), ..._tb, ..._seen.map(x => x[0])];
+            const _c2 = [...new Set(_ids2)].map(i => _real[i] || lm[i]).filter(Boolean);
+            if (_c2.length) cands = _c2.slice(0, 6);
+          }
         } catch (_) {}
         // The listing title carries "$130", "BSD130", "[hidden information]", a post number - none of it is the shoe,
         // and with it in the query the search found nothing, so a claimed size had nothing to be checked against
@@ -6911,6 +6924,85 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         continue;
       }
     } catch (_) {}
+    /* (Ported back 10-16 from the pre-reset brain.) 🧾 "I'LL TAKE 2" IS NOT A QUESTION — THEY ALREADY POINTED AT THEM (Rodney 2026-10-05,
+     * on +1 242 805-7793: "why ask which shoe?").
+     *
+     * He forwarded TWO of our cards — Air Max 90 Grey/Black and Air Max Plus Black/Orange —
+     * asked "How much", and was priced on both. Then he typed "I bay 2" and got back
+     * "Which other one you after?". There was no other one. He had put both on the table
+     * himself and she had just quoted both of them by name a message earlier.
+     *
+     * This is the same shape as asking permission to send a picture: a second decision put in
+     * front of somebody who already decided. The count is the answer — if he says a number and
+     * we have already named that many shoes in this chat, those are the ones. Say them back,
+     * add it up, and ask where it goes.
+     *
+     * Only fires when the shoes really are on the table: it counts shoes SHE named (model AND
+     * every word of the colourway) in her own turns, and stays out of the way when that count
+     * falls short of what they asked for - then the question is honest. */
+    try {
+      const BUY_N = /\b(?:i(?:'|’)?ll?\s+|i\s+(?:will\s+|wanna\s+|want\s+to\s+)?)?(?:buy|bay|take|takin|taking|want|get|gettin|getting|need|cop|grab|purchase|gimme|give\s+me)\s+(?:all\s+|the\s+|them\s+|dem\s+|both\s+)?(2|two|3|three|4|four|both|all)\b/i;
+      const WHICH_Q = /\bwhich\s+(?:other|second|2nd|one|ones|shoe|shoes|pair|pairs|kicks|two)\b|\bwhat(?:'|’)?s\s+the\s+(?:other|second|2nd)\b|\bwhat\s+(?:other|second)\s+(?:one|shoe|pair)\b/i;
+      const _mBuy = String(userText || '').match(BUY_N);
+      if (turnText && !staffName && whichShoeAsks < 1 && _mBuy && WHICH_Q.test(turnText)) {
+        const WORDN = { '2': 2, two: 2, both: 2, '3': 3, three: 3, '4': 4, four: 4 };
+        const _asked = String(_mBuy[1] || '').toLowerCase();
+        // What has she already named, by model AND the whole colourway, in her own turns?
+        const _ours = history.filter(h => h.role === 'assistant')
+          .map(h => typeof h.content === 'string' ? h.content
+               : (Array.isArray(h.content)
+                  ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))
+          .concat([String(turnText || '')]).join(' \n ').toLowerCase();
+        const _named = [];
+        const _seenKey = new Set();
+        // The table first — it outlives the 24-message trim that caused this bug.
+        try {
+          const _row = onTheTable.get(String(sub));
+          for (const it of ((_row && _row.items) || [])) {
+            const k = String(it.name || '').toLowerCase();
+            if (!k || _seenKey.has(k)) continue;
+            _seenKey.add(k);
+            _named.push({ name: it.name, color: '', price: it.price || '', _fromTable: true,
+                          _label: it.name + (it.size ? ' (size ' + it.size + ')' : '')
+                                  + (it.price ? ' $' + String(it.price).replace(/[^0-9.]/g, '') : '') });
+          }
+        } catch (_) {}
+        try {
+          const _lm = liveShoeMap();
+          for (const sh of Object.values(_lm)) {
+            const nm = String(sh.name || '').toLowerCase()
+              .replace(/^(nike|adidas|new balance|puma|asics|reebok|converse)\s+/, '').trim();
+            const col = String(sh.color || '').toLowerCase();
+            if (nm.length < 4 || !col) continue;
+            if (_ours.indexOf(nm) === -1) continue;
+            const parts = col.split(/[^a-z0-9]+/).filter(w => w.length > 2);
+            if (!parts.length || !parts.every(w => _ours.indexOf(w) !== -1)) continue;
+            const key = nm + '|' + col;
+            if (_seenKey.has(key)) continue;
+            _seenKey.add(key);
+            _named.push(sh);
+          }
+        } catch (_) {}
+        const _want = _asked === 'all' ? _named.length : (WORDN[_asked] || 2);
+        if (_named.length >= _want && _want >= 2) {
+          whichShoeAsks++;
+          const _list = _named.slice(0, _want).map(sh => sh._label
+            ? sh._label
+            : (displayName(sh) + ' $' + sh.price + ' (sizes ' + sizesOf(sh) + ')')).join(' and ');
+          const _total = _named.slice(0, _want).reduce((t, sh) =>
+            t + (parseFloat(String(sh.price).replace(/[^0-9.]/g, '')) || 0), 0);
+          record(req, { endpoint: 'asked-which-shoe-when-both-named', sub, store: ctx.store || '',
+                        said: turnText.slice(0, 90), asked: _asked, named: _named.length });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+            + 'asked WHICH shoe they mean. They already told you — they said ' + _asked + ', and '
+            + 'you have named exactly that many in this chat: ' + _list + '. Those are the ones. '
+            + 'Never ask a person who pointed at a shoe to point at it again. Say both names back, '
+            + 'give the real total of $' + _total + ' (full price each — do NOT invent a bundle '
+            + 'deal, see the haggling rule), confirm their size on each, and ask where it goes.)' });
+          continue;
+        }
+      }
+    } catch (_) {}
     /* 🧲 BE A SALESMAN — NEVER A FLAT NO, NEVER WORDS WITHOUT PICTURES (Rodney 2026-10-04, a0a42c0; lost in the 10-12
      * reset, ported back 10-16 from the pre-reset brain). "We don't have the Air Force 1 in red" while we held four Air
      * Forces in his 8 and ten red shoes in his 8: when she says no, the server runs the three searches a salesman runs
@@ -7082,7 +7174,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 📍 A SIZE IS NOT A MEETING (Salethia, Tami 10-15: "8" got "…Where should we meet you? 📍"). Their size alone never gets a
      * location or meet-up ask; it is cut before it goes out. */
     if (turnText && !staffName && /^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(customerWordsOnly(userText))) {
-      const _locAsk = /\b(where (?:should|can|do|shall) (?:we|i) (?:meet|bring|deliver|drop)|where (?:you|u) (?:at|located)|send (?:me )?(?:your|ur|a) (?:location|pin|address)|drop (?:me )?(?:a|your) pin|what'?s (?:your|ur) (?:location|address))\b/i;
+      const _locAsk = /\b(where (?:should|can|do|shall) (?:we|i) (?:meet|bring|deliver|drop)|where (?:you|u) (?:at|located)|send (?:me )?(?:your|ur|a) (?:whatsapp )?(?:location|pin|address)|drop (?:me )?(?:a |your )?(?:whatsapp )?(?:location|pin)|location pin|what'?s (?:your|ur) (?:location|address))\b/i;
       const _parts = turnText.split(/(?<=[.!?\n])\s+|(?<=\p{Extended_Pictographic})\s+/u);
       if (_parts.some(x => _locAsk.test(x))) {
         const _keep = _parts.filter(x => !_locAsk.test(x)).join(' ').replace(/\s*\u{1F4CD}\s*$/u, '').replace(/\s{2,}/g, ' ').trim();
