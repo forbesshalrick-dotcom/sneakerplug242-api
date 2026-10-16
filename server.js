@@ -7291,9 +7291,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     try {
       if (turnText && !staffName) {
         const _bm = String(turnText).replace(/[*_]/g, '').replace(/\u2019/g, "'").match(/\b(?:don'?t|do not|doesn'?t|no longer|aren'?t|not)\s+(?:stock|carry|have|sell|got|do|carrying|stocking)\s+(?:any\s+)?(adidas|nike|jordans?|new balance|asics|puma|crocs|yeezys?)\b/i);
-        if (_bm && searchInventory({ brand: _bm[1].replace(/s$/i, '') }).length) {
+        const _bmSen = _bm ? (String(turnText).replace(/[*_]/g, '').replace(/\u2019/g, "'").split(/(?<=[.!?\n])\s+/).find(x => x.includes(_bm[0])) || '') : '';
+        if (_bm && !/\b\d{1,2}(?:\.5)?\b/.test(_bmSen) && searchInventory({ brand: _bm[1].replace(/s$/i, '') }).length) {
           const _parts = turnText.split(/(?<=[.!?\n])\s+|(?<=\p{Extended_Pictographic})\s+/u);
-          const _keep = _parts.filter(x => { const y = x.replace(/[*_]/g, '').replace(/\u2019/g, "'"); return !new RegExp('\\b' + _bm[1] + '\\b', 'i').test(y) || !/\b(?:don'?t|do not|doesn'?t|no longer|aren'?t|not)\b/i.test(y); }).join(' ').replace(/\s{2,}/g, ' ').trim();
+          // A sentence with a size in it ("we don't have New Balance in a 13") is about the size, not the brand — it stays.
+          const _keep = _parts.filter(x => { const y = x.replace(/[*_]/g, '').replace(/\u2019/g, "'"); return /\b\d{1,2}(?:\.5)?\b/.test(y) || !new RegExp('\\b' + _bm[1] + '\\b', 'i').test(y) || !/\b(?:don'?t|do not|doesn'?t|no longer|aren'?t|not)\b/i.test(y); }).join(' ').replace(/\s{2,}/g, ' ').trim();
           record(req, { endpoint: 'brand-we-stock-denied-cut', sub, brand: _bm[1], was: turnText.slice(0, 140) });
           turnText = _keep || 'What size you wear? 👟 I\'ll send you everything we got 🔥';
         }
@@ -7552,10 +7554,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (!found.length && (p.size != null || (Array.isArray(p.sizes) && p.sizes.length)) && (p.query || p.brand || p.color)) {
           try {
             const q2 = Object.assign({}, p); delete q2.size; delete q2.sizes; delete q2.size_match; delete q2.exact_sizes;
-            const anySize = searchInventory(q2).slice(0, 4);
+            /* 🎯 THE CLOSEST SIZE IS THE ANSWER (Rodney 10-16: "New balance 13" got "we've got New Balance in a 11, 10.5, 9.5,
+             * and 5.5" — the first four shoes' sizes — while the 12 and 12.5s sat on the shelf; "closest to 13 should be the
+             * answer"). Every matching shoe is read, the sizes nearest the one asked lead, and their shoes come back. */
+            const _all = searchInventory(q2);
+            const _want = parseFloat(p.size != null ? p.size : (Array.isArray(p.sizes) ? p.sizes[0] : NaN));
+            const _lmN = liveShoeMap();
+            const _szOf = (r) => ((_lmN[r.id] && _lmN[r.id].sizesRaw) || []).map(parseFloat).filter(n => !isNaN(n));
+            const _avail = [...new Set(_all.flatMap(_szOf))].sort((a, b) => (Math.abs(a - _want) - Math.abs(b - _want)) || (b - a));
+            const _near = isNaN(_want) ? [] : _avail.slice(0, 2);
+            const anySize = (_near.length ? _all.filter(r => _szOf(r).some(n => _near.includes(n))) : _all).slice(0, 8);
             if (anySize.length) {
               result.same_model_other_sizes = anySize.map(s => ({ id: s.id, name: s.name, price: s.price, sizes: s.sizes }));
-              result.note = 'NOTHING in the size asked. We DO carry this model — the ONLY sizes it comes in are listed in same_model_other_sizes. Tell the customer exactly those sizes ("that one only comes in 5.5, 6.5 and 7 right now"). NEVER say "out of stock", NEVER name any other size, NEVER offer a size that is not in that list.';
+              if (_near.length) result.closest_sizes = _near;
+              result.note = 'NOTHING in the size asked' + (_near.length ? ' (' + _want + '). The CLOSEST sizes we have are ' + _near.join(' and then ') + ' — lead with the closest: "no ' + _want + ' right now, the closest is a ' + _near[0] + ' 👟" and send THOSE pictures (same_model_other_sizes are the shoes in those sizes).' : '.')
+                + ' Never say "out of stock", never offer a size that is not in that list, and never list far-off sizes ahead of the closest.';
               lastSearchIds = anySize.map(x => x && x.id).filter(x => x != null);
               askP = q2;
             }
