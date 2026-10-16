@@ -8469,6 +8469,13 @@ function handleChat(req, res) {
       emptyAskAt.set(sub, Date.now());
       if (emptyAskAt.size > 300) { const f = emptyAskAt.keys().next().value; emptyAskAt.delete(f); }
       try {
+        const _tl = String(getPhone(req) || '').replace(/\D/g, '').slice(-7);
+        if (_tl.length === 7) {
+          wordlessByTail.set(_tl, { sub, store, url: (req.body && req.body.live_chat_url) ? String(req.body.live_chat_url) : '', token, at: Date.now() });
+          if (wordlessByTail.size > 500) wordlessByTail.delete(wordlessByTail.keys().next().value);
+        }
+      } catch (_) {}
+      try {
         const _ho = fbHandoffFor(getPhone(req));
         if (_ho) {
           record(req, { endpoint: 'fb-handoff-pin', sub, shoe: _ho.shoe });
@@ -11157,6 +11164,7 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
  * owner's FB order card had a number but no pin). The Facebook side posts the order with the customer's phone; when that
  * number turns up on WhatsApp, Kiki there has the order, and a wordless first message (how a pin arrives) alerts the owner. */
 const fbHandoffs = new Map();   // last 7 digits of the phone -> { name, shoe, size, price, where, line, at }
+const wordlessByTail = new Map(); // last 7 digits -> { sub, store, url, token, at }: a wordless WhatsApp message (a pin) that came BEFORE its handoff
 function fbHandoffFor(phone) {
   const t = String(phone || '').replace(/\D/g, '').slice(-7);
   const h = t && fbHandoffs.get(t);
@@ -11171,7 +11179,20 @@ app.post('/social/handoff', (req, res) => {
               price: String(b.price || '').slice(0, 12), where: String(b.where || b.location || '').slice(0, 120), line: String(b.line || '').slice(0, 20), at: Date.now() };
   fbHandoffs.set(tail, h);
   record(req, { endpoint: 'fb-handoff-in', tail, shoe: h.shoe, line: h.line });
-  res.json({ ok: true });
+  // The number usually arrives AFTER the pin (Cam: pin 09:42, number 09:43). If that number already sent a wordless WhatsApp
+  // message in the last hour, that was the pin: the owner gets the delivery card now.
+  let pinAlready = false;
+  try {
+    const w = wordlessByTail.get(tail);
+    if (w && Date.now() - w.at < 60 * 60 * 1000) {
+      pinAlready = true;
+      record(req, { endpoint: 'fb-handoff-pin-earlier', tail, sub: w.sub });
+      waSendManager('🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* (from Facebook ' + (h.line || '') + ')\n👤 ' + (h.name || 'Customer') + '\n📞 +1242' + tail
+        + '\n👟 ' + h.shoe + (h.size ? ' — size ' + h.size : '') + (h.price ? '\n💰 ' + h.price : '') + (h.where ? '\n🏠 ' + h.where : '')
+        + '\n📍 They sent their location on ' + (w.store || 'WhatsApp') + ' — open the chat to see the pin' + (w.url ? ': ' + w.url : ''), w.token).catch(() => {});
+    }
+  } catch (_) {}
+  res.json({ ok: true, pinAlready });
 });
 app.post('/social/reply', async (req, res) => {
   if (!consoleAuth(req, res)) return;
