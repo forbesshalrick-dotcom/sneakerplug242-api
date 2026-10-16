@@ -6095,6 +6095,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
   let lastSearchIds = [];    // the ids that search matched — our pictures go to Kiki beside the customer's photo
   let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
+  let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let feeBlocks = 0;         // the invented-fee guard may bounce one reply per turn
   let blindBlocks = 0;       // the "I can't see your picture" guard may bounce one reply per turn
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
@@ -6674,6 +6675,172 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
       continue;
     }
+    /* 🧲 BE A SALESMAN — NEVER A FLAT NO, NEVER WORDS WITHOUT PICTURES (Rodney 2026-10-04, a0a42c0; lost in the 10-12
+     * reset, ported back 10-16 from the pre-reset brain). "We don't have the Air Force 1 in red" while we held four Air
+     * Forces in his 8 and ten red shoes in his 8: when she says no, the server runs the three searches a salesman runs
+     * (their shoe in their size, their colour in their size, their shoe in their colour) and sends the first as pictures.
+     * It never invents stock - every line comes from a real search; with nothing found her reply goes through untouched. */
+    try {
+      const OUT_RE = /\b(we(?:'|’)?re out of|out of stock|sold out|don(?:'|’)?t have|dont have|don(?:'|’)?t come in|do not have|none (?:left|in)|no .{0,16} in (?:a |an )?\d|only (?:comes|come|got it|have it|got|in) in (?:a |an )?\d|only in (?:a |an )?\d)/i;
+      if (turnText && !staffName && !photosSentRun && !pinnedPickIds.size && deadEnds < 1 && OUT_RE.test(turnText)) {
+        // Everything THEY have said this conversation - the shoe is often named a message or
+        // two before the size, which is exactly how the first version missed Million.
+        /* ⚠️ ONLY THE CUSTOMER'S OWN WORDS. Caught on the first live test of this guard: the
+         * notes this file pushes into `history` are role:'user' strings, and some are appended
+         * onto userText itself - so joining the lot and cutting at the FIRST "(SYSTEM NOTE"
+         * left whole paragraphs of our own instructions in the blob. The model came out as
+         *   "air force 1 8 customer s 8 they told earlier chat when they ask to see other shoe
+         *    brand or model next new balance show jordans..."
+         * and the search answered that instead of the customer. Cut every message
+         * individually, drop anything that is plainly ours, and keep it short - a customer
+         * does not describe a shoe in 200 characters. */
+        const saidByThem = history.filter(h => h.role === 'user')
+          .map(h => typeof h.content === 'string' ? h.content : '')
+          .concat([String(userText || '')])
+          .map(t => customerWordsOnly(String(t).split('(SYSTEM NOTE')[0].split('🔎')[0]).trim())
+          /* Keep only what a CUSTOMER could plausibly have typed. Cutting at "(SYSTEM NOTE"
+           * was not enough - instruction text was still arriving by some path, byte-identical
+           * on two separate turns, and the search answered it. Rather than chase every place
+           * that can push into history, this asks the opposite question: does this read like a
+           * person asking for shoes? Our own writing always names a tool, addresses "the
+           * customer" in the third person, or runs long. Theirs never does. */
+          .filter(t => t
+            && !t.startsWith('(')
+            && t.length <= 120
+            && !/search_inventory|send_photos|notify_manager|SYSTEM|the customer|do NOT|you MUST/i.test(t))
+          .slice(-8)
+          .join(' ');
+        const T = saidByThem.toLowerCase();
+
+        const COLOURS = ['black','white','red','blue','green','pink','purple','orange','yellow',
+                         'brown','cream','navy','grey','gray','gold','silver','tan','burgundy'];
+        const colour = COLOURS.find(c => new RegExp('\\b' + c + '\\b').test(T)) || '';
+
+        const cs = custSize.get(sub);
+        const sizeNums = [...T.matchAll(/\b(\d{1,2}(?:\.5)?)\b/g)].map(m => parseFloat(m[1]))
+          .filter(n => n >= 4 && n <= 14);
+        const theirSize = sizeNums.length ? String(sizeNums[sizeNums.length - 1])
+          : (cs && cs.size ? String(cs.size).split('/')[0] : '');
+
+        // The model, with the colour and the size words taken out so it does not filter twice.
+        let model = T;
+        for (const c of COLOURS) model = model.replace(new RegExp('\\b' + c + '\\b', 'g'), ' ');
+        /* ⚠️ STRIP THE SIZE, KEEP THE MODEL NUMBER. "red jordan 4 in a 10" has two numbers and
+         * only one of them is a foot. Taking out every 4-14 leaves a bare "jordan", which is
+         * how "NB 2000" once matched 59 wrong shoes. Only the token we actually chose as the
+         * size comes out, and only the last occurrence of it. */
+        if (theirSize) {
+          const esc = theirSize.replace('.', '\\.');
+          /* "size 8" FIRST, wherever it sits. Removing only the LAST bare 8 fails the moment
+           * anything after the customer's words also contains an 8 - measured 2026-10-04: the
+           * model came out "air force 1 8", group A found nothing (a=0), and the album could
+           * not send. The phrase "size 8" is never part of a shoe's name, so it goes first and
+           * every time; the bare-number strip then handles "a 8" / "in 8" and still protects
+           * model numbers by only taking the last one. */
+          model = model.replace(new RegExp('\\b(?:size|sz)\\s+' + esc + '\\b', 'g'), ' ');
+          model = model.replace(new RegExp('\\b' + esc + '\\b(?![\\s\\S]*\\b' + esc + '\\b)'), ' ');
+        }
+        model = model
+          .replace(/\b(size|sizes|colou?rs?|in|a|an|the|you|have|got|any|do|u|i|need|want|looking|for|one|me|is|it|yall|y'all|plz|please|hello|hi|hey|can|get|more|info|on|this)\b/g, ' ')
+          .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+        const S = (o) => { try { return searchInventory(o) || []; } catch (_) { return []; } };
+        // The three a salesman runs: their shoe in their size (every colour), their colour in
+        // their size (any shoe), and their shoe in their colour (any size, to try on).
+        const theirShoeTheirSize  = (model && theirSize) ? S({ query: model, size: theirSize }) : [];
+        const theirColourTheirSize = (colour && theirSize) ? S({ color: colour, size: theirSize }) : [];
+        const theirShoeTheirColour = (model && colour) ? S({ query: model, color: colour }) : [];
+
+        /* 🔑 HAND HER THE IDS, NOT JUST THE NAMES. This is why forcing send_photos was not
+         * enough on its own: the guard runs its own searches, so she never "saw" a
+         * search_inventory result and had no ids to pass. The tool was forced and she had
+         * nothing to put in it, so she fell back to typing the names - which is the very thing
+         * the guard exists to stop. The id goes in front of every shoe now, and
+         * lastSearchIds is primed so the completeness top-up and the album receipt still line
+         * up with what actually went out. */
+        /* 🔑 IDS ON THE ALBUM GROUP ONLY. Measured: given ids for all three groups she picked
+         * the wrong one - captioned it "Air Force 1 in your size" and sent red Air Max Plus.
+         * Group A is the album; B and C are one line of words. So only A carries ids, and
+         * there is nothing else for her to put in send_photos. Taking the choice away is the
+         * whole point - she gets it wrong under pressure, and this turn is the pressure. */
+        const fmtId = (r) => `[id ${r.id}] ${r.name}${r.color ? ' (' + r.color + ')' : ''} — ${r.sizes || ''}`;
+        const fmt   = (r) => `${r.name}${r.color ? ' (' + r.color + ')' : ''}`;
+        const lines = [];
+        if (theirShoeTheirSize.length)
+          lines.push('THE SHOE THEY NAMED, IN THEIR SIZE, EVERY COLOUR — SEND THESE PICTURES: '
+            + theirShoeTheirSize.slice(0, 12).map(fmtId).join(' | '));
+        if (theirColourTheirSize.length)
+          /* ⚠️ NAME THE MODELS — DO NOT LET HER GENERALISE THIS GROUP INTO THEIR SHOE.
+           * Caught by the M5 FB2 session 2026-10-04: given this group she wrote "we got other
+           * red Air Forces in your size". We hold exactly ONE red Air Force, p50, in a 7 only.
+           * The ten red shoes in an 8 are Jordans and Air Maxes. That is a false stock claim
+           * wearing different clothes - not a size she can't have, a shoe we never owned - and
+           * the sold-size guard cannot see it because there is no number in the sentence. So
+           * the group is labelled for what it is and she is told to name the models. */
+          lines.push('RED/THEIR-COLOUR IN THEIR SIZE — ⚠️ THESE ARE **NOT** ' 
+            + (model || 'their shoe').toUpperCase() + '. They are different models and you MUST '
+            + 'name them as such ("I got red Jordans and red Air Max in your 8"). NEVER call '
+            + 'them ' + (model || 'their shoe') + ': '
+            + theirColourTheirSize.slice(0, 8).map(fmt).join(' | '));
+        if (theirShoeTheirColour.length)
+          lines.push('THE EXACT SHOE+COLOUR THEY WANTED — this is the ONLY ' + (model || 'one')
+            + ' we own in ' + (colour || 'that colour') + ', and it is NOT in their size. Offer '
+            + 'it as a try-on, never as if we had it in their size: '
+            + theirShoeTheirColour.slice(0, 6).map(fmt).join(' | '));
+
+        if (lines.length) {
+          deadEnds++;
+          try { lastSearchIds = theirShoeTheirSize.map(r => r.id); } catch (_) {}
+          /* 📤 SEND IT HERE. Six attempts at getting HER to send this album failed in a row - a
+           * note asking, forcing send_photos, ids for all three groups (she captioned it "Air
+           * Force 1" and sent red Air Max Plus), ids for the album group only. Every time she
+           * wrote prose instead. The guard already knows exactly which shoes should go out, so
+           * the honest fix is to stop negotiating and send them, then tell her they are gone and
+           * to write one line around them. Deterministic beats persuasive. */
+          let _sentHere = 0;
+          if (theirShoeTheirSize.length) {
+            try {
+              const _lead = 'Here go the ' + (model || 'ones') + ' I got in your '
+                + (theirSize || 'size') + ' 👟';
+              const _r = await sendShoePhotos(sub, theirShoeTheirSize.map(r => r.id), token, null, _lead, false, false, ctx.turnAt || 0, true);
+              _sentHere = (_r && _r.sent) || 0;
+              if (_sentHere > 0) photosSentRun = true;
+            } catch (_) {}
+          }
+          record(req, { endpoint: 'dead-end-blocked', sub, store: ctx.store || '',
+                        model, colour, size: theirSize, said: turnText.slice(0, 80),
+                        a: theirShoeTheirSize.length, b: theirColourTheirSize.length,
+                        c: theirShoeTheirColour.length });
+          const _head = '(SYSTEM NOTE — the customer cannot see this: you told them we do not '
+            + 'have it and sent no pictures. We are salesmen — a no with nothing attached ends '
+            + 'the sale, and words alone never sell a shoe. Here is what we REALLY have:\n'
+            + lines.join('\n') + '\n';
+          const _tail = _sentHere > 0
+            ? 'THE PICTURES ARE ALREADY SENT — ' + _sentHere + ' of them, every colour of their '
+              + 'shoe in their size, went out just now. Do NOT call send_photos again and do NOT '
+              + 'list those shoes in words. Write ONE short line around them: the honest no in '
+              + 'half a line, then what the other two groups turned up ("I got plenty red in your '
+              + '8 in other styles", "I got that one in a 7 if you want to try it on").)'
+            : 'Say the honest no in HALF a line, then CALL send_photos with the ids in square '
+              + 'brackets above — every colour of their shoe in their size, not the two you '
+              + 'remember. Those are the only ids on this note and the only thing send_photos '
+              + 'may be given; the other two groups are words, not an album. Do NOT ask "want me '
+              + 'to send those?" — just send. Then one short line offering what the other two '
+              + 'groups turned up. Never list shoes in words instead of pictures, and never end '
+              + 'on a no.)';
+          history.push({ role: 'user', content: _head + _tail });
+          /* 🔒 AND MAKE HER SEND THEM. Measured on the replay of Million's chat: the guard found
+           * all four Air Forces in his size, handed them over, and she answered in WORDS anyway
+           * - "We got the Air Force 1 in Green/White, Green Glow, White, and All Black in your
+           * size 8, check them out on 242plug.com" - which is the exact failure Rodney was
+           * complaining about, and a website link on top of it. A note asking her to send
+           * pictures is a request; this is the tool call. Same mechanism the text-list guard
+           * has always used. */
+          if (!_sentHere) forcePhotosNext = true;
+          continue;
+        }
+      }
+    } catch (_) {}
     /* 📍 A SIZE IS NOT A MEETING (Salethia, Tami 10-15: "8" got "…Where should we meet you? 📍"). Their size alone never gets a
      * location or meet-up ask; it is cut before it goes out. */
     if (turnText && !staffName && /^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(customerWordsOnly(userText))) {
