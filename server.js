@@ -6541,7 +6541,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _scopeCheck = (sen, nums) => {
             const want = _cset(sen); if (!nums.length) return;
             if (!want.length) {
-              if (_listShelf) {
+              // The colour can sit in the next fragment ("…in your size 8 👟 — the Green/Black/White one"): when the reply names
+              // another colourway anywhere, a colourless sentence is not about the listing's shoe.
+              const _replyC = _cset(turnText);
+              const _otherCw = _listShoes.length && _replyC.some(c => !_cset((_listShoes[0].color || '') + ' ' + (_listShoes[0].nickname || '')).includes(c));
+              if (_listShelf && !_otherCw) {
                 // A plain size is MEN'S; the women's allowance (n - 1.5) only when the sentence says women's.
                 const _w = /\b(women'?s|womens|ladies|female|w)\b/i.test(sen);
                 const bad = nums.filter(n => !_listShelf.has(String(n)) && !(_w && _listShelf.has(String(n - 1.5))));
@@ -6561,7 +6565,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (bad.length) { scopedWrong.push(...bad); hit.forEach(x => { if (!scopedShoes.includes(x)) scopedShoes.push(x); }); }
           };
           try {
-            const _custNums = (customerWordsOnly(userText).match(/\b\d{1,2}(?:\.5)?\b/g) || []).map(parseFloat).filter(n => n >= 4 && n <= 15);
+            // A model number is not a size: "jordan 11 in 8.5 or 9" gave [11, 8.5, 9] and "both your sizes" was blocked on the 11.
+            const _custNums = (customerWordsOnly(userText).replace(/\b(?:jordan|aj|retro|max|force|forces|dunk|balance|nb|yeezy|boost|foam|gel|kayano|dn|tn|plus|vomero|pegasus|zoom|kobe|lebron|kd|foamposite|scorpion|air|j)\s*\d{1,2}s?\b/gi, ' ')
+              .match(/\b\d{1,2}(?:\.5)?\b/g) || []).map(parseFloat).filter(n => n >= 4 && n <= 15);
             for (const sen of turnText.split(/(?<=[.!?\n])\s+|\s+[\u2014\u2013]\s+|(?<=\p{Extended_Pictographic})\s+/u)) {
               const _near = sen.match(/\b(?:closest|nearest)\b([\s\S]*)$/i);
               if (_near && !/\b(no|not|don'?t|doesn'?t|out|sold|isn'?t|aren'?t)\b|\?/i.test(_near[1])) {
