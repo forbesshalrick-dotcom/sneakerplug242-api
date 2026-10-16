@@ -8472,6 +8472,8 @@ function handleChat(req, res) {
         const _tl = String(getPhone(req) || '').replace(/\D/g, '').slice(-7);
         if (_tl.length === 7) {
           wordlessByTail.set(_tl, { sub, store, url: (req.body && req.body.live_chat_url) ? String(req.body.live_chat_url) : '', token, at: Date.now() });
+          pinRequests.set(String(sub), { sub: String(sub), store, url: (req.body && req.body.live_chat_url) ? String(req.body.live_chat_url) : '', phone: getPhone(req) || '', name, token, at: Date.now(), done: false });
+          if (pinRequests.size > 300) pinRequests.delete(pinRequests.keys().next().value);
           if (wordlessByTail.size > 500) wordlessByTail.delete(wordlessByTail.keys().next().value);
         }
       } catch (_) {}
@@ -11170,6 +11172,34 @@ function fbHandoffFor(phone) {
   const h = t && fbHandoffs.get(t);
   return h && Date.now() - h.at < 24 * 3600 * 1000 ? h : null;
 }
+/* 📍 THE PIN'S COORDINATES, READ ON THE MAC (Facebook1 10-16: ManyChat never hands us a pin, but the Mac's ManyChat tab shows
+ * it — Cam's was 25.0271911,-77.5146104). Every wordless ManyChat message is queued here; the Mac reads the chat and posts the
+ * coordinates back, and the owner gets the maps link. A wordless message that was not a pin is posted back with none:true. */
+const pinRequests = new Map();   // sub -> { sub, store, url, phone, name, at, done }
+app.get('/social/pin-requests', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const cut = Date.now() - 2 * 3600 * 1000;
+  const items = [...pinRequests.values()].filter(r => !r.done && r.at > cut).map(r => ({ sub: r.sub, store: r.store, url: r.url, phone: r.phone, name: r.name, at: new Date(r.at).toISOString() }));
+  res.json({ ok: true, items });
+});
+app.post('/social/pin-coords', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/\D/g, '');
+  const r = pinRequests.get(sub);
+  if (!r) return res.status(404).json({ ok: false, error: 'no pin request for that sub' });
+  r.done = true;
+  if (b.none) { record(req, { endpoint: 'pin-coords-none', sub }); return res.json({ ok: true, none: true }); }
+  const lat = parseFloat(b.lat), lng = parseFloat(b.lng);
+  if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return res.status(400).json({ ok: false, error: 'bad lat/lng' });
+  const maps = 'https://maps.google.com/?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
+  record(req, { endpoint: 'pin-coords-in', sub, lat, lng });
+  const ho = fbHandoffFor(r.phone);
+  try { inboxRecord(r.store, sub, { dir: 'in', sender: 'customer', text: '📍 Shared a location', loc: maps, name: r.name, phone: r.phone }); } catch (_) {}
+  waSendManager('📍 *THE PIN* for ' + (ho && ho.name ? ho.name : (r.name || 'customer')) + (r.phone ? ' (' + r.phone + ')' : '') + ' on ' + (r.store || 'WhatsApp')
+    + (ho ? '\n👟 ' + ho.shoe + (ho.size ? ' — size ' + ho.size : '') : '') + '\n🗺️ ' + maps, r.token || null).catch(() => {});
+  res.json({ ok: true, maps });
+});
 app.post('/social/handoff', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
