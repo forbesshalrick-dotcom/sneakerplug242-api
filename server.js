@@ -7191,9 +7191,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * please" got "What shoe are you after? Just give me the name and size", then "Nike adidas" got "Haha, those are two different
      * brands! Which one you want — Nike or adidas?" — "customer already gave 2 answers"). With no size known yet, a reply that
      * asks them to pick a shoe, a brand or a name is replaced by the one question that matters, naming the brands they gave. */
+    /* 🏷️ "WE DON'T STOCK ADIDAS" IS CHECKED, NOT BELIEVED (drill 10-16 07:13: said twice with three Yeezy Foam RNRs on the shelf).
+     * A sentence saying we don't carry a brand is cut when that brand is in stock. */
+    try {
+      if (turnText && !staffName) {
+        const _bm = String(turnText).replace(/[*_]/g, '').match(/\b(?:don'?t|do not|doesn'?t|no longer|aren'?t|not)\s+(?:stock|carry|have|sell|got|do|carrying|stocking)\s+(?:any\s+)?(adidas|nike|jordans?|new balance|asics|puma|crocs|yeezys?)\b/i);
+        if (_bm && searchInventory({ brand: _bm[1].replace(/s$/i, '') }).length) {
+          const _parts = turnText.split(/(?<=[.!?\n])\s+|(?<=\p{Extended_Pictographic})\s+/u);
+          const _keep = _parts.filter(x => !new RegExp('\\b' + _bm[1] + '\\b', 'i').test(x.replace(/[*_]/g, '')) || !/\b(?:don'?t|do not|doesn'?t|no longer|aren'?t|not)\b/i.test(x)).join(' ').replace(/\s{2,}/g, ' ').trim();
+          record(req, { endpoint: 'brand-we-stock-denied-cut', sub, brand: _bm[1], was: turnText.slice(0, 140) });
+          turnText = _keep || 'What size you wear? 👟 I\'ll send you everything we got 🔥';
+        }
+      }
+    } catch (_) {}
     const _picsLately = (() => { for (const [k, t] of photoConfirmSeen) if (k.startsWith(String(sub) + '|') && Date.now() - t < 45 * 60 * 1000) return true; return false; })();
     if (turnText && !staffName && !knownSize && !photosSentRun && !_picsLately && !image && !ctx.listingTitle && !pinnedPickIds.size
-        && /\b(what|which)\s+(?:shoe|shoes|brand|brands|model|one|kicks|style|sneaker)s?\b|name and (?:the )?size|give me the name|(?:nike|adidas|jordans?|new balance|asics) or (?:nike|adidas|jordans?|new balance|asics)|two different brands/i.test(turnText)) {
+        && /\b(what|which)\s+(?:shoe|shoes|brand|brands|model|one|kicks|style|sneaker)s?\b|name and (?:the )?size|give me the name|(?:nike|adidas|jordans?|new balance|asics) or (?:nike|adidas|jordans?|new balance|asics)|two different brands/i.test(String(turnText).replace(/[*_]/g, ''))) {
       const _cw = customerWordsOnly(userText);
       const _brands = [...new Set((_cw.match(/\b(nike|adidas|jordans?|new balance|nb|asics|yeezys?|puma|crocs|air force|air max|dunks?|vapor ?max|tns?)\b/gi) || [])
         .map(b => b.toLowerCase().replace(/^jordans$/, 'jordan').replace(/^nb$/, 'new balance')))]
