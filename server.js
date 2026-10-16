@@ -7185,6 +7185,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* 👟 ASK THE SIZE, NEVER "WHICH SHOE / WHICH BRAND" (Rodney 2026-07-13 rule; 10-16 03:01 TK +1 242 468-5098: "Yes and price
+     * please" got "What shoe are you after? Just give me the name and size", then "Nike adidas" got "Haha, those are two different
+     * brands! Which one you want — Nike or adidas?" — "customer already gave 2 answers"). With no size known yet, a reply that
+     * asks them to pick a shoe, a brand or a name is replaced by the one question that matters, naming the brands they gave. */
+    const _picsLately = (() => { for (const [k, t] of photoConfirmSeen) if (k.startsWith(String(sub) + '|') && Date.now() - t < 45 * 60 * 1000) return true; return false; })();
+    if (turnText && !staffName && !knownSize && !photosSentRun && !_picsLately && !image && !ctx.listingTitle && !pinnedPickIds.size
+        && /\b(what|which)\s+(?:shoe|shoes|brand|brands|model|one|kicks|style|sneaker)s?\b|name and (?:the )?size|give me the name|(?:nike|adidas|jordans?|new balance|asics) or (?:nike|adidas|jordans?|new balance|asics)|two different brands/i.test(turnText)) {
+      const _cw = customerWordsOnly(userText);
+      const _brands = [...new Set((_cw.match(/\b(nike|adidas|jordans?|new balance|nb|asics|yeezys?|puma|crocs|air force|air max|dunks?|vapor ?max|tns?)\b/gi) || [])
+        .map(b => b.toLowerCase().replace(/^jordans$/, 'jordan').replace(/^nb$/, 'new balance')))]
+        .map(b => b.replace(/\b\w/g, c => c.toUpperCase()).replace(/^Tns?$/, 'TNs'));
+      const _list = _brands.length > 1 ? _brands.slice(0, -1).join(', ') + ' and ' + _brands[_brands.length - 1] : (_brands[0] || '');
+      const _q = _list
+        ? _list + ' — got you 👟 What size you wear? I\'ll send you everything we got in ' + (_brands.length > 1 ? 'both' : 'it') + ' 🔥'
+        : 'What size you looking for? 👟 I\'ll send you pics and prices!';
+      record(req, { endpoint: 'which-shoe-q-replaced', sub, store: ctx.store || '', was: turnText.slice(0, 120), now: _q });
+      turnText = _q;
+    }
     /* 📍 A SIZE IS NOT A MEETING (Salethia, Tami 10-15: "8" got "…Where should we meet you? 📍"). Their size alone never gets a
      * location or meet-up ask; it is cut before it goes out. */
     if (turnText && !staffName && /^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(customerWordsOnly(userText))) {
