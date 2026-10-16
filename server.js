@@ -7184,6 +7184,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           result.note = (result.note ? result.note + ' ' : '')
             + `These are NOT sneakers so they were NOT sent — the customer asked for tennis/sneakers: ${droppedSlipOn.join('; ')}. Do not describe them as sneakers. You may mention at the END that we also carry Crocs/slides if they want to see those too.`;
         }
+        // Her turn ends once the photos are out, so the "there's more" offer in the note was never said (size-9 drill 10-15
+        // 22:28: 50 went, 31 held back, the customer was told nothing). The server says it, once, after the album.
+        if (nearSizeTrimmed > 0 && result && result.sent > 0 && !staffName && !_picsOnly) {
+          try { await sendChunk(sub, [{ type: 'text', text: "I've got " + nearSizeTrimmed + ' more in your size if you want to see them 👟' }], token); } catch (_) {}
+        }
         if (nearSizeTrimmed > 0) {
           record(req, { endpoint: 'near-size-trimmed', sub, size: inp.size, trimmed: nearSizeTrimmed, sent: outIdCount });
           result.near_size_trimmed = nearSizeTrimmed;
