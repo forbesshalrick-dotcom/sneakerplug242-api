@@ -5875,6 +5875,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const fresh = rs && rs.names && rs.names.length && (Date.now() - rs.ts) < 45 * 60 * 1000;
       if (fresh && rs.names.length === 1) {
         userText = '(SYSTEM: "' + _plain + '" means the ' + rs.names[0] + ' — the one shoe you just sent them. They are picking it. Name it and carry on from there; never say you cannot see a picture.)\n' + _plain;
+      } else if (fresh && rs.names.length <= 4) {
+        /* Name them, so one word answers it (Rodney 10-16 "why not understanding the tag anymore?": ManyChat drops the quote,
+         * two VaporMaxes had just gone out, and "This" / "This one" got "Which one? Send me that picture again" twice). */
+        const _short = rs.names.slice(0, 4).map(n => String(n).replace(/^(nike|air jordan|new balance|adidas)\s+/i, '').replace(/\s+\(.*\)$/, '').trim());
+        const _q = 'Which one — the ' + (_short.length > 1 ? _short.slice(0, -1).join(', the ') + ' or the ' + _short[_short.length - 1] : _short[0]) + '? 👟';
+        userText = '(SYSTEM: they pointed at a picture ("' + _plain + '") but the tag does not reach us on this line and you sent ' + rs.names.length + ' shoes: ' + rs.names.join('; ') + '. Reply with exactly this and nothing else: "' + _q + '". Never say you are not seeing a picture.)\n' + _plain;
       } else {
         userText = '(SYSTEM: they pointed at a picture ("' + _plain + '") but the tag does not reach us' + (fresh ? ' and you sent several shoes' : '') + '. Reply with exactly this and nothing else: "Which one? Send me that picture again 🙏". Never say you are not seeing a picture or having trouble on your end.)\n' + _plain;
       }
