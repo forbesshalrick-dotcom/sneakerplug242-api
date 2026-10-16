@@ -6096,6 +6096,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastSearchIds = [];    // the ids that search matched — our pictures go to Kiki beside the customer's photo
   let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
+  let askedPermission = 0;     // "want me to send those?" instead of just sending
   let feeBlocks = 0;         // the invented-fee guard may bounce one reply per turn
   let blindBlocks = 0;       // the "I can't see your picture" guard may bounce one reply per turn
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
@@ -6675,6 +6676,79 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
       continue;
     }
+    /* (Ported back 10-16 from the pre-reset brain, 2e9fa36 + later fixes.) 🙋 NEVER ASK PERMISSION TO SEND A PICTURE — JUST SEND IT (Rodney 2026-10-04, in the same
+     * breath as the three-category rule: "never 'want me to send those?' — just send.")
+     * Measured by the M5 FB2 session across BOTH brains on the same question: each one named a
+     * couple of colours and ended by offering to send, instead of sending. So this is not a
+     * social-line quirk, it is general, and asking is worse than it looks - it puts a second
+     * decision in front of someone who already said what they wanted, and on Messenger the
+     * pictures cost the customer nothing at all.
+     * Only fires when we actually have something to send: if there are no ids in hand the
+     * question may be the honest thing to ask, and the reply goes through untouched. */
+    try {
+      // "want me to FIND you a pair to match?" is the same sin as "want me to send them" -
+      // asking permission to do the thing they just asked for (Rodney 2026-10-07, on a camo
+      // jacket: the customer asked for matching shoes and was asked whether he wanted matching
+      // shoes).
+      /* 🕳️ "WANT TO SEE SOME OTHER JORDANS?" USED TO WALK STRAIGHT THROUGH THIS.
+       * Rodney 2026-10-07, Nexgen +1 242 810-9740, flagged "KIKI WASTING TIME". He asked for a
+       * Jordan 11 in an 8.5 or 9, we had one, and the reply was "Nah... Want to see some other
+       * Jordans we have in your 8.5 or 9?" - a question, with 24 Jordans in his size sitting
+       * right there. The old pattern only caught "want to see THEM / THOSE / the pics", so any
+       * offer that named the shoes instead of pointing at them was invisible to the guard.
+       * A bare "want to see" is the whole tell; what follows it never mattered. */
+      const ASK_TO_SEND = /\b(want me to (?:send|show|find|look|pull|match|check)|should i (?:send|show)|shall i (?:send|show)|(?:do )?(?:you|u|ya)?\s*want(?:\s+to|a|\s+me\s+to)?\s+see\b|wanna see\b|want(?:\s+to|a)\s+(?:peep|check out)\b|let me know if (?:you|u)(?:'?d| would)? (?:want|like)|i can (?:send|show|pull)\b|\bor i can (?:send|show)\b)/i;
+      /* ⚠️ IT FIRES WITH OR WITHOUT IDS (Rodney 2026-10-05, "no pic sent for vapormax").
+       * Jsjsh was told "the All Black VaporMax comes in a 10 too 👟 Want me to send it?" and
+       * this guard sat out: she had answered from memory without searching, so lastSearchIds
+       * was empty. Requiring ids meant the guard only worked when she had already half done
+       * the right thing. Nothing in hand is not a reason to let the question through - it is
+       * a reason to go and look first. */
+      /* 🛑 AN HONEST SIZE GAP IS NOT AN OFFER TO WIDEN (Rodney 2026-10-10 16:20, TK +1 242 431-2280:
+       * "Any white forces 11". We hold the white Air Force 1 but not in an 11, and she said so,
+       * ending "want me to send...". This guard then ordered a fresh search, and the search had
+       * lost the model - it came back with EVERY white shoe in an 11 and 20 pictures of Jordan 5s,
+       * Jordan 4s and Dunks went to a man who asked for Air Force. "The guy only asked for Air
+       * Force." When the reply is telling him the shoe he named is not in his size, the honest
+       * line stands as it is; pictures of other shoes are not what he asked for. */
+      const _sizeGapHonest = /\b(just )?not in (an?|your) \d|\b(does ?n'?t|do ?n'?t|dont|does not|did ?n'?t) (come|have)[^.!?]{0,20}\b(in )?(an?|your)? ?\d{1,2}(\.5)?\b|\bno \d{1,2}(\.5)? (right now|in)|\bonly (comes|come|left) in\b/i.test(turnText);
+      /* 📸 BUT "...ONLY COMES IN A 13. WE GOT OTHER JORDAN 5s IN A 10.5 AND 11 - WANT TO SEE THEM?" IS
+       * A SIZE GAP THAT NAMES A SAME-MODEL OFFER (Rodney 2026-10-12, +1 242 375-9815: it read well,
+       * "but you can also send the picture afterwards"). The honest line stands; the offer gets
+       * answered with the pictures, searched on THAT model only (the 10-10 AF1 mistake was a
+       * search that lost the model, so the note names it). */
+      const _otherM = String(turnText || '').match(/\bother\s+((?:[A-Za-z0-9.'-]+\s+){0,3}?[A-Za-z0-9.'-]+?)s?\s+(?:in|that|we|i)\b/i);
+      const _otherModelOffer = !!(_sizeGapHonest && _otherM);
+      if (turnText && !staffName && !photosSentRun && askedPermission < 1
+          && ASK_TO_SEND.test(turnText) && (!_sizeGapHonest || _otherModelOffer)) {
+        const _haveIds = Array.isArray(lastSearchIds) && lastSearchIds.length;
+        askedPermission++;
+        record(req, { endpoint: 'asked-permission-to-send', sub, store: ctx.store || '',
+                      personal: !!ctx.personal, said: turnText.slice(0, 90), have: lastSearchIds.length });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you '
+          + 'offered to send pictures instead of sending them. Never ask — they already told you '
+          + 'what they want, and asking puts another decision in front of a person who is ready '
+          + 'to buy. '
+          + (_haveIds
+            ? 'You have ' + lastSearchIds.length + ' matching shoes in hand right now: call '
+              + 'send_photos with them on this turn. '
+            : 'You have not even looked yet - call search_inventory for that shoe in their size, '
+              + 'then send_photos on what it finds. Looking costs you one step; asking costs you '
+              + 'the customer. ')
+          + (ctx.personal ? 'This is a Messenger/Instagram chat - the pictures do NOT download '
+             + 'into their phone or use their storage, so there is no reason at all to be careful '
+             + 'with them. ' : '')
+          + (_otherModelOffer
+            ? 'The pictures to send are the OTHER "' + _otherM[1].trim() + '" pairs in the size(s) the customer gave - search_inventory '
+              + 'with that model AND their size(s) (size_match any), send ONLY that model, nothing else. '
+            : 'Send ONLY the model and colour the customer asked for - never widen to other brands or '
+              + 'other models to fill the album. ')
+          + 'Keep whatever honest line you wrote, drop the question, and let the pictures do the '
+          + 'rest.)' });
+        if (_haveIds) forcePhotosNext = true; else forceSearchNext = true;
+        continue;
+      }
+    } catch (_) {}
     /* 🧲 BE A SALESMAN — NEVER A FLAT NO, NEVER WORDS WITHOUT PICTURES (Rodney 2026-10-04, a0a42c0; lost in the 10-12
      * reset, ported back 10-16 from the pre-reset brain). "We don't have the Air Force 1 in red" while we held four Air
      * Forces in his 8 and ten red shoes in his 8: when she says no, the server runs the three searches a salesman runs
