@@ -7075,11 +7075,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Conditions are deliberately identical to the old post-send top-up, so this widens
         // in exactly the cases that already widened and no others.
         try {
+          // The CUSTOMER'S words only: the server's own notes in the history named "New Balance" and every bare size album
+          // stopped widening (drill + a live TK size 9, 10-15 22:21: brandWord "New Balance" from a SYSTEM note).
           const _cust = [String(userText || '')].concat(
-            (history || []).filter(m => m && m.role === 'user').slice(-2).map(m =>
-              typeof m.content === 'string' ? m.content
-                : (Array.isArray(m.content) ? m.content.filter(bl => bl && bl.type === 'text').map(bl => bl.text || '').join(' ') : ''))
-          ).join(' ');
+            (history || []).filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\s*\(/.test(m.content)).slice(-2).map(m => m.content)
+          ).map(t => customerWordsOnly(t)).join(' ');
           const _brandKeys = [...new Set(turnSizeSearchBrands)];
           // Not after a matching-pair search (2026-10-14, Foot Fetish, Lady Resh: "size 8 an size 7 in ahalf" → 18 shoes that come
           // in both, then this top-up added every shoe in EITHER size and 100+ pictures went out).
@@ -7702,10 +7702,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // actually brand-specific — so ALSO look at the CUSTOMER'S own recent words: if they named a
   // brand/model/colour, keep her album exactly as-is and never flood the whole size.
   const _recentCust = [String(userText || '')].concat(
-    (history || []).filter(m => m && m.role === 'user').slice(-2).map(m =>
-      typeof m.content === 'string' ? m.content
-        : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text || '').join(' ') : ''))
-  ).join(' ');
+    (history || []).filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\s*\(/.test(m.content)).slice(-2).map(m => m.content)
+  ).map(t => customerWordsOnly(t)).join(' ');
   const customerNamedSpecific = BRAND_WORD_RE.test(_recentCust);
   // turnTopUpMerged: the rest-of-your-size was already folded into the album Kiki just sent
   // (see size-topup-merged above), so there is nothing left to append — firing here too would
