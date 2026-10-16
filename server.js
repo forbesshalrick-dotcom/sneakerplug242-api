@@ -6551,11 +6551,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (_om.length) _ownerShip = _om.map(m => new Date(m.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Nassau' }) + ': "' + String(m.text).replace(/\s+/g, ' ').slice(0, 220) + '"').join(' | ');
         } catch (_) {}
         if (_ownerShip) system += '\n\n🚢 THE OWNER ALREADY TOLD THIS CUSTOMER ABOUT THE SHIPMENT: ' + _ownerShip + '. (oldest first — the LAST one is the current plan; an earlier plan it replaced no longer stands). Answer "where is it / is it at the office / when does it leave" FROM THIS — say what it went on, where, and the booking number. Only for something it does not cover (an exact time not given here) say you are checking with the team.';
-        system += '\n\n📦 THIS CUSTOMER ALREADY ORDERED (' + _when + '), the team has it: ' + _facts + '. Treat it as fact: never ask again what they want, '
+        system += '\n\n📦 THIS CUSTOMER ALREADY ORDERED (' + _when + '), the team has it: ' + _facts + '. "Checking on feedback / any update on my tennis" means WHERE IS MY ORDER, not a review of the shoe. Treat it as fact: never ask again what they want, '
           + 'the island, the receiver or whether they paid (a card/transfer order here is PAID). You do NOT know if or when it went out — if they ask, '
           + 'say you have passed it to the team and they will update them. Never tell them "you\'re good" about a boat, a date or a change; the team decides.';
         const _said = customerWordsOnly(userText);
-        const _ship = /\b(boat|mail ?boat|ferr(?:y|ies)|lady|m\/v|freight|dock|cargo|plane|flight|airport|ship(?:ped|ping|ment)?|package|parcel|tracking|bill of lading|went out|sent it|arriv\w*|reach\w*|island|cay|pick ?up|collect|booth|office|where (?:are|is|my) (?:my )?(?:shoes?|tennis|kicks|order|pair|sneakers?))\b/i;
+        const _ship = /\b(boat|mail ?boat|ferr(?:y|ies)|lady|m\/v|freight|dock|cargo|plane|flight|airport|ship(?:ped|ping|ment)?|package|parcel|tracking|bill of lading|went out|sent it|arriv\w*|reach\w*|island|cay|pick ?up|collect|booth|office|where (?:are|is|my) (?:my )?(?:shoes?|tennis|kicks|order|pair|sneakers?)|feedback|update|status|any word|my (?:tennis|shoes?|kicks|order|package|pair|sneakers?))\b/i;
         const _isShip = /SHIPMENT|boat|plane|island/i.test(_ord.text || '');
         global.__orderRelayAt = global.__orderRelayAt || new Map();
         const _last = global.__orderRelayAt.get(String(sub)) || 0;
