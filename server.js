@@ -7734,7 +7734,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const v = parseInt(process.env.NEAR_SIZE_MAX, 10);
             return isNaN(v) ? 6 : Math.max(0, v);
           })();
-          if (NEAR_SIZE_MAX > 0) {
+          // Rodney 10-16: "Someone said they want a size 9, just send all the size 9" — the table's companion size (9 → 9.5,
+          // 7.5 → 8) is part of the ask and is never held back.
+          const _companion = inp.womens !== true && (sizesToSend(wantN, false) || []).length > 1;
+          if (NEAR_SIZE_MAX > 0 && !_companion) {
             // "Their size" per the table: every table size for a women's ask; the FIRST table size for a men's ask (5 → the
             // 5.5); a companion (9 → 9.5, 7.5 → 8) is the near size that gets capped, never flagged.
             const _tbl = sizesToSend(wantN, inp.womens === true);
@@ -7850,7 +7853,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const _lmT = liveShoeMap();
             const _isPrim = (id) => { const x = _lmT[id]; return !!x && (x.sizesRaw || []).some(z => _primary.has(String(parseFloat(z)))); };
             let _extra = _full.map(r => String(r.id)).filter(id => !_have.has(id) && !turnSentIds.has(id));
-            const _capN = (() => { const v = parseInt(process.env.NEAR_SIZE_MAX, 10); return isNaN(v) ? 6 : Math.max(0, v); })();
+            const _capN = 0;   // Rodney 10-16: send ALL of the size (the 9s and the 9.5s) — no companion cap, no "N more" offer
             if (_capN > 0) {
               // The cap also holds when she sent the album with no size field (then the size guard above never ran and
               // all 37 9.5-only pairs could ride along with the 44 nines): at most _capN companion-only pairs in total.
@@ -7933,7 +7936,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Her turn ends once the photos are out, so the "there's more" offer in the note was never said (size-9 drill 10-15
         // 22:28: 50 went, 31 held back, the customer was told nothing). The server says it, once, after the album.
         if (nearSizeTrimmed > 0 && result && result.sent > 0 && !staffName && !_picsOnly) {
-          try { await sendChunk(sub, [{ type: 'text', text: "I've got " + nearSizeTrimmed + ' more in your size if you want to see them 👟' }], token); } catch (_) {}
+          // (removed 10-16 — Rodney: "who even made this up?" — the server no longer offers held-back pairs)
         }
         if (nearSizeTrimmed > 0) {
           record(req, { endpoint: 'near-size-trimmed', sub, size: inp.size, trimmed: nearSizeTrimmed, sent: outIdCount });
