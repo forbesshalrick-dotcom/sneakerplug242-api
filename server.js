@@ -6515,6 +6515,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
   try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
   try {
+    const _pr = !staffName && pinReceived.get(String(sub));
+    if (_pr && Date.now() - _pr.at < 3 * 3600 * 1000) system += '\n\n📍 THEIR LOCATION PIN HAS ALREADY ARRIVED (' + _pr.maps + '). NEVER ask for their location or pin again. If the shoe and size are settled, '
+      + 'call notify_manager stage "delivery_ready" with location = ' + _pr.maps + ' and say: "Perfect! 🙌 I\'ve sent this straight to the team — they\'ll give you a call when the driver\'s close 👟".';
+  } catch (_) {}
+  try {
     const _ho = !staffName && fbHandoffFor(getPhone(req));
     if (_ho) system += '\n\n🤝 THIS CUSTOMER ALREADY ORDERED ON OUR FACEBOOK (' + (_ho.line || 'Facebook') + '): ' + _ho.shoe + (_ho.size ? ', size ' + _ho.size : '') + (_ho.price ? ', ' + _ho.price : '')
       + (_ho.where ? ', delivery to ' + _ho.where : '') + '. They came to WhatsApp to send their location. Never greet them as new, never ask what they want and never send pictures: '
@@ -8760,6 +8765,15 @@ function handleChat(req, res) {
     const prevAt = lastIncoming.get(sub) || 0;
     const withinReplayWindow = prevAt && (Date.now() - prevAt) < 90 * 1000;
     if (prevTxt && prevTxt === nowTxt && withinReplayWindow) { nonTextReplay = true; lastReplayAt.set(sub, Date.now()); }
+    // 📍 A LATE REPEAT MAY STILL BE A PIN (TK +1 242 812-1172 10-16 17:37: dropped his pin 8 h after "Ok thanks"; ManyChat
+    // re-delivered "Ok thanks", Kiki answered 👍, and on "Ready now bro" asked for the location he had just sent). Too old for
+    // the 90 s rule, so the Mac reader is asked to look: if the chat's newest message is a pin, its coordinates come back.
+    else if (prevTxt && prevTxt === nowTxt && req.body && /manychat\.com/.test(String(req.body.live_chat_url || ''))) {
+      try {
+        pinRequests.set(String(sub), { sub: String(sub), store, url: String(req.body.live_chat_url), phone: getPhone(req) || '', name, token, at: Date.now(), done: false });
+        record(req, { endpoint: 'late-repeat-pin-check', sub, q: nowTxt.slice(0, 40) });
+      } catch (_) {}
+    }
   }
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
   const turnAt = Date.now(); // when THIS message arrived — albums born from this turn ignore nothing after it
@@ -11298,6 +11312,7 @@ function fbHandoffFor(phone) {
  * it — Cam's was 25.0271911,-77.5146104). Every wordless ManyChat message is queued here; the Mac reads the chat and posts the
  * coordinates back, and the owner gets the maps link. A wordless message that was not a pin is posted back with none:true. */
 const pinRequests = new Map();   // sub -> { sub, store, url, phone, name, at, done }
+const pinReceived = new Map();   // sub -> { maps, at }: a pin the Mac read off ManyChat — Kiki must not ask for it again
 app.get('/social/pin-requests', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const cut = Date.now() - 2 * 3600 * 1000;
@@ -11316,6 +11331,7 @@ app.post('/social/pin-coords', (req, res) => {
   if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return res.status(400).json({ ok: false, error: 'bad lat/lng' });
   const maps = 'https://maps.google.com/?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
   record(req, { endpoint: 'pin-coords-in', sub, lat, lng });
+  pinReceived.set(sub, { maps, at: Date.now() });
   const ho = fbHandoffFor(r.phone);
   try { inboxRecord(r.store, sub, { dir: 'in', sender: 'customer', text: '📍 Shared a location', loc: maps, name: r.name, phone: r.phone }); } catch (_) {}
   waSendManager('📍 *THE PIN* for ' + (ho && ho.name ? ho.name : (r.name || 'customer')) + (r.phone ? ' (' + r.phone + ')' : '') + ' on ' + (r.store || 'WhatsApp')
