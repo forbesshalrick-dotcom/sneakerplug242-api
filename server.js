@@ -6452,6 +6452,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       : null;
   try {
   try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
+  try {
+    const _ho = !staffName && fbHandoffFor(getPhone(req));
+    if (_ho) system += '\n\n🤝 THIS CUSTOMER ALREADY ORDERED ON OUR FACEBOOK (' + (_ho.line || 'Facebook') + '): ' + _ho.shoe + (_ho.size ? ', size ' + _ho.size : '') + (_ho.price ? ', ' + _ho.price : '')
+      + (_ho.where ? ', delivery to ' + _ho.where : '') + '. They came to WhatsApp to send their location. Never greet them as new, never ask what they want and never send pictures: '
+      + 'confirm that order, and if the pin came through say the driver will call when he is close.';
+  } catch (_) {}
   // "I bay 2" with exactly two shoes quoted = one of EACH (drill 10-16 01:41: read as two Air Max 90s + the Jordan 5, $420).
   try {
     const _mB = customerWordsOnly(userText).match(/\b(?:buy|bay|take|takin|taking|want|get|cop|grab|gimme|give me)\s+(?:all\s+|the\s+|them\s+|dem\s+|both\s+)?(2|two|3|three|4|four|both|all)\b/i);
@@ -8462,6 +8468,21 @@ function handleChat(req, res) {
     if (Date.now() - lastAsk > 10 * 60 * 1000) {
       emptyAskAt.set(sub, Date.now());
       if (emptyAskAt.size > 300) { const f = emptyAskAt.keys().next().value; emptyAskAt.delete(f); }
+      try {
+        const _ho = fbHandoffFor(getPhone(req));
+        if (_ho) {
+          record(req, { endpoint: 'fb-handoff-pin', sub, shoe: _ho.shoe });
+          const _url = (req.body && req.body.live_chat_url) ? String(req.body.live_chat_url) : '';
+          waSendManager('🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* (from Facebook ' + (_ho.line || '') + ')\n👤 ' + (_ho.name || name || 'Customer')
+            + '\n📞 ' + (getPhone(req) || '') + '\n👟 ' + _ho.shoe + (_ho.size ? ' — size ' + _ho.size : '') + (_ho.price ? '\n💰 ' + _ho.price : '')
+            + (_ho.where ? '\n🏠 ' + _ho.where : '') + '\n📍 They sent their location on ' + (store || 'WhatsApp') + ' — open the chat to see the pin' + (_url ? ': ' + _url : ''), token).catch(() => {});
+          const _t = 'Got your location 📍 ' + (_ho.name ? _ho.name.split(' ')[0] + ' ' : '') + '— your ' + _ho.shoe + (_ho.size ? ' in a ' + _ho.size : '')
+            + ' is on the way to you. The driver will call when he\'s close 👟';
+          sendChunk(sub, [{ type: 'text', text: _t }], token).catch(() => {});
+          try { inboxRecord(store, sub, { dir: 'in', sender: 'customer', text: '📍 Sent their location (Facebook order) — open WhatsApp to see the pin', name, phone: getPhone(req) || '' }); } catch (_) {}
+          return;
+        }
+      } catch (_) {}
       record(req, { endpoint: 'empty-msg-ask', sub });
       // 📥 STILL LOG TO THE INBOX (Rodney 2026-08-20: "messages not showing on my chat for
       // wholesale shop"). PROVEN LIVE, not guessed: ManyChat fires this webhook the SAME
@@ -11131,6 +11152,27 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
  * turn here (msgbot.py _ask_server_brain, gated per line by one-brain-lines.txt); Kiki composes
  * exactly as she would for WhatsApp and the messages come back in send order. Thread ids are
  * hashed to a 9-prefixed sub so they can never collide with a real ManyChat subscriber. */
+/* 🤝 A FACEBOOK ORDER THAT MOVES TO WHATSAPP KEEPS ITS ORDER (10-16, Cam on Claudia FB: Air Max 97 Silver/Red 9.5 $130 to Mount
+ * Pleasant; Kiki gave our OSC WhatsApp and Cam sent the pin there; OSC's Kiki knew nothing and sent the welcome twice, and the
+ * owner's FB order card had a number but no pin). The Facebook side posts the order with the customer's phone; when that
+ * number turns up on WhatsApp, Kiki there has the order, and a wordless first message (how a pin arrives) alerts the owner. */
+const fbHandoffs = new Map();   // last 7 digits of the phone -> { name, shoe, size, price, where, line, at }
+function fbHandoffFor(phone) {
+  const t = String(phone || '').replace(/\D/g, '').slice(-7);
+  const h = t && fbHandoffs.get(t);
+  return h && Date.now() - h.at < 24 * 3600 * 1000 ? h : null;
+}
+app.post('/social/handoff', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const tail = String(b.phone || '').replace(/\D/g, '').slice(-7);
+  if (tail.length < 7) return res.status(400).json({ ok: false, error: 'need the customer phone' });
+  const h = { name: String(b.name || '').slice(0, 60), shoe: String(b.shoe || '').slice(0, 80), size: String(b.size || '').slice(0, 10),
+              price: String(b.price || '').slice(0, 12), where: String(b.where || b.location || '').slice(0, 120), line: String(b.line || '').slice(0, 20), at: Date.now() };
+  fbHandoffs.set(tail, h);
+  record(req, { endpoint: 'fb-handoff-in', tail, shoe: h.shoe, line: h.line });
+  res.json({ ok: true });
+});
 app.post('/social/reply', async (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
@@ -11183,6 +11225,15 @@ app.post('/social/reply', async (req, res) => {
       : { type: 'text', text: String((m && m.text) || '') })
       .filter(m => (m.type === 'image' ? m.url : m.text));
     record(req, { endpoint: 'social-reply', sub, line: ctx.social, personal: ctx.personal, asked: text.slice(0, 60), composed: messages.length });
+    // On the one brain the handoff fills itself: a Facebook customer typing their number with a shoe on the table.
+    try {
+      const _ph = (customerWordsOnly(text).match(/(?:\+?1\s*)?(?:242\s*[-.]?\s*)?(\d{3})\s*[-.]?\s*(\d{4})\b/) || []);
+      const _it = ((onTheTable.get(String(sub)) || {}).items || []).slice(-1)[0];
+      if (_ph[1] && _it) {
+        fbHandoffs.set(_ph[1] + _ph[2], { name: ctx.name || '', shoe: _it.name, size: _it.size || '', price: _it.price ? '$' + String(_it.price).replace(/[^0-9.]/g, '') : '', where: '', line: ctx.social || '', at: Date.now() });
+        record(req, { endpoint: 'fb-handoff-auto', sub, tail: _ph[1] + _ph[2], shoe: _it.name });
+      }
+    } catch (_) {}
     res.json({ ok: true, messages,
                texts: messages.filter(m => m.type === 'text').map(m => m.text),
                images: messages.filter(m => m.type === 'image').map(m => m.url),
