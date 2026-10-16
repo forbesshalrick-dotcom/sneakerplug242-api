@@ -2528,6 +2528,8 @@ function aliasTokens(s) {
   const brand = (s.brand || '').toLowerCase();
   const name = (s.name || '').toLowerCase();
   if (brand.includes('new balance')) out.push('nb');
+  // Yeezy IS adidas: "Nike adidas" got "we don't stock adidas" with three Yeezy Foam RNRs on the shelf (drill 10-16 07:11).
+  if (brand.includes('yeezy') || name.includes('yeezy')) out.push('adidas', 'adidas yeezy');
   if (brand.includes('jordan') || name.includes('jordan')) out.push('aj', 'jordans', 'js', 'jays', 'retro', 'retros');
   if (name.includes('air max plus')) out.push('tn');
   // Real matches that used to ride on letters inside a longer word, kept on purpose once short
