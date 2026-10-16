@@ -3348,6 +3348,154 @@ const lastPickBySub = new Map();
 // The women's size a customer typed: sub -> { size, at }. Foot Fetish 10-15 17:00: "I were an 10.5 in women", Kiki converted
 // it herself (9) AND passed womens:true, so the search took off another 1.5 and she was sent "women's 9".
 const womensSaid = new Map();
+// (Ported back 10-16 from the pre-reset brain, 744a17e + later: lost in the 10-12 reset.)
+/* 🧾 WHAT IS ON THE TABLE — AND IT MUST NEVER ROLL OFF (Rodney 2026-10-05, twice:
+ * "why ask which shoe?" then "so why ask again which shoes if the guy already picked").
+ *
+ * +1 242 805-7793 forwarded two cards, was quoted BOTH by name, said "I bay 2", and was
+ * asked which other one he meant. He had picked. She had forgotten.
+ *
+ * Her memory of a chat is the last 24 MESSAGES (trimHistory), and a message is not a
+ * message you can count on your fingers: one picture turn is a user message, a tool call,
+ * a tool result and a reply - four. In the three minutes between naming the Air Max 90 and
+ * him saying he would take two, eleven image turns went past and the Air Max 90 scrolled
+ * out of her head. The order card she filed afterwards proves it - it carries the total for
+ * BOTH pairs ($240) against the name of only the one she could still see.
+ *
+ * So the shoes a customer has actually been QUOTED or has ORDERED are kept out here, in a
+ * list that nothing trims, and handed back on every turn. Trimming old chat is right; losing
+ * the order is not. Six hours, six shoes - long enough for any one sale, short enough that
+ * tomorrow's chat starts clean. */
+const onTheTable = new Map();      // sub -> {ts, items:[{name,size,price}]}
+const TABLE_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'on-the-table.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (TABLE_FILE && require('fs').existsSync(TABLE_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(TABLE_FILE, 'utf8'));
+    const cutoff = Date.now() - 6 * 3600 * 1000;
+    for (const [k, v] of Object.entries(saved)) if (v && v.ts > cutoff) onTheTable.set(k, v);
+    console.log('[table] restored the order table for', onTheTable.size, 'customers');
+  }
+} catch (_) {}
+let tableSaveT = null;
+function saveTable() {
+  if (!TABLE_FILE) return;
+  clearTimeout(tableSaveT);
+  tableSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(TABLE_FILE, JSON.stringify(Object.fromEntries(onTheTable))); } catch (_) {}
+  }, 2000);
+  if (tableSaveT.unref) tableSaveT.unref();
+}
+// Put a shoe on the table. Same shoe twice only updates it (a size or price can arrive later).
+function tableAdd(sub, item) {
+  try {
+    const name = String((item && item.name) || '').trim().slice(0, 60);
+    if (!sub || !name) return;
+    const row = onTheTable.get(String(sub)) || { ts: Date.now(), items: [] };
+    const key = name.toLowerCase();
+    const ex = row.items.find(i => String(i.name || '').toLowerCase() === key);
+    if (ex) {
+      if (item.size && !ex.size) ex.size = String(item.size);
+      if (item.price && !ex.price) ex.price = String(item.price);
+      if (item.id && !ex.id) ex.id = String(item.id);
+    } else {
+      row.items.push({ name, id: item.id ? String(item.id) : '', at: Date.now(),
+                       size: item.size ? String(item.size) : '', price: item.price ? String(item.price) : '' });
+    }
+    row.ts = Date.now();
+    if (row.items.length > 6) row.items = row.items.slice(-6);
+    onTheTable.set(String(sub), row);
+    saveTable();
+  } catch (_) {}
+}
+// Everything she has quoted or booked for this customer, as one line for the turn note.
+function tableNote(sub) {
+  try {
+    const row = onTheTable.get(String(sub));
+    if (!row || !Array.isArray(row.items) || !row.items.length) return '';
+    if (Date.now() - (row.ts || 0) > 6 * 3600 * 1000) return '';
+    /* ⏳ EACH SHOE AGES ON ITS OWN, AND NINETY MINUTES IS THE LIMIT. A sale happens in
+     * minutes; a shoe named two hours ago is history, not the subject, and the longer a wrong
+     * entry can sit here the more chances it has to pull somebody off the shoe they want
+     * (2026-10-06: a stray Jordan 4 did exactly that). The row keeps six hours on disk so a
+     * restart does not lose a live order - only what gets HANDED to her is capped. */
+    const _fresh = row.items.filter(i => !i.at || (Date.now() - i.at) < 90 * 60 * 1000);
+    if (!_fresh.length) return '';
+    const bits = _fresh.map(i => i.name + (i.size ? ' (size ' + i.size + ')' : '')
+                                  + (i.price ? ' $' + String(i.price).replace(/[^0-9.]/g, '') : ''));
+    return '(SYSTEM NOTE — the customer cannot see this: ALREADY ON THE TABLE in this chat, '
+      + 'whether or not you can still see it above — ' + bits.join('; ') + '. These are shoes '
+      + 'you have already quoted or booked for this person. If they say they want "2", "both" or '
+      + '"all of them", THESE are the ones — never ask them to pick again, and never drop one '
+      + 'off the order. Add them up at full price.\n'
+      + '\u26a0\ufe0f THIS LIST NEVER OVERRIDES WHAT THEY JUST SAID. If their last message named or '
+      + 'pointed at a shoe, THAT is the one they mean, even when it is not on this list — and you '
+      + 'must never answer somebody with a shoe off this list that they did not ask about.)';
+  } catch (_) { return ''; }
+}
+// Scan a reply for shoes she named with their colourway, so the table fills itself.
+function tableLearn(sub, text) {
+  try {
+    const said = String(text || '').toLowerCase();
+    if (!sub || said.length < 8) return;
+    /* 🚫 A MENU IS NOT AN ORDER (FF +1 242 814-4410, 2026-10-10). "We got plenty - just pick one: Red
+     * Thunder, Cozy Girl, Lightning, SB Navy, Red Toro, Wet Cement or Pine Green" put all six on the
+     * table as if he had chosen them, and three messages later he was handed a "$1080 for the 6,
+     * I'll do $1020" total for shoes he never picked. Options she OFFERS are not shoes he PICKED. */
+    if (/\b(pick one|pick a|pick any|which (one|shoe)|choose|your choice)\b/.test(said)
+        || (said.match(/,/g) || []).length >= 3 && /\bor\b/.test(said) && /\?/.test(said)) return;
+    const szm = said.match(/\b(?:in a |in your |size |sz )(\d{1,2}(?:\.5)?)\b/);
+    const lm = liveShoeMap();
+    const flat = said.replace(/\s*\/\s*/g, '/');
+    const cand = [];
+    for (const sh of Object.values(lm)) {
+      const nm = String(sh.name || '').toLowerCase()
+        .replace(/^(nike|adidas|new balance|puma|asics|reebok|converse)\s+/, '').trim();
+      const col = String(sh.color || '').toLowerCase();
+      if (nm.length < 4 || !col) continue;
+      /* 🏷️ THE NICKNAME IS THE IDENTITY. "That's the Jordan 4 Cave Stone" carries no colour
+       * word at all, so a colourway test alone never put it on the table — and Ferdinand's
+       * Cave Stone was the shoe the whole conversation was about. A nickname is far more
+       * specific than a colour, so it stands on its own. */
+      const nick = String(sh.nickname || '').toLowerCase().trim();
+      const byNick = nick.length >= 4 && said.indexOf(nick) !== -1;
+      if (!byNick) {
+        /* 🏷️ NOBODY SAYS THE SKU. The catalogue calls it "Nike mind 001" and Kiki (rightly)
+         * writes "Nike Mind" — so an exact name test never matched the shoe she had just
+         * named. Only a LEADING-ZERO tail is dropped: "001" is a code, while 270, 720 and
+         * 9060 are the shoe's actual name and must survive. */
+        const nmShort = nm.replace(/\s+0\d{2,}$/, '').trim();
+        if (said.indexOf(nm) === -1 && (nmShort.length < 4 || said.indexOf(nmShort) === -1)) continue;
+        const parts = col.split(/[^a-z0-9]+/).filter(w => w.length > 2);
+        if (!parts.length || !parts.every(w => said.indexOf(w) !== -1)) continue;
+        cand.push({ sh, nm, n: parts.length, whole: flat.indexOf(col.replace(/\s*\/\s*/g, '/')) !== -1 });
+      } else {
+        cand.push({ sh, nm, n: 99, whole: true });
+      }
+    }
+    /* 🎯 THE MOST SPECIFIC COLOURWAY WINS. "Air Max 90 Grey/Black" matches our Grey/Black 90
+     * and ALSO our plain Grey 90, because "grey" is in the sentence - and putting the wrong
+     * sibling on the order is exactly the mistake the colourway trap costs us. So per model:
+     * a colourway written out whole beats one assembled from loose words, and more colour
+     * words beat fewer. */
+    const byModel = new Map();
+    for (const c of cand) { const g = byModel.get(c.nm) || []; g.push(c); byModel.set(c.nm, g); }
+    for (const g of byModel.values()) {
+      let keep = g.some(c => c.whole) ? g.filter(c => c.whole) : g;
+      const best = Math.max.apply(null, keep.map(c => c.n));
+      keep = keep.filter(c => c.n === best);
+      for (const c of keep) tableAdd(sub, { name: displayName(c.sh), id: c.sh.id,
+                                            size: szm ? szm[1] : '', price: c.sh.price });
+    }
+  } catch (_) {}
+}
 function undoWomensDoubleConvert(sub, p, record, req) {
   try {
     const w = womensSaid.get(String(sub));
@@ -6150,6 +6298,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             photosSentRun = true; sentToCustomer = true; turnSentIds.add(String(_pickSh.id)); photoCompareSent = true;
             record(req, { endpoint: 'photo-shoe-sent-by-server', sub, store: ctx.store || '', shoe: String(_pickSh.id), said: _ours.slice(0, 80) });
             lastPickBySub.set(String(sub), { id: String(_pickSh.id), at: Date.now() });
+            try { tableAdd(sub, { name: displayName(_pickSh), id: _pickSh.id, price: _pickSh.price }); } catch (_) {}
             const _lu = history[history.length - 1];
             if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
               _lu.content[0].text = '(✅ ALREADY SENT TO THEM, IN THIS ORDER: "' + _lead + '", then the picture of the ' + displayName(_pickSh)
@@ -6174,6 +6323,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _sizes = sizesOf(_pickSh) || 'none right now';
           record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has });
           lastPickBySub.set(String(sub), { id: String(_pickSh.id), at: Date.now() });
+          try { tableAdd(sub, { name: displayName(_pickSh), id: _pickSh.id, size: _sz, price: _pickSh.price }); } catch (_) {}
           const _lu = history[history.length - 1];
           if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
@@ -6288,6 +6438,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       ? AI_TOOLS.filter(t => t.name !== 'send_photos')
       : null;
   try {
+  try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
   // 🛵 GOING AHEAD WITH THE SHOE THEY PICKED IS NOT A NEW BROWSE (Bless Child, Foot Fetish 10-15 14:22: "You can come with
   // tennis size 10", four hours after picking the Vomero 5 Black/Pink, got an 18-picture size-10 album). A delivery cue or a
   // bare size within 24h of a pick pins that shoe: the album guard then lets nothing else out, and she confirms the order.
@@ -7608,6 +7759,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const staffOk = Array.isArray(staffWa) && staffWa.some(r => r && r.ok);
         record(req, { endpoint: 'notify-manager', sub, store: ctx.store, stage: inp.stage || 'delivery_ready', remindH: inp.remind_in_hours || null, waOk, staffWa, staffOk });
         if (inp.shoe_id && !staffName) lastPickBySub.set(String(sub), { id: String(inp.shoe_id), at: Date.now() });
+        try { if (inp.shoe && !staffName) tableAdd(sub, { name: inp.shoe, id: inp.shoe_id, size: inp.size, price: inp.price }); } catch (_) {}
         // FUTURE ORDER → also re-alert the owner when the day the customer named arrives
         // (Rodney's design 2026-07-13: heads-up now + a ⏰ reminder at the time it's for).
         const remindH = Number(inp.remind_in_hours);
@@ -7999,6 +8151,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     } catch (e) { record(req, { endpoint: 'size-topup-error', sub, error: String(e).slice(0, 120) }); }
   }
+  try { if (!staffName) tableLearn(sub, lastText); } catch (_) {}
   // SAFETY NET: never leave the customer hanging. If the whole turn produced no
   // message to them (model fumbled, every send failed, or it errored mid-loop),
   // send a friendly recovery line so they always get a reply.
