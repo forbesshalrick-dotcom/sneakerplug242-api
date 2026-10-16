@@ -6708,6 +6708,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             && !t.startsWith('(')
             && t.length <= 120
             && !/search_inventory|send_photos|notify_manager|SYSTEM|the customer|do NOT|you MUST/i.test(t))
+          .filter((t, i, a) => a.indexOf(t) === i)   // the current message is already the last history entry
           .slice(-8)
           .join(' ');
         const T = saidByThem.toLowerCase();
@@ -6800,6 +6801,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           let _sentHere = 0;
           if (theirShoeTheirSize.length) {
             try {
+              model = model.split(' ').filter((w, i, a) => a.indexOf(w) === i).join(' ');   // "air force 1 air force 1" → once
               const _lead = 'Here go the ' + (model || 'ones') + ' I got in your '
                 + (theirSize || 'size') + ' 👟';
               const _r = await sendShoePhotos(sub, theirShoeTheirSize.map(r => r.id), token, null, _lead, false, false, ctx.turnAt || 0, true);
