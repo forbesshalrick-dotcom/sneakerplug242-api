@@ -1691,7 +1691,7 @@ const INTERNAL_LEAK_RE = new RegExp([
   // Her own reasoning, sent to the customer (Raymond Neymour, TK 10-11/12: "(This is a re-delivery of their previous 👍 —
   // nothing new to act on, so I'll leave it there.)" and "You're right — my mistake. Nothing to do here.").
   'nothing (?:new )?to (?:act on|do here|reply to|respond to)', 're-?delivery of (?:their|the|a|his|her) ',
-  'i\\047?ll leave it there', '^\\s*\\((?:this|that|no|nothing|they|the customer|customer|re-?delivery)\\b',
+  'i\\047?ll leave it there', '\\((?:the )?(?:pictures?|pics?|photos?) (?:are|were|just|already|went|have)\\b', '^\\s*\\((?:this|that|no|nothing|they|the customer|customer|re-?delivery)\\b',
 ].join('|'), 'i');
 
 const STORE_DEFAULT = 'THE PLUG 242';
