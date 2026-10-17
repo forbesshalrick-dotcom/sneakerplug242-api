@@ -6459,6 +6459,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let askedPermission = 0;     // "want me to send those?" instead of just sending
   let resendDroppedNames = [];  // pictures not re-sent this turn because the chat already has them
+  let resendDroppedShoes = [];  // the same, as shoes (the safety net names the first one instead of re-asking the size)
   let whichShoeAsks = 0;       // "which one?" after they said "I'll take 2" and two are on the table
   let feeBlocks = 0;         // the invented-fee guard may bounce one reply per turn
   let blindBlocks = 0;       // the "I can't see your picture" guard may bounce one reply per turn
@@ -6663,6 +6664,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
   try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
   try { const _lv = lastVisitNote(sub); if (_lv && !staffName) system += '\n\n' + _lv; } catch (_) {}
+  /* 🔀 THEY ARE ANSWERING THE CHOICE SHE JUST GAVE (Rodney 10-17, OSC carltonadderley10 +1 242 803-8623: he sent a screenshot of
+   * four Air Max Plus/Dunk cards, Kiki asked "Which one you want — the Yellow/Black, Grey/Orange, or the Blue/White Dunk?", he
+   * said "Black and Grey", and she sold him a New Balance 1906 Black/Grey/Red - "I don't see any New Balance in this picture"). */
+  try {
+    if (!staffName) {
+      const _la = [...history].reverse().find(m => m && m.role === 'assistant' && typeof m.content === 'string' && m.content.trim());
+      const _q = _la ? String(_la.content) : '';
+      if (/\bwhich (one|ones|pair|colou?r)\b[^?]*\?/i.test(_q) && /,|\bor\b/i.test(_q)) {
+        system += '\n\n(SYSTEM NOTE — the customer cannot see this: your last message asked them to choose: "' + _q.slice(0, 300).replace(/"/g, "'")
+          + '". Their reply is choosing among THOSE options - colour words like "black and grey" point at the option(s) with those colours, and may pick TWO. '
+          + 'Never answer with a shoe that was not one of those options. If you truly cannot tell which, ask once, naming the options again.)';
+      }
+    }
+  } catch (_) {}
   // 👟 The owner pinned the shoe ("I found the shoe") — ported back 10-17 with the delivery strip.
   try { const _lock = lockedShoeNote(sub); if (_lock && !staffName) system += _lock; } catch (_) {}
   try {
@@ -7800,6 +7815,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (_after < _before) record(req, { endpoint: 'resend-dropped', sub, dropped: _before - _after, kept: _after });
             if (_after < _before) {
               resendDroppedNames = [...new Set((_beforeIds || []).filter(id => _recent(id)).map(id => _lmR[id] && displayName(_lmR[id])).filter(Boolean))].slice(0, 6);
+              resendDroppedShoes = [...new Set((_beforeIds || []).filter(id => _recent(id)))].map(id => _lmR[id]).filter(Boolean).slice(0, 6);
             }
           }
         } catch (_) {}
@@ -8703,7 +8719,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // tried to send photos but nothing landed), send THAT — so a photo ID like "That's
     // the ASICS!" still reaches the customer instead of a blank "didn't come through".
     record(req, { endpoint: 'chat-fallback', sub, userText, hadText: !!lastText, hadImage: !!image });
-    const fb = lastText || (image
+    /* 👆 THEY POINTED AT A PICTURE THEY ALREADY HAVE (Rodney 10-17, TK 466-2609: "why ask the same question again? send the dam
+     * pic"; FF Gina 556-0187 14:31: "What about this" after a size-13 album got "what size you looking for"). The re-send was
+     * dropped, so name that shoe, its price and their size instead of asking again. */
+    let _ptr = '';
+    try {
+      const _sh = !lastText && resendDroppedShoes[0];
+      if (_sh) {
+        const _cs = custSize.get(String(sub));
+        const _sz = (_cs && _cs.size && Date.now() - (_cs.ts || 0) < 12 * 3600 * 1000) ? String(_cs.size) : '';
+        const _w = womensSaid.get(String(sub));
+        const _wom = !!(_sz && _w && Date.now() - (_w.at || 0) < 12 * 3600 * 1000 && parseFloat(_w.size) === parseFloat(_sz));
+        const _want = _sz ? ((_wom ? sizesToSend(_sz, true) : sizesToSend(_sz, false)) || [parseFloat(_sz)]) : [];
+        const _has = _sz && (_sh.sizesRaw || _sh.sizes || []).some(z => _want.some(v => parseFloat(z) === parseFloat(v)));
+        const _say = _wom ? "women's " + _sz : _sz;
+        _ptr = "That's the " + displayName(_sh) + ' 🔥 $' + (parseFloat(_sh.price) || '') + ' — '
+          + (_has ? 'got it in your ' + _say + '. Want it? 👟' : _sz ? 'no ' + _say + ' in that one right now 🙏' + (_wom ? '' : ' It comes in ' + (sizesOf(_sh) || '') + '.') : 'it comes in ' + (sizesOf(_sh) || '') + '. What size you need? 👟');
+        record(req, { endpoint: 'fallback-named-pointed-shoe', sub, shoe: String(_sh.id), size: _say, has: !!_has });
+      }
+    } catch (_) {}
+    const fb = lastText || _ptr || (image
       ? "That's a clean pair 👀 — what size you looking for and I'll pull up what we've got 👟"
       : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
     await sendChunk(sub, [{ type: 'text', text: fb }], token).catch(() => {});
