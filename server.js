@@ -5906,7 +5906,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (_pr && _pr.at >= _pq.at) {
         userText = '(SYSTEM: their WhatsApp LOCATION PIN just arrived — ' + _pr.maps + '. This message is that pin, not new words. Say "Got your location 📍" and, if the shoe and size are settled, call notify_manager stage "delivery_ready" with location = ' + _pr.maps + '. Never ask for their location again.)\n' + String(userText || '');
         record(req, { endpoint: 'pin-waited-and-used', sub, waitedMs: Date.now() - _t0 });
-      } else record(req, { endpoint: 'pin-waited-none', sub, waitedMs: Date.now() - _t0 });
+      } else {
+        // ManyChat drops LIVE locations entirely (Facebook1 10-16, Money Move's 20:26 live share never reached the inbox).
+        userText = '(SYSTEM: something non-text just arrived but it was not a readable pin. If they are sending their location, it was probably a LIVE location, which does not come through to us — ask them to send their CURRENT location instead: tap 📎 → Location → "Send your current location". Do not say you cannot see anything else.)\n' + String(userText || '');
+        record(req, { endpoint: 'pin-waited-none', sub, waitedMs: Date.now() - _t0 });
+      }
     }
   } catch (_) {}
   // 🏷️ ASK THE MAC WHICH CARD THEY TAGGED (see /social/tag-requests). ManyChat lines only, a short pointing message within 45 min
