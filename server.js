@@ -3449,6 +3449,40 @@ function tableNote(sub) {
       + 'must never answer somebody with a shoe off this list that they did not ask about.)';
   } catch (_) { return ''; }
 }
+/* 🔁 THEY CAME BACK FOR WHAT THEY ASKED FOR LAST TIME (Rodney 10-17, Pinky TK +1 242 809-2583: on 10-11 she booked a
+ * White Jordan 5 in 11 and a White NB 9060 in 5.5 "for tomorrow", came back 6 days later by voice note - "send the same
+ * ones I already asked for" - and Kiki sent a Jordan 5 Black University Blue in 5.5, the one she had turned DOWN. Rodney:
+ * "she ask for new balance before"). The order table only lasts 90 minutes, so a returning customer's last visit is
+ * handed over from the inbox thread: the order cards Rodney got, Kiki's own priced confirmations, and the customer's words. */
+function lastVisitNote(sub) {
+  try {
+    const t = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+    if (!t || !Array.isArray(t.msgs) || t.msgs.length < 4) return '';
+    const ms = t.msgs.filter(m => m && m.ts).slice().sort((a, b) => a.ts - b.ts);
+    const GAP = 12 * 3600 * 1000;
+    let cut = -1;
+    for (let i = ms.length - 1; i > 0; i--) { if (ms[i].ts - ms[i - 1].ts > GAP) { cut = i; break; } }
+    if (cut < 1) return '';
+    if (Date.now() - ms[cut].ts > 2 * 3600 * 1000) return '';            // only for the first two hours of the new visit
+    const prev = ms.slice(0, cut).filter(m => ms[cut].ts - m.ts < 21 * 24 * 3600 * 1000);
+    if (!prev.length) return '';
+    const txt = m => String(m.text || '').replace(/\s+/g, ' ').trim();
+    const cards = prev.filter(m => m.sender === 'system' && /NEW ORDER|DELIVERY READY|ORDER/i.test(m.text || ''))
+      .map(m => (String(m.text || '').split('\n').filter(l => /👟|💰/.test(l)).join(' ')).trim()).filter(Boolean).slice(-3);
+    const quotes = prev.filter(m => m.dir === 'out' && /\$\s?\d/.test(m.text || '') && /\b(got you|sorted|locked|booked|set for|bring|matching pair|total)\b/i.test(m.text || ''))
+      .map(txt).slice(-3).map(x => x.slice(0, 220));
+    const said = prev.filter(m => m.dir === 'in' && m.sender !== 'system' && txt(m) && !/^[📷📎📍]/u.test(txt(m)))
+      .map(txt).slice(-10).map(x => x.slice(0, 140));
+    if (!cards.length && !quotes.length) return '';
+    const day = new Date(prev[prev.length - 1].ts).toLocaleDateString('en-US', { timeZone: 'America/Nassau', weekday: 'long', month: 'short', day: 'numeric' });
+    return '(SYSTEM NOTE — the customer cannot see this: THIS CUSTOMER WAS HERE BEFORE, last on ' + day + '. What was booked then:'
+      + (cards.length ? '\n• Order cards the owner got: ' + cards.join(' | ') : '')
+      + (quotes.length ? '\n• What you confirmed to them: ' + quotes.join(' | ') : '')
+      + (said.length ? '\n• Their own last words then: ' + said.join(' / ') : '')
+      + '\nIf they say "the same ones", "what I asked for before", "same pictures", or name only a size from that order, THESE are the shoes - '
+      + 'the ones they said yes to, never one they turned down - send those pictures again. If they now name a different shoe, that wins.)';
+  } catch (_) { return ''; }
+}
 // Scan a reply for shoes she named with their colourway, so the table fills itself.
 function tableLearn(sub, text) {
   try {
@@ -6559,6 +6593,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       : null;
   try {
   try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
+  try { const _lv = lastVisitNote(sub); if (_lv && !staffName) system += '\n\n' + _lv; } catch (_) {}
   // 👟 The owner pinned the shoe ("I found the shoe") — ported back 10-17 with the delivery strip.
   try { const _lock = lockedShoeNote(sub); if (_lock && !staffName) system += _lock; } catch (_) {}
   try {
