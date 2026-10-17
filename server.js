@@ -6927,6 +6927,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (_c2.length) cands = _c2.slice(0, 6);
           }
         } catch (_) {}
+        /* 🏷️ A SHOE SHE NAMES IS A SHOE IN PLAY (TK Wally +1 242 455-3362 10-17 15:02: "The Air Jordan 4 Retro (Cave Stone) up there comes
+         * in your 13" - true, it has a 13 - was blocked because the last search's first six were Asics/Yeezy/9060s, and she then told
+         * him "the brown tennis we have doesn't come in a 13"). Shoes named by nickname or full name in the reply join the check. */
+        try {
+          const _tl = String(turnText || '').toLowerCase();
+          const _named = Object.values(lm).filter(x => x && x.name && (
+            (x.nickname && String(x.nickname).trim().length >= 4 && _tl.includes(String(x.nickname).trim().toLowerCase()))
+            || _tl.includes(displayName(x).toLowerCase())));
+          if (_named.length && _named.length <= 8) cands = [..._named, ...cands.filter(c => !_named.includes(c))].slice(0, 8);
+        } catch (_) {}
         // The listing title carries "$130", "BSD130", "[hidden information]", a post number - none of it is the shoe,
         // and with it in the query the search found nothing, so a claimed size had nothing to be checked against
         // (Claudia drill 10-14: "Got it in a size 8 — where should we meet you?" for a 8.5/9.5/10 shoe went out).
