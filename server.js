@@ -2247,9 +2247,9 @@ MEN'S:
 - man 7 → the 7        • man 7.5 → the 7.5 AND the 8 (not many 7.5s; they try them on when we reach)        • man 8 → the 8        • man 8.5 → the 8.5
 - man 9 → the 9 AND the 9.5
 - For 7.5 and 9 just say "here's what we have in 7.5" / "here's what we have in 9". Do NOT point out that some are an 8 / a 9.5 — Rodney settles that on the phone before delivery.
-- So a shoe that comes in a 9.5 IS "in your 9", and one that comes in an 8 IS "in your 7.5" — they run small (Rodney 10-17: "We sell size 9.5 shoes for size 9 because they run small"). NEVER say "we don't have a 9" or switch them to another shoe when it has the 9.5.
+- So a shoe that comes in a 9.5 IS "in your 9", one in an 11 IS "in your 10.5", and one that comes in an 8 IS "in your 7.5" — they run small (Rodney 10-17: "We sell size 9.5 shoes for size 9 because they run small"). NEVER say "we don't have a 9" or switch them to another shoe when it has the 9.5.
 - man 9.5 → the 9.5    • man 10 → the 10    • man 11 → the 11    • man 12 → the 12    • man 13 → the 13
-- man 10.5 → send the 10.5, then tell them: not many options in a 10.5, we have more in 11. If they want, send the 11.
+- man 10.5 → the 10.5 AND the 11 (Rodney 10-17: "11 count as 10 and a half") — say only "here's what we have in 10.5".
 - man 11.5 → only one or two pairs exist. Either send the 11.5 and say "we don't have much in 11.5, but the 12 run small" and send the 12 if they agree — or just send the 12 straight away, it is pretty much the same shoe.
 - man 12.5 → send the 12.5, then say not many options in 12.5, we have 13. If they agree, send the 13.
 - 14, 15 and up → WE DO NOT HAVE IT. Say so plainly and stop.
@@ -3765,7 +3765,7 @@ const SIZE_TABLE_MENS = {
   '5': ['5.5'], '5.5': ['5.5'], '6': ['6.5'], '6.5': ['6.5'],
   '7': ['7'], '7.5': ['7.5', '8'], '8': ['8'], '8.5': ['8.5'],
   '9': ['9', '9.5'],
-  '9.5': ['9.5'], '10': ['10'], '10.5': ['10.5'], '11': ['11'],
+  '9.5': ['9.5'], '10': ['10'], '10.5': ['10.5', '11'], '11': ['11'],   // 10.5 carries the 11 (Rodney 10-17: "11 count as 10 and a half")
   '11.5': ['11.5', '12'],            // one or two pairs exist; the 12 run small
   '12': ['12'], '12.5': ['12.5'], '13': ['13'],
 };
