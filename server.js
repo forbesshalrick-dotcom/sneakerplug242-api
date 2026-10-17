@@ -8811,7 +8811,14 @@ function handleChat(req, res) {
     // fired a false "📎 SOMETHING DIDN'T COME THROUGH" alert at staff on top of it.
     const prevAt = lastIncoming.get(sub) || 0;
     const withinReplayWindow = prevAt && (Date.now() - prevAt) < 90 * 1000;
-    if (prevTxt && prevTxt === nowTxt && withinReplayWindow) { nonTextReplay = true; lastReplayAt.set(sub, Date.now()); }
+    if (prevTxt && prevTxt === nowTxt && withinReplayWindow) {
+      nonTextReplay = true; lastReplayAt.set(sub, Date.now());
+      // 📍 The quick re-delivery is the usual shape of a swallowed pin (TK Adrian 10-17 09:13: pin sent, card said "open the
+      // chat to see it", the Mac was never asked) — so ask the Mac reader to read it off the ManyChat chat page too.
+      if (req.body && /manychat\.com/.test(String(req.body.live_chat_url || ''))) {
+        try { pinRequests.set(String(sub), { sub: String(sub), store, url: String(req.body.live_chat_url), phone: getPhone(req) || '', name, token, at: Date.now(), done: false }); } catch (_) {}
+      }
+    }
     // 📍 A LATE REPEAT MAY STILL BE A PIN (TK +1 242 812-1172 10-16 17:37: dropped his pin 8 h after "Ok thanks"; ManyChat
     // re-delivered "Ok thanks", Kiki answered 👍, and on "Ready now bro" asked for the location he had just sent). Too old for
     // the 90 s rule, so the Mac reader is asked to look: if the chat's newest message is a pin, its coordinates come back.
