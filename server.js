@@ -2096,6 +2096,7 @@ ${welcomeRule}
 - Talk like a real, friendly shop assistant having a normal conversation. Do NOT fire off photos the moment you see a number — but do NOT interrogate them either.
 - NEVER ask the customer whether they're "looking for something specific" or have "anything specific in mind", and never ask "what kind of shoe are you after". Don't make them name a model. Your DEFAULT move is simply to offer to show what we have, e.g. "Want me to show you what we've got in {size}? 👟" (or without the size if they haven't given one). Only dig into a specific shoe/brand/colour if THEY bring it up first. DELIVERY QUESTION (IMPORTANT — answer this FIRST, always): if a customer's very first message or any message mentions delivery — "do u deliver", "do you deliver", "delivery?", "can you bring it", "you does deliver" — answer it IMMEDIATELY: "Yes! We deliver right to your door in Nassau 🛵 What shoe and size are you looking for?" Do NOT send follow-up nudge messages to a customer whose delivery question was never answered.
 - THEIR SHOE IN THEIR SIZE = ASK, THEN DELIVER (Rodney 2026-10-16): when the shoe they picked comes in their size, END WITH THE QUESTION "Want the 8.5? 👟" (their size). NEVER "you're good in your 8.5", "you're set", "that works for you". When they say yes: "Bet 🔥 Send me your location 📍 — we can come right now 👟" (when we're closed, the 8 AM line from the closed rule instead), then the pin steps.
+- NEVER "ALRIGHT, I SEE YOU 👀" or "I see you" (Rodney 2026-10-16: "alright I see … is not good, you can move it").
 - 🛵 WE COME TO THEM — "I REACH" MEANS SEND THE PIN (Rodney 2026-10-16: a customer came in on the boat and wrote "I reach", Kiki answered "Come through" and "You outside?" — we have no shop to come to). "I reach", "I'm here", "I landed", "I in Nassau now" = they arrived where THEY are: ask for their WhatsApp location pin so we bring the shoes. Never "come through", "pull up", "you outside?" or "come by".
 - 🇧🇸 "BAD" MEANS GOOD (Bahamian): "this bad", "dem bad tho", "that's bad" = they LOVE it. Never argue ("nah it's fire!") — agree and move them forward: "Right? 🔥 That one's $X — want it in your size?". Same for "nasty", "wicked", "too sweet".
 - NEVER "DID ANYTHING CATCH YOUR EYE?" (Rodney 2026-10-16: "I don't like the phrase … say, let me know if you like a delivery"). After pictures, or tacked onto another answer, the line is "Let me know if you'd like a delivery 👟". Never "catch your eye", "caught your eye" or "anything you like?".
@@ -7355,6 +7356,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _kept = _parts.filter(x => !/\b(?:catch(?:es|ing)?|caught)\s+your\s+eye\b/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
       turnText = ((_kept ? _kept + '\n\n' : '') + (_which ? 'Which one you like? 👟' : 'Let me know if you\'d like a delivery 👟')).trim();
       record(req, { endpoint: 'catch-your-eye-replaced', sub, which: _which });
+    }
+    /* 🙅 NO "ALRIGHT, I SEE YOU 👀" (Rodney 10-16: "is not good, you can move it"). The phrase is cut; the rest of the reply stays. */
+    if (turnText && !staffName && /\bi\s+see\s+you\b/i.test(turnText)) {
+      const _t = turnText.replace(/\s*(?:alright|aight|ok(?:ay)?|ahh?)?[,!\s]*\bi\s+see\s+you\b[!.,]*\s*(?:\u{1F440}\s*)*/giu, ' ').replace(/^[\s,!.—–-]+/, '').replace(/\s{2,}/g, ' ').trim();
+      if (_t !== turnText.trim()) { turnText = _t ? _t.charAt(0).toUpperCase() + _t.slice(1) : 'Got you 👟'; record(req, { endpoint: 'i-see-you-cut', sub }); }
     }
     /* 🛵 NO "COME THROUGH" / "YOU OUTSIDE?" — WE DELIVER (Rodney 10-16, TK +1 242 824-3666: "I reach" after the boat got both). */
     if (turnText && !staffName && /\b(come through|come thru|pull up|you outside|come by the (?:shop|store))\b/i.test(turnText)) {
