@@ -6089,6 +6089,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   if (ctx.personal) {
     system += '\n\n🙋 PERSONAL ACCOUNT (Rodney 2026-09-07: "personal accounts dont need introducing just sell"): this conversation is on a personal Facebook/Instagram/TikTok account, not a shop page. Never introduce a shop, never say a shop name, no welcome script - just answer and sell as a person. The pictures you send arrive as Messenger images.';
   }
+  /* 🚦 WHAT THE DRIVER IS ACTUALLY DOING, ON EVERY TURN (Rodney 2026-10-05: "I just want us to
+   * be on the same path"). Appended to the turn, never to the cached prompt, so caching is
+   * untouched. (Ported back 10-17. The old build also told her "you do not know where the driver
+   * is" when nothing was pressed and the customer had an open order; that half needs orderIsLocked,
+   * which this build does not have, so only the pressed-button truth is ported.) */
+  try {
+    const _d = driverNow(sub);
+    const _mins = _d ? Math.round((Date.now() - _d.at) / 60000) : 0;
+    if (_d) {
+      userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: '
+        + 'THE OWNER PRESSED A BUTTON ' + (_mins < 1 ? 'just now' : _mins + ' minutes ago') + ' and '
+        + 'this is the truth about their delivery RIGHT NOW: ' + DRIVER_STEPS[_d.step] + ' '
+        + 'That is the ONLY thing you may say about where the driver is or how long. Say it in '
+        + 'your own short words if they ask. Do NOT add a time he did not give, do NOT guess, '
+        + 'and do NOT say anyone is closer than he said. If they ask again and nothing has '
+        + 'changed, say you are checking with the driver — never invent progress.)';
+    }
+  } catch (_) {}
   if (ctx.listingPrice) {
     userText = String(userText || '') + '\n\n(SYSTEM NOTE — the customer cannot see this: they messaged from a Facebook listing priced at $' + ctx.listingPrice
       + (ctx.listingTitle ? ' — "' + ctx.listingTitle + '"' : '') + '. THAT is the price for this shoe, and it is the number on their screen right now. ⚠️ NEVER read a size off that title - those are what the advert says we stock, not what THIS customer wears; ask. Quote $' + ctx.listingPrice
@@ -6534,6 +6552,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       : null;
   try {
   try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
+  // 👟 The owner pinned the shoe ("I found the shoe") — ported back 10-17 with the delivery strip.
+  try { const _lock = lockedShoeNote(sub); if (_lock && !staffName) system += _lock; } catch (_) {}
   try {
     const _pr = !staffName && pinReceived.get(String(sub));
     if (_pr && Date.now() - _pr.at < 3 * 3600 * 1000) system += '\n\n📍 THEIR LOCATION PIN HAS ALREADY ARRIVED (' + _pr.maps + '). NEVER ask for their location or pin again. If the shoe and size are settled, '
@@ -10033,6 +10053,12 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   .row .av::after{display:none}
   .tagline{font-family:'Inter',-apple-system,sans-serif;font-size:10px;letter-spacing:.18em;
     color:var(--dim);font-weight:600;text-shadow:none;margin:4px 0 0 2px}
+/* 🚦 delivery strip (Rodney 2026-10-05) */
+.dstep{font:600 12px/1 inherit;padding:7px 10px;border-radius:8px;border:1px solid rgba(128,140,160,.35);
+       background:transparent;color:inherit;cursor:pointer}
+.dstep:hover{border-color:rgba(128,140,160,.8)}
+.dstep[aria-pressed="true"]{background:#1E6BFF;border-color:#1E6BFF;color:#fff}
+.dstep:disabled{opacity:.45;cursor:default}
 </style></head><body>
 <input type="file" id="avFile" accept="image/*" style="display:none">
 <div id="stopBar" style="display:none"><span id="stopMsg"></span><button id="stopBtn">✋ STOP</button></div>
@@ -10086,6 +10112,34 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
   <div class="imgprev" id="imgPreview" style="display:none"><img id="imgThumb" alt=""><span class="ip-label" id="imgLabel">Photo ready to send</span><button id="imgSend" class="ipsend">Send ➤</button><span id="imgX">✕</span></div>
   <div class="imgprev voiceprev" id="audPreview" style="display:none"><button id="audPlay" class="vplay" title="Play back">▶️</button><span class="ip-label"><b id="audDur">0:00</b> · voice note ready</span><button id="audTranscribe" class="ipsend" title="Turn this into text instead of sending audio" style="background:rgba(255,255,255,.08);">📝</button><button id="audSend" class="ipsend">Send ➤</button><span id="audX" title="Delete">🗑️</span><audio id="audEl" preload="auto" style="display:none"></audio></div>
   <div class="rechud" id="recHud" style="display:none"><span class="recdot"></span><span id="recTime">0:00</span><span class="eqbars"><i></i><i></i><i></i><i></i><i></i></span><button id="recStop" class="recstop">■ Stop</button><button id="recCancel" class="reccancel">🗑️</button></div>
+  <!-- 🚦 THE DELIVERY STRIP, IN THE CHAT (Rodney 2026-10-05: "Where's the button? It's supposed
+       to be in the chat."). I first built this inside the Brief Kiki panel, two taps away and
+       invisible unless you knew it was there. He is driving when he needs it. It sits above the
+       composer now, on screen the whole time the chat is open. -->
+  <div id="driverStrip" style="padding:8px 10px 2px">
+    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+      <button class="dstep" id="foundShoe" title="You can see which shoe they mean - pin it so Kiki stops switching">👟 I found the shoe</button>
+      <button class="dstep" data-step="gotloc" title="They already sent the location - stop asking">📍 Got the location</button>
+      <button class="dstep" data-step="taken"  title="Order taken, nobody has left yet">📋 Got it</button>
+      <button class="dstep" data-step="rolling" title="You have left - driver is on the way">🚗 Left now</button>
+      <button class="dstep" data-step="30">30</button>
+      <button class="dstep" data-step="20">20</button>
+      <button class="dstep" data-step="10">10</button>
+      <button class="dstep" data-step="5">5</button>
+      <button class="dstep" data-step="outside" title="You are there">🏠 Outside</button>
+      <button class="dstep" data-step="done" title="Delivered">✅ Done</button>
+    </div>
+    <div id="shoePick" style="display:none;margin-top:6px">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center" id="shoePickList"></div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <input id="shoePickQ" placeholder="or type the name on the picture" style="flex:1;min-width:0;font:inherit;font-size:12px;padding:7px 9px;border-radius:8px;border:1px solid rgba(128,140,160,.35);background:transparent;color:inherit">
+        <button class="dstep" id="shoePickGo">Pin</button>
+        <button class="dstep" id="shoePickClose">✖</button>
+      </div>
+    </div>
+    <div id="shoeLocked" style="display:none;font-size:11px;margin-top:5px"></div>
+    <div id="driverNow" style="font-size:11px;opacity:.7;margin-top:5px"></div>
+  </div>
   <div class="composer">
     <div class="compinner">
       <!-- Only the first 3 (photo, send-pics, voice note) show; swipe left for the rest. -->
@@ -10431,6 +10485,8 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
       if(d && d.error){ try{ localStorage.removeItem(LS); }catch(e){} promptKey("That key didn't work — check it and try again."); return; }
       lastRev = d.rev; $('rev').textContent='#'+d.rev;
       var ts = (d.threads||[]);
+      // 🚦 Remember each chat's delivery step so openThread can light the right button.
+      try{ ts.forEach(function(t){ driverByThread[t.sub]={step:t.driverStep||null, mins:t.driverMins}; }); }catch(e){}
       // No-flicker guard for the list too: only rebuild rows when the visible data changed.
       var lsig = ts.map(function(t){ return t.sub+':'+t.lastTs+':'+(t.unread||0)+':'+(t.paused?1:0)+':'+(t.pinned?1:0)+':'+(t.label||'')+':'+String(t.custPrev||'').slice(0,24)+':'+String(t.replyPrev||'').slice(0,24); }).join(',');
       if(lsig===lastListSig) return; // list unchanged — leave the DOM alone
@@ -10512,6 +10568,9 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
 
   function openThread(sub, acct, name, tag, phone){
     cur = {sub:sub, acct:acct, name:name, tag:tag, phone:phone||''};
+    try{ $('shoePick').style.display='none'; paintLock(null); loadLock(); }catch(e){}
+    // 🚦 Light the strip for THIS customer (from the thread list), so the pressed button shows.
+    try{ var _dsv=driverByThread[sub]||{}; paintDriver(_dsv.step||null, _dsv.mins); }catch(e){}
     $('tName').innerHTML = custNameHTML(name, tag);   // name — number sits inline beside it
     // The number is the REAL phone only (never the ManyChat subscriber id). Shown as a WhatsApp
     // call link; empty until loadThread confirms/ backfills the real number, so no fake number flashes.
@@ -11208,6 +11267,100 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
     }).catch(function(){ btn.textContent=was; btn.disabled=false; toast('Could not transcribe — network error'); });
   };
   $('replyX').onclick=clearQuote;
+  var driverByThread={};   // sub -> {step, mins} from /inbox/threads
+  /* 👟 "I FOUND THE SHOE". He is reading the chat and can SEE which pair the customer tapped -
+   * the one thing WhatsApp never passes through to us. One tap pins it and Kiki answers about
+   * that pair and nothing else until he lets it go. The choices are the shoes we have actually
+   * shown or named this customer, so it is usually one tap, with a name box as the fallback. */
+  function paintLock(l){
+    var box=$('shoeLocked');
+    if(!l){ box.style.display='none'; box.innerHTML=''; $('foundShoe').setAttribute('aria-pressed','false'); return; }
+    box.style.display='block';
+    box.innerHTML='👟 <b>'+esc(l.name)+'</b> — $'+esc(String(l.price))+' · Kiki is pinned to this shoe '
+      + '<a href="#" id="shoeUnlock" style="margin-left:6px">unpin</a>';
+    $('foundShoe').setAttribute('aria-pressed','true');
+    $('shoeUnlock').onclick=function(e){ e.preventDefault();
+      post('/inbox/lockshoe',{sub:cur.sub,clear:true}).then(function(){ paintLock(null); toast('Unpinned'); });
+    };
+  }
+  function loadLock(){
+    if(!cur){ paintLock(null); return; }
+    api('/inbox/shoe-options?sub='+encodeURIComponent(cur.sub)).then(function(r){
+      if(r&&r.ok) paintLock(r.locked||null);
+    }).catch(function(){});
+  }
+  function pinShoe(body){
+    post('/inbox/lockshoe',Object.assign({sub:cur.sub},body)).then(function(r){
+      if(r&&r.ok&&r.locked){ paintLock(r.locked); $('shoePick').style.display='none'; $('shoePickQ').value='';
+        toast('👟 Pinned — Kiki will stay on the '+r.locked.name); }
+      else toast((r&&r.error)||'Could not pin that shoe');
+    }).catch(function(){ toast('Could not pin that shoe'); });
+  }
+  $('foundShoe').onclick=function(){
+    if(!cur){ toast('Open a chat first'); return; }
+    var box=$('shoePick');
+    if(box.style.display!=='none'){ box.style.display='none'; return; }
+    var list=$('shoePickList'); list.innerHTML='<span style="font-size:11px;opacity:.7">Loading…</span>';
+    box.style.display='block';
+    api('/inbox/shoe-options?sub='+encodeURIComponent(cur.sub)).then(function(r){
+      list.innerHTML='';
+      var opts=(r&&r.options)||[];
+      if(!opts.length){ list.innerHTML='<span style="font-size:11px;opacity:.7">Nothing shown to this customer yet — type the name below.</span>'; }
+      opts.forEach(function(o){
+        var b=document.createElement('button'); b.className='dstep';
+        b.textContent=o.name+' · $'+o.price;
+        b.title='sizes '+(o.sizes||'');
+        b.onclick=function(){ pinShoe({id:o.id}); };
+        list.appendChild(b);
+      });
+      if(r&&r.locked) paintLock(r.locked);
+    }).catch(function(){ list.innerHTML='<span style="font-size:11px;opacity:.7">Could not load — type the name below.</span>'; });
+  };
+  $('shoePickGo').onclick=function(){
+    var q=$('shoePickQ').value.trim();
+    if(!q){ toast('Type the shoe name'); return; }
+    pinShoe({query:q});
+  };
+  $('shoePickQ').addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); $('shoePickGo').click(); } });
+  $('shoePickClose').onclick=function(){ $('shoePick').style.display='none'; };
+  /* 🚦 THE DELIVERY STRIP. Each press tells Kiki where the driver actually is; she may repeat
+   * that and nothing else about timing. Before any press she says nothing about it at all. */
+  var DSTEP_SAYS={gotloc:'Has the location — will stop asking',
+    taken:'Order taken — nobody has left yet',rolling:'Driver is on the way',
+    '30':'About 30 minutes away','20':'About 20 minutes away','10':'About 10 minutes away',
+    '5':'About 5 minutes away',outside:'Driver is outside now',done:'Delivery finished'};
+  function paintDriver(step, mins){
+    var el=$('driverNow'); if(!el) return;
+    el.textContent = step ? ('Kiki is saying: ' + (DSTEP_SAYS[step]||step)
+      + (mins!=null ? '  ·  set ' + (mins<1?'just now':mins+' min ago') : ''))
+      : 'Nothing set — Kiki says nothing about the driver or any timing.';
+    Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'), function(b){
+      b.setAttribute('aria-pressed', b.getAttribute('data-step')===step ? 'true' : 'false');
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'), function(btn){
+    btn.onclick=function(){
+      if(!cur) return;
+      var step=btn.getAttribute('data-step');
+      Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=true;});
+      post('/inbox/driver', {sub:cur.sub, step:step}).then(function(d){
+        Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=false;});
+        if(d && d.ok){
+          paintDriver(step, 0);
+          // ✅ Done also rings the pair up so it cannot be sold twice. Say exactly what came
+          // off the shelf — and when it could not tell, say THAT, so he knows to do it himself.
+          if(step==='done' && d.sold){
+            if(d.sold.ok){ toast('✅ Sold — '+d.sold.shoe+' size '+d.sold.size+' is off the shelf'); }
+            else { toast('✅ Done — but I could NOT ring it up ('+(d.sold.why||'unsure which pair')+'). Mark it in the app.'); }
+          } else { toast('🚦 ' + (DSTEP_SAYS[step]||step)); }
+        }
+        else toast((d&&d.error)||'Could not set that');
+      }).catch(function(){
+        Array.prototype.forEach.call(document.querySelectorAll('.dstep[data-step]'),function(b){b.disabled=false;});
+        toast('Could not set that — network');
+      });
+    };
+  });
   $('brief').onclick=openBrief;
   $('briefCancel').onclick=closeBrief;
   if($('briefDictate')) $('briefDictate').onclick=briefDictate;
@@ -11825,6 +11978,140 @@ app.post('/admin/ycloud-webhook-calls', async (req, res) => {
 });
 // Inbox routes restored 2026-10-13 (the Sep 3 reset dropped them): driver dispatch flag, thread prune, contacts list.
 const driverDispatchedAt = new Map();   // sub -> when a human pressed "driver dispatched"
+/* 🚦👟 THE DELIVERY STRIP + "I FOUND THE SHOE", PORTED BACK 2026-10-17 (Rodney: "my custom chat app had
+ * buttons at the bottom that told kiki info about how far along I am with the delivery"). Built
+ * 10-05/10-06, lost in the 10-12 reset; copied from the pre-reset server.js. */
+/* 🔑 liveShoeMap IS KEYED BY THE CATALOGUE'S ARRAY INDEX, NOT BY THE SHOE'S ID.
+ * `catalog.forEach((s, id) => { map[id] = ... })` - that `id` is the index, and every search
+ * result carries the same index as its "id". Fine as long as nothing ever looks a shoe up by
+ * its REAL id ("jordan4yellow001"), which is what the ads file, the pinned shoe and the order
+ * table all hold. Every one of those lookups silently found nothing. Caught 2026-10-07 when
+ * the Foot Fetish ad guard reported "no ad shoe in a size 11" while the Lightning 4 sat in an
+ * 11 - the record it printed said it plainly: "jordan4yellow001 NOT IN liveShoeMap".
+ * This resolves either, so a caller can stop caring which kind of id it is holding. */
+function shoeByAnyId(x, map) {
+  if (x == null) return null;
+  const m = map || liveShoeMap();
+  if (m[x]) return m[x];                                   // an index, the old way
+  const want = String(x);
+  for (const k of Object.keys(m)) if (String(m[k].id) === want) return m[k];
+  return null;
+}
+/* 🚦 WHERE THE DRIVER ACTUALLY IS — SET BY A BUTTON, NEVER GUESSED (Rodney 2026-10-05).
+ * "sometimes she's saying driver is on the way and I'm not even on the way as yet... I can
+ *  have a button to say driver on the way or I'm leaving out now... I can have like a button
+ *  for 30 minutes away 20 minutes away 10 minutes away and 5 minutes away... I just want us to
+ *  be on the same path."
+ * He is the only one who knows. Until he presses something she knows NOTHING about timing and
+ * must say nothing about it — that is what produced "we're still on the way" to a customer
+ * nobody had left for. Each press is the truth at that moment, and it is the ONLY thing she is
+ * allowed to repeat back. */
+const DRIVER_STEPS = {
+  /* 📍 "They already sent it" — Rodney 2026-10-05: "There was no button to tell Kiki he
+   * already sent the location so she can stop asking." He watched her ask a man for a pin he
+   * had dropped nine minutes earlier. Pins arrive as attachments ManyChat often cannot hand
+   * over, so she genuinely cannot see them; this is him telling her it landed. */
+  gotloc:   'The customer HAS already sent their location — it arrived and the owner has seen it. Never ask for it again.',
+  taken:    'The order is taken and the driver is being put on it. Nobody has left yet.',
+  rolling:  'The driver has LEFT and is on the way now.',
+  '30':     'The driver is about 30 minutes away.',
+  '20':     'The driver is about 20 minutes away.',
+  '10':     'The driver is about 10 minutes away.',
+  '5':      'The driver is about 5 minutes away.',
+  outside:  'The driver has ARRIVED and is outside now.',
+  done:     'This delivery is finished.',
+};
+/* 💾 AND IT SURVIVES A RESTART. Railway restarted this process a dozen times today; losing the
+ * strip on each one would mean Rodney presses "10 minutes" and she is blank again a minute
+ * later — which is the silence this whole feature exists to remove. Same debounce as the
+ * owner queue: load on boot, write 2s after a change. */
+const DRIVERSTATE_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'driver-state.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+const driverState = new Map((() => {
+  try {
+    if (DRIVERSTATE_FILE && require('fs').existsSync(DRIVERSTATE_FILE)) {
+      const saved = JSON.parse(require('fs').readFileSync(DRIVERSTATE_FILE, 'utf8'));
+      if (Array.isArray(saved)) return saved;
+    }
+  } catch (_) {}
+  return [];
+})());                                  // sub -> { step, at }
+let _driverSaveT = null;
+function saveDriverState() {
+  if (!DRIVERSTATE_FILE) return;
+  clearTimeout(_driverSaveT);
+  _driverSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(DRIVERSTATE_FILE, JSON.stringify([...driverState])); } catch (_) {}
+  }, 2000);
+  if (_driverSaveT.unref) _driverSaveT.unref();
+}
+function driverNow(sub) {
+  const d = driverState.get(String(sub));
+  if (!d) return null;
+  // Four hours and it is stale — better she says nothing than repeats this morning's "5 minutes".
+  if (Date.now() - d.at > 4 * 3600 * 1000) return null;
+  return d;
+}
+/* 👟 THE OWNER SAYS WHICH SHOE IT IS, AND THAT IS THE END OF IT (Rodney 2026-10-06:
+ * "add a button that I found the shoe, so she stop sending the wrong info. its losing sales").
+ * He is reading the chat on his phone and he can SEE which shoe the customer tapped — the one
+ * thing WhatsApp never passes to us. One tap pins it, and from then on Kiki answers about that
+ * pair and nothing else: no switching to a lookalike, no "which one did you mean", no album of
+ * something else. It outranks the order table, the album receipt and her own guesswork.
+ * Cleared by the same button, by filing the order, or after six hours. */
+const lockedShoe = new Map();      // sub -> {id, name, price, sizes, at, by}
+const LOCK_FILE = (() => {
+  try {
+    const fs = require('fs');
+    for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) {
+      if (fs.existsSync(d)) return require('path').join(d, 'locked-shoe.json');
+    }
+  } catch (_) {}
+  return null;
+})();
+try {
+  if (LOCK_FILE && require('fs').existsSync(LOCK_FILE)) {
+    const saved = JSON.parse(require('fs').readFileSync(LOCK_FILE, 'utf8'));
+    const cut = Date.now() - 6 * 3600 * 1000;
+    for (const [k, v] of Object.entries(saved)) if (v && v.at > cut) lockedShoe.set(k, v);
+    console.log('[lock] restored a locked shoe for', lockedShoe.size, 'chats');
+  }
+} catch (_) {}
+let lockSaveT = null;
+function saveLocks() {
+  if (!LOCK_FILE) return;
+  clearTimeout(lockSaveT);
+  lockSaveT = setTimeout(() => {
+    try { require('fs').writeFileSync(LOCK_FILE, JSON.stringify(Object.fromEntries(lockedShoe))); } catch (_) {}
+  }, 1500);
+  if (lockSaveT.unref) lockSaveT.unref();
+}
+function lockedShoeFor(sub) {
+  const l = lockedShoe.get(String(sub));
+  if (!l) return null;
+  if (Date.now() - (l.at || 0) > 6 * 3600 * 1000) { lockedShoe.delete(String(sub)); saveLocks(); return null; }
+  return l;
+}
+function lockedShoeNote(sub) {
+  const l = lockedShoeFor(sub);
+  if (!l) return '';
+  return '\n\n👟 THE SHOE IS SETTLED — ' + l.name + ' $' + l.price
+    + (l.sizes ? ' (sizes ' + l.sizes + ')' : '') + '. The owner is reading this chat and has '
+    + 'confirmed THIS is the pair the customer means. It is not a guess and it is not up for '
+    + 'discussion:\n'
+    + '• Answer every question about THIS shoe — its price, its sizes, its colour.\n'
+    + '• NEVER name, offer, price or send a different shoe, however similar. If they ask for a '
+    + 'size we do not have in it, say so plainly and give the sizes it DOES come in.\n'
+    + '• NEVER ask which shoe they mean, and never ask them to send the picture again.\n'
+    + '• Only move off it if the CUSTOMER names something else outright.';
+}
 app.post('/inbox/dispatch', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
@@ -11844,6 +12131,176 @@ app.post('/inbox/dispatch', (req, res) => {
   record(req, { endpoint: 'driver-dispatched', sub, off });
   res.json({ ok: true, dispatched: !off });
 });
+/* 🚦 POST /inbox/driver { sub, step } — the buttons Rodney presses as he drives.
+ * step: taken | rolling | 30 | 20 | 10 | 5 | outside | done   (or clear:true to wipe it)
+ * Each press replaces the last. Kiki is told the new truth on her very next reply and may say
+ * THAT and nothing else about timing — see the note built in runChat. */
+/* 👟 "I FOUND THE SHOE" — the owner pins it from the chat he is already reading.
+ * GET  /inbox/shoe-options?sub=…   what we have shown or named this customer, to choose from
+ * POST /inbox/lockshoe {sub,id}    pin it      {sub,query} pin by name     {sub,clear:true} let go */
+app.get('/inbox/shoe-options', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const sub = String(req.query.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  const out = [], seen = new Set();
+  const lm = liveShoeMap();
+  const push = (sh) => {
+    if (!sh || seen.has(String(sh.id))) return;
+    seen.add(String(sh.id));
+    out.push({ id: String(sh.id), name: displayName(sh), price: sh.price, sizes: sizesOf(sh) });
+  };
+  try { for (const it of ((onTheTable.get(sub) || {}).items || [])) { const sh = it.id && shoeByAnyId(it.id, lm); if (sh) push(sh); } } catch (_) {}
+  // (Ported 10-17: the old album receipt, albumShown, is not in this build. recentlySent holds the
+  // NAMES of the shoes we just showed this customer, so those are matched back to the shelf.)
+  try {
+    const rs = recentlySent.get(sub);
+    if (rs && Array.isArray(rs.names) && rs.names.length) {
+      const want = new Set(rs.names.map(n => String(n).toLowerCase()));
+      for (const k of Object.keys(lm)) if (want.has(String(displayName(lm[k])).toLowerCase())) push(lm[k]);
+    }
+  } catch (_) {}
+  const cur = lockedShoeFor(sub);
+  res.json({ ok: true, locked: cur || null, options: out.slice(0, 24) });
+});
+
+app.post('/inbox/lockshoe', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  if (b.clear) {
+    lockedShoe.delete(sub); saveLocks();
+    record(req, { endpoint: 'shoe-unlocked', sub });
+    return res.json({ ok: true, locked: null });
+  }
+  const lm = liveShoeMap();
+  let sh = b.id ? shoeByAnyId(String(b.id), lm) : null;
+  if (!sh && String(b.query || '').trim()) {
+    const rows = searchInventory({ query: String(b.query).trim() }) || [];
+    if (rows.length) sh = shoeByAnyId(rows[0].id, lm);
+  }
+  if (!sh) return res.json({ ok: false, error: 'Could not find that shoe — try the name as it reads on the picture.' });
+  const l = { id: String(sh.id), name: displayName(sh), price: String(sh.price),
+              sizes: sizesOf(sh), at: Date.now(), by: 'owner' };
+  lockedShoe.set(sub, l); saveLocks();
+  // The settled shoe is also the order's subject — put it on the table so a later turn that
+  // adds up what they are buying counts it.
+  try { tableAdd(sub, { name: l.name, id: l.id, price: l.price }); } catch (_) {}
+  record(req, { endpoint: 'shoe-locked', sub, shoe: l.name });
+  res.json({ ok: true, locked: l });
+});
+
+/* ✅ DONE MEANS SOLD (Rodney 2026-10-06: "If I mark a delivery as done, can Kiki... mark it
+ * as sold on the website and remove the size from everywhere so it doesn't have a double
+ * sale. In case it's the last one, because that was the last I sent.")
+ *
+ * He is right that this is the dangerous moment. The pair is physically gone, off a van, and
+ * until somebody rings it up the shelf still says we have it — so the next customer gets
+ * offered a shoe that is already in somebody else's hands. One write fixes it everywhere:
+ * recordStaffSale takes the size off the shop's own stock, which is what the website reads,
+ * what Kiki searches, and what the app shows.
+ *
+ * ⛔ IT NEVER GUESSES. Taking a size off wrongly is the mirror of promising stock we do not
+ * have, and he has been just as clear about that one. So it rings up ONLY when the shoe and
+ * the size are both unambiguous — the pinned shoe, or the order card we filed for this exact
+ * customer. Anything short of that and it does nothing and says so, which leaves it exactly
+ * where it is today. */
+function deliveredPair(sub) {
+  const want = String(sub || '');
+  if (!want) return null;
+  let name = '', size = '', price = '';
+  try {
+    const notes = (require('./shop').getNotes() || [])
+      .filter(n => n && String(n.sub || '') === want && /YOU(?:'|\u2019)?VE GOT AN ORDER/i.test(String(n.text || '')));
+    notes.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    const txt = notes.length ? String(notes[0].text || '') : '';
+    const m = txt.match(/\u{1F45F}\s*(.+?)(?:\s+\u2014\s*size\s*([\d.]+))?\s*$/mu);
+    if (m) { name = (m[1] || '').trim(); size = (m[2] || '').trim(); }
+    const pm = txt.match(/\u{1F4B0}\s*\$?\s*([\d.]+)/u);
+    if (pm) price = pm[1];
+  } catch (_) {}
+  // The size can also have been settled on the table even when the card missed it.
+  try {
+    const row = onTheTable.get(want);
+    if (!size) for (const it of ((row && row.items) || [])) if (it.size) size = String(it.size);
+  } catch (_) {}
+  if (!size) return { error: 'no size on the order' };
+  // Which shoe? The pinned one first - he said so himself with the button.
+  const lm = liveShoeMap();
+  let sh = null;
+  try { const l = lockedShoeFor(want); if (l) sh = shoeByAnyId(l.id, lm) || sh; } catch (_) {}
+  if (!sh) {
+    try {
+      const row = onTheTable.get(want);
+      for (const it of ((row && row.items) || []).slice().reverse()) { const c = it.id && shoeByAnyId(it.id, lm); if (c) { sh = c; break; } }
+    } catch (_) {}
+  }
+  if (!sh && name) {
+    try {
+      const rows = searchInventory({ query: name.replace(/\(|\)/g, ' ') }) || [];
+      if (rows.length === 1) sh = shoeByAnyId(rows[0].id, lm);
+      else if (rows.length > 1) {
+        const inSize = rows.filter(r => String(r.sizes || '').split(/[,\s]+/).includes(String(size)));
+        if (inSize.length === 1) sh = shoeByAnyId(inSize[0].id, lm);
+      }
+    } catch (_) {}
+  }
+  if (!sh) return { error: 'could not tell which shoe' + (name ? ' ("' + name + '")' : '') };
+  return { id: String(sh.id), name: displayName(sh), size: String(parseFloat(size)),
+           price: price || String(sh.price) };
+}
+
+app.post('/inbox/driver', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  if (b.clear === true) {
+    driverState.delete(sub); driverDispatchedAt.delete(sub); saveDriverState();
+    record(req, { endpoint: 'driver-step', sub, step: 'cleared' });
+    return res.json({ ok: true, step: null });
+  }
+  const step = String(b.step || '').trim();
+  if (!DRIVER_STEPS[step]) return res.status(400).json({ ok: false, error: 'unknown step', steps: Object.keys(DRIVER_STEPS) });
+  driverState.set(sub, { step, at: Date.now() });
+  // 📍 (Ported 10-17: the old build also cleared its pinAsked / pinProbablyArrived chasers here. This
+  // build has neither; the gotloc line Kiki is told on every turn is what stops her asking.)
+  if (driverState.size > 500) { const f = driverState.keys().next().value; driverState.delete(f); }
+  saveDriverState();
+  // "rolling" and anything past it means a driver really is out — that is what the old
+  // dispatched flag meant, so keep it in step for everything already reading it.
+  if (step === 'taken' || step === 'done' || step === 'gotloc') driverDispatchedAt.delete(sub);
+  else driverDispatchedAt.set(sub, Date.now());
+  record(req, { endpoint: 'driver-step', sub, step });
+  // ✅ Delivered — ring it up so the pair cannot be sold twice. See deliveredPair above.
+  let sold = null;
+  if (step === 'done' && b.ring !== false) {
+    try {
+      const pair = deliveredPair(sub);
+      if (!pair || pair.error) {
+        sold = { ok: false, why: (pair && pair.error) || 'nothing to ring up' };
+        record(req, { endpoint: 'done-not-rung', sub, why: sold.why });
+      } else {
+        const r = require('./shop').recordStaffSale(pair.id, pair.size, 'Kiki 🤖',
+                    pair.price, pair.name, null);
+        if (r && r.error) {
+          sold = { ok: false, why: r.error, shoe: pair.name, size: pair.size };
+          record(req, { endpoint: 'done-sale-refused', sub, shoe: pair.name, size: pair.size, why: r.error });
+        } else {
+          sold = { ok: true, shoe: pair.name, size: pair.size, price: pair.price, saleId: (r && r.id) || null };
+          record(req, { endpoint: 'done-rang-it-up', sub, shoe: pair.name, size: pair.size, price: pair.price });
+          try { lockedShoe.delete(sub); saveLocks(); } catch (_) {}
+          try { onTheTable.delete(sub); saveTable(); } catch (_) {}
+        }
+      }
+    } catch (e) {
+      sold = { ok: false, why: String(e).slice(0, 120) };
+      record(req, { endpoint: 'done-ring-error', sub, error: String(e).slice(0, 120) });
+    }
+  }
+  res.json({ ok: true, step, says: DRIVER_STEPS[step], sold });
+});
+
 app.post('/inbox/prune', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const apply = String(req.query.apply || '') === '1';
@@ -11960,6 +12417,9 @@ app.get('/inbox/threads', (req, res) => {
       lastText: last ? (last.sender === 'customer' || last.sender === 'system' ? '' : (last.sender === 'rodney' ? 'You: ' : 'Kiki: ')) + (last.loc ? '📍 Location' : (last.text || '')) : '',
       custPrev, replyPrev, replyWho,
       lastTs: t.lastTs, unread: t.unread || 0, paused: isHumanPaused(t.sub), pausedUntil: pausedUntilOf(t.sub),
+      // 🚦 what the delivery strip should show for this customer, so the buttons open already lit
+      driverStep: (driverNow(t.sub) || {}).step || null,
+      driverMins: driverNow(t.sub) ? Math.round((Date.now() - driverNow(t.sub).at) / 60000) : null,
       pinned: !!t.pinned, label: t.label || '',
     };
     // pinned chats float to the top no matter how old, then newest-first
