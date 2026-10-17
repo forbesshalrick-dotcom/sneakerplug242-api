@@ -6937,6 +6937,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             || _tl.includes(displayName(x).toLowerCase())));
           if (_named.length && _named.length <= 8) cands = [..._named, ...cands.filter(c => !_named.includes(c))].slice(0, 8);
         } catch (_) {}
+        /* 👯 THE SAME SHOE UNDER ANOTHER NAME (OSC Tori +1 242 565-2822 10-17: "Nike Air Max Plus — Pink/Black" has 8.5/9.5, "Air Max Plus x
+         * Patta — Pink/Black" has 5.5/6.5/8; "we got it in a 5.5" and "we've got it in a 6.5" were both true and both blocked). Same model
+         * core (brand word and "x <collab>" stripped) and same colours = one shoe for the size check. */
+        try {
+          const _core = (x) => String(x.name || '').toLowerCase().replace(/^(nike|adidas|new balance|jordan|air jordan)\s+/, '').replace(/\s+x\s+.*$/, '').replace(/\bretro\b/g, '').replace(/\s+/g, ' ').trim();
+          const _cols = (x) => String(x.color || '').toLowerCase().split(/[^a-z]+/).filter(Boolean).sort().join('/');
+          const _keys = new Set(cands.map(c => _core(c) + '|' + _cols(c)));
+          const _tw = Object.values(lm).filter(x => x && x.name && !cands.includes(x) && _keys.has(_core(x) + '|' + _cols(x)));
+          if (_tw.length && _tw.length <= 6) cands = [...cands, ..._tw].slice(0, 10);
+        } catch (_) {}
         // The listing title carries "$130", "BSD130", "[hidden information]", a post number - none of it is the shoe,
         // and with it in the query the search found nothing, so a claimed size had nothing to be checked against
         // (Claudia drill 10-14: "Got it in a size 8 — where should we meet you?" for a 8.5/9.5/10 shoe went out).
