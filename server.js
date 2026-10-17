@@ -6430,10 +6430,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (_pickSh && _pickSh.id != null) {
           pinnedPickIds.add(String(_pickSh.id));   // the size-claim guard checks this shoe; nothing else may be sent this turn
           const _csz0 = custSize.get(sub);
-          const _sz = (_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000) ? String(_csz0.size) : '';
-          const _has = _sz && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_sz));
-          const _sizes = sizesOf(_pickSh) || 'none right now';
-          record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has });
+          let _sz = (_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000) ? String(_csz0.size) : '';
+          /* 👠 A WOMEN'S SIZE IS NOT THE MEN'S NUMBER (TK +1 242 466-2609 10-17 12:12: "women 8 or 8.5", the card's
+           * Terrascape only comes in a men's 8, and she was told "got it in your 8. Want the 8?" - a men's 8 is a
+           * women's 9.5). Check her size through the women's table and never print men's sizes to her. */
+          const _wS = womensSaid.get(String(sub));
+          const _wom = !!(_sz && _wS && (Date.now() - (_wS.at || 0)) < 12 * 60 * 60 * 1000 && parseFloat(_wS.size) === parseFloat(_sz));
+          const _want = _wom ? (sizesToSend(_sz, true) || [parseFloat(_sz) - 1.5]) : [parseFloat(_sz)];
+          const _has = _sz && (_pickSh.sizesRaw || []).some(x => _want.some(w => parseFloat(x) === parseFloat(w)));
+          const _sizes = _wom ? 'other sizes (never name the men\'s numbers to her)' : (sizesOf(_pickSh) || 'none right now');
+          if (_wom) _sz = "women's " + _sz;
+          record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has, womens: _wom });
           lastPickBySub.set(String(sub), { id: String(_pickSh.id), at: Date.now() });
           try { tableAdd(sub, { name: displayName(_pickSh), id: _pickSh.id, size: _sz, price: _pickSh.price }); } catch (_) {}
           const _lu = history[history.length - 1];
@@ -6441,7 +6448,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
               + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
               + ' Answer about THIS shoe only, in one short line, e.g. "That\'s the ' + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0) + ' — '
-              + (_sz && !_has ? 'no ' + _sz + ' in that one right now, we only have it in ' + _sizes : _sz && _has ? 'got it in your ' + _sz + '. Want the ' + _sz + '? 👟' : 'we have it in ' + _sizes) + '". '
+              + (_sz && !_has ? 'no ' + _sz + ' in that one right now' + (_wom ? '' : ', we only have it in ' + _sizes) : _sz && _has ? 'got it in your ' + _sz + '. Want the ' + _sz + '? 👟' : 'we have it in ' + _sizes) + '". '
               + (_sz && _has ? 'End on that question — never "you\'re good in your ' + _sz + '". If they say yes: "Bet 🔥 Send me your location 📍 — we can come right now 👟". ' : '')
               + 'If it comes in their size you may send its picture again. NEVER send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.)\n\n' + _lu.content[0].text;
           }
