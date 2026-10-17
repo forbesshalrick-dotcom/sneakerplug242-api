@@ -7466,6 +7466,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = ((_keep ? _keep + ' ' : '') + 'Send me your location 📍 and we\'ll bring it straight to you 👟').trim();
       record(req, { endpoint: 'come-through-replaced', sub });
     }
+    /* 🚗 NOBODY IS ON THE WAY UNTIL A HUMAN SAYS SO (Rodney 10-05: "sometimes she's saying driver is on the way and I'm not even
+     * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
+     * the way now"). Only a dispatch/step button makes it true; otherwise the claim is cut for the team line. */
+    if (turnText && !staffName) {
+      const _otw = /\b(?:driver(?:'s|’s| is)?\s+(?:on (?:the|his) way|heading (?:out|over|to you|your way)|leaving now|en route|almost there|pulling up|(?:right )?outside)|(?:we(?:'re|’re| are)|i(?:'m|’m| am))\s+on (?:the|our|my) way|on (?:the|our|his) way (?:now|to you))\b/i;
+      if (_otw.test(turnText)) {
+        let _out = false;
+        try { const _dt = driverDispatchedAt.get(String(sub)); _out = !!(_dt && Date.now() - _dt < 4 * 3600 * 1000); } catch (_) {}
+        try { const _ds = driverNow(sub); if (_ds && /^(rolling|30|20|10|5|outside)$/.test(String(_ds.step))) _out = true; } catch (_) {}
+        if (!_out) {
+          const _keep = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !_otw.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
+          turnText = ((_keep ? _keep + ' ' : '') + "I've passed it to the team — they'll call you when the driver's close 👟").trim();
+          record(req, { endpoint: 'on-the-way-claim-cut', sub });
+        }
+      }
+    }
     /* ❓ "YOU'RE GOOD IN YOUR 8.5" IS A QUESTION (Rodney 10-16: "Don't say you good in your 8.5. Say, do you want the 8.5?"). */
     if (turnText && !staffName) {
       const _yg = /\s*[—–-]?\s*\byou(?:'re|’re| are)?\s+(?:good|set|straight|covered)\s+(?:in|with|for)\s+(?:your|ur|a|an|the)?\s*(?:size\s+)?(\d{1,2}(?:\.5)?)\b[^.!?\n]*[.!]?/i;
