@@ -5014,6 +5014,9 @@ function saveReminders() {
 // `sub` is the CUSTOMER's subscriber id (Rodney 2026-08-16). Without it a due reminder could
 // only ever reach Rodney; with it, Kiki can go straight back to the person who ordered.
 function scheduleOrderReminder(ms, store, lines, image, sub) {
+  // ONE booked day per customer (Rodney 10-17: "everyday your messaging the same women about a old delivery" - TK +1 242 814-6476
+  // re-ordered "for tomorrow" on 10-15 and 10-16 and got the day-arrived ask both evenings). A new booking replaces the old one.
+  if (sub) reminders = reminders.filter(r => String(r.sub || '') !== String(sub));
   reminders.push({ at: Date.now() + ms, store: store || null, lines, image: image || null, sub: sub || null });
   saveReminders();
 }
@@ -5057,8 +5060,9 @@ function keepWarmLine(sub, dayLabel, n) {
   return list[n % list.length](dayLabel);
 }
 
+const dayArrivedAskedAt = new Map();   // sub -> when Kiki last asked "you had a delivery set for today" (once per 3 days)
 const DAY_ARRIVED_T = {
-  en: "Morning! 👋 You had a delivery set for today — still want it? Just say yes and I'll get it moving 👟",
+  en: "Hey! 👋 You had a delivery set for today — still want it? Just say yes and I'll get it moving 👟",
   es: "¡Buenos días! 👋 Tenías una entrega para hoy — ¿la sigues queriendo? Dime que sí y la pongo en marcha 👟",
   ht: "Bonjou! 👋 Ou te gen yon livrezon pou jodi a — èske ou toujou vle l? Di m wi epi m ap fè l bouje 👟",
   fr: "Bonjour ! 👋 Tu avais une livraison prévue pour aujourd'hui — tu la veux toujours ? Dis-moi oui et je lance ça 👟",
@@ -5102,10 +5106,13 @@ const reminderTick = setInterval(async () => {
       continue;
     }
     let askedCustomer = false;
-    if (r.sub) {
+    // Asked once is enough: a second day-arrived ask inside 3 days goes to the owner's board only, never to the customer again.
+    const _askedRecently = r.sub && dayArrivedAskedAt.has(String(r.sub)) && Date.now() - dayArrivedAskedAt.get(String(r.sub)) < 72 * 3600 * 1000;
+    if (r.sub && !_askedRecently) {
       try {
         const res = await sendChunk(r.sub, [{ type: 'text', text: await say(L(DAY_ARRIVED_T, r.sub), r.sub) }], tk);
         askedCustomer = !!(res && res.ok);
+        if (askedCustomer) dayArrivedAskedAt.set(String(r.sub), Date.now());
         // They've been asked a question — let a reply cancel any stale nudge chain.
         if (askedCustomer) { try { clearFollowUp(r.sub); } catch (_) {} }
       } catch (_) { askedCustomer = false; }
@@ -12486,6 +12493,7 @@ app.post('/inbox/driver', (req, res) => {
   // "rolling" and anything past it means a driver really is out — that is what the old
   // dispatched flag meant, so keep it in step for everything already reading it.
   if (step === 'taken' || step === 'done' || step === 'gotloc') driverDispatchedAt.delete(sub);
+  if (step === 'done') { try { const _n = reminders.length; reminders = reminders.filter(r => String(r.sub || '') !== String(sub)); if (reminders.length !== _n) saveReminders(); } catch (_) {} }
   else driverDispatchedAt.set(sub, Date.now());
   record(req, { endpoint: 'driver-step', sub, step });
   // ✅ Delivered — ring it up so the pair cannot be sold twice. See deliveredPair above.
