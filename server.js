@@ -3972,6 +3972,9 @@ const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same pho
 const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text message arriving twice (stops double replies)
 const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Kiki stays QUIET for that chat so staff can take over without her talking over them
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
+const CANCEL_RE = /\b(don['’]?t|do not|dont|no need to|no use to)\s+(come|bring|send (the )?driver)\b|\bcancel+(ed)?\b|\b(change|changed) my mind\b|\bdon['’]?t want (it|them|the shoes?)\s*(no ?more|any ?more)?\s*[.!🙏]*$|\bnot (buying|getting) (it|them)\b|\bno more\b.*\b(come|coming|order)\b/i;
+const CANCEL_NOT_RE = /\b(yet|until|till|later|tomorrow|tmr?w|tmro|after|in a (bit|minute|min|few)|not home|at work|wait|right now|today|instead|swap|switch|exchange|rather|and get|get the|change (it|to|the))\b/i;   // "don't come yet" is a delay, "cancel the black and get the white" a swap - neither is a cancel
+const cancelPending = new Map();    // sub -> { at, text, raw, order }: they said "don't come" on an open order; the NEXT message decides the alert (Rodney 10-17)
 const lastInboundPhoto = new Map(); // sub -> { img (url or {data,media_type}), at } — the customer's latest photo, kept even if its own turn is lost
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
 // Persist recentlySent too (2026-07-13): a customer echoed back the exact NB photo Kiki had
@@ -5930,6 +5933,54 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       return;
     }
   } catch (_) {}
+  /* ❌ "DON'T COME NO MORE" — HOLD THE SALE, THEN TELL THE TEAM ON THE NEXT MESSAGE (Rodney 10-17, TK +1 242 463-4181: she
+   * cancelled a Jordan 5 Wolf Grey and got "Respect ✊". His rule, his words: "you tell them we're 2 minutes away or 3 minutes
+   * away, and then you send a message to the team letting us know that someone is trying to cancel, but you let us know after
+   * the second message in case they change their mind". So: first cancel on an open order -> fixed "we're 2/3 minutes away"
+   * line; their NEXT (different) message decides the alert: still coming -> "tried to cancel but said still come", otherwise
+   * -> "CANCELLED". ManyChat's re-delivery of the same cancel words is not the second message. */
+  try {
+    const _c = String(userText || '').trim();
+    const _cn = _c.toLowerCase().replace(/\s+/g, ' ');
+    const _staffC = (() => { try { return staffNameFor(req); } catch (_) { return null; } })();
+    const _pend = /^\(SYSTEM/.test(_c) || _staffC ? null : cancelPending.get(String(sub));
+    if (_pend && Date.now() - _pend.at > 60 * 60 * 1000) cancelPending.delete(String(sub));
+    if (_pend && Date.now() - _pend.at <= 60 * 60 * 1000 && _cn === _pend.text) { record(req, { endpoint: 'cancel-repeat-ignored', sub }); return; }
+    if (_pend && Date.now() - _pend.at <= 60 * 60 * 1000 && _c && _cn !== _pend.text) {
+      cancelPending.delete(String(sub));
+      const _still = /\b(ok(ay)?|alright|aight|yes|yeah|ya|yh|still come|come(?: on| still| anyway)?|bring (it|them|it still)|fine|cool|bet|sure)\b/i.test(_c)
+        && !/\b(no|nah|don['’]?t|do not|dont|cancel|not coming|not anymore|no more|never ?mind)\b/i.test(_c);
+      const _who = (ctx && ctx.name ? ctx.name : 'Customer') + ' (' + (getPhone(req) || sub) + ', ' + (ctx && ctx.store || '') + ')';
+      const _msg = _still
+        ? '⚠️ *TRIED TO CANCEL — BUT SAID STILL COME*\n👤 ' + _who + '\n👟 ' + (_pend.order || 'their order') + '\n💬 "' + _pend.raw.slice(0, 80) + '" then "' + _c.slice(0, 80) + '"'
+        : '❌ *CANCELLED*\n👤 ' + _who + '\n👟 ' + (_pend.order || 'their order') + '\n💬 "' + _pend.raw.slice(0, 80) + '" then "' + _c.slice(0, 80) + '"';
+      waSendManager(_msg, token).catch(() => {});
+      record(req, { endpoint: _still ? 'cancel-then-still-come' : 'cancel-confirmed', sub, q: _c.slice(0, 60) });
+      userText = '(SYSTEM NOTE — the customer cannot see this: they tried to cancel and this is their answer. ' + (_still
+        ? 'They still want it — confirm warmly in one short line ("Bet 🙌 see you soon 👟"). Do not ask anything else.'
+        : 'They do not want it any more — reply in one short polite line ("No problem 🙏 we\'re here whenever you need us 👟"). Do not argue, do not offer other shoes.') + ')\n' + _c;
+    } else if (!_pend && _c && !/^\(SYSTEM/.test(_c) && !_staffC && CANCEL_RE.test(_c) && !CANCEL_NOT_RE.test(_c)) {
+      let _order = '';
+      try { const _tr = onTheTable.get(String(sub)); if (_tr && Array.isArray(_tr.items) && Date.now() - (_tr.ts || 0) < 12 * 3600 * 1000) _order = _tr.items.map(i => i.name + (i.size ? ' — size ' + i.size : '')).join('; '); } catch (_) {}
+      try {
+        if (!_order) {
+          const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+          const _card = _th && (_th.msgs || []).slice().reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000);
+          if (_card) _order = (String(_card.text).split('\n').find(l => /👟/.test(l)) || '').replace(/^👟\s*/, '').trim() || 'their order';
+        }
+      } catch (_) {}
+      if (_order) {
+        cancelPending.set(String(sub), { at: Date.now(), text: _cn, raw: _c, order: _order });
+        try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _c, name: ctx.name }); } catch (_) {}
+        const _mins = Math.random() < 0.5 ? '2' : '3';
+        const line = await say("We're " + _mins + " minutes away 🚗", sub).catch(() => "We're " + _mins + " minutes away 🚗");
+        await sendChunk(sub, [{ type: 'text', text: line }], token).catch(() => {});
+        try { const h = convos.get(sub) || []; h.push({ role: 'user', content: _c }); h.push({ role: 'assistant', content: line }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
+        record(req, { endpoint: 'cancel-held', sub, q: _c.slice(0, 60), order: _order.slice(0, 80) });
+        return;
+      }
+    }
+  } catch (e) { try { record(req, { endpoint: 'cancel-check-error', sub, error: String(e).slice(0, 160) }); } catch (_) {} }
   // 🖼️ "THESE ARE ?" / "THIS ONE?" RIGHT AFTER THEIR OWN PHOTO = ABOUT THAT PHOTO (2026-10-14, Sneaker 24 on TK: he
   // forwarded our Dunk High card, then quote-replied "These are ?"; the photo's own turn was lost and Kiki said
   // "I'm not seeing a picture come through"). ManyChat drops the tag, so the server re-attaches the customer's
