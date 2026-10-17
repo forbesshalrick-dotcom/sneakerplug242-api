@@ -2611,6 +2611,24 @@ async function identifyPhoto(imageSource, stockList, words) {
 }
 // The stock list the identifier reads: every live shoe as "Brand Name - Colour (Nickname)", one per line.
 let stockLineIds = new Map();   // normalised stock line -> [live shoes], rebuilt each time the list is made
+/* 👯 ONE SHOE, TWO LISTINGS (TK +1 242 466-2609 10-17: "Air Max Terrascape Plus Black/Grey" holds the 8 and "Nike Air Max
+ * Terrascape Plus Black/Grey" the 7 - she wanted a women's 8 (= our 7) and was told only the 8; Rodney: "dont lose the sale").
+ * Twins share a stock line; pick the one that comes in the customer's size, else the one with the most sizes. */
+function pickTwin(cands, sub) {
+  const list = (cands || []).filter(x => x && x.id != null);
+  const bySizes = list.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)));
+  try {
+    const cs = custSize.get(String(sub));
+    if (cs && cs.size && Date.now() - (cs.ts || 0) < 12 * 3600 * 1000 && list.length > 1) {
+      const w = womensSaid.get(String(sub));
+      const wom = !!(w && Date.now() - (w.at || 0) < 12 * 3600 * 1000 && parseFloat(w.size) === parseFloat(cs.size));
+      const want = (wom ? sizesToSend(cs.size, true) : sizesToSend(cs.size, false)) || [parseFloat(cs.size)];
+      const hit = bySizes.find(x => (x.sizesRaw || x.sizes || []).some(z => want.some(v => parseFloat(z) === parseFloat(v))));
+      if (hit) return hit;
+    }
+  } catch (_) {}
+  return bySizes[0];
+}
 function normStockLine(x) { return String(x || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 function stockListForIdentify() {
   try {
@@ -6429,7 +6447,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       } catch (_) {}
       if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !_isCard) {
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
-        const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
+        const _pickSh = pickTwin(_cands, sub);
         if (_pickSh && _pickSh.id != null) {
           const _csz0 = custSize.get(sub);
           const _szKnown = !!(_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000);
@@ -6460,7 +6478,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
          * big"). The card already IS the shoe: the server pins it, with its real sizes, and she answers about
          * that shoe only. No re-send of the card they already have, no substitute, no fit advice. */
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
-        const _pickSh = _cands.slice().sort((a, b) => (((b.sizesRaw || b.sizes || []).length) - ((a.sizesRaw || a.sizes || []).length)))[0];
+        const _pickSh = pickTwin(_cands, sub);
         if (_pickSh && _pickSh.id != null) {
           pinnedPickIds.add(String(_pickSh.id));   // the size-claim guard checks this shoe; nothing else may be sent this turn
           const _csz0 = custSize.get(sub);
