@@ -3874,6 +3874,9 @@ function sizeFromCustomerWords(text) {
     'wears?\\s+(?:a\\s+|an\\s+)?' + NUM, "i'?m\\s+(?:a\\s+|an\\s+)" + NUM,
     'need\\s+(?:a\\s+|an\\s+)' + NUM, 'take\\s+(?:a\\s+|an\\s+)' + NUM,
     'in\\s+(?:a\\s+|an\\s+)' + NUM,
+    // 👠 "11 lady" / "ladies 9" / "women 8.5" (Rodney 10-17, TK +1 242 456-5208: "11 lady" was never read as her size, so Kiki
+    // converted it herself, the search converted it again, and she was told "women's 9.5" - "same thing she did yesterday").
+    NUM + "\\s*(?:lady|ladies|wom[ae]n'?s?|womens|female|girls?)\\b", "\\b(?:lady|ladies|wom[ae]n'?s?|womens|female)\\s*(?:size\\s*)?" + NUM,
     // 👟 "THE BLUE 5s" IS A JORDAN 5, NOT A SIZE 5.
     // Rodney 2026-09-28: "customer ask for jordan 5: size". A customer wrote "Tota yll have the
     // blue awake 5s?" and was answered "This is what we have in blue in your 5 rite now" - a
