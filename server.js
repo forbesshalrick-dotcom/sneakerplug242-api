@@ -2247,6 +2247,7 @@ MEN'S:
 - man 7 → the 7        • man 7.5 → the 7.5 AND the 8 (not many 7.5s; they try them on when we reach)        • man 8 → the 8        • man 8.5 → the 8.5
 - man 9 → the 9 AND the 9.5
 - For 7.5 and 9 just say "here's what we have in 7.5" / "here's what we have in 9". Do NOT point out that some are an 8 / a 9.5 — Rodney settles that on the phone before delivery.
+- So a shoe that comes in a 9.5 IS "in your 9", and one that comes in an 8 IS "in your 7.5" — they run small (Rodney 10-17: "We sell size 9.5 shoes for size 9 because they run small"). NEVER say "we don't have a 9" or switch them to another shoe when it has the 9.5.
 - man 9.5 → the 9.5    • man 10 → the 10    • man 11 → the 11    • man 12 → the 12    • man 13 → the 13
 - man 10.5 → send the 10.5, then tell them: not many options in a 10.5, we have more in 11. If they want, send the 11.
 - man 11.5 → only one or two pairs exist. Either send the 11.5 and say "we don't have much in 11.5, but the 12 run small" and send the 12 if they agree — or just send the 12 straight away, it is pretty much the same shoe.
@@ -6933,7 +6934,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         if (cands.length) {
           const shelf = new Set(); cands.forEach(s => (s.sizesRaw || []).forEach(x => shelf.add(String(parseFloat(x)))));
-          const okSize = (n) => shelf.has(String(n)) || shelf.has(String(n - 1.5));   // men's, or a women's number
+          /* 📏 A 9.5 IS SOLD AS A 9 (Rodney 10-17: "We sell size 9.5 shoes for size 9 because they run small. and you know that"). A
+           * claimed size is real when the shelf holds any size the size table sends for it (9 -> 9/9.5, 7.5 -> 7.5/8, 11.5 -> 12, …). */
+          const _tbl = (n) => { try { return (sizesToSend(n, false) || [n]).map(z => String(parseFloat(z))); } catch (_) { return [String(n)]; } };
+          const _hasSz = (set, n) => _tbl(n).some(z => set.has(z));
+          const okSize = (n) => _hasSz(shelf, n) || shelf.has(String(n - 1.5));   // men's (with the table), or a women's number
           const claimed = [];
           const re = /\b(?:got|have|has|comes?|available|carry|stock)(?:\s+(?:it|that|those|them|one))?\s+(?:in|at)\s+(?:(?:a|an|the|your|ur|size|sizes)\s+){0,3}((?:\d{1,2}(?:\.5)?)(?:\s*(?:,|and|&|\/|or)\s*(?:a|an|the)?\s*\d{1,2}(?:\.5)?)*)/gi;
           // The shoe's name can sit between the verb and the size: "We've got the Air Max 97 Silver/Red in a size 8"
@@ -6989,7 +6994,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               if (_listShelf && !_otherCw) {
                 // A plain size is MEN'S; the women's allowance (n - 1.5) only when the sentence says women's.
                 const _w = /\b(women'?s|womens|ladies|female|w)\b/i.test(sen);
-                const bad = nums.filter(n => !_listShelf.has(String(n)) && !(_w && _listShelf.has(String(n - 1.5))));
+                const bad = nums.filter(n => !_hasSz(_listShelf, n) && !(_w && _listShelf.has(String(n - 1.5))));
                 if (bad.length) { scopedWrong.push(...bad); _listShoes.forEach(x => { if (!scopedShoes.includes(x)) scopedShoes.push(x); }); }
               }
               return;
@@ -7002,7 +7007,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             if (!hit.length || hit.length > 4) return;
             const sh = new Set(); hit.forEach(x => (x.sizesRaw || []).forEach(z => sh.add(String(parseFloat(z)))));
             const _w2 = /\b(women'?s|womens|ladies|female|w)\b/i.test(sen);
-            const bad = nums.filter(n => !sh.has(String(n)) && !(_w2 && sh.has(String(n - 1.5))));
+            const bad = nums.filter(n => !_hasSz(sh, n) && !(_w2 && sh.has(String(n - 1.5))));
             if (bad.length) { scopedWrong.push(...bad); hit.forEach(x => { if (!scopedShoes.includes(x)) scopedShoes.push(x); }); }
           };
           try {
