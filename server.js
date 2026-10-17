@@ -13210,6 +13210,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
   res.json({ ok: true, queued: true, found: allIds.length, batches: batches.length });
   (async () => {
     let totalSent = 0, stopped = false;
+    const _albumStartAt = Date.now();
     try {
       // Send lead-in once, outside the photos
       const leadMsg = [{ type: 'text', text: leadIn }];
@@ -13220,6 +13221,9 @@ app.post('/inbox/send-shoe', async (req, res) => {
         // stop flag when it starts, so the next batch went out as if nothing happened (Clubby
         // 2026-10-13: 17 presses, batch 10 stopped at 4 photos, batch 11 sent all 6 anyway).
         if (sendAbort.has(sub)) { sendAbort.delete(sub); stopped = true; break; }
+        // 🛑 THEY PICKED ONE - NO MORE PICTURES (Rodney 10-17: "if customer picked no need for more"; TK 456-5208 sent her pick
+        // mid-album). Anything the customer sends after the album started ends it before the next batch.
+        if ((lastIncoming.get(sub) || 0) > _albumStartAt) { stopped = true; try { recent.unshift({ at: new Date().toISOString(), endpoint: 'inbox-album-stopped-customer-spoke', sub, batch: i + 1, of: batches.length }); } catch (_) {} break; }
         const batchIds = batches[i];
         const isLast = (i === batches.length - 1);
         inboxAlbumInFlight.set(sub, { what: what || 'that', total: allIds.length, batch: i + 1, batches: batches.length, startedAt: Date.now() });
