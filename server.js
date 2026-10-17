@@ -7553,6 +7553,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = ((_keep ? _keep + ' ' : '') + 'Send me your location 📍 and we\'ll bring it straight to you 👟').trim();
       record(req, { endpoint: 'come-through-replaced', sub });
     }
+    /* 📏 "A 12 WEARS LIKE A 10.5" IS NOT A THING (TK Wally +1 242 455-3362 10-17 15:04: he wears a 10.5 and was offered a 9060 in a
+     * 12 because "those run a touch small"). Rodney's run-small rule is half a size (9.5 for a 9, 11 for a 10.5, 8 for a 7.5);
+     * a sizing line that stretches further is cut, and the offer of that shoe goes with it. */
+    if (turnText && !staffName) {
+      const _wl = /\b(?:an?\s+)?(\d{1,2}(?:\.5)?)\s+(?:wears|fits|feels|runs)\s+like\s+(?:an?\s+)?(\d{1,2}(?:\.5)?)\b/i;
+      const _m = turnText.match(_wl);
+      if (_m && Math.abs(parseFloat(_m[1]) - parseFloat(_m[2])) > 0.5) {
+        const _parts = turnText.split(/(?<=[.!?\n])\s+/);
+        const _keep = _parts.filter(x => !_wl.test(x) && !/\b(want me to send|send (it|them|those)|that comes in|comes in \d)/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
+        turnText = (_keep || ("We don't have that one in your " + _m[2] + " right now 🙏")).trim();
+        record(req, { endpoint: 'wears-like-cut', sub, said: _m[0] });
+      }
+    }
     /* 🚗 NOBODY IS ON THE WAY UNTIL A HUMAN SAYS SO (Rodney 10-05: "sometimes she's saying driver is on the way and I'm not even
      * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
      * the way now"). Only a dispatch/step button makes it true; otherwise the claim is cut for the team line. */
