@@ -4162,7 +4162,8 @@ function inboxRecord(account, sub, m) {
     const text = (m.text == null ? '' : String(m.text)).slice(0, 4000);
     const img = m.img ? String(m.img).slice(0, 1500) : '';
     const loc = m.loc ? String(m.loc).slice(0, 500) : '';
-    if (!text && !img && !loc) return;
+    const audio = m.audio ? String(m.audio).slice(0, 500) : '';
+    if (!text && !img && !loc && !audio) return;
     const key = threadKey(account, sub);
     let t = inboxThreads.get(key);
     if (!t) { t = { account: account || '', sub: String(sub), name: m.name || '', phone: m.phone || '', msgs: [], lastTs: 0, unread: 0 }; inboxThreads.set(key, t); }
@@ -4171,6 +4172,7 @@ function inboxRecord(account, sub, m) {
     const msg = { id: inboxMsgId(), dir: m.dir, sender: m.sender, text, ts: Date.now() };
     if (img) msg.img = img;
     if (loc) msg.loc = loc;
+    if (audio) msg.audio = audio;
     t.msgs.push(msg);
     if (t.msgs.length > INBOX_MAX_MSGS) t.msgs.splice(0, t.msgs.length - INBOX_MAX_MSGS);
     t.lastTs = msg.ts;
@@ -8712,7 +8714,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (_url) {
         const _r = await sendChunk(sub, [{ type: 'audio', url: _url }], token).catch(() => null);
         record(req, { endpoint: 'voice-note-reply', sub, ok: !!(_r && _r.ok), url: _url, body: String((_r && _r.body) || '').slice(0, 120) });
-        try { if (_r && _r.ok) inboxRecord(ctx.store, sub, { dir: 'out', sender: 'kiki', text: '🎙 voice note' }); } catch (_) {}
+        try { if (_r && _r.ok) inboxRecord(ctx.store, sub, { dir: 'out', sender: 'kiki', text: '🎙 voice note: ' + String(lastText).slice(0, 300), audio: _url }); } catch (_) {}
       }
     }
   } catch (e) { record(req, { endpoint: 'voice-note-reply-error', sub, error: String(e).slice(0, 160) }); }
@@ -10793,7 +10795,8 @@ m.setAttribute('content', t==='dark'?'#0a0812':'#ffffff');})();
         var dq = x.dir==='in' ? ' data-q="'+esc(x.text).replace(/"/g,'&quot;')+'"' : '';
         // 📍 A shared location pin: tappable, opens Google Maps. Otherwise photo, else text.
         var body = x.loc ? '<a class="locpin" href="'+esc(x.loc)+'" target="_blank" rel="noopener"><span class="locbig">📍</span><span class="loctx">'+esc(x.text||'Location')+'<span class="locgo">Open in Maps ›</span></span></a>'
-                 : (x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">' : '<span class="btext">'+escB(x.text)+'</span>');
+                 : (x.img ? '<img class="msgimg" src="'+esc(x.img)+'" loading="lazy" onerror="__imgFail(this)">'
+                 : (x.audio ? '<audio controls preload="none" playsinline src="'+esc(x.audio)+'" style="max-width:240px;display:block"></audio><span class="btext">'+escB(x.text)+'</span>' : '<span class="btext">'+escB(x.text)+'</span>'));
         var bimg = '';
         if(!x.img && LUX_COUNT>0){ var seed=String(x.id||x.ts||''); var h=2166136261; for(var si=0;si<seed.length;si++){ h^=seed.charCodeAt(si); h=(h*16777619)>>>0; } bimg=' style="--bimg:url(/inbox/lux/'+((h%LUX_COUNT)+1)+')"'; }
         // 🌐 English line under a non-English message, so Rodney can read his own inbox
@@ -11892,6 +11895,15 @@ app.post('/ycloud/webhook', async (req, res) => {
       } catch (_) {}
       if (/echo/i.test(kind)) { record(req, { endpoint: 'ycloud-echo', msgType: _wm.type || '', to: String(_wm.to || '').slice(-7) }); return; }
     }
+    // 🎙 Was it DELIVERED? (Rodney 10-17: "I never heard a voice note from Kiki, and I never seen her send one on WhatsApp either").
+    // YCloud's "sent" only means accepted; a failure arrives later as a status update, which used to be dropped unread.
+    try {
+      if (_wm && !/echo/i.test(kind) && (String(_wm.status || '') === 'failed' || _wm.type === 'audio')) {
+        record(req, { endpoint: String(_wm.status || '') === 'failed' ? 'ycloud-send-failed' : 'ycloud-audio-status', status: String(_wm.status || ''), msgType: _wm.type || '',
+          to: String(_wm.to || '').slice(-7), errorCode: _wm.errorCode || '', errorMessage: String(_wm.errorMessage || '').slice(0, 160),
+          apiError: JSON.stringify(_wm.whatsappApiError || '').slice(0, 200) });
+      }
+    } catch (_) {}
     if (/status|sent|delivered|read|failed/i.test(kind) && !/inbound|received/i.test(kind)) return;
     const m = ycloudPickMessage(body);
     if (!m) { record(req, { endpoint: 'ycloud-unmapped', kind, keys: Object.keys(body).slice(0, 12).join(','), sample: JSON.stringify(body).slice(0, 400) }); return; }
