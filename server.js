@@ -3591,9 +3591,13 @@ const EMPTY_ASK_T = {
 // because ManyChat has silently dropped audio before. VOICE_REPLY=0 turns the whole thing off.
 const voiceInAt = new Map();   // sub -> ts of the last voice note the customer sent
 const PUBLIC_BASE = (process.env.PUBLIC_BASE || 'https://sneakerplug242-api-production.up.railway.app').replace(/\/+$/, '');
-async function speakToVoiceNote(text) {
+async function speakToVoiceNote(text, opt = {}) {
   if (!process.env.OPENAI_API_KEY) return null;
   const words = String(text || '')
+    // Spoken, not read off a card (Rodney 10-17 on the first one: "Damn, that sounds like a robot").
+    .replace(/\b(?:rite|right) now\s*👇?\s*Ready to Order!?/gi, 'right now')
+    .replace(/Ready to Order!?/gi, '').replace(/\brite\b/gi, 'right')
+    .replace(/(\d)\s*[–-]\s*(\d)/g, '$1 to $2')
     .replace(/https?:\/\/\S+/g, ' the link ')
     .replace(/[*_~`]/g, '')
     .replace(/\p{Extended_Pictographic}|\uFE0F|\u200D/gu, '')
@@ -3602,8 +3606,8 @@ async function speakToVoiceNote(text) {
   if (words.length < 3) return null;
   const r = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST', headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY.trim(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: process.env.TTS_MODEL || 'gpt-4o-mini-tts', voice: process.env.TTS_VOICE || 'nova', input: words, response_format: 'opus',
-      instructions: 'Warm, friendly young Bahamian woman texting a customer about sneakers. Relaxed, upbeat, natural pace.' }),
+    body: JSON.stringify({ model: process.env.TTS_MODEL || 'gpt-4o-mini-tts', voice: opt.voice || process.env.TTS_VOICE || 'nova', input: words, response_format: 'opus',
+      instructions: opt.instructions || process.env.TTS_INSTRUCTIONS || 'A young woman from Nassau, Bahamas sending a quick WhatsApp voice note to a customer about sneakers. Casual and relaxed like talking to a friend, light Bahamian accent and rhythm, smiling, natural pauses, never announcer-like, never reading a script.' }),
     signal: AbortSignal.timeout(30000),
   });
   if (!r.ok) throw new Error('tts ' + r.status + ' ' + (await r.text()).slice(0, 120));
@@ -12734,7 +12738,7 @@ function stashInboxMedia(buf, type) {
 // Hear Kiki's voice-note voice before a customer does: ?key=…&text=… → { url } of the ogg it would send.
 app.get('/inbox/tts-test', async (req, res) => {
   if (!consoleAuth(req, res)) return;
-  try { const url = await speakToVoiceNote(String(req.query.text || "Hey! We got that Jordan 4 in your 10, it's 180 dollars. Want me to send it?")); res.json({ ok: !!url, url }); }
+  try { const url = await speakToVoiceNote(String(req.query.text || "Hey! We got that Jordan 4 in your 10, it's 180 dollars. Want me to send it?"), { voice: req.query.voice ? String(req.query.voice).slice(0, 20) : undefined, instructions: req.query.instructions ? String(req.query.instructions).slice(0, 400) : undefined }); res.json({ ok: !!url, url, voice: req.query.voice || process.env.TTS_VOICE || 'nova' }); }
   catch (e) { res.json({ ok: false, error: String(e).slice(0, 200) }); }
 });
 app.post('/inbox/upload', (req, res) => {
