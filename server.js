@@ -5895,6 +5895,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'pointer-photo-reattached', sub, q: _pt.slice(0, 40), agoS: Math.round((Date.now() - _lp.at) / 1000) });
     }
   } catch (_) {}
+  // 📍 WAIT FOR THE PIN BEFORE ASKING FOR IT (Rodney 10-16, Money Move TK: his pin was read 12 s after Kiki had already asked
+  // "What's your location?"). A pin check queued for this message holds the reply up to 20 s while the Mac reader is polling.
+  try {
+    const _pq = pinRequests.get(String(sub));
+    if (_pq && !_pq.done && Date.now() - _pq.at < 5000 && Date.now() - tagReaderSeenAt < 3 * 60 * 1000) {
+      const _t0 = Date.now();
+      while (Date.now() - _t0 < 20000 && !(pinRequests.get(String(sub)) || {}).done) await new Promise(z => setTimeout(z, 1000));
+      const _pr = pinReceived.get(String(sub));
+      if (_pr && _pr.at >= _pq.at) {
+        userText = '(SYSTEM: their WhatsApp LOCATION PIN just arrived — ' + _pr.maps + '. This message is that pin, not new words. Say "Got your location 📍" and, if the shoe and size are settled, call notify_manager stage "delivery_ready" with location = ' + _pr.maps + '. Never ask for their location again.)\n' + String(userText || '');
+        record(req, { endpoint: 'pin-waited-and-used', sub, waitedMs: Date.now() - _t0 });
+      } else record(req, { endpoint: 'pin-waited-none', sub, waitedMs: Date.now() - _t0 });
+    }
+  } catch (_) {}
   // 🏷️ ASK THE MAC WHICH CARD THEY TAGGED (see /social/tag-requests). ManyChat lines only, a short pointing message within 45 min
   // of pictures that were more than one shoe, and only while the Mac reader is polling.
   try {
@@ -8801,7 +8815,10 @@ function handleChat(req, res) {
       try {
         pinRequests.set(String(sub), { sub: String(sub), store, url: String(req.body.live_chat_url), phone: getPhone(req) || '', name, token, at: Date.now(), done: false });
         record(req, { endpoint: 'late-repeat-pin-check', sub, q: nowTxt.slice(0, 40) });
-      } catch (_) {}
+      } catch (e) { record(req, { endpoint: 'late-repeat-pin-check-error', sub, error: String(e).slice(0, 120) }); }
+    }
+    else if (nowTxt && pinRequests.has(String(sub)) && /manychat\.com/.test(String((req.body || {}).live_chat_url || ''))) {
+      try { record(req, { endpoint: 'repeat-check-skipped', sub, prev: prevTxt.slice(0, 30), now: nowTxt.slice(0, 30), sincePrevS: prevAt ? Math.round((Date.now() - prevAt) / 1000) : null }); } catch (_) {}
     }
   }
   clearFollowUp(sub); // they're talking to us again — cancel any pending nudge
