@@ -6068,7 +6068,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'pin-waited-and-used', sub, waitedMs: Date.now() - _t0 });
       } else {
         // ManyChat drops LIVE locations entirely (Facebook1 10-16, Money Move's 20:26 live share never reached the inbox).
-        userText = '(SYSTEM: something non-text just arrived but it was not a readable pin. If they are sending their location, it was probably a LIVE location, which does not come through to us — ask them to send their CURRENT location instead: tap 📎 → Location → "Send your current location". Do not say you cannot see anything else.)\n' + String(userText || '');
+        // No order in this chat = the non-text thing is far more likely a PHOTO on its way than a location (TK +1 242 636-9535 10-18:
+        // asked "send your current location" and two pictures landed 17 s later). Only an order in progress gets the live-location line.
+        let _ordering = false;
+        try {
+          const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+          _ordering = !!(_th && (_th.msgs || []).some(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000))
+            || /\b(location|pin|address|where (?:you|u) at|send (?:it|the) (?:location|pin))\b/i.test(String(((convos.get(sub) || []).slice(-3).reverse().find(m => m && m.role === 'assistant') || {}).content || ''));
+        } catch (_) {}
+        if (!_ordering) userText = '(SYSTEM: something non-text just arrived - most likely a picture that has not reached you yet. Do NOT ask for their location. Answer their words normally; if a picture follows you will see it next.)\n' + String(userText || '');
+        else userText = '(SYSTEM: something non-text just arrived but it was not a readable pin. If they are sending their location, it was probably a LIVE location, which does not come through to us — ask them to send their CURRENT location instead: tap 📎 → Location → "Send your current location". Do not say you cannot see anything else.)\n' + String(userText || '');
         record(req, { endpoint: 'pin-waited-none', sub, waitedMs: Date.now() - _t0 });
       }
     }
