@@ -6064,7 +6064,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _url = (req.body && req.body.live_chat_url) ? String(req.body.live_chat_url) : '';
     const _rs = recentlySent.get(sub);
     if (!image && _url && /manychat\.com/.test(_url) && !/^\(SYSTEM/.test(_pt) && _pt.split(/\s+/).length <= 10
-        && /\b(this|these|that|those|dis|dem|dat|it|one|1)\b/i.test(_pt)
+        // A quote-reply can carry any words: "Any 6" on our Asics card (TK +1 242 801-3010 10-18) was never checked, and on
+        // "Yh 6.5" Kiki pointed her at Jordan 4s from an older album - Rodney: "where did the jordan 4s come in?". A size or a price
+        // question this short is checked too.
+        && (/\b(this|these|that|those|dis|dem|dat|it|one|1)\b/i.test(_pt)
+            || /\b(any|size|sz|how much|price|cost|got|have|available|in)\b|^\W*\d{1,2}(?:\.5)?\W*$|\$/i.test(_pt))
         && _rs && _rs.names && _rs.names.length > 1 && Date.now() - _rs.ts < 45 * 60 * 1000
         && Date.now() - tagReaderSeenAt < 3 * 60 * 1000) {
       tagRequests.set(String(sub), { sub: String(sub), store: ctx.store || '', url: _url, text: _pt.slice(0, 80), at: Date.now(), done: false, shoeId: '' });
