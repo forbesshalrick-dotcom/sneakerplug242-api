@@ -7179,7 +7179,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _said = new Set(history.filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\(SYSTEM NOTE/.test(m.content))
         .map(m => sizeFromCustomerWords(customerWordsOnly(m.content))).concat(sizeFromCustomerWords(customerWordsOnly(userText)))
         .join('/').split('/').filter(Boolean));
-      const _cut = turnText.replace(/\s*[\u2014\u2013-]?\s*,?\s*(?:is it|is that|are you|you|maybe|like|prob(?:ably)?)?\s*(?:a|an)\s+(\d{1,2}(?:\.5)?)(?:\s*(?:or|\/)\s*(?:a|an)?\s*(\d{1,2}(?:\.5)?))?\s*\?/gi,
+      const _cut = turnText.replace(/\s*[\u2014\u2013-]?\s*,?\s*(?:is it|is that|are you|you|maybe|like|prob(?:ably)?)?\s*\b(?:a|an)\s+(\d{1,2}(?:\.5)?)(?:\s*(?:or|\/)\s*(?:a|an)?\s*(\d{1,2}(?:\.5)?))?\s*\?/gi,
         (all, a, b) => [a, b].filter(Boolean).every(x => _said.has(String(parseFloat(x)))) ? all : '?');
       if (_cut !== turnText) { record(req, { endpoint: 'size-guess-cut', sub, store: ctx.store || '', text: turnText.slice(0, 160) }); turnText = _cut.replace(/\?\s*\?/g, '?'); }
     }
