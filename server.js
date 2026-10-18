@@ -6067,6 +6067,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // A quote-reply can carry any words: "Any 6" on our Asics card (TK +1 242 801-3010 10-18) was never checked, and on
         // "Yh 6.5" Kiki pointed her at Jordan 4s from an older album - Rodney: "where did the jordan 4s come in?". A size or a price
         // question this short is checked too.
+        // "What about Jordan 1" is a model, not a pointer (TK 827-6525 10-18 waited 9 s for a tag that was never there).
+        && !/^\W*(?:what about|wat about|how about|any|got|you have|u have|y'?all have)?\s*(?:the\s+)?(?:air\s+)?(?:jordan|aj|j|dunk|force|max|nb|new balance|yeezy|foam|vomero|tn)s?\s*\d{1,4}s?\W*$/i.test(_pt)
         && (/\b(this|these|that|those|dis|dem|dat|it|one|1)\b/i.test(_pt)
             || /\b(any|size|sz|how much|price|cost|got|have|available|in)\b|^\W*\d{1,2}(?:\.5)?\W*$|\$/i.test(_pt))
         && _rs && _rs.names && _rs.names.length > 1 && Date.now() - _rs.ts < 45 * 60 * 1000
