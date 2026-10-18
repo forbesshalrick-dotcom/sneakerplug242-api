@@ -3993,6 +3993,7 @@ const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
 const CANCEL_RE = /\b(don['’]?t|do not|dont|no need to|no use to)\s+(come|bring|send (the )?driver)\b|\bcancel+(ed)?\b|\b(change|changed) my mind\b|\bdon['’]?t want (it|them|the shoes?)\s*(no ?more|any ?more)?\s*[.!🙏]*$|\bnot (buying|getting) (it|them)\b|\bno more\b.*\b(come|coming|order)\b/i;
 const CANCEL_NOT_RE = /\b(yet|until|till|later|tomorrow|tmr?w|tmro|after|in a (bit|minute|min|few)|not home|at work|wait|right now|today|instead|swap|switch|exchange|rather|and get|get the|change (it|to|the))\b/i;   // "don't come yet" is a delay, "cancel the black and get the white" a swap - neither is a cancel
+const readyNowSentAt = new Map();    // sub -> when a READY NOW card last went (once per 2 h)
 const cancelHeldAt = new Map();      // sub -> when the 'we're 2/3 minutes away' hold was used (once per order)
 const cancelPending = new Map();    // sub -> { at, text, raw, order }: they said "don't come" on an open order; the NEXT message decides the alert (Rodney 10-17)
 const lastInboundPhoto = new Map(); // sub -> { img (url or {data,media_type}), at } — the customer's latest photo, kept even if its own turn is lost
@@ -6102,6 +6103,32 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (e) { try { record(req, { endpoint: 'checkin-book-error', sub, error: String(e).slice(0, 120) }); } catch (_) {} }
+  /* 🛵 "I'M HOME NOW" ON A BOOKED ORDER IS A DELIVERY - THE SERVER SAYS SO, NOT THE MODEL (Rodney 10-18, TK 525-0217: booked at 8:43,
+   * "I'm home now" at 5:22, Kiki answered "I've passed it to the team" and nothing reached the drivers - "she is now ready, no delivery
+   * notification"). A ready-now line on an order filed in the last 12 h sends a READY NOW card on every road, once per 2 hours. */
+  try {
+    const _c = customerWordsOnly(String(userText || ''));
+    const READY_NOW = /\b(i'?m home|im home|home now|i'?m back|ready now|i'?m ready|im ready|come now|you can come|can come now|i'?m here|im here|i'?m outside|available now|free now)\b/i;
+    if (_c && READY_NOW.test(_c) && !CANCEL_RE.test(_c) && !staffNameFor(req) && Date.now() - (readyNowSentAt.get(String(sub)) || 0) > 2 * 3600 * 1000) {
+      const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _card = _th && (_th.msgs || []).slice().reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000);
+      if (_card) {
+        readyNowSentAt.set(String(sub), Date.now());
+        const _lines = String(_card.text).split('\n');
+        const _shoe = (_lines.find(l => /👟/.test(l)) || '').trim();
+        const _money = (_lines.find(l => /💰/.test(l)) || '').trim();
+        const _pr = pinReceived.get(String(sub));
+        const _loc = (_pr && _pr.maps) || ((String(_card.text).match(/https?:\/\/maps\.\S+/) || [])[0]) || '📍 no pin yet - ask for it';
+        const _who = (ctx && ctx.name ? ctx.name : 'Customer') + ' (' + (getPhone(req) || sub) + ', ' + (ctx && ctx.store || '') + ')';
+        const _m = '🛵 *READY NOW — GO*\n👤 ' + _who + '\n' + _shoe + (_money ? '\n' + _money : '') + '\n📍 ' + _loc + '\n💬 "' + _c.slice(0, 80) + '"';
+        waSendManager(_m, token).catch(() => {});
+        try { require('./shop').blastOnDuty(_m, null).catch(() => {}); } catch (_) {}
+        try { require('./shop').addAlert(_m, 'Kiki 🤖', { sub, account: ctx && ctx.store, pushTitle: '🛵 Ready now', pushBody: _who }); } catch (_) {}
+        try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'system', text: _m.replace(/\*/g, ''), name: ctx.name }); } catch (_) {}
+        record(req, { endpoint: 'ready-now-card', sub });
+      }
+    }
+  } catch (e) { try { record(req, { endpoint: 'ready-now-error', sub, error: String(e).slice(0, 120) }); } catch (_) {} }
   // 🖼️ "THESE ARE ?" / "THIS ONE?" RIGHT AFTER THEIR OWN PHOTO = ABOUT THAT PHOTO (2026-10-14, Sneaker 24 on TK: he
   // forwarded our Dunk High card, then quote-replied "These are ?"; the photo's own turn was lost and Kiki said
   // "I'm not seeing a picture come through"). ManyChat drops the tag, so the server re-attaches the customer's
