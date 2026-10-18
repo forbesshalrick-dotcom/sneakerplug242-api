@@ -2595,7 +2595,13 @@ async function identifyPhoto(imageSource, stockList, words) {
       + 'OURS: the exact listed name if it is one of the listed shoes, or NOT IN STOCK - never force a match onto a '
       + 'different model. If NOT IN STOCK, add CLOSEST: the listed shoe that looks most like it.\n'
       + 'KIND: CARD if the picture is one of the shop\'s own product cards (a shoe held in a hand in front of a wall of shoeboxes, with a pink banner carrying the shoe name and a price); otherwise KIND: OTHER.\n'
-      + 'If the photo is not a shoe at all (clothing, a receipt, cash, a pin, a person, a flyer), say NOT A SHOE and what it is.';
+      + 'If the photo is not a shoe at all (clothing, a receipt, cash, a pin, a person, a flyer), say NOT A SHOE and what it is.\n'
+      // Rodney 10-18 (TK Small-J and 454-3709 both sent this ad and said "the next one"; both were told New Balance 1000 Silver/Black):
+      + 'KNOWN AD: the Trendy Kicks "FREE DELIVERY" ad with a black/white New Balance 9060 (2002R tag, copper "DUNWARD" charm) on top and a '
+      + 'grey/white/black shoe on the step below - the lower shoe is the New Balance 2000 Grey/White/Black (NOT the 1000). '
+      + 'New Balance 2000 = stacked pod outsole, matte grey/white/black panels; New Balance 1000 = shiny metallic silver upper.\n'
+      + 'If the photo shows more than one shoe, add SHOES: each one in order (top to bottom, else left to right) with its listed name or NOT IN STOCK; '
+      + 'and if the customer pointed ("the next one", "the bottom one", "the other one", "the second", "top", "first"), OURS is THAT one.';
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: ctl.signal,
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
@@ -2605,7 +2611,7 @@ async function identifyPhoto(imageSource, stockList, words) {
         system: [ { type: 'text', text: system },
                   { type: 'text', text: 'IN STOCK RIGHT NOW:\n' + String(stockList || '').slice(0, 12000), cache_control: { type: 'ephemeral' } } ],
         messages: [{ role: 'user', content: [
-          { type: 'text', text: 'Which shoe is this?' + (words ? '\n\nThe customer then said: "' + String(words).slice(0, 160) + '". If they point (left, right, the other one, second...) choose THAT shoe in the photo, and never one they have just said no to.' : '') },
+          { type: 'text', text: 'Which shoe is this?' + (words ? '\n\nThe customer then said: "' + String(words).slice(0, 160) + '". If they point (left, right, top, bottom, the next one, the other one, second...) choose THAT shoe in the photo, and never one they have just said no to.' : '') },
           { type: 'image', source: imageSource } ] }] }),
     });
     const j = await r.json();
