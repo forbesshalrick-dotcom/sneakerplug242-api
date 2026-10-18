@@ -1695,6 +1695,8 @@ const INTERNAL_LEAK_RE = new RegExp([
   'i\\047?ll leave it there',
   // OSC Farryy 10-18 13:53: "The order is already confirmed and delivery_ready has been called — the team is handling it. This is just
   // the customer acknowledging the last message." went to the customer.
+  // TK ShaeeLee 10-18: "I didn't mean to run that search — my bad! 😅" to "is y'all accepting card?"
+  'run (?:that|a|the) search', 'didn\\047?t mean to (?:search|run|send)',
   'delivery_ready', 'order_confirmed', 'has been called', '(?:this|that) is (?:just )?(?:the )?customer', 'the customer (?:is )?(?:acknowledg|just|re-?sent|sent)', 'acknowledging the last', '\\((?:the )?(?:pictures?|pics?|photos?) (?:are|were|just|already|went|have)\\b', '^\\s*\\((?:this|that|no|nothing|they|the customer|customer|re-?delivery)\\b',
 ].join('|'), 'i');
 
