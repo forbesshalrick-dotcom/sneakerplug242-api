@@ -8518,6 +8518,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           (() => { try {
             const _hist = [String(userText || '')].concat(history.filter(h => h && h.role === 'user' && typeof h.content === 'string').slice(-12).map(h => h.content).reverse());
             for (const t of _hist) { const m = t.match(/https?:\/\/maps\.google\.com\/\?q=-?[\d.]+,-?[\d.]+/); if (m && !String(inp.location || '').includes(m[0])) return '🗺️ ' + m[0]; }
+            const _pr = pinReceived.get(String(sub)); if (_pr && _pr.maps && !String(inp.location || '').includes(_pr.maps)) return '🗺️ ' + _pr.maps;
+            // A TYPED PLACE GETS A GOOGLE MAPS LINK (Rodney 10-18: "forward the location ... to whatsapp using google maps"). "Kemp Road,
+            // green house #11" opens in Maps for the driver instead of being read off a card.
+            const _loc = String(inp.location || '').trim();
+            if (_loc && !/https?:\/\//.test(_loc) && !/\b(no location|not sent|pin (?:to come|coming)|location (?:to come|still coming)|open the chat|scheduled)\b/i.test(_loc) && /[a-z]{3}/i.test(_loc))
+              return '🗺️ https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(_loc.replace(/[—–-]\s*(?:location|pin).*$/i, '').trim() + ', Nassau, Bahamas');
           } catch (_) {} return null; })(),
           // The "pin" may actually have been a photo/sticker WhatsApp couldn't deliver
           // (2026-07-14: a shoe PHOTO arrived as a text-replay → "Got your pin!" → driver
