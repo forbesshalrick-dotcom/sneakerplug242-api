@@ -6013,7 +6013,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _msg = _still
         ? '⚠️ *TRIED TO CANCEL — BUT SAID STILL COME*\n👤 ' + _who + '\n👟 ' + (_pend.order || 'their order') + '\n💬 "' + _pend.raw.slice(0, 80) + '" then "' + _c.slice(0, 80) + '"'
         : '❌ *CANCELLED*\n👤 ' + _who + '\n👟 ' + (_pend.order || 'their order') + '\n💬 "' + _pend.raw.slice(0, 80) + '" then "' + _c.slice(0, 80) + '"';
+      // Same road as an order card (Rodney 10-18: "where is the Fucking notification?" - this went only to the owner route, which
+      // does not reach his phone; order cards also go to the on-duty staff WhatsApp, the app push and the inbox).
       waSendManager(_msg, token).catch(() => {});
+      try { require('./shop').blastOnDuty(_msg, null).catch(() => {}); } catch (_) {}
+      try { require('./shop').addAlert(_msg, 'Kiki 🤖', { sub, account: ctx && ctx.store, pushTitle: _still ? '⚠️ Tried to cancel - still coming' : '❌ Order cancelled', pushBody: _who }); } catch (_) {}
+      try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'system', text: _msg.replace(/\*/g, ''), name: ctx.name }); } catch (_) {}
       record(req, { endpoint: _still ? 'cancel-then-still-come' : 'cancel-confirmed', sub, q: _c.slice(0, 60) });
       userText = '(SYSTEM NOTE — the customer cannot see this: they tried to cancel and this is their answer. ' + (_still
         ? 'They still want it — confirm warmly in one short line ("Bet 🙌 see you soon 👟"). Do not ask anything else.'
