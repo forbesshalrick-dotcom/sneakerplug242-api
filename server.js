@@ -6705,6 +6705,39 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
   try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
   try { const _lv = lastVisitNote(sub); if (_lv && !staffName) system += '\n\n' + _lv; } catch (_) {}
+  /* 🎨 NOT IN THEIR SIZE? SEND THE SAME COLOURS THAT ARE (Rodney 10-18, TK Volmy +1 242 437-7841: wanted the 9060 Green/Black/White
+   * in a 9, it only comes in 7/8, and he was just told so - "We also have another green and black New Balance in size 9. Send him
+   * the green and black that you have, and then offer if you'd like to see any other colors. That's what you would do in a sale
+   * like this." For every line.) The shoe in play is the one they picked/were shown last; if it misses their size, the same brand
+   * in the same colours IN their size is handed to her with ids, to send, then the offer of other colours. */
+  try {
+    const _pk = lastPickBySub.get(String(sub));
+    const _cs = custSize.get(String(sub));
+    if (!staffName && _pk && Date.now() - (_pk.at || 0) < 45 * 60 * 1000 && _cs && _cs.size && Date.now() - (_cs.ts || 0) < 12 * 3600 * 1000) {
+      const _lm = liveShoeMap(); const _byId = {}; for (const k in _lm) { const x = _lm[k]; if (x && x.id != null) _byId[String(x.id)] = x; }
+      const _sh = _byId[String(_pk.id)];
+      const _w = womensSaid.get(String(sub));
+      const _wom = !!(_w && Date.now() - (_w.at || 0) < 12 * 3600 * 1000 && parseFloat(_w.size) === parseFloat(_cs.size));
+      const _want = ((_wom ? sizesToSend(_cs.size, true) : sizesToSend(_cs.size, false)) || [parseFloat(_cs.size)]).map(z => parseFloat(z));
+      const _has = (x) => (x.sizesRaw || x.sizes || []).some(z => _want.includes(parseFloat(z)));
+      if (_sh && !_has(_sh)) {
+        const _brand = (x) => String(x.brand || String(x.name || '').split(' ')[0] || '').toLowerCase().replace(/^air$/, 'nike');
+        const _cols = (x) => new Set(String(x.color || '').toLowerCase().split(/[^a-z]+/).filter(c => c && !/^(white|sail|and|multi)$/.test(c)));
+        const _need = [..._cols(_sh)];
+        const _alts = _need.length ? Object.values(_byId).filter(x => x !== _sh && _brand(x) === _brand(_sh) && _has(x)
+          && (() => { const c = _cols(x); return _need.every(k => c.has(k)); })())
+          .sort((a, b) => (String(b.name) === String(_sh.name)) - (String(a.name) === String(_sh.name))).slice(0, 4) : [];
+        if (_alts.length) {
+          const _say = _wom ? "women's " + _cs.size : String(_cs.size);
+          system += '\n\n(SYSTEM NOTE — the customer cannot see this: the ' + displayName(_sh) + ' does NOT come in their ' + _say + '. The same colours IN their size: '
+            + _alts.map(x => displayName(x) + ' (id ' + x.id + ', $' + (parseFloat(x.price) || '') + ')').join('; ')
+            + '. Do what Rodney does: say plainly that one is not in their ' + _say + ', SEND these with send_photos (these ids), and end with "Would you like to see any other colours in your ' + _say + '? 👟". Never say the men\'s number to a women\'s customer.)';
+          if (pinnedPickIds.size) _alts.forEach(x => pinnedPickIds.add(String(x.id)));
+          record(req, { endpoint: 'same-colour-in-size-offered', sub, shoe: String(_sh.id), size: _say, alts: _alts.map(x => String(x.id)) });
+        }
+      }
+    }
+  } catch (_) {}
   /* 🔀 THEY ARE ANSWERING THE CHOICE SHE JUST GAVE (Rodney 10-17, OSC carltonadderley10 +1 242 803-8623: he sent a screenshot of
    * four Air Max Plus/Dunk cards, Kiki asked "Which one you want — the Yellow/Black, Grey/Orange, or the Blue/White Dunk?", he
    * said "Black and Grey", and she sold him a New Balance 1906 Black/Grey/Red - "I don't see any New Balance in this picture"). */
