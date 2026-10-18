@@ -7671,7 +7671,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
      * the way now"). Only a dispatch/step button makes it true; otherwise the claim is cut for the team line. */
     if (turnText && !staffName) {
-      const _otw = /\b(?:driver(?:'s|’s| is)?\s+(?:on (?:the|his) way|heading (?:out|over|to you|your way)|leaving now|en route|almost there|pulling up|(?:right )?outside)|(?:we(?:'re|’re| are)|i(?:'m|’m| am))\s+on (?:the|our|my) way|on (?:the|our|his) way (?:now|to you))\b/i;
+      const _otw = /\b(?:driver(?:'s|’s| is)?\s+(?:on (?:the|his) way|heading (?:out|over|to you|your way)|leaving now|en route|almost there|pulling up|(?:right )?outside|will be (?:with you|there|by you) (?:shortly|soon|in a (?:bit|few))|be (?:with you|there) (?:shortly|soon))|(?:we(?:'re|’re| are)|i(?:'m|’m| am))\s+on (?:the|our|my) way|on (?:the|our|his) way (?:now|to you))\b/i;
       if (_otw.test(turnText)) {
         let _out = false;
         try { const _dt = driverDispatchedAt.get(String(sub)); _out = !!(_dt && Date.now() - _dt < 4 * 3600 * 1000); } catch (_) {}
