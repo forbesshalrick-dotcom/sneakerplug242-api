@@ -8057,6 +8057,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
         record(req, { endpoint: 'search', sub, params: p, found: found.length });
+        // 🙅 "WANT SOME PICTURES" IS NOT "SEND ALL 351" (FF Eddie +1 242 818-5730 10-18: an empty search found 351, the album was too big to
+        // go, and he got "Here's what we have rite now 👇" over nothing). A search with no size, brand, colour, model or price is too broad:
+        // she is told to ask the size, and nothing is handed to send_photos.
+        try {
+          const _noCrit = p.size == null && !(Array.isArray(p.sizes) && p.sizes.length) && !p.brand && !(Array.isArray(p.brands) && p.brands.length)
+            && !p.color && !String(p.query || '').trim() && p.max_price == null && p.min_price == null;
+          if (_noCrit && found.length > 40) {
+            result = { shoes: [], note: 'TOO BROAD - ' + found.length + ' pairs, nothing sent. Do NOT say "here\'s what we have". Ask their size in one short line ("What size you wear? 👟 I\'ll send you everything we have in your size") and send nothing this turn.' };
+            lastSearchIds = [];
+            record(req, { endpoint: 'search-too-broad', sub, found: found.length });
+          }
+        } catch (_) {}
         if (askP) lastAsk.set(sub, { p: askP, ids: new Set((lastSearchIds || []).map(String)), at: Date.now() });
         // Completeness tracking: a PURE size search (size ± brand only) is a size-batch
         // request; a colour/query/price/womens search means the customer wanted something
