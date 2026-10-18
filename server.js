@@ -5020,7 +5020,7 @@ function scheduleOrderReminder(ms, store, lines, image, sub) {
   // ONE booked day per customer (Rodney 10-17: "everyday your messaging the same women about a old delivery" - TK +1 242 814-6476
   // re-ordered "for tomorrow" on 10-15 and 10-16 and got the day-arrived ask both evenings). A new booking replaces the old one.
   if (sub) reminders = reminders.filter(r => String(r.sub || '') !== String(sub));
-  reminders.push({ at: Date.now() + ms, store: store || null, lines, image: image || null, sub: sub || null });
+  reminders.push({ at: Date.now() + ms, store: store || null, lines, image: image || null, sub: sub || null, bookedAt: Date.now() });
   saveReminders();
 }
 // What Kiki says to a customer whose own chosen day has arrived. Deliberately a question,
@@ -5063,6 +5063,7 @@ function keepWarmLine(sub, dayLabel, n) {
   return list[n % list.length](dayLabel);
 }
 
+const reminderSentAt = new Map();      // sub -> when any delivery reminder last went to that customer (one a day, max)
 const dayArrivedAskedAt = new Map();   // sub -> when Kiki last asked "you had a delivery set for today" (once per 3 days)
 const DAY_ARRIVED_T = {
   en: "Hey! 👋 You had a delivery set for today — still want it? Just say yes and I'll get it moving 👟",
@@ -5078,6 +5079,29 @@ const reminderTick = setInterval(async () => {
   saveReminders();
   for (const r of due) {
     const tk = (r.store && storeTokens.get(r.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+    /* ✅ AN ORDER THAT ALREADY HAPPENED GETS NO "STILL HOLDING YOUR ORDER" (Rodney 10-18, TK Adrian +1 242 818-7623: paid $120 by
+     * transfer and got his VaporMax 10-17, then two "Still holding your order for the day you said" at 7:27 and 7:31 the next
+     * morning - "sold yesterday.....???????"). A delivery card, a payment, or ✅ Done since the booking ends the chain, and one
+     * customer never gets two of these in a day. */
+    try {
+      if (r.sub) {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(r.sub)) || '');
+        const _since = r.bookedAt || (r.kind === 'keep-warm' ? r.at - 24 * 3600 * 1000 * ((r.n || 0) + 1) : r.at - 7 * 24 * 3600 * 1000);
+        const _done = _th && (_th.msgs || []).some(m => m && (m.ts || 0) > _since && (
+          (m.sender === 'system' && /DELIVERY READY|DELIVERED|SOLD/i.test(m.text || ''))
+          || (m.dir === 'out' && /payment (?:confirmed|received)|got your receipt|driver'?s? (?:here|outside)/i.test(m.text || ''))));
+        const _ds = (() => { try { return driverNow(r.sub); } catch (_) { return null; } })();
+        const _twice = Date.now() - (reminderSentAt.get(String(r.sub)) || 0) < 20 * 3600 * 1000;
+        if (_done || (_ds && _ds.step === 'done') || _twice) {
+          reminders = reminders.filter(x => String(x.sub || '') !== String(r.sub));
+          saveReminders();
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'reminder-skipped', sub: r.sub, kind: r.kind || 'day', why: _done ? 'order-already-moved' : _twice ? 'already-sent-today' : 'done-pressed' });
+          if (recent.length > 120) recent.length = 120;
+          continue;
+        }
+        reminderSentAt.set(String(r.sub), Date.now());
+      }
+    } catch (_) {}
     // 📨 ASK THE CUSTOMER, NOT RODNEY (Rodney 2026-08-16: "can I get Kiki to send the message
     // to the customer direct… she would just have been speaking to the customer within the
     // twenty four hour window"). He is right that this is usually inside the window: the
@@ -5096,7 +5120,7 @@ const reminderTick = setInterval(async () => {
       } catch (_) { ok = false; }
       if (ok && r.finalAt && Date.now() + 20 * 3600 * 1000 < r.finalAt) {
         reminders.push({ at: Date.now() + 24 * 3600 * 1000, store: r.store, lines: r.lines, image: null,
-          sub: r.sub, kind: 'keep-warm', n: (r.n || 0) + 1, dayLabel: r.dayLabel, finalAt: r.finalAt });
+          sub: r.sub, kind: 'keep-warm', n: (r.n || 0) + 1, dayLabel: r.dayLabel, finalAt: r.finalAt, bookedAt: r.bookedAt });
         saveReminders();
       }
       if (!ok) {
@@ -8376,7 +8400,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const dayLabel = (inp.location && /(?:for|on)\s+([A-Za-z]+day|tomorrow|next week)/i.exec(inp.location) || [])[1]
                              || (remindH >= 150 ? 'next week' : 'the day you said');
             reminders.push({ at: Date.now() + 24 * 3600 * 1000, store: ctx.store, lines: detail, image: null,
-              sub, kind: 'keep-warm', n: 0, dayLabel, finalAt });
+              sub, kind: 'keep-warm', n: 0, dayLabel, finalAt, bookedAt: Date.now() });
             saveReminders();
           }
         }
@@ -11912,6 +11936,20 @@ app.post('/admin/ycloud-key', (req, res) => {
     if (f) require('fs').writeFileSync(f, JSON.stringify({ k, from: from || process.env.YCLOUD_FROM || '' }), { mode: 0o600 });
     res.json({ ok: true, savedTo: f ? 'volume' : 'memory only', keyLen: k.length, from: from || null });
   } catch (e) { res.json({ ok: false, error: String(e).slice(0, 120) }); }
+});
+// ⏰ See / clear booked delivery reminders (Rodney 10-18: a paid customer got two "still holding your order" messages).
+app.get('/admin/reminders', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  res.json({ ok: true, n: reminders.length, reminders: reminders.map(r => ({ sub: r.sub, store: r.store, kind: r.kind || 'day', at: new Date(r.at).toISOString(), n: r.n || 0, day: r.dayLabel || '', lines: String(r.lines || '').slice(0, 140) })) });
+});
+app.post('/admin/reminders/clear', (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const sub = String((req.body || {}).sub || '').replace(/[^0-9]/g, '');
+  if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
+  const before = reminders.length;
+  reminders = reminders.filter(r => String(r.sub || '') !== sub);
+  saveReminders();
+  res.json({ ok: true, removed: before - reminders.length });
 });
 app.get('/admin/ycloud-status', (req, res) => {
   if (!consoleAuth(req, res)) return;
