@@ -8855,7 +8855,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'fallback-named-pointed-shoe', sub, shoe: String(_sh.id), size: _say, has: !!_has });
       }
     } catch (_) {}
-    const fb = lastText || _ptr || (image
+    // 👇 pointing at pictures that never went (FF Bribri 462-3415 10-18: "here's the closest we got 👇" and nothing under it - they
+    // were already in the chat): point UP at them by name instead.
+    let _lt = lastText;
+    try {
+      if (_lt && /👇/.test(_lt) && !photosSentRun && resendDroppedNames.length) {
+        _lt = _lt.replace(/[^.!?\n]*👇[^.!?\n]*[.!?]?/u, '').trim();
+        _lt = ((_lt ? _lt + ' ' : '') + 'The closest we got are up there 👆 ' + resendDroppedNames.slice(0, 4).join(', ') + '. Want one of those? 👟').trim();
+        record(req, { endpoint: 'fallback-pointed-up', sub });
+      }
+    } catch (_) {}
+    const fb = _lt || _ptr || (image
       ? "That's a clean pair 👀 — what size you looking for and I'll pull up what we've got 👟"
       : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
     await sendChunk(sub, [{ type: 'text', text: fb }], token).catch(() => {});
