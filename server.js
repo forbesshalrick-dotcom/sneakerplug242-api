@@ -5131,6 +5131,20 @@ const reminderTick = setInterval(async () => {
     // 🔁 A KEEP-WARM day, not the day itself: nudge them, then book tomorrow's nudge.
     // The chain ends the moment WhatsApp refuses us, because after that we physically
     // cannot reach them — and that is exactly when Rodney needs to know.
+    // 👋 CHECK-IN ON A "LATER" (Rodney 10-18, TK 525-0217: "I won't be home until later this afternoon" at 8:44 AM, and nobody asked
+    // again all day - "kiki normally does checkups"). Skipped if they wrote in since, or the order already moved.
+    if (r.kind === 'checkin') {
+      try {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(r.sub)) || '');
+        const _spoke = _th && (_th.msgs || []).some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > (r.bookedAt || 0));
+        if (!_spoke) {
+          const res = await sendChunk(r.sub, [{ type: 'text', text: await say(r.text, r.sub) }], tk);
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'checkin-sent', sub: r.sub, ok: !!(res && res.ok) });
+        } else recent.unshift({ at: new Date().toISOString(), endpoint: 'checkin-skipped-they-spoke', sub: r.sub });
+        if (recent.length > 120) recent.length = 120;
+      } catch (_) {}
+      continue;
+    }
     if (r.kind === 'keep-warm') {
       let ok = false;
       try {
@@ -6064,6 +6078,30 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (e) { try { record(req, { endpoint: 'cancel-check-error', sub, error: String(e).slice(0, 160) }); } catch (_) {} }
+  try {
+    const _c = String(userText || '').trim();
+    const LATER = /\b(later|this afternoon|this evening|tonight|after work|when i (?:get|reach|come) (?:home|back|off)|not home|won'?t be home|after (?:\d|one|two|three|four|five|six)|in a (?:couple|few) hours?)\b/i;
+    if (_c && !/^\(SYSTEM/.test(_c) && LATER.test(_c) && !CANCEL_RE.test(_c)) {
+      const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _card = _th && (_th.msgs || []).slice().reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000);
+      if (_card) {
+        const _shoe = ((String(_card.text).split('\n').find(l => /👟/.test(l)) || '').replace(/^👟\s*/, '').trim()) || 'your shoes';
+        // When to ask: "afternoon" -> 3:30 PM, "evening/tonight/after work" -> 6 PM, otherwise 3 hours on; always inside 9 AM - 9 PM Nassau.
+        const _nassauNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau' }));
+        const _at = (h, m) => { const d = new Date(_nassauNow); d.setHours(h, m, 0, 0); return Date.now() + (d - _nassauNow); };
+        let when = /afternoon/i.test(_c) ? _at(15, 30) : /evening|tonight|after work/i.test(_c) ? _at(18, 0) : Date.now() + 3 * 3600 * 1000;
+        if (when < Date.now() + 45 * 60 * 1000) when = Date.now() + 90 * 60 * 1000;
+        if (when > _at(21, 0)) when = _at(21, 0) > Date.now() + 30 * 60 * 1000 ? _at(21, 0) - 30 * 60 * 1000 : 0;
+        if (when) {
+          reminders = reminders.filter(r => !(String(r.sub || '') === String(sub) && r.kind === 'checkin'));
+          reminders.push({ at: when, store: ctx.store, sub, kind: 'checkin', bookedAt: Date.now(), lines: '',
+            text: 'Hey! 👋 Are you home now? We can bring your ' + _shoe.replace(/\s*—\s*size\s*/i, ' in the ').replace(/\s+$/, '') + ' right over 🚗👟' });
+          saveReminders();
+          record(req, { endpoint: 'checkin-booked', sub, at: new Date(when).toISOString() });
+        }
+      }
+    }
+  } catch (e) { try { record(req, { endpoint: 'checkin-book-error', sub, error: String(e).slice(0, 120) }); } catch (_) {} }
   // 🖼️ "THESE ARE ?" / "THIS ONE?" RIGHT AFTER THEIR OWN PHOTO = ABOUT THAT PHOTO (2026-10-14, Sneaker 24 on TK: he
   // forwarded our Dunk High card, then quote-replied "These are ?"; the photo's own turn was lost and Kiki said
   // "I'm not seeing a picture come through"). ManyChat drops the tag, so the server re-attaches the customer's
