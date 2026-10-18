@@ -4596,6 +4596,13 @@ function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, 
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token, wholesale) {
   if (isComposeSub(sub)) return;
+  // 🛵 An order already filed is not a stranger to greet (Rodney 10-18, TK Pjay +1 242 821-4700: came over from Facebook with his
+  // pin, got DELIVERY READY, then 5 minutes later the welcome nudge asked him "What size you looking for?").
+  try {
+    const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+    if (_th && (_th.msgs || []).some(m => m && m.sender === 'system' && /DELIVERY READY|NEW ORDER/.test(m.text || '') && Date.now() - (m.ts || 0) < 6 * 3600 * 1000)) return;
+    if (pinReceived.has(String(sub))) return;
+  } catch (_) {}
   // 📏 Don't open with "What size you looking for?" to somebody who already told us (Rodney
   // 2026-09-06). A customer back inside the 12h size window has said it once already.
   const cs = custSize.get(sub);
