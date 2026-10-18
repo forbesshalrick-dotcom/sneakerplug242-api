@@ -3993,6 +3993,7 @@ const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
 const CANCEL_RE = /\b(don['’]?t|do not|dont|no need to|no use to)\s+(come|bring|send (the )?driver)\b|\bcancel+(ed)?\b|\b(change|changed) my mind\b|\bdon['’]?t want (it|them|the shoes?)\s*(no ?more|any ?more)?\s*[.!🙏]*$|\bnot (buying|getting) (it|them)\b|\bno more\b.*\b(come|coming|order)\b/i;
 const CANCEL_NOT_RE = /\b(yet|until|till|later|tomorrow|tmr?w|tmro|after|in a (bit|minute|min|few)|not home|at work|wait|right now|today|instead|swap|switch|exchange|rather|and get|get the|change (it|to|the))\b/i;   // "don't come yet" is a delay, "cancel the black and get the white" a swap - neither is a cancel
+const cancelHeldAt = new Map();      // sub -> when the 'we're 2/3 minutes away' hold was used (once per order)
 const cancelPending = new Map();    // sub -> { at, text, raw, order }: they said "don't come" on an open order; the NEXT message decides the alert (Rodney 10-17)
 const lastInboundPhoto = new Map(); // sub -> { img (url or {data,media_type}), at } — the customer's latest photo, kept even if its own turn is lost
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
@@ -6033,7 +6034,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (_card) _order = (String(_card.text).split('\n').find(l => /👟/.test(l)) || '').replace(/^👟\s*/, '').trim() || 'their order';
         }
       } catch (_) {}
+      // 🔁 SECOND CANCEL ON THE SAME ORDER (OSC Farryy +1 242 808-4162 10-18: held with "We're 3 minutes away" at 4:04, still waiting at
+      // 4:47 and cancelling again - got "We're 3 minutes away" a second time). The hold is used once; after that she is told sorry and
+      // Rodney is alerted at once, on every road.
+      const _held = cancelHeldAt.get(String(sub));
+      if (_order && _held && Date.now() - _held < 6 * 3600 * 1000) {
+        const _who2 = (ctx && ctx.name ? ctx.name : 'Customer') + ' (' + (getPhone(req) || sub) + ', ' + (ctx && ctx.store || '') + ')';
+        const _m2 = '🚨 *CANCELLING AGAIN — WAITED TOO LONG*\n👤 ' + _who2 + '\n👟 ' + _order + '\n💬 "' + _c.slice(0, 80) + '"\nShe was told the driver was minutes away ' + Math.round((Date.now() - _held) / 60000) + ' min ago. Call her now.';
+        waSendManager(_m2, token).catch(() => {});
+        try { require('./shop').blastOnDuty(_m2, null).catch(() => {}); } catch (_) {}
+        try { require('./shop').addAlert(_m2, 'Kiki 🤖', { sub, account: ctx && ctx.store, pushTitle: '🚨 Cancelling again', pushBody: _who2 }); } catch (_) {}
+        try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _c, name: ctx.name }); inboxRecord(ctx.store, sub, { dir: 'in', sender: 'system', text: _m2.replace(/\*/g, ''), name: ctx.name }); } catch (_) {}
+        const _l2 = await say("So sorry for the wait 🙏 I'm getting the driver to call you right now.", sub).catch(() => "So sorry for the wait 🙏 I'm getting the driver to call you right now.");
+        await sendChunk(sub, [{ type: 'text', text: _l2 }], token).catch(() => {});
+        cancelHeldAt.delete(String(sub));
+        record(req, { endpoint: 'cancel-again-alerted', sub, order: _order.slice(0, 80) });
+        return;
+      }
       if (_order) {
+        cancelHeldAt.set(String(sub), Date.now());
         cancelPending.set(String(sub), { at: Date.now(), text: _cn, raw: _c, order: _order });
         try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _c, name: ctx.name }); } catch (_) {}
         const _mins = Math.random() < 0.5 ? '2' : '3';
