@@ -7656,6 +7656,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'wears-like-cut', sub, said: _m[0] });
       }
     }
+    /* 👠 "A women's 8 would be a men's 6.5" - THE TABLE, NOT ARITHMETIC (Rodney 10-18, TK Ronny +1 242 436-8286 asked "Will that size 8 be
+     * women size" and was told women's 8 = men's 6.5; Rodney's table says a women's 8 is a men's 7). Any women's→men's figure she writes is
+     * corrected from SIZE_TABLE_WOMENS. */
+    if (turnText && !staffName) {
+      try {
+        turnText = turnText.replace(/(women'?s\s+(?:size\s+)?)(\d{1,2}(?:\.5)?)(\s+(?:would be|is|=|equals|is like|wears like|is basically)\s+(?:a\s+|an\s+)?men'?s\s+(?:size\s+)?)(\d{1,2}(?:\.5)?)/gi,
+          (all, a, w, b, m) => { const t = sizesToSend(w, true); if (!t || !t.length) return all; const want = t.map(x => String(parseFloat(x))); if (want.includes(String(parseFloat(m)))) return all;
+            record(req, { endpoint: 'womens-conversion-corrected', sub, said: w + '->' + m, table: want.join('/') }); return a + w + b + want.join(' or '); });
+      } catch (_) {}
+    }
     /* 🚗 NOBODY IS ON THE WAY UNTIL A HUMAN SAYS SO (Rodney 10-05: "sometimes she's saying driver is on the way and I'm not even
      * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
      * the way now"). Only a dispatch/step button makes it true; otherwise the claim is cut for the team line. */
