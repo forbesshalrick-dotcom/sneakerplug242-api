@@ -6801,6 +6801,30 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
   try { const _tbl = tableNote(sub); if (_tbl && !staffName) system += '\n\n' + _tbl; } catch (_) {}
   try { const _lv = lastVisitNote(sub); if (_lv && !staffName) system += '\n\n' + _lv; } catch (_) {}
+  /* 🔁 "CAN I GET A SIZE 12.5" ON AN ORDER = THE SAME SHOE IN 12.5 (Rodney 10-18, TK 525-0217: booked the 9060 Beige/Brown/Cream in a 12,
+   * came home and asked "can I get a size 12.5" - and got an album of every 9060 in 12.5: "you gonna lose this fucking sale"). With an
+   * order card in the last 12 h and no other shoe named, the size change is about THAT shoe: confirm it or say it isn't there - no album. */
+  try {
+    const _txt = customerWordsOnly(userText);
+    const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+    const _card = _th && (_th.msgs || []).slice().reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000);
+    const _newSz = sizeFromCustomerWords(_txt);
+    const _namesShoe = /\b(jordan|aj\d|dunk|force|af1|max|vapor|nb|new balance|9060|1906|2000|1000|550|asics|kayano|yeezy|foam|crocs|tn|vomero|scorpion|shox|samba|campus|gazelle)\b/i.test(_txt) || !!image;
+    if (!staffName && _card && _newSz && !_namesShoe && _txt.split(/\s+/).length <= 14) {
+      const _shoeLine = ((String(_card.text).split('\n').find(l => /👟/.test(l)) || '').replace(/^👟\s*/, '').replace(/\s*—\s*size.*$/i, '').trim());
+      const _lmS = liveShoeMap(); const _cands = Object.values(_lmS).filter(x => x && x.name && _shoeLine && _shoeLine.toLowerCase().includes(String(x.name).toLowerCase()) && String(x.color || '').split('/').every(c => _shoeLine.toLowerCase().includes(c.trim().toLowerCase())));
+      const _sh = _cands[0];
+      if (_sh) {
+        const _want = (sizesToSend(_newSz, false) || [parseFloat(_newSz)]).map(z => parseFloat(z));
+        const _has = (_sh.sizesRaw || _sh.sizes || []).some(z => _want.includes(parseFloat(z)));
+        system += '\n\n(SYSTEM NOTE — the customer cannot see this: they already ORDERED the ' + displayName(_sh) + ' ($' + (parseFloat(_sh.price) || '') + '). Their "' + _txt.slice(0, 60) + '" is about THAT shoe in a ' + _newSz + '. '
+          + (_has ? 'It DOES come in ' + _newSz + ': confirm it in one line ("Yes! The ' + displayName(_sh) + ' comes in a ' + _newSz + ' too 👟 We\'ll bring the ' + _newSz + '") and update the order with notify_manager. ' : 'It does NOT come in ' + _newSz + ' (only ' + (sizesOf(_sh) || '') + '): say so in one line and offer the closest. ')
+          + 'Do NOT send an album and do NOT show other shoes.)';
+        pinnedPickIds.add(String(_sh.id));
+        record(req, { endpoint: 'order-size-change', sub, shoe: String(_sh.id), size: _newSz, has: _has });
+      }
+    }
+  } catch (_) {}
   /* 🎨 NOT IN THEIR SIZE? SEND THE SAME COLOURS THAT ARE (Rodney 10-18, TK Volmy +1 242 437-7841: wanted the 9060 Green/Black/White
    * in a 9, it only comes in 7/8, and he was just told so - "We also have another green and black New Balance in size 9. Send him
    * the green and black that you have, and then offer if you'd like to see any other colors. That's what you would do in a sale
