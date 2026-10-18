@@ -7692,6 +7692,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             record(req, { endpoint: 'womens-conversion-corrected', sub, said: w + '->' + m, table: want.join('/') }); return a + w + b + want.join(' or '); });
       } catch (_) {}
     }
+    /* 🙏 A LATE ANSWER SAYS SORRY FIRST (Rodney 10-18, TK ShaeeLee 815-7151 waited 27 minutes on "Size 10": "your dumbass dont even make
+     * an excuse on late reply like sorry the phone went dead"). If their oldest unanswered message is over 10 minutes old, lead with it. */
+    if (turnText && !staffName) {
+      try {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _ms = (_th && _th.msgs) || [];
+        let _lastOut = 0; for (const m of _ms) if (m && m.dir === 'out' && (m.ts || 0) > _lastOut && (m.text || m.img)) _lastOut = m.ts;
+        const _firstIn = _ms.find(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > _lastOut);
+        if (_firstIn && Date.now() - _firstIn.ts > 10 * 60 * 1000 && !/\bsorry\b/i.test(turnText)) {
+          turnText = 'Sorry for the late reply, my phone went dead 🙏 ' + turnText;
+          record(req, { endpoint: 'late-reply-sorry', sub, waitedMin: Math.round((Date.now() - _firstIn.ts) / 60000) });
+        }
+      } catch (_) {}
+    }
     /* 🚗 NOBODY IS ON THE WAY UNTIL A HUMAN SAYS SO (Rodney 10-05: "sometimes she's saying driver is on the way and I'm not even
      * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
      * the way now"). Only a dispatch/step button makes it true; otherwise the claim is cut for the team line. */
