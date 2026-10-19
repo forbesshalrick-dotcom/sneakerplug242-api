@@ -2356,7 +2356,7 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". IMPORTANT: if they ask the price of ONE SPECIFIC shoe, give THAT shoe's exact price from search_inventory instead of the whole list.
 ⚠️ JORDAN PRICING (know this cold): Air Jordan **1s are $120** — every Jordan 1 colourway and style (Jordan 1 High, Low, Retro — all of them). Every OTHER Air Jordan (Jordan 3, 4, 5, 11, 13, Tatum, etc.) is **$180**, any colour or style. So if a customer asks the price of a Jordan — INCLUDING one you can't find in stock or a colour you're not sure we carry (e.g. "how much for the blue and white Jordan?") — quote it from this rule: a Jordan 1 = $120, any other Jordan = $180. Never tell a customer a Jordan "isn't showing up" or that you can't price it.
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything (the Jordan pricing rule above is the one known exception, so you can always quote a Jordan: $120 for a Jordan 1, $180 for any other).
-💬 "CAN I GET A DEAL / DISCOUNT / HOW MUCH FOR 2?" — FRAME THE PRICE AS THE DEAL, NEVER SAY "NO DISCOUNTS" (Rodney 2026-07-20, IMPORTANT): when a customer asks for a discount, a lower price, or a deal on buying more than one, do NOT reply coldly with "no discounts on multiples" or "the price is firm" — that's harsh and kills the vibe. Instead frame it warmly and positively: the price is ALREADY our best, already-dropped price. Say it like: "That's already our best price 🙏 we just went DOWN on it so everyone can catch a deal 🔥" then give the honest total (e.g. two pairs = the two prices added up). Be friendly, never dismissive.
+💬 "CAN I GET A DEAL / DISCOUNT / IF I BUY 2, 3, 4 PAIRS?" — YES, WE DO DEALS ON MORE THAN ONE PAIR (Rodney 2026-10-19, replacing the old 07-20 "that's already our best price" line, which lost a 4-pair buyer: "I told you before that we give deals. You just have to find out which shoes they want exactly and let them know that you're gonna put the price together and then give them a discount from the total, because all the shoes are different price"). So: (1) say YES warmly; (2) if you do not yet know EXACTLY which shoes, ask them to send back the pictures (or name them) of the exact pairs — every shoe has its own price, so the total depends on which ones; e.g. "Yes, we do deals when you take more than one 🔥 Send me back the pictures of the exact pairs you want and I'll put the total together and take a discount off it for you 👟"; (3) once you know the pairs, list each with its price, give the total, then the deal: $10 OFF EACH PAIR when they take 2 or more (e.g. 4 pairs at $180 = $720 → $680). Never say "that's already our best price", never "no discounts". A single pair is its listed price — be warm about it, never cold.
 🏷️ QUOTE EACH SHOE'S OWN PRICE — DON'T LUMP THEM (Rodney 2026-07-20): NOT every Jordan is $180 — Air Jordan 1s (and Dunks) are $120, Air Max 95 is $130, etc. So NEVER say "all Jordans are $180" or blanket-price a mixed order. Price each pair by its ACTUAL price (from search_inventory, or the Jordan rule above: Jordan 1 = $120, any other Jordan = $180), and when they're buying two different shoes, add their two real prices for the total — don't assume they're the same.
 🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, refer them to a good supplier we know. Send exactly: "Here's a good supplier you can check out 👟 *sneakerinventory.com* — use code *${(process.env.WHOLESALE_CODE || 'W242').toUpperCase()}* to browse their full catalog 🙌" Then stop — don't push them to buy retail or ask their size next.`;
 }
@@ -7577,8 +7577,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             + 'asked WHICH shoe they mean. They already told you — they said ' + _asked + ', and '
             + 'you have named exactly that many in this chat: ' + _list + '. Those are the ones. '
             + 'Never ask a person who pointed at a shoe to point at it again. Say both names back, '
-            + 'give the real total of $' + _total + ' (full price each — do NOT invent a bundle '
-            + 'deal, see the haggling rule), confirm their size on each, and ask where it goes.)' });
+            + 'give the real total of $' + _total + ' (then the multi-pair deal: $10 off each pair '
+            + 'for 2 or more, see the deal rule), confirm their size on each, and ask where it goes.)' });
           continue;
         }
       }
@@ -7823,6 +7823,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _kept = _parts.filter(x => !/\b(?:catch(?:es|ing)?|caught)\s+your\s+eye\b/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
       turnText = ((_kept ? _kept + '\n\n' : '') + (_which ? 'Which one you like? 👟' : 'Let me know if you\'d like a delivery 👟')).trim();
       record(req, { endpoint: 'catch-your-eye-replaced', sub, which: _which });
+    }
+    /* 🤝 "IF I BUY 4 PAIRS COULD I GET A DEAL?" - YES (Rodney 10-19, FF Clowe +1 242 829-8227 got "That's already our best price").
+     * The old line is cut; she asks for the exact pairs, then totals them with $10 off each. */
+    if (turnText && !staffName && /\b(?:already (?:our|the) (?:best|lowest) price|no discounts?|price is firm|can'?t do (?:a )?(?:deal|discount))\b/i.test(turnText)
+        && /\b(?:deal|discount|cheaper|break|\d+\s*pairs?|two|three|four|five|2|3|4|5)\b/i.test(String(userText || ''))) {
+      turnText = 'Yes, we do deals when you take more than one 🔥 Send me back the pictures of the exact pairs you want and I\'ll put the total together and take a discount off it for you 👟';
+      record(req, { endpoint: 'deal-refusal-cut', sub });
     }
     /* 🙅 KIKI IS NEVER RODNEY (TK +1 242 421-0487 10-19 13:16: "Hey Rods… I brought a package back for you from your mom" got
      * "you've got a package from my mom that you're holding?"). A message for Rodney himself gets passed on, never answered as him. */
