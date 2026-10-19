@@ -7833,7 +7833,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 🤝 "IF I BUY 4 PAIRS COULD I GET A DEAL?" - YES (Rodney 10-19, FF Clowe +1 242 829-8227 got "That's already our best price").
      * The old line is cut; she asks for the exact pairs, then totals them with $10 off each. */
     if (turnText && !staffName && /\b(?:already (?:our|the) (?:best|lowest) price|no discounts?|price is firm|can'?t do (?:a )?(?:deal|discount))\b/i.test(turnText)
-        && /\b(?:deal|discount|cheaper|break|\d+\s*pairs?|two|three|four|five|2|3|4|5)\b/i.test(String(userText || ''))) {
+        && /\b(?:deal|discount|cheaper|break|best price|lower|knock)\b/i.test(String(userText || ''))) {
       turnText = 'Yes, we do deals when you take more than one 🔥 Send me back the pictures of the exact pairs you want and I\'ll put the total together and take a discount off it for you 👟';
       record(req, { endpoint: 'deal-refusal-cut', sub });
     }
