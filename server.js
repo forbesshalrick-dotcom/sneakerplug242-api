@@ -3350,6 +3350,19 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
         if (!what) { const _cs = custSize.get(sub); if (_cs && _cs.size) what = 'a ' + _cs.size; }
       } catch (_) {}
       let closing = what ? ('This is what we have in ' + what + ' 👟') : 'This is what we have 👟';
+      /* 💲 THEY ASKED THE PRICE - THE CLOSING LINE SAYS IT (Rodney 10-18, TK 445-6278: "How much for these 9060s", then "10", and got a
+       * 9060 album closing "This is what we have in 9060s" with no price - "the guy asked for price"). A price question in the last
+       * 15 minutes puts the price on the closing line: one price = "$130 each", several = "from $X to $Y". */
+      try {
+        const _pa = priceAskAt.get(String(sub));
+        if (_pa && Date.now() - _pa < 15 * 60 * 1000) {
+          const _went = albumTrace.filter(Boolean).map(t => byRealId[String(t.id)] || live[t.id]).filter(Boolean);
+          const _ps = [...new Set(_went.map(x => parseFloat(x.price)).filter(n => n > 0))].sort((a, b) => a - b);
+          if (_ps.length === 1) closing = closing.replace(/\s*👟$/, '') + ' — $' + _ps[0] + ' each, free delivery 👟 Which one you like?';
+          else if (_ps.length > 1) closing = closing.replace(/\s*👟$/, '') + ' — from $' + _ps[0] + ' to $' + _ps[_ps.length - 1] + ', free delivery 👟 Which one you like?';
+          if (_ps.length) priceAskAt.delete(String(sub));
+        }
+      } catch (_) {}
       try { await sendChunk(sub, [{ type: 'text', text: await say(closing, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
@@ -3375,6 +3388,7 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
 // between shoes; a STOP-worded message ("stop", "that's enough") halts the rest,
 // while questions let the album finish (they queue and get answered right after).
 const lastIncoming = new Map();
+const priceAskAt = new Map();   // sub -> when they last asked the price ("how much"), so the album's closing line says it
 // sub|shoeId -> ts of the last photo of that shoe sent to that chat. record_sale is
 // REFUSED unless the shoe was photo'd in the same chat within 2h (2026-07-16: Kiki
 // said "Done — size 10 removed" TWICE with no photo, no tool call, and no removal —
@@ -6129,6 +6143,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (e) { try { record(req, { endpoint: 'ready-now-error', sub, error: String(e).slice(0, 120) }); } catch (_) {} }
+  try { if (/\b(how much|price|prices|cost|hm|hmuch|how mch|\$\s*\?)\b|\bhow much\b/i.test(customerWordsOnly(String(userText || '')))) priceAskAt.set(String(sub), Date.now()); } catch (_) {}
   // 🖼️ "THESE ARE ?" / "THIS ONE?" RIGHT AFTER THEIR OWN PHOTO = ABOUT THAT PHOTO (2026-10-14, Sneaker 24 on TK: he
   // forwarded our Dunk High card, then quote-replied "These are ?"; the photo's own turn was lost and Kiki said
   // "I'm not seeing a picture come through"). ManyChat drops the tag, so the server re-attaches the customer's
