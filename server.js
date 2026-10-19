@@ -6748,7 +6748,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
    * they take 2 or more. Some of them sold out (Rodney 2026-10-14: "if someone sends 4 pictures and she only has 2,
    * send back the 2 that she has and say we only have these 2 … the blue and red, those two are sold out"): the
    * pictures of the ones we have go back, and the others are named as sold out. Written by code, sent once. */
-  if (burstHeld.length) {
+  // Nothing matched (TK Darnell 10-19 09:38: two of our cards came back, the list came out empty, and he was sent "Good picks 👌 What
+  // size you wear?" after telling us 13) - then this message is skipped and her own reply answers the pictures.
+  const _burstAny = burstHeld.length && (() => { try { const _lv0 = liveShoeMap(), _c0 = shoeFromVerdict(_idVerdict || '');
+    return burstHeld.some(h => h.gone || (h.id != null && _lv0[h.id])) || !!(_c0.sh || _c0.gone); } catch (_) { return true; } })();
+  if (burstHeld.length && !_burstAny) record(req, { endpoint: 'picks-burst-empty-skipped', sub, held: burstHeld.map(h => h.id || h.gone) });
+  if (burstHeld.length && _burstAny) {
     try {
       const _lv = liveShoeMap(), _cur = shoeFromVerdict(_idVerdict || '');
       const _items = burstHeld.concat(_cur.sh ? [{ id: String(_cur.sh.id) }] : _cur.gone ? [{ gone: _cur.gone }] : []);
