@@ -7013,7 +7013,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _isShip = /SHIPMENT|boat|plane|island/i.test(_ord.text || '');
         global.__orderRelayAt = global.__orderRelayAt || new Map();
         const _last = global.__orderRelayAt.get(String(sub)) || 0;
-        if (_isShip && _said && (_ship.test(_said) || _said.length > 150) && Date.now() - _last > 20 * 60 * 1000) {
+        // "U use island luck r chance" is a PAYMENT question, not shipping news (FF leray g 10-19 sent a shipping card to the drivers'
+        // group; Rodney: "we dont have island luck"). Payment-app names never count as a shipping message.
+        const _payQ = /\b(island ?luck|chance|suncash|sun cash|cash ?app|kanoo|card|transfer|cibc|scotia|pay|payment|link)\b/i.test(_said || '');
+        if (_isShip && _said && !_payQ && (_ship.test(_said) || _said.length > 150) && Date.now() - _last > 20 * 60 * 1000) {
           global.__orderRelayAt.set(String(sub), Date.now());
           const _who = (String(_ord.text || '').match(/👤\s*([^\n]+)/) || [])[1] || '';
           const _ph = (String(_ord.text || '').match(/📞\s*([^\n(]+)/) || [])[1] || '';
@@ -7858,6 +7861,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (turnText && !staffName && /\b(?:we close at 10|anytime before then|holla anytime|no rush at all|hit me anytime|whenever you'?re ready)\b/i.test(turnText) && !/\$\s?\d|📍|location/i.test(turnText)) {
       turnText = 'Ok, anytime you ready just hit us up 👟';
       record(req, { endpoint: 'later-line-shortened', sub });
+    }
+    // An ISLAND order is paid before it ships - never "cash on delivery" (FF leray g 10-19, 3 Jordans by boat to Long Island, was offered
+    // "💵 cash on delivery" when he asked about Island Luck).
+    if (turnText && !staffName && /cash on delivery|pay (?:cash )?when (?:we|the driver) (?:arrive|reach|come)/i.test(turnText)) {
+      try {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _isl = _th && (_th.msgs || []).some(m => m && m.sender === 'system' && /SHIPMENT|by boat|via boat|plane|flight|mail ?boat|island/i.test(m.text || '') && Date.now() - (m.ts || 0) < 7 * 24 * 3600 * 1000);
+        if (_isl) {
+          turnText = turnText.replace(/💵\s*cash on delivery,?\s*/gi, '').replace(/,?\s*or pay cash when (?:we|the driver) (?:arrive|reach|come)/gi, '').replace(/cash on delivery,?\s*(?:or\s*)?/gi, '');
+          record(req, { endpoint: 'island-no-cod', sub });
+        }
+      } catch (_) {}
     }
     /* 🚗 NOBODY IS ON THE WAY UNTIL A HUMAN SAYS SO (Rodney 10-05: "sometimes she's saying driver is on the way and I'm not even
      * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
