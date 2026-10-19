@@ -7806,6 +7806,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = ((_kept ? _kept + '\n\n' : '') + (_which ? 'Which one you like? 👟' : 'Let me know if you\'d like a delivery 👟')).trim();
       record(req, { endpoint: 'catch-your-eye-replaced', sub, which: _which });
     }
+    /* 📍 "LOCATION PLEASE" GETS THE ANSWER (TK Darnell +1 242 357-2060 10-19 09:37 got only "Which one you like?"; TK 533-3607 asked
+     * "more picture and location" the same morning and got a size question). Rodney: we're mobile only, say so, then keep selling. */
+    if (turnText && !staffName) {
+      const _uq = String(userText || '').split('(SYSTEM')[0].trim();
+      if (_uq.split(/\s+/).length <= 12 && !/\b(my|here'?s|sent|sending|send(?:ing)? (?:you|u) (?:my|the))\b/i.test(_uq)
+          && /\b(?:location|where\s+(?:are|r)\s+(?:you|u|y'?all)(?:\s+(?:located|at|based))?|where\s+(?:you|u|y'?all)\s+(?:located|at|based)|where(?:'?s| is)\s+(?:the|your|ur)\s+(?:store|shop|location)|(?:store|shop)\s+location|pick\s*up|which island)\b/i.test(_uq)
+          && !/\b(nassau|mobile|no (?:shop|store)|deliver|bring it|come to you|ship)\b/i.test(turnText)) {
+        turnText = 'We\'re in Nassau — mobile only, no shop, so we bring it straight to you with FREE delivery 🚗 ' + turnText;
+        record(req, { endpoint: 'location-answer-added', sub, q: _uq.slice(0, 40) });
+      }
+    }
     /* 🙅 NO "ALRIGHT, I SEE YOU 👀" (Rodney 10-16: "is not good, you can move it"). The phrase is cut; the rest of the reply stays. */
     if (turnText && !staffName && /\bi\s+see\s+you\b/i.test(turnText)) {
       const _t = turnText.replace(/\s*(?:alright|aight|ok(?:ay)?|ahh?)?[,!\s]*\bi\s+see\s+you\b[!.,]*\s*(?:\u{1F440}\s*)*/giu, ' ').replace(/^[\s,!.—–-]+/, '').replace(/\s{2,}/g, ' ').trim();
