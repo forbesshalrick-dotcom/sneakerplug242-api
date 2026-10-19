@@ -8594,7 +8594,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // alert — hearing it read out is how he knows the order exists — but the very first
         // words have to say TOMORROW, because that is all he hears before deciding whether to
         // move. Same alert, unmistakable headline.
-        const forLater = Number(inp.remind_in_hours) > 0;
+        // A PIN IN HAND IS A DELIVERY, NOT A BOOKING (TK stitch +1 242 806-5647 10-19 08:44: "ill need it before 11", then his pin -
+        // Kiki filed both cards "SET FOR LATER", the second was swallowed as the same booking, and the drivers' group got nothing).
+        const _pinIn = (() => { try { const _p = pinReceived.get(String(sub)); return !!(_p && Date.now() - (_p.at || 0) < 2 * 3600 * 1000)
+          || /https?:\/\/maps\.google\.com\/\?q=-?[\d.]+,-?[\d.]+/.test(String(userText || '')); } catch (_) { return false; } })();
+        const forLater = Number(inp.remind_in_hours) > 0 && !(_pinIn && !earlyStage);
+        if (Number(inp.remind_in_hours) > 0 && !forLater) record(req, { endpoint: 'later-card-made-ready', sub, hours: inp.remind_in_hours });
         const lines = [
           forLater ? "📅 *ORDER SET FOR LATER — NOTHING TO DO NOW* — Kiki has it booked and will chase the customer on the day"
                    : earlyStage ? "🛒 *YOU'VE GOT AN ORDER!* 🆕 — customer is buying now (location still coming)"
