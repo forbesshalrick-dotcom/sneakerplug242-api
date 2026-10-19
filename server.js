@@ -3015,7 +3015,11 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
     const t = lastIncoming.get(sub);
     if (!(t && t > startedAt)) return false;
     const txt = lastIncomingText.get(sub) || '';
-    return STOPPISH.test(txt) || REDIRECT.test(txt) || NO_ONLY.test(txt) || (!_oneShoe && PHOTO_IN.test(txt.trim()));
+    // "You have these in 8??" / "And this" on a quoted picture is the customer PICKING mid-album (TK Sergent_JD +1 242 445-3266
+    // 10-19 14:17: the album rolled on for 90 s and Rodney saw "kiki ignoring ques"). Stop the album so the answer comes now.
+    const POINTER_PICK = /^\W*(?:(?:and|what about|how about|you (?:got|have)|u (?:got|have)|do (?:you|u) have|got)\s+)?(?:this|these|that|those|dis|dem|this one|that one)\b[^.!]{0,30}$|\b(?:this|these|that|those|dis|dem)\b[^.!]{0,20}\b(?:in|size|sz)\s*\d/i;
+    return STOPPISH.test(txt) || REDIRECT.test(txt) || NO_ONLY.test(txt) || (!_oneShoe && PHOTO_IN.test(txt.trim()))
+      || (!_oneShoe && POINTER_PICK.test(txt.trim()));
   };
   // PAUSE-ANSWER-CONTINUE (Rodney 2026-07-14: a customer asked "How much" mid-album,
   // the pictures kept rolling and the question never got answered): a non-stop message
@@ -8064,6 +8068,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
         undoWomensDoubleConvert(sub, p, record, req);
+        /* 📏 THEIR SIZE, NOT A SIZE OUT OF NOWHERE (TK Sergent_JD 10-19 14:19: said "8", asked "You have these colors tho" on a picture
+         * nobody could read, and got "Here's all the New Balance we got in a 5.5"). A searched size the customer never said is
+         * swapped for the one they did say, unless their newest message names the new size. */
+        try {
+          const _cs = custSize.get(sub);
+          const _ut = String(userText || '').split('(SYSTEM')[0];
+          if (_cs && _cs.fromCustomer && _cs.size && Date.now() - (_cs.ts || 0) < 12 * 3600 * 1000 && p.size != null && !p.womens
+              && !(womensSaid.get(String(sub)) && Date.now() - (womensSaid.get(String(sub)).at || 0) < 12 * 3600 * 1000)
+              && Math.abs(parseFloat(p.size) - parseFloat(_cs.size)) > 1
+              && parseFloat(p.size) !== parseFloat(_cs.size) && !new RegExp('(?<![\\d.])' + String(parseFloat(p.size)).replace('.', '\\.') + '(?![\\d])').test(_ut)) {
+            record(req, { endpoint: 'search-size-restored', sub, searched: p.size, theirs: _cs.size });
+            p.size = String(_cs.size);
+          }
+        } catch (_) {}
         // brand: '["Nike", "adidas"]' (a list typed as text, drill 10-16 07:28) or "Nike and adidas" is two brands.
         try {
           if (typeof p.brand === 'string' && /[\[,]|\band\b|&|\//.test(p.brand) && !(Array.isArray(p.brands) && p.brands.length)) {
