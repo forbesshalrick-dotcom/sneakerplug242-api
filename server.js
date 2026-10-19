@@ -7824,6 +7824,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = ((_kept ? _kept + '\n\n' : '') + (_which ? 'Which one you like? 👟' : 'Let me know if you\'d like a delivery 👟')).trim();
       record(req, { endpoint: 'catch-your-eye-replaced', sub, which: _which });
     }
+    /* 🙅 KIKI IS NEVER RODNEY (TK +1 242 421-0487 10-19 13:16: "Hey Rods… I brought a package back for you from your mom" got
+     * "you've got a package from my mom that you're holding?"). A message for Rodney himself gets passed on, never answered as him. */
+    if (turnText && !staffName && /\b(?:my (?:mom|mum|mother|dad|father|son|daughter|wife|girl|family|brother|sister)|this is rodney|it'?s rodney)\b/i.test(turnText)
+        && /\b(?:rod|rods|rodney|ronnie)\b/i.test(String(userText || ''))) {
+      turnText = 'Got it 🙏 I\'ll pass this to Rodney right now so he can get back to you.';
+      record(req, { endpoint: 'spoke-as-rodney-cut', sub });
+      try { waSendManager('🙋 *MESSAGE FOR RODNEY (personal)*\n📞 ' + (getPhone(req) || '') + '\n💬 "' + String(userText || '').slice(0, 200) + '"\n🏬 ' + (ctx.store || ''), token).catch(() => {}); } catch (_) {}
+    }
     /* 🤷 "NO IDEA" IS AN ANSWER TO "WHAT SIZE?" (FF latesha +1 242 447-7855 10-19 11:43: "No idea." got "What size you wear?" back).
      * Rodney's fit answer is the try-on: a best guess, two sizes at the door, keep the one that fits. */
     if (turnText && !staffName) {
