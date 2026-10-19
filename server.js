@@ -7818,11 +7818,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * 12 because "those run a touch small"). Rodney's run-small rule is half a size (9.5 for a 9, 11 for a 10.5, 8 for a 7.5);
      * a sizing line that stretches further is cut, and the offer of that shoe goes with it. */
     if (turnText && !staffName) {
-      const _wl = /\b(?:an?\s+)?(\d{1,2}(?:\.5)?)\s+(?:wears|fits|feels|runs)\s+like\s+(?:an?\s+)?(\d{1,2}(?:\.5)?)\b/i;
+      /* "The 8.5 runs small so IT wears like a 12" slipped past the first form (OSC Thorn +1 242 808-8008 10-19 07:42, a 12 offered an
+       * 8.5 White Thunder). The size may sit a few words before "wears like", and a SMALLER size never wears like a bigger one. */
+      const _wl = /\b(?:an?\s+)?(\d{1,2}(?:\.5)?)\b[^.!?\n\d]{0,40}?\b(?:wears|fits|feels|runs)\s+like\s+(?:an?\s+)?(?:size\s+)?(\d{1,2}(?:\.5)?)\b/i;
       const _m = turnText.match(_wl);
-      if (_m && Math.abs(parseFloat(_m[1]) - parseFloat(_m[2])) > 0.5) {
+      if (_m && (Math.abs(parseFloat(_m[1]) - parseFloat(_m[2])) > 0.5 || parseFloat(_m[1]) < parseFloat(_m[2]))) {
         const _parts = turnText.split(/(?<=[.!?\n])\s+/);
-        const _keep = _parts.filter(x => !_wl.test(x) && !/\b(want me to send|send (it|them|those)|that comes in|comes in \d)/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
+        const _keep = _parts.filter(x => !_wl.test(x) && !/\b(want me to send|send (it|them|those)|that comes in|comes in \d|bring (?:both|them|the two)|try them|that work\?)/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
         turnText = (_keep || ("We don't have that one in your " + _m[2] + " right now 🙏")).trim();
         record(req, { endpoint: 'wears-like-cut', sub, said: _m[0] });
       }
