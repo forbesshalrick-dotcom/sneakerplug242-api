@@ -6734,8 +6734,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
               + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
               + ' Answer about THIS shoe only, in one short line, e.g. "That\'s the ' + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0) + ' — '
-              + (_sz && !_has ? 'no ' + _sz + ' in that one right now' + (_wom ? '' : ', we only have it in ' + _sizes) : _sz && _has ? 'got it in your ' + _sz + '. Want the ' + _sz + '? 👟' : 'we have it in ' + _sizes) + '". '
-              + (_sz && _has ? 'End on that question — never "you\'re good in your ' + _sz + '". If they say yes: "Bet 🔥 Send me your location 📍 — we can come right now 👟". ' : '')
+              + (_sz && !_has ? 'no ' + _sz + ' in that one right now' + (_wom ? '' : ', we only have it in ' + _sizes) : _sz && _has ? 'got it in your ' + _sz + '. What time you available for the delivery? 👟' : 'we have it in ' + _sizes) + '". '
+              // Rodney 10-19 (stitch, Darnell): a card sent back IS the pick - never "Want the 13?", go to the delivery time.
+              + (_sz && _has ? 'End on that question — never "Want the ' + _sz + '?" and never "you\'re good in your ' + _sz + '". When they give a time: "Bet 🔥 Send me your location 📍". ' : '')
               + 'If it comes in their size you may send its picture again. NEVER send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.)\n\n' + _lu.content[0].text;
           }
         }
