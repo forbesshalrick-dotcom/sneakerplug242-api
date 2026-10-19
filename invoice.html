@@ -1002,11 +1002,32 @@ function wire() {
     commit(el);
     refreshTotals();             // numbers only - no redraw under the caret
   });
+  /* A TAP THAT ENDS A FIELD EDIT MUST STILL LAND.
+   * Leaving a field redraws the receipt. When the thing tapped was a button
+   * ("+ Add another item", the X), that redraw swapped the button out between
+   * the press and the click, so the click hit nothing - Rodney 2026-10-19:
+   * "not working". So while a finger or mouse is down, the redraw waits until
+   * the click has been handled. */
+  var pressing = false, redrawLater = false, pressTimer = null;
+  function flushRedraw() {
+    pressing = false; clearTimeout(pressTimer);
+    if (redrawLater) { redrawLater = false; render(); }
+  }
+  document.addEventListener('pointerdown', function () {
+    pressing = true; clearTimeout(pressTimer);
+  }, true);
+  document.addEventListener('pointerup', function () {
+    clearTimeout(pressTimer); pressTimer = setTimeout(flushRedraw, 500);
+  }, true);
+  document.addEventListener('pointercancel', flushRedraw, true);
+  document.addEventListener('click', function () { setTimeout(flushRedraw, 0); }, true);
+
   pv.addEventListener('focusout', function (e) {
     var el = e.target.closest('[data-bind]');
     if (!el) return;
     commit(el);
     typing = false;
+    if (pressing) { redrawLater = true; return; }
     render();                    // now it is safe to redraw
   });
 
