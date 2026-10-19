@@ -3107,6 +3107,16 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
       .replace(/\b(the|our)\s+([\w' -]{2,40}?)s\b(?=\s+(we|in|for|that|rite|right|👇))/i, '$1 $2')
       .replace(/\bthese are\b/i, 'this is').replace(/\bhere are\b/i, "Here's");
   } catch (_) {}
+  /* 📏 The run-small line rides on album lead-ins too (TK Akilah +1 242 826-9542 10-19 10:28: "a 12 wears like an 11" before the White
+   * AF1 card - the reply guard never sees a lead-in). Rodney's run-small move is half a size, never down to a smaller shoe. */
+  try {
+    const _wl = /,?\s*(?:(?:and|but|so)\s+)?(?:they|it|these|those)?\s*(?:runs?|run)?\s*(?:a\s+(?:touch|bit|little)\s+)?(?:small|big)?\s*,?\s*(?:so\s+)?(?:an?\s+)?(\d{1,2}(?:\.5)?)\s+(?:wears|fits|feels|runs)\s+like\s+(?:an?\s+)?(?:size\s+)?(\d{1,2}(?:\.5)?)\b/i;
+    const _m = String(leadIn || '').match(_wl);
+    if (_m && (Math.abs(parseFloat(_m[1]) - parseFloat(_m[2])) > 0.5 || parseFloat(_m[1]) < parseFloat(_m[2]))) {
+      leadIn = String(leadIn).replace(_m[0], '').replace(/\s+([👇👆.!])/gu, ' $1').replace(/\s{2,}/g, ' ').trim();
+      console.log('[wears-like-cut-leadin]', sub, _m[0].trim());
+    }
+  } catch (_) {}
   // Lead-in line goes out FIRST so the 👇 points down at the photos that follow.
   if (leadIn && String(leadIn).trim()) {
     try { await sendChunk(sub, [{ type: 'text', text: String(leadIn).trim() }], token); } catch (e) { /* non-fatal */ }
