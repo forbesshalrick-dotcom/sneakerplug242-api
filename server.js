@@ -3600,6 +3600,7 @@ function undoWomensDoubleConvert(sub, p, record, req) {
 const lastIncomingText = new Map(); // sub -> the text of that latest message
 const lastReplayAt = new Map(); // sub -> when a non-text replay (pin/sticker/undelivered photo) last arrived
 const emptyAskAt = new Map(); // sub -> ts of the last catalog-offer reply to an empty/share message
+const realMsgAt = new Map();  // sub -> ts of the last webhook that carried real words/photo/voice
 const EMPTY_ASK_T = {
   en: "Hey! 👋 Would you like to see some pictures, or what we have in stock? 👟",
   es: "¡Hola! 👋 ¿Quieres ver algunas fotos o lo que tenemos en stock? 👟",
@@ -9232,10 +9233,17 @@ function handleChat(req, res) {
       // pretending we have them. Sits inside the 10-min throttle so a burst of phantom
       // events writes ONE line, not fifty.
       if (!staffNameFor(req)) try { inboxRecord(store, sub, { dir: 'in', sender: 'customer', text: '📩 New message — WhatsApp didn\'t pass the words through. Open the chat to read it.', name, phone: getPhone(req) || '' }); } catch (_) {}
-      say(L(EMPTY_ASK_T, sub), sub).then(t2 => sendChunk(sub, [{ type: 'text', text: t2 }], token)).catch(() => {});
+      /* TWO HELLOS (TK +1 242 533-3607 10-19 08:15): ManyChat fires the wordless webhook AND, a second later, the
+       * same message with its words. Both got a greeting. Wait a few seconds; if the worded one landed, it answers. */
+      const _t0 = Date.now();
+      setTimeout(() => {
+        if ((realMsgAt.get(sub) || 0) >= _t0 - 3000) { record(req, { endpoint: 'empty-ask-skipped-words-came', sub }); return; }
+        say(L(EMPTY_ASK_T, sub), sub).then(t2 => sendChunk(sub, [{ type: 'text', text: t2 }], token)).catch(() => {});
+      }, 8000);
     }
     return;
   }
+  realMsgAt.set(sub, Date.now()); if (realMsgAt.size > 500) realMsgAt.delete(realMsgAt.keys().next().value);
   // (Removed the post-hand-off "go quiet for 6h" pause: with no human actually taking
   // over, it silenced live customers into a void — they messaged, got nothing but timed
   // follow-ups, and blocked us. Kiki must ALWAYS keep answering. Handing off just alerts
