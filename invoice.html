@@ -86,6 +86,10 @@ h4.lbl{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.08
 .ocmid{flex:1;min-width:0}
 .ocmid .nm{font-weight:600;font-size:14px}
 .ocopt{color:var(--soft);font-size:12.5px;margin-top:2px}
+/* An emptied colour / size / unit takes no room on the receipt at rest. */
+.oc:not(.touched):not(:focus-within) .opt:empty,
+.oc:not(.touched):not(:focus-within) .restoff{display:none}
+@media print{.opt:empty,.restoff{display:none}}
 .ocqty{margin-top:6px;font-size:13px}
 .ocright{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ocright .amt{font-size:15px;font-weight:700;display:block}
@@ -502,6 +506,13 @@ function footerText() {
 }
 
 /* ── the receipt ──────────────────────────────────────────── */
+/* "SIZE" AND "/ PAIR" ARE THE ITEM'S OWN WORDS, NOT FIXED TEXT. Rodney 2026-10-19,
+ * invoicing a cylinder head: size, pair and the material "can't be removed or edited".
+ * Each line keeps its own label and unit; clear one and it is gone from the receipt
+ * (it comes back, greyed, while that item is being touched so it can be typed again).
+ * Old invoices have neither field and read "Size" and "pair" as before. */
+function sizeWord(it) { return it.sizeLabel == null ? 'Size' : it.sizeLabel; }
+function unitWord(it) { return it.unit == null ? 'pair' : it.unit; }
 function ed(path, val, cls, ph) {
   return '<span class="' + (cls || '') + '" contenteditable="true" data-bind="' + path + '"' +
     (ph ? ' data-ph="' + esc(ph) + '"' : '') + '>' + esc(val) + '</span>';
@@ -528,12 +539,16 @@ function render() {
           (it.image ? '<img src="' + esc(it.image) + '" alt="">' : 'tap to<br>add photo') + '</div>' +
         '<div class="ocmid">' +
           '<div class="nm">' + ed('items.' + i + '.name', it.name, '', 'Item name') + '</div>' +
-          '<div class="ocopt">' + ed('items.' + i + '.color', it.color, '', 'colour') +
-            ' · Size ' + ed('items.' + i + '.size', it.size, '', '—') + '</div>' +
+          '<div class="ocopt">' + ed('items.' + i + '.color', it.color, 'opt', 'colour') +
+            (it.color && it.size ? '<span class="sep"> · </span>' : ' ') +
+            ed('items.' + i + '.sizeLabel', sizeWord(it), 'opt' + (it.size ? '' : ' restoff'), 'Size') + ' ' +
+            ed('items.' + i + '.size', it.size, 'opt', '—') + '</div>' +
           '<div class="ocqty">Qty ' + ed('items.' + i + '.qty', qty, 'num') + '</div>' +
         '</div>' +
         '<div class="ocright"><span class="amt" data-line="' + i + '">' + money(unit * qty) + '</span>' +
-          '<small>' + ed('items.' + i + '.price', unit.toFixed(2), 'num') + ' / pair</small></div>' +
+          '<small>' + ed('items.' + i + '.price', unit.toFixed(2), 'num') +
+            '<span class="' + (unitWord(it) ? '' : 'restoff') + '"> / </span>' +
+            ed('items.' + i + '.unit', unitWord(it), 'opt', 'pair') + '</small></div>' +
       '</div></div>';
   }).join('');
 
@@ -801,7 +816,7 @@ function buildInvoicePdfBlob(mode) {
         nameLines.forEach(function (l, k) { doc.text(l, tx, y + 20 + k * 12); });
         var below = y + 20 + nameLines.length * 12;
         grey(); doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-        doc.text([it.color, it.size ? 'Size ' + it.size : ''].filter(Boolean).join('  \u00b7  '),
+        doc.text([it.color, it.size ? (sizeWord(it) + ' ' + it.size).trim() : ''].filter(Boolean).join('  \u00b7  '),
                  tx, below + 2);
         ink(); doc.setFontSize(9.5);
         doc.text('Qty ' + (it.qty || 0), tx, below + 17);
@@ -809,7 +824,7 @@ function buildInvoicePdfBlob(mode) {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
         doc.text(money(amt), W - M - 8, y + 24, { align: 'right' });
         grey(); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-        doc.text(money(it.price) + ' / pair', W - M - 8, y + 38, { align: 'right' });
+        doc.text(money(it.price) + (unitWord(it) ? ' / ' + unitWord(it) : ''), W - M - 8, y + 38, { align: 'right' });
         y += h + 8;
       });
 
