@@ -7837,6 +7837,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = 'Yes, we do deals when you take more than one 🔥 Send me back the pictures of the exact pairs you want and I\'ll put the total together and take a discount off it for you 👟';
       record(req, { endpoint: 'deal-refusal-cut', sub });
     }
+    /* 🧾 AN ORDER ON FILE IS NEVER ASKED FOR AGAIN (TK Put God First 10-19 19:13-19:15: Scorpion size 8 $70 filed, card in the group,
+     * then "which shoe you after? Send me the picture again" and "what size you need?" - he cancelled: "Bro don't worry about it g").
+     * With an order filed in the last 12 h, a reply that asks which shoe / what size is swapped for the order itself. */
+    if (turnText && !staffName && /\b(which (?:shoe|one|pair)s? (?:you|u) (?:after|want|need|mean)|send (?:me )?(?:that|the) (?:pic|picture|photo) again|what size (?:you|u|do you) (?:need|wear|want|looking))\b/i.test(turnText)) {
+      try {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _ord = _th && (_th.msgs || []).slice().reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000);
+        const _shoeLine = _ord && ((String(_ord.text).match(/👟\s*([^\n]+)/) || [])[1] || '').trim();
+        if (_shoeLine && !/\b(another|different|other|new|also|too|second|extra)\b/i.test(String(userText || ''))) {
+          const _pr = ((String(_ord.text).match(/💰\s*([^\n]+)/) || [])[1] || '').trim();
+          turnText = 'Your order is set 🙏 ' + _shoeLine + (_pr ? ' — ' + _pr : '') + '. The driver will call you when he\'s close 👟';
+          record(req, { endpoint: 'order-on-file-not-reasked', sub, shoe: _shoeLine.slice(0, 60) });
+        }
+      } catch (_) {}
+    }
     /* 🙅 KIKI IS NEVER RODNEY (TK +1 242 421-0487 10-19 13:16: "Hey Rods… I brought a package back for you from your mom" got
      * "you've got a package from my mom that you're holding?"). A message for Rodney himself gets passed on, never answered as him. */
     if (turnText && !staffName && /\b(?:my (?:mom|mum|mother|dad|father|son|daughter|wife|girl|family|brother|sister)|this is rodney|it'?s rodney)\b/i.test(turnText)
@@ -9512,7 +9527,11 @@ function handleChat(req, res) {
   noteChannel(req, sub);        // remember whether this contact is WhatsApp / Messenger / Instagram
   lastIncoming.set(sub, turnAt); // stamps "they just spoke" (albums check this + the text below)
   lastIncomingText.set(sub, userText || ''); // so the album knows if it was a STOP or just a question
-  try { const _iu = getImageUrl(req) || ((/^https?:\/\/\S+$/i.test(String(userText || '').trim()) && (IMAGE_EXT.test(userText) || MEDIA_HOST.test(userText))) ? String(userText).trim() : ''); if (_iu) lastInboundPhoto.set(String(sub), { img: _iu, at: Date.now() }); } catch (_) {}
+  try { let _iu = getImageUrl(req) || ((/^https?:\/\/\S+$/i.test(String(userText || '').trim()) && (IMAGE_EXT.test(userText) || MEDIA_HOST.test(userText))) ? String(userText).trim() : '');
+    // A VOICE NOTE IS NOT A PICTURE (TK Put God First 10-19 19:15: his .ogg was stored as "his last photo", re-attached to "I said them g",
+    // the vision call failed and he got "Got your pic 📸 … what size you need?" on an order already set - he cancelled).
+    if (_iu && /\.(?:ogg|oga|opus|mp3|m4a|aac|amr|wav|mp4|mov|3gp)(?:\?|$)/i.test(_iu)) _iu = '';
+    if (_iu) lastInboundPhoto.set(String(sub), { img: _iu, at: Date.now() }); } catch (_) {}
   // A message actually reached us, so the line is working again — drop any shaky-delivery
   // flag, and remember who this is so a "go read this thread" alert can name them.
   clearShakyDelivery(sub);
