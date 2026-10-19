@@ -7824,6 +7824,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = ((_kept ? _kept + '\n\n' : '') + (_which ? 'Which one you like? 👟' : 'Let me know if you\'d like a delivery 👟')).trim();
       record(req, { endpoint: 'catch-your-eye-replaced', sub, which: _which });
     }
+    /* 🤷 "NO IDEA" IS AN ANSWER TO "WHAT SIZE?" (FF latesha +1 242 447-7855 10-19 11:43: "No idea." got "What size you wear?" back).
+     * Rodney's fit answer is the try-on: a best guess, two sizes at the door, keep the one that fits. */
+    if (turnText && !staffName) {
+      const _uq2 = String(userText || '').split('(SYSTEM')[0].trim();
+      if (/^\W*(?:no idea|idk|i (?:don'?t|dont|do not) know|not sure|dunno|no clue)\W*$/i.test(_uq2)
+          && /\bwhat size\b|\bsize you (?:wear|need|looking)\b|\byour size\b/i.test(turnText)) {
+        turnText = 'No problem 🙏 Is it for you or for someone else? Give me your best guess and we\'ll bring two sizes so you can try them on at the door and keep the one that fits 👟';
+        record(req, { endpoint: 'no-idea-size-tryon', sub });
+      }
+    }
     /* 📍 "LOCATION PLEASE" GETS THE ANSWER (TK Darnell +1 242 357-2060 10-19 09:37 got only "Which one you like?"; TK 533-3607 asked
      * "more picture and location" the same morning and got a size question). Rodney: we're mobile only, say so, then keep selling. */
     if (turnText && !staffName) {
