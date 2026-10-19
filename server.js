@@ -8118,7 +8118,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _bw = (() => { const c = String(p.color || '').toLowerCase().trim(); if (/^(all |triple )?(black|white)$/.test(c)) return c.replace(/^(all|triple) /, '');
           const qc = [...new Set((stripNicknames(p.query || '').match(/\b(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|volt|teal|burgundy|maroon|olive|multi)\b/g) || []))];
           return (qc.length === 1 && (qc[0] === 'black' || qc[0] === 'white')) ? qc[0] : ''; })();
-        if (!found.length && _sized && _bw && (p.query || p.brand)) {
+        /* 🎯 THE SAME SHOE A SIZE AWAY COMES FIRST (TK Akilah + FF Diego 10-19: "White Air Force size 11" - the white AF1 sits in a
+         * 10 and a 12, and both got Vomeros and black Air Maxes instead). The black/white swap is for a model we don't carry in that
+         * colour at all (the 10-13 TN case); when that model + colour is on the shelf within a size, the nearest-size answer below runs. */
+        const _nearSame = (() => { try {
+          if (!_bw || !(p.query || p.brand)) return false;
+          const _w = parseFloat(p.size != null ? p.size : (Array.isArray(p.sizes) ? p.sizes[0] : NaN)); if (!isFinite(_w)) return false;
+          const q3 = Object.assign({}, p); delete q3.size; delete q3.sizes; delete q3.size_match; delete q3.exact_sizes;
+          const _lm3 = liveShoeMap();
+          return searchInventory(q3).some(x => { const sh = _lm3[x.id]; return sh && (sh.sizesRaw || []).some(z => Math.abs(parseFloat(z) - _w) <= 1); });
+        } catch (_) { return false; } })();
+        if (_nearSame) record(req, { endpoint: 'colour-fallback-bw-skipped-near-size', sub, asked: p });
+        if (!found.length && _sized && _bw && (p.query || p.brand) && !_nearSame) {
           try {
             const base = { size: p.size, sizes: p.sizes, size_match: p.size_match, womens: p.womens, sneakers_only: true };
             const other = _bw === 'black' ? 'white' : 'black';
