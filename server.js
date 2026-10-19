@@ -7830,6 +7830,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'wears-like-cut', sub, said: _m[0] });
       }
     }
+    /* ✅ THEY SAID YES - DON'T ASK THE SIZE BACK (TK stitch +1 242 806-5647 10-19 08:41: asked for a black AF1 "size 11", got the
+     * photo, said "yes", and Kiki asked "Want the 11?"). Rodney: once they pick, tell the price and ask when they're available. */
+    if (turnText && !staffName) {
+      const _wq = turnText.match(/\b(?:want|need|grab|get)\s+(?:the|it in|them in|a|an)\s+(?:an?\s+)?(?:size\s+)?(\d{1,2}(?:\.5)?)\s*\?/i);
+      if (_wq && /^\s*(?:yes+|yeah|ya+|yea|yep|yup|ok(?:ay)?|bet|sure|deal|that one|i want (?:it|that|them|those)|i(?:'| a)?ll take (?:it|that|them))\b/i.test(String(userText || ''))) {
+        const _said = (convos.get(sub) || []).filter(m => m && m.role === 'user').slice(-6)
+          .map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+        const _n = _wq[1].replace('.', '\\.');
+        if (new RegExp('(?:size|sz|in\\s+(?:a|an)|an?)\\s*' + _n + '(?![\\d.])', 'i').test(_said)) {
+          record(req, { endpoint: 'size-confirm-cut', sub, said: _wq[0] });
+          turnText = 'Bet 🔥 What time you available for the delivery? 👟';
+        }
+      }
+    }
     /* 👠 "A women's 8 would be a men's 6.5" - THE TABLE, NOT ARITHMETIC (Rodney 10-18, TK Ronny +1 242 436-8286 asked "Will that size 8 be
      * women size" and was told women's 8 = men's 6.5; Rodney's table says a women's 8 is a men's 7). Any women's→men's figure she writes is
      * corrected from SIZE_TABLE_WOMENS. */
@@ -9333,7 +9347,14 @@ function handleChat(req, res) {
     // stamp the marker (2026-07-15: an ad-entry message carries the product image, so
     // it bypassed this block entirely and its text-only twin got a SECOND answer —
     // customers were seeing Kiki reply twice in different words).
-    if (!imageUrl && !audioUrl && prevM && (Date.now() - prevM) < 10000) {
+    /* A "yes" that ANSWERS A NEW QUESTION is not a double-fire (TK stitch +1 242 806-5647 10-19 08:41: "yes" to the AF1 photo,
+     * Kiki asked "Want the 11?", "yes" again 9s later was eaten as a duplicate and the sale sat unanswered). If Kiki has
+     * spoken since the first copy, the second one is a new answer. */
+    const _convLen = String(((convos.get(sub) || []).filter(m => m && m.role === 'assistant').slice(-1)[0] || {}).content || '').slice(0, 300);  // Kiki's last words (history is trimmed, so not a count)
+    const _prevTs = prevM && typeof prevM === 'object' ? prevM.ts : prevM;
+    // A real ManyChat double-fire lands within ~1-2s; only a slower repeat after a Kiki reply counts as a new answer.
+    const _kikiSpokeSince = prevM && typeof prevM === 'object' && _convLen !== prevM.len && (Date.now() - _prevTs) > 3000;
+    if (!imageUrl && !audioUrl && _prevTs && (Date.now() - _prevTs) < 10000 && !_kikiSpokeSince) {
       record(req, { endpoint: 'dupe-msg-skip', sub, q: userText.slice(0, 30) });
       // 📥 STILL LOG TO THE INBOX (Rodney 2026-07-23: traced a real case — ManyChat sends were
       // timing out, the customer got no reply, so they retyped "I wanna know" 3x in a row
@@ -9344,7 +9365,7 @@ function handleChat(req, res) {
       if (!staffNameFor(req)) try { inboxRecord(store, sub, { dir: 'in', sender: 'customer', text: userText, name, phone: getPhone(req) || '' }); } catch (_) {}
       return;
     }
-    recentMsgSeen.set(mk, Date.now());
+    recentMsgSeen.set(mk, { ts: Date.now(), len: _convLen });
     if (recentMsgSeen.size > 300) { const f = recentMsgSeen.keys().next().value; recentMsgSeen.delete(f); }
   }
 
