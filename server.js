@@ -4827,7 +4827,9 @@ app.post('/alerts/ack', (req, res) => {
     if (i >= 0) { ownerQueue.splice(i, 1); gone++; }
   }
   if (gone) saveOwnerQueue();
-  try { recent.unshift({ at: new Date().toISOString(), endpoint: 'owner-alert-delivered-by-bot', n: gone }); if (recent.length > 120) recent.length = 120; } catch (_) {}
+  // WHO ACKED (10-19: Cam's DELIVERY READY was acked 1 s after it was filed and never reached the group; the M5 sender had not sent it).
+  try { recent.unshift({ at: new Date().toISOString(), endpoint: 'owner-alert-delivered-by-bot', n: gone, ids: ids.map(String).slice(0, 8),
+    ua: String(req.headers['user-agent'] || '').slice(0, 60), ip: String(req.headers['x-forwarded-for'] || req.ip || '').slice(0, 60) }); if (recent.length > 120) recent.length = 120; } catch (_) {}
   res.json({ ok: true, acked: gone, left: ownerQueue.length });
 });
 let _groupAlarmAt = 0;
