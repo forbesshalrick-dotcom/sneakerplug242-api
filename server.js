@@ -6867,6 +6867,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (_) {}
+  /* 💲 SHE KNOWS THE PRICE BY HEART (Rodney 10-19: "why do she have to look it up, my employee know from memory each price" - TK
+   * 445-6278 asked "How much for these 9060s" and got "Let me search ... and get you the price. What size you need?"). A price
+   * question that names a model gets that model's price handed to her, to say FIRST, in the same reply. */
+  try {
+    const _w = customerWordsOnly(String(userText || ''));
+    if (!staffName && /\b(how much|price|prices|cost|hmuch|how mch)\b/i.test(_w)) {
+      const _lmP = liveShoeMap();
+      const _toks = _w.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(t => t.length >= 3 && !/^(how|much|the|these|those|this|that|for|price|prices|cost|you|got|have|are|is|what|pair|pairs|shoe|shoes|sneakers?)$/.test(t));
+      const _hits = _toks.length ? Object.values(_lmP).filter(x => x && x.name && (x.sizesRaw || x.sizes || []).length && _toks.some(t => (String(x.name) + ' ' + String(x.nickname || '')).toLowerCase().includes(t))) : [];
+      const _pr = [...new Set(_hits.map(x => parseFloat(x.price)).filter(n => n > 0))].sort((a, b) => a - b);
+      if (_hits.length && _pr.length) {
+        const _nm = _toks.join(' ');
+        system += '\n\n(SYSTEM NOTE — the customer cannot see this: they asked the PRICE. Say it FIRST, from memory, like staff do: '
+          + (_pr.length === 1 ? '"The ' + _nm + ' are $' + _pr[0] + ' 👟"' : '"The ' + _nm + ' go from $' + _pr[0] + ' to $' + _pr[_pr.length - 1] + ' 👟"')
+          + ' - then carry on (ask their size or show them). NEVER say "let me search", "let me check" or "I\'ll get you the price".)';
+        record(req, { endpoint: 'price-told', sub, q: _nm.slice(0, 40), prices: _pr.slice(0, 4) });
+      }
+    }
+  } catch (_) {}
   /* 🎨 NOT IN THEIR SIZE? SEND THE SAME COLOURS THAT ARE (Rodney 10-18, TK Volmy +1 242 437-7841: wanted the 9060 Green/Black/White
    * in a 9, it only comes in 7/8, and he was just told so - "We also have another green and black New Balance in size 9. Send him
    * the green and black that you have, and then offer if you'd like to see any other colors. That's what you would do in a sale
@@ -7828,6 +7847,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           record(req, { endpoint: 'late-reply-sorry', sub, waitedMin: Math.round((Date.now() - _firstIn.ts) / 60000) });
         }
       } catch (_) {}
+    }
+    // "Let me search what we've got ... and get you the price" - narration, not an answer (Rodney 10-19). The sentence goes.
+    if (turnText && !staffName && /\blet me (?:search|check|look|pull|see what|find)\b|\bget you the price\b/i.test(turnText)) {
+      const _k = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !/\blet me (?:search|check|look|pull|see what|find)\b|\bget you the price\b/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
+      if (_k) { turnText = _k; record(req, { endpoint: 'narration-cut', sub }); }
     }
     /* 🚗 NOBODY IS ON THE WAY UNTIL A HUMAN SAYS SO (Rodney 10-05: "sometimes she's saying driver is on the way and I'm not even
      * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
