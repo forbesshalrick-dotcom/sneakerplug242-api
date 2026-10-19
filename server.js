@@ -6874,7 +6874,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _w = customerWordsOnly(String(userText || ''));
     if (!staffName && /\b(how much|price|prices|cost|hmuch|how mch)\b/i.test(_w)) {
       const _lmP = liveShoeMap();
-      const _toks = _w.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(t => t.length >= 3 && !/^(how|much|the|these|those|this|that|for|price|prices|cost|you|got|have|are|is|what|pair|pairs|shoe|shoes|sneakers?)$/.test(t));
+      const _toks = _w.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).map(t => t.length > 3 ? t.replace(/s$/, '') : t).filter(t => t.length >= 3 && !/^(how|much|the|these|those|this|that|for|price|prices|cost|you|got|have|are|is|what|pair|pairs|shoe|shoes|sneakers?)$/.test(t));
       const _hits = _toks.length ? Object.values(_lmP).filter(x => x && x.name && (x.sizesRaw || x.sizes || []).length && _toks.some(t => (String(x.name) + ' ' + String(x.nickname || '')).toLowerCase().includes(t))) : [];
       const _pr = [...new Set(_hits.map(x => parseFloat(x.price)).filter(n => n > 0))].sort((a, b) => a - b);
       if (_hits.length && _pr.length) {
