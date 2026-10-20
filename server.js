@@ -7845,7 +7845,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
         const _ord = _th && (_th.msgs || []).slice().reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000);
         const _shoeLine = _ord && ((String(_ord.text).match(/👟\s*([^\n]+)/) || [])[1] || '').trim();
-        if (_shoeLine && !/\b(another|different|other|new|also|too|second|extra)\b/i.test(String(userText || ''))) {
+        // A PRICE QUESTION IS NOT A RE-ASK (FF Make It Happen 10-20 13:04: "how much would that be" on a 6-pair order got the order
+        // repeated with no price). Only a reply that asks which shoe/size AGAIN, to a customer who did not ask for a total, is swapped.
+        if (_shoeLine && !/\b(another|different|other|new|also|too|second|extra|add|plus)\b/i.test(String(userText || ''))
+            && !/\b(how much|price|total|cost|amount|pay|owe)\b|\$/i.test(String(userText || ''))) {
           const _pr = ((String(_ord.text).match(/💰\s*([^\n]+)/) || [])[1] || '').trim();
           turnText = 'Your order is set 🙏 ' + _shoeLine + (_pr ? ' — ' + _pr : '') + '. The driver will call you when he\'s close 👟';
           record(req, { endpoint: 'order-on-file-not-reasked', sub, shoe: _shoeLine.slice(0, 60) });
