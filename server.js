@@ -9197,7 +9197,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _native = isYcloudSub(sub) || !!waChannel.get(sub) || process.env.VOICE_REPLY_MANYCHAT === '1';
     if (process.env.VOICE_REPLY !== '0' && !staffName && sentToCustomer && lastText && Date.now() - _vin < 3 * 60 * 1000 && _native) {
       voiceInAt.delete(String(sub));
-      const _url = await speakToVoiceNote(lastText);
+      // The owner's translation line is never SPOKEN (FF Kris 10-20 15:38: the voice note read out "🔎 Customer said: ..." to him).
+      const _spoken = String(lastText).replace(/^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim, '').trim();
+      const _url = _spoken ? await speakToVoiceNote(_spoken) : null;
       if (_url) {
         const _r = await sendChunk(sub, [{ type: 'audio', url: _url }], token).catch(() => null);
         record(req, { endpoint: 'voice-note-reply', sub, ok: !!(_r && _r.ok), url: _url, body: String((_r && _r.body) || '').slice(0, 120) });
