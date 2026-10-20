@@ -7837,6 +7837,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = ((_kept ? _kept + '\n\n' : '') + (_which ? 'Which one you like? 👟' : 'Let me know if you\'d like a delivery 👟')).trim();
       record(req, { endpoint: 'catch-your-eye-replaced', sub, which: _which });
     }
+    /* 🗣️ BAHAMIAN ENGLISH IS ENGLISH (FF Kris 10-20 16:15: "I ain't be ready 'til Friday, but what I trying to tell you is my boy..."
+     * got a "🔎 Customer said:" translation line, sent to him and read out in the voice note). The line is only for Creole/Spanish. */
+    if (turnText && /Customer said:/i.test(turnText)) {
+      const _ut = customerWordsOnly(String(userText || '')).toLowerCase();
+      const _en = (_ut.match(/\b(i|you|the|is|my|to|but|what|and|it|that|in|for|me|be|have|got|want|ready|tell|send|how|much|do|this|they|he|she|we|ain'?t|gonna|wanna)\b/g) || []).length;
+      const _ht = /\b(mwen|ou|nou|yo|pa|nan|se|kisa|kote|konbyen|bonjou|m[eè]si|kounye|tanpri|soulye|tenis|gen|vle|quiero|tienen|cu[aá]nto|zapatos|hola|gracias)\b/i.test(_ut);
+      if (_en >= 3 && !_ht) {
+        turnText = turnText.replace(/^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim, '').replace(/\n{3,}/g, '\n\n').trim();
+        record(req, { endpoint: 'english-translation-cut', sub });
+      }
+    }
     /* 🤝 "IF I BUY 4 PAIRS COULD I GET A DEAL?" - YES (Rodney 10-19, FF Clowe +1 242 829-8227 got "That's already our best price").
      * The old line is cut; she asks for the exact pairs, then totals them with $10 off each. */
     if (turnText && !staffName && /\b(?:already (?:our|the) (?:best|lowest) price|no discounts?|price is firm|can'?t do (?:a )?(?:deal|discount))\b/i.test(turnText)
