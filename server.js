@@ -7329,7 +7329,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               }
               if (/\b(no|not|don'?t|doesn'?t|out|sold|isn'?t|aren'?t|only|except|closest|nearest|instead|which|what|wear|need|after|check|checking|look|see)\b|\?/i.test(sen)) continue;
               if (!/\b(got|have|has|carry|stock|in stock|available|here)\b/i.test(sen)) continue;
-              const nums = [...sen.replace(/\$\s*\d+(?:\.\d+)?/g, ' ')
+              // "4:30 PM" is a time, not a size 4 (FF Make It Happen 10-20 14:08: a delivery-time reply was flagged as a size claim).
+              const nums = [...sen.replace(/\$\s*\d+(?:\.\d+)?/g, ' ').replace(/\b\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?/gi, ' ')
                 .replace(/\b(?:jordan|aj|retro|max|force|forces|dunk|balance|nb|yeezy|boost|foam|gel|kayano|dn|tn|plus|vomero|pegasus|zoom|kobe|lebron|kd|foamposite|scorpion|air)\s+\d{1,2}\b/gi, ' ')
                 .matchAll(/\b(\d{1,2}(?:\.5)?)\b(?!\s*(?:pairs?|pics?|photos?|%|am|pm|mins?|hours?|days?|colou?rs?|styles?|left|of))/gi)]
                 // A number that is the model of a shoe in play, followed by "in …" / "s" / "retro", is the shoe ("the Black/Volt 11 in
