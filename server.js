@@ -6029,7 +6029,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
     const _b = String(userText || '').trim();
     const BROWSING = /^(i'?m |im |i |am |i am |just |jus |still )*(just |jus |still )?(looking|lookin|browsing|checking|lookin round|looking (at|thru|through) (the |them |these |your )?(shoes|pics|pictures|them|it|everything)|checking (them|it|the shoes) out|let me (look|see|check)( (them|it) over)?|lemme (look|see|check)|give me (a )?(min|minute|sec|second)|i'?ll let (you|u) know|will let (you|u) know|i'?ll get back to (you|u)|thinking about it)\b[^?]{0,25}$/i;
-    if (!image && _b && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !/\b(size|how much|price|deliver|\d)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
+    // "Let me see" right after we offered to show something means SHOW ME, not "let me think" (FF J🦋VEL 10-20 14:42: asked
+    // "Which one you want to see?", he said "Let me see" and got "Take your time").
+    const _lastA = String(((convos.get(sub) || []).filter(m => m && m.role === 'assistant').slice(-1)[0] || {}).content || '');
+    const _offeredToShow = /\b(want to see|wanna see|like to see|show you|send you|see (some |the )?(pics|pictures|more)|which one)\b/i.test(_lastA.slice(-200))
+      || (() => { try { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); const _lo = _th && (_th.msgs || []).slice().reverse().find(m => m && m.dir === 'out' && m.text);
+             return !!(_lo && Date.now() - (_lo.ts || 0) < 15 * 60 * 1000 && /\b(want to see|wanna see|like to see|show you|which one)\b/i.test(_lo.text)); } catch (_) { return false; } })();
+    if (!image && _b && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !(_offeredToShow && /^\W*(let me|lemme) see\b/i.test(_b)) && !/\b(size|how much|price|deliver|\d)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
       try { clearFollowUp(sub); } catch (_) {}
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _b, name: ctx.name }); } catch (_) {}
       const line = await say("Take your time. Just let me know when you're ready.", sub).catch(() => "Take your time. Just let me know when you're ready.");
