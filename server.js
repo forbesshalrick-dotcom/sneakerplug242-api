@@ -3377,6 +3377,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
           if (_ps.length) priceAskAt.delete(String(sub));
         }
       } catch (_) {}
+      // A SHORT ALBUM OFFERS MORE (Rodney 10-20: "because its not much you should say ... that we have more styles available if you
+      // want to see them"). 2-5 pictures of one style get the offer on the closing line.
+      try { if (sent <= 5 && !/more styles/i.test(closing)) closing = closing.replace(/\s*👟$/, '').replace(/\s*Which one you like\?$/, '') + ' 👟 We have more styles available in your size if you want to see them 🔥'; } catch (_) {}
       try { await sendChunk(sub, [{ type: 'text', text: await say(closing, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
