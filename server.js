@@ -13299,6 +13299,28 @@ app.post('/inbox/upload', (req, res) => {
   res.json({ ok: true, url: proto + '://' + host + '/inbox/media/' + id });
 });
 // Public (not key-gated) so ManyChat / the Graph API can fetch it. The id is random.
+// 🧾 A CUSTOMER'S OWN PICTURES, BACK OUT AGAIN (Rodney 10-20, at the airport with the Foot Fetish phone dead: "he sent two receipts
+// ... I can't find nothing ... the driver wants to deliver"). YCloud photo links need the API key, so the server fetches them.
+app.get('/inbox/customer-media', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const sub = String(req.query.sub || '').replace(/[^0-9]/g, '');
+  const list = [...ycloudSentMedia.entries()].filter(([k, v]) => v && v.fromCustomer && String(v.sub) === sub)
+    .map(([k, v]) => ({ id: k, at: new Date(v.at).toISOString(), caption: v.caption || '' }));
+  const seen = new Set(); const uniq = list.filter(x => { const k = x.at; if (seen.has(k)) return false; seen.add(k); return true; });
+  if (req.query.id) {
+    const rec = ycloudSentMedia.get(String(req.query.id));
+    if (!rec || !rec.fromCustomer || String(rec.sub) !== sub) return res.status(404).json({ ok: false });
+    try {
+      const hdr = process.env.YCLOUD_API_KEY ? { 'X-API-Key': process.env.YCLOUD_API_KEY } : {};
+      let r = await fetch(rec.link, { headers: hdr, signal: AbortSignal.timeout(15000), redirect: 'follow' });
+      if (!r.ok && Object.keys(hdr).length) r = await fetch(rec.link, { signal: AbortSignal.timeout(15000), redirect: 'follow' });
+      if (!r.ok) return res.status(502).json({ ok: false, status: r.status });
+      res.set('Content-Type', (r.headers.get('content-type') || 'image/jpeg').split(';')[0]);
+      return res.send(Buffer.from(await r.arrayBuffer()));
+    } catch (e) { return res.status(502).json({ ok: false, error: String(e).slice(0, 100) }); }
+  }
+  res.json({ ok: true, items: uniq.slice(-20) });
+});
 app.get('/inbox/media/:id', (req, res) => {
   const v = inboxMedia.get(req.params.id);
   if (!v) return res.status(404).send('not found');
