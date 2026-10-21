@@ -7907,6 +7907,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'spoke-as-rodney-cut', sub });
       try { waSendManager('🙋 *MESSAGE FOR RODNEY (personal)*\n📞 ' + (getPhone(req) || '') + '\n💬 "' + String(userText || '').slice(0, 200) + '"\n🏬 ' + (ctx.store || ''), token).catch(() => {}); } catch (_) {}
     }
+    /* 📸 A PICTURE IS NOT A YES (Luxury Boutique's first ad customer 10-21 16:20: three screenshots of the 9060, no size given, and the
+     * third one got "Bet 🔥 Send me your location"). A turn with no words never asks for the location. */
+    if (turnText && !staffName && image && !String(userText || '').split('(SYSTEM')[0].trim() && /send (?:me )?your location/i.test(turnText)) {
+      turnText = turnText.replace(/(?:^|\n)[^\n]*send (?:me )?your location[^\n]*/gi, '').trim() || 'What size you need? \u{1f45f}';
+      record(req, { endpoint: 'photo-not-a-yes', sub });
+    }
     if (turnText && !staffName && LATER_WORDS.test(String(userText || '').split('(SYSTEM')[0].trim())) {
       turnText = LATER_REPLY;
       record(req, { endpoint: 'later-words-reply', sub });
