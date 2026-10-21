@@ -2380,6 +2380,7 @@ const AI_TOOLS = [
         min_price: { type: 'number', description: 'Only shoes at or above this price. Use for "over $100" or a price range (with max_price).' },
         query: { type: 'string', description: 'Free text — a model, nickname or colourway, e.g. "Jordan 4", "Air Max 95", "yellow thunder", "white thunder", "bred", "cement". Searches across each shoe\'s name, nickname AND colour, and tolerates typos/odd spellings ("thundr", "jordon", "cment"). Prefer putting a colour+nickname phrase here as one query rather than splitting it.' },
         womens: { type: 'boolean', description: 'Set true when the customer is giving a WOMEN\'S size ("women\'s 9", "ladies 9", "a 9 in womens", "for her"). Pass the WOMEN\'S size numbers in size/sizes as-is; the search maps them to the right men\'s stock automatically (men\'s 7 = women\'s 8 & 8.5, men\'s 8 = women\'s 9 & 9.5, etc.). Default false = men\'s sizing.' },
+        on_sale: { type: 'boolean', description: 'Set true when the customer asks for shoes ON SALE / discounted / clearance / specials ("anything on sale in an 8?"). Returns ONLY the sale shoes. If none come back, say nothing in their size is on sale right now and offer their size at regular price.' },
         sneakers_only: { type: 'boolean', description: 'Set true when the customer asked for SNEAKERS — "tennis" (the local word for sneakers), "sneakers", "kicks", "trainers", "running shoes". It drops the Crocs, slides and foam clogs so they only see real sneakers. Leave false/unset for a plain "what you got in a 9" browse (they may well want the Crocs), and NEVER set it when they actually asked for Crocs/slides.' },
       },
     },
@@ -2733,7 +2734,7 @@ function stripNicknames(t) {
   for (const n of nicknamePhrases()) if (out.indexOf(' ' + n + ' ') !== -1) out = out.split(' ' + n + ' ').join('  ');
   return out;
 }
-function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes, sneakers_only } = {}) {
+function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes, sneakers_only, on_sale } = {}) {
   let rows = liveCatalog();
   // ⚫⚪ BLACK MEANS TRIPLE BLACK, WHITE MEANS TRIPLE WHITE (Rodney 2026-10-13: "TN plus black" in a
   // size 8 got blue/red, blue and green/white TNs — every shoe with black ANYWHERE in it). When black
@@ -2845,6 +2846,8 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
   // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
   // foam clogs (Rodney 2026-08-04). See SLIP_ON_RE.
   if (sneakers_only) rows = rows.filter(({ s }) => !isSlipOn(s));
+  // 🏷️ ON SALE (FF brownantoinette1976 10-21: "anything size 8 on sale?" got every Jordan in an 8 — the search had no sale filter).
+  if (on_sale) rows = rows.filter(({ s }) => s && s.sale);
   // Price filter: "under $150" → max_price 150; "over $100" → min_price 100; a range uses both.
   const maxP = parseFloat(max_price), minP = parseFloat(min_price);
   if (!isNaN(maxP)) rows = rows.filter(({ s }) => (parseFloat(s.price) || 0) <= maxP);
