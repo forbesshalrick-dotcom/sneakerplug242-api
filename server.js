@@ -6246,9 +6246,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         && !/\b(?:one|1)\s*(?:sec|second|min|minute|moment|mo)\b|\bhold on\b|\bwait\b/i.test(_pt)
         // "Them plz" on a photo from an album sent an hour earlier (TK Put God First +1 242 426-2478 10-19 08:45) was never
         // checked: "them" was not a pointer word and the album was past 45 min. A pointer word now looks back 12 hours.
-        && _rs && _rs.names && _rs.names.length > 1
-        && ((/\b(this|these|that|those|them|thm|dem|em|dis|dese|dat|it|one|1)\b|'em\b/i.test(_pt) && Date.now() - _rs.ts < 12 * 3600 * 1000)
-            || (/\b(any|size|sz|how much|price|cost|got|have|available|in)\b|^\W*\d{1,2}(?:\.5)?\W*$|\$/i.test(_pt) && Date.now() - _rs.ts < 45 * 60 * 1000))
+        // "Do you have this size 5?" quoting our picture from 12 days earlier (TK +1 242 827-0989 10-21) was never checked: no album
+        // in the last 12 hours, so Kiki searched "size 5" and dumped 115 photos. "this/that/these/those" always asks the reader now,
+        // whatever the age of the picture, unless exactly one shoe went out in the last 45 min (the bare-pointer block names it).
+        && ((/\b(this|these|that|those|dis|dese|dat)\b/i.test(_pt) && !(_rs && _rs.names && _rs.names.length === 1 && Date.now() - _rs.ts < 45 * 60 * 1000))
+            || (_rs && _rs.names && _rs.names.length > 1
+                && ((/\b(them|thm|dem|em|it|one|1)\b|'em\b/i.test(_pt) && Date.now() - _rs.ts < 12 * 3600 * 1000)
+                    || (/\b(any|size|sz|how much|price|cost|got|have|available|in)\b|^\W*\d{1,2}(?:\.5)?\W*$|\$/i.test(_pt) && Date.now() - _rs.ts < 45 * 60 * 1000))))
         && Date.now() - tagReaderSeenAt < 3 * 60 * 1000) {
       tagRequests.set(String(sub), { sub: String(sub), store: ctx.store || '', url: _url, text: _pt.slice(0, 80), at: Date.now(), done: false, shoeId: '' });
       if (tagRequests.size > 200) tagRequests.delete(tagRequests.keys().next().value);
