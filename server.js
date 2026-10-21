@@ -4044,7 +4044,9 @@ const RECENT_SENT_FILE = (() => {
 try {
   if (RECENT_SENT_FILE && require('fs').existsSync(RECENT_SENT_FILE)) {
     const saved = JSON.parse(require('fs').readFileSync(RECENT_SENT_FILE, 'utf8'));
-    const cutoff = Date.now() - 45 * 60 * 1000;
+    // 12 h, not 45 min (TK Hannaboy 10-20 19:59: tagged a card from his 12:17 album, but a 17:xx restart had dropped every album older
+    // than 45 min, so the tag reader was never asked and he got "Which one? Send me that picture again" twice).
+    const cutoff = Date.now() - 12 * 3600 * 1000;
     for (const [k, v] of Object.entries(saved)) if (v && v.ts > cutoff) recentlySent.set(k, v);
     console.log('[recent] restored recently-sent for', recentlySent.size, 'customers');
   }
