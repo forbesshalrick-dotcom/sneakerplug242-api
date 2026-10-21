@@ -2116,7 +2116,7 @@ ${welcomeRule}
 - ALWAYS REPLY — NEVER GO SILENT (IMPORTANT): Every customer message must get a reply. Never end your turn having sent them nothing. If a customer asks to SEE shoes — "show me some Jordan 1s", "what Jordans you got?", "show me the New Balance", "lemme see what you have" — immediately call search_inventory for that brand/model and then send_photos of what we have. You do NOT need their size first to show them. After you call search_inventory you MUST follow through the same conversation: either send_photos of the results, or (only if the search truly came back empty) tell them kindly we don't have that one right now and offer to show what we DO have in their size or that brand instead. Never stop after searching without showing or saying anything.
 - ⏰ A TIME THEY GAVE STICKS — A LOCATION THAT COMES AFTER IT IS THE LOCATION FOR THAT TIME (Rodney 2026-10-13: a customer said "I'll be ready a little after 6", Kiki wrote it down, then he sent "I'll be to work Wendy Wulf rd and East st" and she answered "I've sent this to the team… See you in a bit!" — as if the driver were leaving now): once a customer names a later time ("after 6", "tomorrow", "when I get home"), that time stays on the order. A location they send afterwards is WHERE they'll be AT that time, not a change of plan. Confirm both in one line — "Got you 📍 Wendy Wulf Rd & East St, a little after 6 — the driver will call when he's close" — and when you file it with notify_manager, keep that time in remind_in_hours. Never say "see you in a bit", "heading out", "on the way" or anything that means NOW when they told you LATER. Only a clear "come now" / "I'm ready now" from them moves it up.
 - OUR HOURS (know this cold): we're OPEN EVERY DAY from 8 AM to 10 PM. We're mobile & delivery-only — no storefront — but the HOURS question still gets a straight answer. If anyone asks when we open/close ("what time y'all close?", "you still open?", "till when?"), answer PLAINLY first: "We're open every day 8 AM – 10 PM 👟" — never dodge it with "we come to you, what time works?" (Rodney 2026-07-13). After answering, you can add that we deliver to them.
-- 🕚 "I'LL GET BACK TO YOU" → WARM + THE 10 PM WINDOW, THEN LEAVE IT (Rodney 2026-07-19): when a customer says they'll get back to you, let you know, think about it, or come back later, do NOT keep selling and do NOT pressure them. Reply with EXACTLY this, nothing longer (Rodney 10-19: "make this a short message"): "Ok, anytime you ready just hit us up 👟". No "we close at 10", no "no rush at all", no "I've got you". Then stop — the system won't chase them with follow-ups, so this ONE gracious line is the whole reply.
+- 🕚 "I'LL GET BACK TO YOU" → WARM + THE 10 PM WINDOW, THEN LEAVE IT (Rodney 2026-07-19): when a customer says they'll get back to you, let you know, think about it, or come back later, do NOT keep selling and do NOT pressure them. Reply with EXACTLY this, nothing longer (Rodney 10-21): "Okay, let me know when you're ready 👟". "I let you know" / "I get back to you" (no 'll) mean the same thing - it is NEVER a yes. No "we close at 10", no "no rush at all", no "I've got you". Then stop — the system won't chase them with follow-ups, so this ONE gracious line is the whole reply.
 - ⚠️ HOURS vs "WHEN WILL YOU GET HERE" — READ WHICH ONE THEY MEAN (Rodney 2026-07-13, a real customer got open-hours quoted at her mid-delivery): if the customer has an ORDER in motion (they've picked a shoe and you're arranging/have arranged the drop-off) and they ask "what time may u get here?", "when you coming?", "how long?", "you reaching?" — they are asking about THEIR DELIVERY, not our opening times. NEVER answer that with "we're open 8 AM – 10 PM." Say the driver's on the way and you'll check how far he is — e.g. "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟". Only quote the 8 AM – 10 PM hours when someone genuinely asks when we open or close.
 - NO SPECIAL ORDERS (IMPORTANT): We do NOT take special orders. NEVER offer one — never say "special order", "we can order it in", "DM for special orders", or "we'll send the exact pair once it arrives". When we genuinely don't have what they asked for, kindly say we don't have that one right now, then IMMEDIATELY pivot to showing what we DO have that's close — their size, that brand, or a similar colour — and keep steering toward a shoe we actually have in stock.
 - "IS THIS PRE-ORDER?" / "ARE THESE PRE-ORDERED?" (Rodney 2026-07-26): a customer asking this is asking whether they'd have to pay first and WAIT for it to arrive. The answer is NO — every shoe shown in the photos/album is already here on the island (Nassau), in stock, and ready for delivery right away. NEVER read this as the customer wanting to pre-order and start asking for a "preferred delivery date" — that's backwards and stalls a sale that could close today. Reply plainly, e.g. "Nah, this is already here and ready to go 👟 Not a pre-order — we can get it to you right away. What size you need?" then keep moving toward getting their size + location.
@@ -2928,6 +2928,10 @@ function clusterShoesByModel(arr) {
 // Subs whose in-progress photo album the OWNER hit STOP on (manual halt from the chat) —
 // so a malfunctioning "sends all stock" dump can be cut off mid-album by hand.
 const sendAbort = new Set();
+// 🕚 "I LET YOU KNOW" = LATER, NOT YES (Rodney 10-21, FF Joey 565-5373: "I let you know" got "Perfect! Want the 8? Send me your
+// location" and a NEW ORDER card). Bahamians drop the "'ll", so the prompt's "I'll let you know" rule never matched in her head.
+const LATER_WORDS = /^\W*(?:ok(?:ay)?|aight|alright|k)?\W*(?:i|ima|i['’]?ma|i['’]?ll|ill|i will|i go|i gon(?:na)?|i['’]?m gonna|will)?\s*(?:let (?:you|u|yu|ya) know|get back (?:to )?(?:you|u|yu)|think (?:about|bout) it|hit (?:you|u|yu) up|holla (?:at )?(?:you|u|yu))(?:\s+(?:later|tomorrow|tmrw|tmr|soon|in a (?:bit|while)|when\b.*|after\b.*|then))?\W*$/i;
+const LATER_REPLY = "Okay, let me know when you're ready \u{1f45f}";
 // Albums going out RIGHT NOW. /health reports it so a deploy can wait for 0: the 2026-10-14 09:27 deploy restarted
 // the server in the middle of a 99-shoe album and killed the customer's queued photo with it.
 let albumsInFlight = 0;
@@ -7903,6 +7907,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'spoke-as-rodney-cut', sub });
       try { waSendManager('🙋 *MESSAGE FOR RODNEY (personal)*\n📞 ' + (getPhone(req) || '') + '\n💬 "' + String(userText || '').slice(0, 200) + '"\n🏬 ' + (ctx.store || ''), token).catch(() => {}); } catch (_) {}
     }
+    if (turnText && !staffName && LATER_WORDS.test(String(userText || '').split('(SYSTEM')[0].trim())) {
+      turnText = LATER_REPLY;
+      record(req, { endpoint: 'later-words-reply', sub });
+    }
     /* 🤷 "NO IDEA" IS AN ANSWER TO "WHAT SIZE?" (FF latesha +1 242 447-7855 10-19 11:43: "No idea." got "What size you wear?" back).
      * Rodney's fit answer is the try-on: a best guess, two sizes at the door, keep the one that fits. */
     if (turnText && !staffName) {
@@ -8713,6 +8721,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
        * sent a picture and "7" at 5:56 AM; Kiki filed "YOU'VE GOT AN ORDER — customer is buying now", asked for her pin, and the
        * owner got "STILL NEED AN ANSWER" chases and she got a 9 AM "Still want it?" — she had only told us her size. A bare
        * size or a bare picture never files an order; buying words do. */
+      else if (tu.name === 'notify_manager' && !staffName && LATER_WORDS.test(String(userText || '').split('(SYSTEM')[0].trim())) {
+        record(req, { endpoint: 'order-refused-later-words', sub, said: String(userText || '').slice(0, 30) });
+        if (sentToCustomer) orderRefusedAfterText = true;
+        result = { ok: false, not_filed: 'They said they will let you know later - that is NOT an order, nothing was filed. Reply only: ' + LATER_REPLY };
+      }
       else if (tu.name === 'notify_manager' && !staffName && (tu.input || {}).stage === 'order_confirmed'
                && (/^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(String(userText || '').split('(SYSTEM')[0].trim())
                    || (image && !String(userText || '').split('(SYSTEM')[0].trim()))) {
@@ -12569,7 +12582,9 @@ app.post('/ycloud/webhook', async (req, res) => {
         }
         text = '(SYSTEM: the customer TAGGED ' + (q.fromCustomer ? 'a picture THEY sent earlier' : 'one of OUR pictures') + ' — they quote-replied to it, and the attached picture IS the one they are pointing at'
           + (qShoe ? (': ' + displayName(qShoe) + ' (shoe id ' + qShoe.id + ')') : '')
-          + '. Treat their message as being about exactly that shoe — answer about it, never ask "which one" or "got what?".)\n' + (text || '');
+          + '. Treat their message as being about exactly that shoe — answer about it, never ask "which one" or "got what?".'
+          + ' If they ask for ANOTHER COLOUR ("you have black?", "in black", "other colours?"), they want the SAME MODEL'
+          + (qShoe ? ' (' + String(qShoe.name || displayName(qShoe)) + ')' : '') + ' in that colour: search_inventory for that model + colour in their size and send THOSE pictures - never this same picture again, never "that\'s the one".)\n' + (text || '');
       } else {
         text = '(SYSTEM: the customer quote-replied to an earlier message we no longer have. If it is unclear what they mean, ask them to send that picture again.)\n' + (text || '');
       }
