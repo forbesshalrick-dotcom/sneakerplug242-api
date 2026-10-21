@@ -1175,7 +1175,9 @@ let _ycSentSaveT = null;
 function rememberYcloudSent(keys, rec) {
   try {
     for (const k of keys) if (k) ycloudSentMedia.set(String(k), rec);
-    while (ycloudSentMedia.size > 4000) ycloudSentMedia.delete(ycloudSentMedia.keys().next().value);
+    // 4000 ids was ~2 days of Foot Fetish albums: a tag on a 4-day-old picture found nothing and Kiki said
+    // "Send that picture again" (425-4112, 10-21). Hold a month of pictures.
+    while (ycloudSentMedia.size > 40000) ycloudSentMedia.delete(ycloudSentMedia.keys().next().value);
     if (!YCLOUD_SENT_FILE) return;
     clearTimeout(_ycSentSaveT);
     _ycSentSaveT = setTimeout(() => { try { require('fs').writeFileSync(YCLOUD_SENT_FILE, JSON.stringify([...ycloudSentMedia])); } catch (_) {} }, 3000);
@@ -2929,11 +2931,16 @@ const sendAbort = new Set();
 // Albums going out RIGHT NOW. /health reports it so a deploy can wait for 0: the 2026-10-14 09:27 deploy restarted
 // the server in the middle of a 99-shoe album and killed the customer's queued photo with it.
 let albumsInFlight = 0;
+const albumBusySubs = new Map();   // sub -> albums going out to that customer right now
 async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photosOnly = false, isStaff = false, requestAt = 0, sizeKnown = true) {
   albumsInFlight++;
+  albumBusySubs.set(String(sub), (albumBusySubs.get(String(sub)) || 0) + 1);
   try {
     return await _sendShoePhotos(sub, ids, token, groups, leadIn, photosOnly, isStaff, requestAt, sizeKnown);
-  } finally { albumsInFlight = Math.max(0, albumsInFlight - 1); }
+  } finally {
+    albumsInFlight = Math.max(0, albumsInFlight - 1);
+    const _n = (albumBusySubs.get(String(sub)) || 1) - 1; if (_n > 0) albumBusySubs.set(String(sub), _n); else albumBusySubs.delete(String(sub));
+  }
 }
 async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photosOnly = false, isStaff = false, requestAt = 0, sizeKnown = true) {
   sendAbort.delete(sub); // fresh send — clear any stale stop flag so it isn't halted before it starts
@@ -6336,7 +6343,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // would never see that the customer just dropped a pin or sent a photo. Surface it.
       const isReplay = /RE-DELIVERY of the customer|non-?text (message|thing)|dropped (a |their )?(pin|location)/i.test(raw);
       let inTxt = raw.split('\n\n(SYSTEM NOTE')[0].trim();
-      if (/^\(/.test(inTxt) && /\bsystem\b|customer (just )?sent|can'?t open|re-?delivery/i.test(inTxt)) inTxt = '';
+      // 🏷️ A TAGGED message carries a (SYSTEM: …) line above the customer's words, and the whole thing used to be blanked:
+      // Rodney's inbox showed "📷 photo" or nothing at all for every tag (Foot Fetish 10-21). Keep their words and say what they tagged.
+      let _tagLbl = '';
+      try {
+        const _tm = /^\(SYSTEM: the customer TAGGED[^\n]*?pointing at(?:: ([^\n]+?) \(shoe id [^\n]*?\))?\./m.exec(inTxt);
+        if (_tm) _tagLbl = '↩️ Tagged ' + (_tm[1] || 'a picture');
+        else if (/^\(SYSTEM: the customer quote-replied to an earlier message we no longer have/m.test(inTxt)) _tagLbl = '↩️ Tagged an old message';
+        if (_tagLbl) while (/^\(SYSTEM[^\n]*\)\s*(?:\n|$)/.test(inTxt)) inTxt = inTxt.replace(/^\(SYSTEM[^\n]*\)\s*(?:\n|$)/, '').trim();
+        if (_tagLbl) inTxt = _tagLbl + (inTxt && !/^\(/.test(inTxt) ? ': ' + inTxt : '');
+      } catch (_) {}
+      if (!_tagLbl && /^\(/.test(inTxt) && /\bsystem\b|customer (just )?sent|can'?t open|re-?delivery/i.test(inTxt)) inTxt = '';
       const inImg = ctx.inPhotoUrl || (image && typeof image === 'string' ? image : '');
       if (!inTxt && !inImg && image) inTxt = '📷 photo';
       // Capture the customer's REAL phone (ManyChat `sub` is a subscriber_id, NOT a phone).
@@ -12517,6 +12534,18 @@ app.post('/ycloud/webhook', async (req, res) => {
     // 🏷️ A TAGGED REPLY: they quoted one of our pictures. Hand Kiki that picture as the thing they mean.
     const _ctxId = m.context && (m.context.id || m.context.wamid || m.context.message_id || m.context.messageId);
     if (_ctxId) {
+      // ⏳ LET THE ALBUM LAND FIRST (Rodney 10-21, Foot Fetish 438-0005: "missed and sent the wrong photo"). Meta fetches each
+      // picture on its own, so album pictures reach the phone out of order — a 9060 sent at 10:46:30 landed at 10:47, right
+      // under Kiki's answer about the Jordan 4 he tagged, and read as her sending the wrong shoe. A tag that comes in just after
+      // an album waits until 40 s after our last picture, so every straggler is in before she answers.
+      try {
+        if (!albumBusySubs.get(String(from))) {
+          let _lastPic = 0;
+          for (const v of ycloudSentMedia.values()) if (v && !v.fromCustomer && String(v.sub) === String(from) && v.at > _lastPic) _lastPic = v.at;
+          const _waitMs = _lastPic ? Math.min(40000, _lastPic + 40000 - Date.now()) : 0;
+          if (_waitMs > 0) { record(req, { endpoint: 'ycloud-tag-waits-for-album', sub: from, waitMs: _waitMs }); await new Promise(z => setTimeout(z, _waitMs)); }
+        }
+      } catch (_) {}
       const q = ycloudSentMedia.get(String(_ctxId));
       let qShoe = null;
       if (q && q.link) {
