@@ -90,6 +90,15 @@ h4.lbl{margin:0 0 3px;font-size:11px;text-transform:uppercase;letter-spacing:.08
 .oc:not(.touched):not(:focus-within) .opt:empty,
 .oc:not(.touched):not(:focus-within) .restoff{display:none}
 @media print{.opt:empty,.restoff{display:none}}
+/* EVERY FIXED WORD IS A WORD HE CAN CHANGE OR CLEAR (Rodney 2026-10-22: "everything must be
+ * able to be moved or edited"). A cleared label takes no room at rest; touch the block it sat
+ * in and it comes back greyed so it can be typed again. A totals row whose label is cleared
+ * goes as a whole - a bare "$0.00" with no word means nothing. */
+[data-blk]:not(.touched):not(:focus-within) .lw:empty{display:none}
+.tot:not(.touched):not(:focus-within) .tl.off{display:none}
+[data-blk]:not(.touched):not(:focus-within) .trkbtn.restoff{display:none}
+@media print{.lw:empty,.tl.off,.trkbtn.restoff{display:none}}
+.pvtitle:has(.lw:empty){min-height:14px}
 .ocqty{margin-top:6px;font-size:13px}
 .ocright{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .ocright .amt{font-size:15px;font-weight:700;display:block}
@@ -384,6 +393,29 @@ function setPath(o, path, val) {
   cur[p[p.length - 1]] = val;
 }
 
+/* A PHONE KEEPS AN OLD COPY OF THIS PAGE FOR DAYS (2026-10-22). The 10-19 fix that made
+ * "Size" and "pair" editable was live, and his phone still showed words that would not
+ * change - the tab had simply never been reloaded. So the page checks its own version
+ * whenever it comes back on screen (and every 5 minutes), and reloads itself when a new
+ * one is out and nothing is unsaved. With unsaved work it only says so. */
+var pageTag = null;
+function checkForUpdate() {
+  if (!window.fetch) return;
+  fetch(location.pathname, { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+    var t = r.headers.get('etag') || r.headers.get('last-modified') || '';
+    if (!t) return;
+    if (pageTag == null) { pageTag = t; return; }
+    if (t === pageTag) return;
+    if (!dirty && !typing) { location.reload(); return; }
+    note('saveline', 'A newer version of this page is out - Save, then close and reopen it');
+  }).catch(function () {});
+}
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') checkForUpdate();
+});
+setInterval(checkForUpdate, 5 * 60 * 1000);
+checkForUpdate();
+
 /* ── boot ─────────────────────────────────────────────────── */
 function start() {
   try {
@@ -500,6 +532,7 @@ function trackLink() {
    Typing over it on the receipt pins it for THAT invoice; clearing it again
    hands it back to the store name. */
 function footerText() {
+  if (inv.footerOff) return '';
   if (inv.footer && inv.footer.trim()) return inv.footer;
   var who = (settings && settings.storeName && settings.storeName.trim()) || 'us';
   return 'Thank you for shopping with ' + who;
@@ -512,12 +545,28 @@ function footerText() {
  * (it comes back, greyed, while that item is being touched so it can be typed again).
  * Old invoices have neither field and read "Size" and "pair" as before. */
 function sizeWord(it) { return it.sizeLabel == null ? 'Size' : it.sizeLabel; }
+/* The receipt's own words, per invoice. Missing = the default below; '' = cleared. */
+var LABELS = {
+  delivery: 'Delivery info', title: 'INVOICE', billto: 'Bill to', shipto: 'Ship to', qtyword: 'Qty',
+  items: '{n} item(s) total', shipping: 'Shipping', discount: 'Discount', total: 'Total',
+  tracking: 'Tracking details', number: 'Number', trackbtn: 'Track package',
+  payment: 'Payment info', ending: 'ending in', instructions: 'Payment instructions'
+};
+function lbl(k) {
+  var v = inv.labels && inv.labels[k];
+  v = v == null ? LABELS[k] : v;
+  return String(v).replace('{n}', inv.items.length);
+}
+function edl(k) { return ed('labels.' + k, lbl(k), 'lw', LABELS[k].replace('{n} ', '')); }
+function holder() { return inv.payment.holder == null ? (inv.customer.name || '') : inv.payment.holder; }
+function paidOn() { return inv.payment.date == null ? prettyDate(inv.date) : inv.payment.date; }
 function unitWord(it) { return it.unit == null ? 'pair' : it.unit; }
 function ed(path, val, cls, ph) {
   return '<span class="' + (cls || '') + '" contenteditable="true" data-bind="' + path + '"' +
     (ph ? ' data-ph="' + esc(ph) + '"' : '') + '>' + esc(val) + '</span>';
 }
 
+function off(k) { return lbl(k) ? '' : ' off'; }
 function render() {
   if (typing) return;          // never redraw under a live caret
   var s = settings || DEFAULT_SETTINGS;
@@ -543,7 +592,7 @@ function render() {
             (it.color && it.size ? '<span class="sep"> · </span>' : ' ') +
             ed('items.' + i + '.sizeLabel', sizeWord(it), 'opt' + (it.size ? '' : ' restoff'), 'Size') + ' ' +
             ed('items.' + i + '.size', it.size, 'opt', '—') + '</div>' +
-          '<div class="ocqty">Qty ' + ed('items.' + i + '.qty', qty, 'num') + '</div>' +
+          '<div class="ocqty">' + edl('qtyword') + ' ' + ed('items.' + i + '.qty', qty, 'num') + '</div>' +
         '</div>' +
         '<div class="ocright"><span class="amt" data-line="' + i + '">' + money(unit * qty) + '</span>' +
           '<small>' + ed('items.' + i + '.price', unit.toFixed(2), 'num') +
@@ -554,57 +603,58 @@ function render() {
 
   var head = s.logoUrl
     ? '<img src="' + esc(s.logoUrl) + '" alt="" style="max-height:56px">'
-    : '<div class="thanks">' + ed('thanks', inv.thanks, '', 'Thank you') + '</div>';
+    : '<div class="thanks" data-blk="1">' + ed('thanks', inv.thanks, 'lw', 'Thank you') + '</div>';
 
   $('preview').innerHTML =
     '<div class="pvtop"><div>' + head + '</div>' +
-      '<div style="width:100%"><h4 class="lbl">Delivery info</h4>' +
+      '<div style="width:100%" data-blk="1"><h4 class="lbl">' + edl('delivery') + '</h4>' +
         '<div class="dbar">' + steps + '</div></div></div>' +
 
-    '<div class="pvtitle">INVOICE</div>' +
+    '<div class="pvtitle" data-blk="1">' + edl('title') + '</div>' +
     '<div class="pvmeta">' + ed('number', inv.number, '', 'ORDER-0001') + ' · ' +
       ed('date', prettyDate(inv.date), '', 'date') +
       ' · <span class="pill ' + esc(inv.status) + '" id="statuspill">' + esc(inv.status) + '</span></div>' +
 
     '<div class="pvto">' +
-      '<div><h4 class="lbl">Bill to</h4>' +
+      '<div data-blk="1"><h4 class="lbl">' + edl('billto') + '</h4>' +
         '<div>' + ed('customer.name', inv.customer.name, '', 'Customer name') + '</div>' +
         '<div>' + ed('customer.phone', inv.customer.phone, '', '+1 242') + '</div>' +
         '<div>' + ed('customer.email', inv.customer.email, '', 'email') + '</div></div>' +
-      '<div><h4 class="lbl">Ship to</h4>' +
+      '<div data-blk="1"><h4 class="lbl">' + edl('shipto') + '</h4>' +
         '<div class="ml">' + ed('shipAddress', inv.shipAddress, '', 'Delivery address') + '</div></div>' +
     '</div>' +
 
     cards +
     '<button class="addrow' + (inv.items.length ? '' : ' show') + '" data-additem="1">+ Add another item</button>' +
 
-    '<div class="tot">' +
-      '<div class="tl"><span>' + inv.items.length + ' item(s) total</span>' +
+    '<div class="tot" data-blk="1">' +
+      '<div class="tl' + off('items') + '"><span>' + edl('items') + '</span>' +
         '<span id="t-sub">' + money(subtotal()) + '</span></div>' +
-      '<div class="tl"><span>Shipping</span><span>$' +
+      '<div class="tl' + off('shipping') + '"><span>' + edl('shipping') + '</span><span>$' +
         ed('shipping', Number(inv.shipping).toFixed(2), 'num') + '</span></div>' +
-      '<div class="tl"><span>Discount</span><span>−$' +
+      '<div class="tl' + off('discount') + '"><span>' + edl('discount') + '</span><span>−$' +
         ed('discount', Number(inv.discount).toFixed(2), 'num') + '</span></div>' +
-      '<div class="tl big"><span>Total</span><span id="t-total">' + money(total()) + '</span></div>' +
+      '<div class="tl big' + off('total') + '"><span>' + edl('total') + '</span><span id="t-total">' + money(total()) + '</span></div>' +
     '</div>' +
 
-    '<div class="dl"><h4 class="lbl">Tracking details</h4>' +
-      '<div class="trk"><span>Number</span><span class="num">' +
+    '<div class="dl" data-blk="1"><h4 class="lbl">' + edl('tracking') + '</h4>' +
+      '<div class="trk"><span>' + edl('number') + '</span><span class="num">' +
         ed('tracking', inv.tracking, '', 'tracking number') + '</span></div>' +
-      (trackLink() ? '<a class="trkbtn" href="' + esc(trackLink()) + '" target="_blank" rel="noopener">Track package</a>' : '') +
+      (trackLink() ? '<a class="trkbtn' + (lbl('trackbtn') ? '' : ' restoff') + '" href="' + esc(trackLink()) +
+        '" target="_blank" rel="noopener">' + edl('trackbtn') + '</a>' : '') +
       '<div class="muted" style="margin-top:6px">' + ed('carrier', inv.carrier, '', 'carrier') + '</div></div>' +
 
-    '<div class="dl"><h4 class="lbl">Payment info</h4><div class="payrow">' +
-      '<div><b>' + ed('payment.brand', inv.payment.brand, '', 'Visa') + ' ending in ' +
-        ed('payment.last4', inv.payment.last4, 'num', '0000') + '</b>' +
-        '<small>' + esc(inv.customer.name) + '</small></div>' +
+    '<div class="dl" data-blk="1"><h4 class="lbl">' + edl('payment') + '</h4><div class="payrow">' +
+      '<div><b>' + ed('payment.brand', inv.payment.brand, 'lw', 'Visa') + ' ' + edl('ending') + ' ' +
+        ed('payment.last4', inv.payment.last4, 'num lw', '0000') + '</b>' +
+        '<small>' + ed('payment.holder', holder(), 'lw', 'name on card') + '</small></div>' +
       '<div class="ocright"><span class="amt" id="t-paid">' + money(total()) + '</span>' +
-        '<small>' + esc(prettyDate(inv.date)) + '</small></div></div></div>' +
+        '<small>' + ed('payment.date', paidOn(), 'lw', 'date') + '</small></div></div></div>' +
 
-    (s.payment ? '<div class="dl"><h4 class="lbl">Payment instructions</h4><div class="ml">' +
+    (s.payment ? '<div class="dl" data-blk="1"><h4 class="lbl">' + edl('instructions') + '</h4><div class="ml">' +
       esc(s.payment) + '</div></div>' : '') +
 
-    '<div class="foot">' + ed('footer', footerText(), '', 'Thank you for shopping with us') + '</div>' +
+    '<div class="foot" data-blk="1">' + ed('footer', footerText(), 'lw', 'Thank you for shopping with us') + '</div>' +
     (s.address ? '<div class="foot pvstore" style="text-align:center">' + esc(s.address) + '</div>' : '');
 }
 
@@ -738,7 +788,7 @@ function buildInvoicePdfBlob(mode) {
 
       // thank you
       doc.setFont('times', 'bolditalic'); doc.setFontSize(mobile ? 26 : 30); ink();
-      doc.text(inv.thanks || 'Thank you', M, y);
+      if (inv.thanks) doc.text(String(inv.thanks), M, y);
 
       // store contact, top right - desktop only; on mobile it would crowd the line
       if (!mobile) {
@@ -750,7 +800,7 @@ function buildInvoicePdfBlob(mode) {
       // delivery trail
       y += 26;
       if (inv.steps && inv.steps.length) {
-        doc.setFontSize(8); grey(); doc.text('DELIVERY INFO', M, y);
+        doc.setFontSize(8); grey(); doc.text(lbl('delivery').toUpperCase(), M, y);
         y += 16;
         var n = inv.steps.length, span = (W - M * 2) / n;
         inv.steps.forEach(function (st, i) {
@@ -772,7 +822,7 @@ function buildInvoicePdfBlob(mode) {
 
       // title
       ink(); doc.setFont('helvetica', 'bold'); doc.setFontSize(22);
-      doc.text('INVOICE', M, y); y += 16;
+      doc.text(lbl('title'), M, y); y += 16;
       grey(); doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
       doc.text(inv.number + '  \u00b7  ' + prettyDate(inv.date) + '  \u00b7  ' + inv.status, M, y);
       y += 22;
@@ -780,18 +830,18 @@ function buildInvoicePdfBlob(mode) {
       // bill to / ship to
       var bill = [inv.customer.name, inv.customer.phone, inv.customer.email].filter(Boolean);
       if (mobile) {
-        doc.setFontSize(8); grey(); doc.text('BILL TO', M, y); y += 13;
+        doc.setFontSize(8); grey(); doc.text(lbl('billto').toUpperCase(), M, y); y += 13;
         ink(); doc.setFontSize(10);
         bill.forEach(function (l) { doc.text(String(l), M, y); y += 13; });
         y += 6;
-        doc.setFontSize(8); grey(); doc.text('SHIP TO', M, y); y += 13;
+        doc.setFontSize(8); grey(); doc.text(lbl('shipto').toUpperCase(), M, y); y += 13;
         ink(); doc.setFontSize(10);
         doc.splitTextToSize(String(inv.shipAddress || ''), W - M * 2).forEach(function (l) {
           doc.text(String(l), M, y); y += 13;
         });
         y += 12;
       } else {
-        doc.setFontSize(8); grey(); doc.text('BILL TO', M, y); doc.text('SHIP TO', W / 2, y);
+        doc.setFontSize(8); grey(); doc.text(lbl('billto').toUpperCase(), M, y); doc.text(lbl('shipto').toUpperCase(), W / 2, y);
         y += 13; ink(); doc.setFontSize(10);
         var ship = doc.splitTextToSize(String(inv.shipAddress || ''), W / 2 - M - 10);
         bill.forEach(function (l, i) { doc.text(String(l), M, y + i * 13); });
@@ -819,7 +869,7 @@ function buildInvoicePdfBlob(mode) {
         doc.text([it.color, it.size ? (sizeWord(it) + ' ' + it.size).trim() : ''].filter(Boolean).join('  \u00b7  '),
                  tx, below + 2);
         ink(); doc.setFontSize(9.5);
-        doc.text('Qty ' + (it.qty || 0), tx, below + 17);
+        doc.text((lbl('qtyword') ? lbl('qtyword') + ' ' : '') + (it.qty || 0), tx, below + 17);
         var amt = (Number(it.qty) || 0) * (Number(it.price) || 0);
         doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
         doc.text(money(amt), W - M - 8, y + 24, { align: 'right' });
@@ -838,15 +888,15 @@ function buildInvoicePdfBlob(mode) {
         doc.text(val, W - M, y, { align: 'right' });
         y += bold ? 20 : 16;
       };
-      row(inv.items.length + ' item(s) total', money(subtotal()));
-      row('Shipping', money(inv.shipping));
-      row('Discount', '\u2212' + money(inv.discount));
-      line(y); y += 18; row('Total', money(total()), true);
+      if (lbl('items')) row(lbl('items'), money(subtotal()));
+      if (lbl('shipping')) row(lbl('shipping'), money(inv.shipping));
+      if (lbl('discount')) row(lbl('discount'), '\u2212' + money(inv.discount));
+      line(y); y += 18; if (lbl('total')) row(lbl('total'), money(total()), true);
 
       // tracking + payment
       if (inv.tracking) {
         y += 8; line(y); y += 16;
-        doc.setFontSize(8); grey(); doc.text('TRACKING DETAILS', M, y); y += 14;
+        doc.setFontSize(8); grey(); doc.text(lbl('tracking').toUpperCase(), M, y); y += 14;
         ink(); doc.setFontSize(10);
         doc.text(String(inv.tracking), M, y);
         if (inv.carrier) { grey(); doc.text(String(inv.carrier), W - M, y, { align: 'right' }); }
@@ -854,16 +904,16 @@ function buildInvoicePdfBlob(mode) {
       }
       if (inv.payment && inv.payment.last4) {
         line(y); y += 16;
-        doc.setFontSize(8); grey(); doc.text('PAYMENT INFO', M, y); y += 14;
+        doc.setFontSize(8); grey(); doc.text(lbl('payment').toUpperCase(), M, y); y += 14;
         ink(); doc.setFontSize(10);
-        doc.text((inv.payment.brand || 'Card') + ' ending in ' + inv.payment.last4, M, y);
+        doc.text([inv.payment.brand, lbl('ending'), inv.payment.last4].filter(Boolean).join(' '), M, y);
         doc.text(money(total()), W - M, y, { align: 'right' });
         y += 18;
       }
 
       // footer
       y += 14; grey(); doc.setFontSize(10);
-      doc.text(footerText(), W / 2, y, { align: 'center' });
+      if (footerText()) doc.text(footerText(), W / 2, y, { align: 'center' });
 
       return doc.output('blob');
     });
@@ -994,7 +1044,10 @@ function commit(el) {
     setPath(inv, path, txt);      // free text; prettyDate passes it through
   } else if (path === 'footer') {
     var who = (settings && settings.storeName && settings.storeName.trim()) || 'us';
+    inv.footerOff = !txt;
     inv.footer = (txt === 'Thank you for shopping with ' + who) ? '' : txt;
+  } else if (path === 'labels.items' && txt === lbl('items') && (!inv.labels || inv.labels.items == null)) {
+    // untouched "N item(s) total" - leave it following the item count
   } else {
     setPath(inv, path, txt);
   }
@@ -1010,6 +1063,18 @@ function wire() {
 
   pv.addEventListener('focusin', function (e) {
     if (e.target.hasAttribute && e.target.hasAttribute('contenteditable')) typing = true;
+    /* ONE TAP TAKES THE WHOLE WORD. On a phone, getting the caret to the end of a
+     * four-letter word and backspacing it out is fiddly - "Size" and "pair" stayed on his
+     * receipts (2026-10-22). A tapped label or option is selected whole: one backspace
+     * clears it, typing replaces it. */
+    var w = e.target;
+    if (w.classList && (w.classList.contains('lw') || w.classList.contains('opt'))) {
+      setTimeout(function () {
+        if (document.activeElement !== w || !w.textContent) return;
+        var r = document.createRange(); r.selectNodeContents(w);
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      }, 0);
+    }
   });
   pv.addEventListener('input', function (e) {
     var el = e.target.closest('[data-bind]');
@@ -1056,11 +1121,13 @@ function wire() {
      * It used to sit on every line permanently, which reads as part of the
      * receipt to a customer. Hidden it is opacity:0 AND pointer-events:none,
      * so an invisible button can never be tapped by accident. */
-    var card = e.target.closest('.oc');
-    [].forEach.call(document.querySelectorAll('.oc.touched'), function (o) {
+    var card = e.target.closest('.oc, [data-blk]');
+    [].forEach.call(document.querySelectorAll('.oc.touched, [data-blk].touched'), function (o) {
       if (o !== card) o.classList.remove('touched');
     });
     if (card) card.classList.add('touched');
+    // The tracking button's own word is edited in place - a tap on the word is not a visit.
+    if (e.target.closest('.trkbtn') && e.target.hasAttribute('contenteditable')) e.preventDefault();
 
     var addBtn = e.target.closest('[data-additem]');
     if (addBtn) { addItem({}); return; }
