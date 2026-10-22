@@ -6336,7 +6336,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         for (const k in _lmT) { if (_lmT[k] && String(_lmT[k].id) === r.shoeId) { _sh = _lmT[k]; break; } }
         if (_sh) {
           userText = '(SYSTEM: they quote-replied OUR picture of the ' + displayName(_sh) + ' (shoe id ' + _sh.id + '), $' + (parseFloat(_sh.price) || 0) + ', comes in ' + (sizesOf(_sh) || 'no sizes right now')
-            + '. That is the shoe they mean — answer about it by name; never ask which one.)\n' + _pt;
+            + '. That is the shoe they mean — answer about it by name; never ask which one.'
+            // Rodney 10-22, TK 535-4304 ("10.5/11", tagged the all-black NB 2000): "You want the New Balance 2000 in your 10.5?" - it only
+            // comes in the 11, and the order card went out as 10.5. Name the size we really HAVE out of the ones they gave.
+            + (() => { try {
+                const _cs = custSize.get(String(sub)); if (!_cs || !_cs.size || Date.now() - (_cs.ts || 0) > 12 * 3600 * 1000) return '';
+                const _want = String(_cs.size).split('/').map(parseFloat).filter(n => isFinite(n));
+                const _have = _want.filter(n => (_sh.sizesRaw || []).some(z => parseFloat(z) === n));
+                if (!_want.length) return '';
+                return _have.length === _want.length ? ''
+                  : _have.length ? ' Of their sizes (' + _cs.size + ') it ONLY comes in the ' + _have.join(' and ') + ' - say that size, never "' + _want.filter(n => !_have.includes(n)).join('/') + '".'
+                  : ' It does NOT come in their size (' + _cs.size + ') - say so plainly.';
+              } catch (_) { return ''; } })()
+            + ')\n' + _pt;
           lastPickBySub.set(String(sub), { id: String(_sh.id), at: Date.now() });
           try { tableAdd(sub, { name: displayName(_sh), id: _sh.id, price: _sh.price }); } catch (_) {}
           record(req, { endpoint: 'tag-resolved', sub, shoe: String(_sh.id), waitedMs: Date.now() - _t0 });
