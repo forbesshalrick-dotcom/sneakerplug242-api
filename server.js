@@ -3361,7 +3361,10 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
         // customer's whole ask — "in 8.5 in the Nike Vomero 5", "in women's 8.5", "in Jordans for $100". The ask
         // is the search these shoes came from; an inbox album with shoes from no recent search uses the shoes.
         const ask = lastAsk.get(sub);
-        const p = ask && Date.now() - ask.at < 20 * 60000 && went.some(sh => ask.ids.has(String(sh.id))) ? ask.p : null;
+        // FF 242-468-0580 10-22: a 34-pair size-13 inbox album closed "This is what we have in a 14 👟" - the ask was lost and
+        // the line fell back to the size he asked for, which we do not carry. The traced ids are checked as well as the shoes.
+        const _traced = albumTrace.filter(Boolean).map(t => String(t.id));
+        const p = ask && Date.now() - ask.at < 20 * 60000 && (went.some(sh => ask.ids.has(String(sh.id))) || _traced.some(id => ask.ids.has(id))) ? ask.p : null;
         if (p) {
           const sz = p.size != null && !/all/i.test(String(p.size)) ? String(p.size).trim()
             : (Array.isArray(p.sizes) && p.sizes.length ? p.sizes.map(String).join(' & ') : '');
@@ -3388,7 +3391,12 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
           what = [sizePart, sizePart && model ? (named ? 'in the ' : 'in ') + model : model, price].filter(Boolean).join(' ');
         }
         if (!what) what = one(0) || one(1);
-        if (!what) { const _cs = custSize.get(sub); if (_cs && _cs.size) what = 'a ' + _cs.size; }
+        if (!what) {
+          const _cs = custSize.get(sub);
+          // Never "in a 14" when we stop at a 13: only a size the album could really be in.
+          let _carried = true; try { const _have = sizesWeStock(); _carried = !_have.size || String((_cs && _cs.size) || '').split('/').some(x => _have.has(parseFloat(x))); } catch (_) {}
+          if (_cs && _cs.size && _carried) what = 'a ' + _cs.size;
+        }
       } catch (_) {}
       let closing = what ? ('This is what we have in ' + what + ' 👟') : 'This is what we have 👟';
       /* 💲 THEY ASKED THE PRICE - THE CLOSING LINE SAYS IT (Rodney 10-18, TK 445-6278: "How much for these 9060s", then "10", and got a
