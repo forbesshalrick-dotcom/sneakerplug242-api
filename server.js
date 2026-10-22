@@ -13620,6 +13620,27 @@ app.post('/inbox/upload', (req, res) => {
 // Public (not key-gated) so ManyChat / the Graph API can fetch it. The id is random.
 // 🧾 A CUSTOMER'S OWN PICTURES, BACK OUT AGAIN (Rodney 10-20, at the airport with the Foot Fetish phone dead: "he sent two receipts
 // ... I can't find nothing ... the driver wants to deliver"). YCloud photo links need the API key, so the server fetches them.
+// ✓✓ WAS IT DELIVERED / READ? (Rodney 10-22, Make It Happen's payment messages: "Is there one tick or two ticks?"). Asks YCloud for the
+// last messages we sent to this number and their status (sent = one tick, delivered = two, read = blue).
+app.get('/inbox/ycloud-status', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const to = '+' + String(req.query.sub || '').replace(/[^0-9]/g, '');
+  const key = process.env.YCLOUD_API_KEY;
+  if (!key || to.length < 8) return res.status(400).json({ ok: false, error: 'need sub and YCLOUD_API_KEY' });
+  try {
+    const out = []; let raw = '';
+    for (let page = 1; page <= 5 && out.length < 10; page++) {
+      const r = await fetch('https://api.ycloud.com/v2/whatsapp/messages?limit=100&page=' + page, { headers: { 'X-API-Key': key }, signal: AbortSignal.timeout(20000) });
+      const t = await r.text(); if (page === 1) raw = t.slice(0, 600);
+      if (!r.ok) return res.status(502).json({ ok: false, status: r.status, body: t.slice(0, 300) });
+      const j = JSON.parse(t); const items = j.items || j.data || [];
+      for (const m of items) if (String(m.to || '') === to) out.push({ at: m.createTime || m.sendTime, status: m.status, delivered: m.deliverTime || null, read: m.readTime || null,
+        type: m.type, text: String((m.text && m.text.body) || '').slice(0, 60), error: m.errorMessage || m.errorCode || null });
+      if (!items.length) break;
+    }
+    res.json({ ok: true, to, messages: out.slice(0, 10), sample: out.length ? undefined : raw });
+  } catch (e) { res.status(502).json({ ok: false, error: String(e).slice(0, 160) }); }
+});
 app.get('/inbox/customer-media', async (req, res) => {
   if (!consoleAuth(req, res)) return;
   const sub = String(req.query.sub || '').replace(/[^0-9]/g, '');
