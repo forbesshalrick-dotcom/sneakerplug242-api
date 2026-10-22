@@ -2851,7 +2851,13 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
      * school ... they must see all options available ... the more options the better"). All-black leads, then shoes whose colour
      * STARTS with black (Black/White, Black/Grey/Red); a shoe that is only trimmed in black (White/Black, Red/Black) stays out. */
     const _leadsWith = (w) => ({ s }) => (normC(s.color || '').split(/[^a-z]+/).filter(t => t.length >= 3 && !COLOUR_FILLER.has(t))[0] || '') === w;
-    rows = (_single.length === 1 && (_single[0] === 'black' || _single[0] === 'white'))
+    /* "ALL BLACK" MEANS ALL BLACK (Rodney 10-22, TK 447-9708: "all black" in a 9 or 9.5 got 25 pictures - Bred, Thunder, Red Thunder -
+     * "whats wrong with all black?"). "all / triple / full / solid / plain black" is the all-black pairs only; a plain "black" still
+     * shows the mostly-black ones after them. */
+    const _allAsk = /\b(all|triple|full|solid|plain|straight|complete)\b/.test(c);
+    rows = (_allAsk && _single.length === 1)
+      ? rows.filter(isPureColour)
+      : (_single.length === 1 && (_single[0] === 'black' || _single[0] === 'white'))
       ? [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r) && _leadsWith(_single[0])(r))]
       : [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r))];
   }
@@ -8264,6 +8270,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
         undoWomensDoubleConvert(sub, p, record, req);
+        // "all black" typed, "black" searched: put the "all" back so the search keeps to all-black pairs (Rodney 10-22, TK 447-9708).
+        try {
+          const _cw = customerWordsOnly(String(userText || '')) + ' ' + (history || []).filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\s*\(/.test(m.content)).slice(-4).map(m => customerWordsOnly(m.content)).join(' ');
+          const _am = _cw.toLowerCase().match(/\b(all|triple|full|solid|plain|straight)\s*(black|white|grey|gray|red|blue|pink|green|brown|cream)\b/);
+          if (_am && p.color && new RegExp('^\\s*' + (_am[2] === 'gray' ? 'grey' : _am[2]) + '\\s*$', 'i').test(String(p.color).replace(/gray/i, 'grey'))) {
+            p.color = 'all ' + p.color.trim(); record(req, { endpoint: 'all-colour-kept', sub, color: p.color });
+          }
+        } catch (_) {}
         /* 💵 NO PRICE CAP THE CUSTOMER NEVER GAVE (TK Tyrese +1 242 437-3185 10-21 23:03: a voice note transcribed "No money, black
          * shoes." became max_price 100, one Yeezy Foam went out, and he never saw the 13 other black pairs in his 9/10). A cap stays only
          * when the customer's own words in the last 2 hours carry that number or a budget word. */
