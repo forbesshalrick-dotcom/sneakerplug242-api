@@ -1715,6 +1715,12 @@ const END_OF_PHOTOS_MSG = `let me know if you need a delivery`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const lastAsk = new Map(); // sub -> { p, ids, at }: the last search_inventory ask, so the closing line repeats what they asked for
 const cardBurst = new Map(); // sub -> [{ id | gone, at }]: shoes from pictures held back because another picture was right behind
+const photoVerdicts = new Map(); // sub -> { v, at }: the picture reader's last verdict, so "No the tan" a minute later still knows the shoe was an Air Force 1
+// The shoe a NOT-IN-STOCK verdict saw, cleaned for a customer: 'Nike Air Force 1 Low '07 WB "Flax/Wheat", tan…' -> 'Nike Air Force 1 Low Flax/Wheat'.
+function verdictSeenName(v) {
+  const seen = (String(v || '').match(/SEEN:\s*([^\n]+)/i) || [])[1] || '';
+  return seen.split(/[,;:]|\.\s/)[0].replace(/\([^)]*\)/g, '').replace(/["“”]/g, '').replace(/\s'\d\d\b|\bWB\b/g, ' ').replace(/\s+/g, ' ').trim();
+}
 // What a picture-reader verdict names: one of our shoes ({sh}), or a shoe we don't have, by what it shows ({gone}).
 function shoeFromVerdict(v) {
   const m = String(v || '').match(/OURS:\s*([^\n]+)/i), o = m ? m[1].trim() : '';
@@ -6665,6 +6671,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: _seen ? 'photo-identified' : 'photo-identify-failed', sub, store: ctx.store || '', seen: _seen ? _seen.slice(0, 240) : null });
       if (_seen) {
         _idVerdict = _seen;
+        photoVerdicts.set(String(sub), { v: _seen, at: Date.now() });
         photoNote = '(🔎 A careful second look at this photo, by a stronger eye than yours, says:\n' + _seen + '\n'
           + 'TRUST THAT over your own read of the picture. If it names one of OUR shoes under OURS, search that exact name '
           + 'now and send it, and SAY it is the one ("that\'s our Air Force 1 Teal/Green 👟"). If it says NOT IN STOCK, tell '
@@ -7715,8 +7722,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           model = model.replace(new RegExp('\\b' + esc + '\\b(?![\\s\\S]*\\b' + esc + '\\b)'), ' ');
         }
         model = model
-          .replace(/\b(size|sizes|colou?rs?|in|a|an|the|you|have|got|any|do|u|i|need|want|looking|for|one|me|is|it|yall|y'all|plz|please|hello|hi|hey|can|get|more|info|on|this)\b/g, ' ')
+          .replace(/\b(size|sizes|colou?rs?|in|a|an|the|you|have|got|any|do|u|i|need|want|looking|for|one|me|is|it|yall|y'all|plz|please|hello|hi|hey|can|get|more|info|on|this|that|these|those|no|nah|yes|yeah|ok|okay)\b/g, ' ')
           .replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+        /* 🌾 THE SHOE WAS A PICTURE, NOT A WORD (Rodney 10-22, TK 559-8608: a Wheat Air Force 1 photo, "Looking for this
+         * size 10", "No the tan". The model came out "no", so the search for their shoe in their size found nothing and the
+         * only offer was a tan Yeezy Foam - he wanted the other Air Forces.) A model the shop does not carry by that name
+         * falls back to the model the picture reader saw on this chat in the last hour. */
+        if (!lastModelNamed(model)) {
+          const _pv = photoVerdicts.get(String(sub));
+          const _pvModel = (_pv && Date.now() - _pv.at < 60 * 60 * 1000) ? lastModelNamed(verdictSeenName(_pv.v)) : '';
+          model = lastModelNamed(T) || _pvModel || model;
+        }
 
         const S = (o) => { try { return searchInventory(o) || []; } catch (_) { return []; } };
         // The three a salesman runs: their shoe in their size (every colour), their colour in
@@ -8568,7 +8584,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
-        const leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        /* 🌾 THE PICTURE READER SAID WE DON'T HAVE IT — THE WORDS MAY NOT SAY WE DO (Rodney 10-22, TK 559-8608: a Wheat
+         * Air Force 1 in a 10. The reader called it Flax/Wheat, NOT IN STOCK, three times; her first draft said so. The
+         * never-ask guard threw that draft away, she searched the white AF1, looked at our picture beside theirs and sent
+         * it as "That's the Nike Air Force 1 White! We've got it in these sizes 👇".) A lead-in that does not admit the
+         * no is replaced: name their shoe, say we don't have it, and the pictures are the other pairs of that model. */
+        try {
+          if (!staffName && leadIn && _idVerdict && /OURS:[^\n]*NOT IN STOCK/i.test(_idVerdict)
+              && !/\b(don(?:'|’)?t|dont|do not|doesn(?:'|’)?t|ain(?:'|’)?t) (?:have|got|carry|stock)|not in stock|sold out|out of (?:that|it|stock)|none (?:left|in)/i.test(leadIn)) {
+            const _seenName = verdictSeenName(_idVerdict);
+            const _fam = lastModelNamed(_seenName);
+            const _cszL = custSize.get(sub);
+            const _szL = (inp.size && String(inp.size).trim()) || (_cszL && _cszL.size && (Date.now() - (_cszL.ts || 0)) < 12 * 3600 * 1000 ? String(_cszL.size) : '');
+            if (_seenName) {
+              const _was = leadIn;
+              leadIn = `That's the ${_seenName} 🔥 We don't have that one right now, but here's the ${_fam ? _fam.replace(/\b[a-z]/g, c => c.toUpperCase()) + ' ' : ''}we got${_szL ? ' in your ' + _szL : ''} 👇`;
+              record(req, { endpoint: 'photo-leadin-not-ours', sub, store: ctx.store || '', was: _was.slice(0, 120), now: leadIn });
+            }
+          }
+        } catch (_) {}
         // Completeness tracking: record which ids actually went out, and whether THIS album's
         // lead-in is a GENERIC size batch (mentions no brand, model or colour) — the case where
         // it must show every brand in the size. A lead-in naming a brand/model/colour (e.g.
