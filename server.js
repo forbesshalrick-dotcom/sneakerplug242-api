@@ -5213,9 +5213,12 @@ const reminderTick = setInterval(async () => {
     if (r.kind === 'checkin') {
       try {
         const _th = inboxThreads.get(inboxSubIndex.get(String(r.sub)) || '');
-        const _spoke = _th && (_th.msgs || []).some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > (r.bookedAt || 0));
+        const _spoke = !r.clock && _th && (_th.msgs || []).some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > (r.bookedAt || 0));
+        // A time they gave is checked whether or not they chatted since; a pin already in changes the words, not the check.
+        const _pinned = r.clock && ((() => { const _p = pinReceived.get(String(r.sub)); return !!(_p && Date.now() - (_p.at || 0) < 12 * 3600 * 1000); })()
+          || (_th && (_th.msgs || []).some(m => m && (m.ts || 0) > Date.now() - 12 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|Shared a location/i.test(m.text || '')))));
         if (!_spoke) {
-          const res = await sendChunk(r.sub, [{ type: 'text', text: await say(r.text, r.sub) }], tk);
+          const res = await sendChunk(r.sub, [{ type: 'text', text: await say(_pinned && r.textPinned ? r.textPinned : r.text, r.sub) }], tk);
           recent.unshift({ at: new Date().toISOString(), endpoint: 'checkin-sent', sub: r.sub, ok: !!(res && res.ok) });
         } else recent.unshift({ at: new Date().toISOString(), endpoint: 'checkin-skipped-they-spoke', sub: r.sub });
         if (recent.length > 120) recent.length = 120;
@@ -6161,6 +6164,39 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (e) { try { record(req, { endpoint: 'cancel-check-error', sub, error: String(e).slice(0, 160) }); } catch (_) {} }
+  /* ⏰ "ALR 3 O'CLOCK" GETS A CHECK-UP AT 3 (Rodney 10-22, FF Vano 437-1339: said "3 or 4 o'clock" then "Alr 3 o'clock" at 1:28 PM, was
+   * asked for his pin once, and nobody spoke to him again - "at 3 no check up?"). A clock time said after an order card books a
+   * check-in 20 minutes before it (pin still missing -> ask for it; pin in -> "we're heading your way"). */
+  try {
+    const _c = customerWordsOnly(String(userText || '')).trim();
+    const _m = _c && !/^\(SYSTEM/.test(_c) && _c.match(/\b(\d{1,2})(?::(\d{2}))?\s*(?:or\s*\d{1,2}(?::\d{2})?\s*)?(am|pm|a\.m\.|p\.m\.|o['’]?\s?clock)\b/i);
+    if (_m && !CANCEL_RE.test(_c)) {
+      const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _card = _th && (_th.msgs || []).slice().reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY|SET FOR LATER|ORDER/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000);
+      if (_card) {
+        let _h = parseInt(_m[1], 10); const _min = parseInt(_m[2] || '0', 10); const _ap = String(_m[3] || '').toLowerCase();
+        const _nassauNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau' }));
+        if (/^p/.test(_ap) && _h < 12) _h += 12;
+        else if (/^a/.test(_ap) && _h === 12) _h = 0;
+        else if (!/^[ap]/.test(_ap) && _h < 12 && (_h <= 7 || _h <= _nassauNow.getHours())) _h += 12;   // "3 o'clock" in a shop open 8-10 is 3 PM
+        if (_h >= 8 && _h <= 22 && _min < 60) {
+          const _d = new Date(_nassauNow); _d.setHours(_h, _min, 0, 0);
+          const _due = Date.now() + (_d - _nassauNow);
+          const when = _due - 20 * 60 * 1000;
+          if (when > Date.now() + 5 * 60 * 1000) {
+            const _shoe = ((String(_card.text).split('\n').find(l => /👟/.test(l)) || '').replace(/^👟\s*/, '').replace(/\s*—\s*size\s*/i, ' in the ').trim()) || 'your shoes';
+            const _clock = (_h % 12 || 12) + (_min ? ':' + String(_min).padStart(2, '0') : '') + (_h >= 12 ? ' PM' : ' AM');
+            reminders = reminders.filter(r => !(String(r.sub || '') === String(sub) && r.kind === 'checkin'));
+            reminders.push({ at: when, store: ctx.store, sub, kind: 'checkin', clock: true, bookedAt: Date.now(), lines: '',
+              text: 'Hey! 👋 Still good for ' + _clock + '? Drop your location pin 📍 if you haven\'t yet and we\'ll bring your ' + _shoe + ' right to you 🚗',
+              textPinned: 'Hey! 👋 Still good for ' + _clock + '? We\'re getting your ' + _shoe + ' ready to bring over 🚗' });
+            saveReminders();
+            record(req, { endpoint: 'checkin-booked-clock', sub, at: new Date(when).toISOString(), clock: _clock });
+          }
+        }
+      }
+    }
+  } catch (e) { try { record(req, { endpoint: 'checkin-clock-error', sub, error: String(e).slice(0, 120) }); } catch (_) {} }
   try {
     const _c = String(userText || '').trim();
     const LATER = /\b(later|this afternoon|this evening|tonight|after work|when i (?:get|reach|come) (?:home|back|off)|not home|won'?t be home|after (?:\d|one|two|three|four|five|six)|in a (?:couple|few) hours?)\b/i;
