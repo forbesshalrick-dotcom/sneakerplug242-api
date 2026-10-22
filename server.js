@@ -8922,7 +8922,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // The "pin" may actually have been a photo/sticker WhatsApp couldn't deliver
           // (2026-07-14: a shoe PHOTO arrived as a text-replay → "Got your pin!" → driver
           // alert with NO real location in the chat). Tell the team to VERIFY.
-          (!earlyStage && lastReplayAt.get(sub) && (Date.now() - lastReplayAt.get(sub)) < 3 * 60 * 1000)
+          // 📍 NO PIN = SAY SO (Rodney 10-22, TK 821-2265: "did this location come from [the] person?" The card read "Lyford Cay area" with
+          // a maps link and "auto-detected from an attachment" - the customer had only TYPED "I'm in the Lyford cay area" and the attachments
+          // were two shoe cards; no pin ever came.) A place they typed is labelled as typed, and the driver is told to get the pin first.
+          (!earlyStage && !forLater && !_pinIn && inp.location
+            && !history.slice(-24).some(h => h && h.role === 'user' && /https?:\/\/maps\.google\.com\/\?q=-?[\d.]+,/.test(typeof h.content === 'string' ? h.content : JSON.stringify(h.content || '')))   // a YCloud pin earlier in the chat
+            && !/https?:\/\/maps\.google\.com\/\?q=|\b(pin|open the chat|shared|sent (?:a |their |the )?location)\b/i.test(String(inp.location))
+            // an attachment just came in that the Mac has not yet read as "no pin" may still BE the pin - that case keeps the VERIFY line below
+            && !(lastReplayAt.get(sub) && (Date.now() - lastReplayAt.get(sub)) < 3 * 60 * 1000 && !(() => { const _rq = pinRequests.get(String(sub)); return !!(_rq && _rq.none && Date.now() - (_rq.noneAt || 0) < 2 * 3600 * 1000); })()))
+            ? '⚠️ NO PIN YET — "' + String(inp.location).slice(0, 60) + '" is only what the customer typed. Get their location pin before driving.'
+            : (!earlyStage && lastReplayAt.get(sub) && (Date.now() - lastReplayAt.get(sub)) < 3 * 60 * 1000)
             ? '⚠️ VERIFY THE PIN: it was auto-detected from an attachment — open the chat and make sure a real location pin is there (it could have been a photo). Ask the customer if not.'
             : null,
           ctx.store ? `🏬 ${ctx.store}` : null,
@@ -12412,7 +12421,7 @@ app.post('/social/pin-coords', (req, res) => {
   const r = pinRequests.get(sub);
   if (!r) return res.status(404).json({ ok: false, error: 'no pin request for that sub' });
   r.done = true;
-  if (b.none) { record(req, { endpoint: 'pin-coords-none', sub }); return res.json({ ok: true, none: true }); }
+  if (b.none) { r.none = true; r.noneAt = Date.now(); record(req, { endpoint: 'pin-coords-none', sub }); return res.json({ ok: true, none: true }); }
   const lat = parseFloat(b.lat), lng = parseFloat(b.lng);
   if (!isFinite(lat) || !isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return res.status(400).json({ ok: false, error: 'bad lat/lng' });
   const maps = 'https://maps.google.com/?q=' + lat.toFixed(6) + ',' + lng.toFixed(6);
