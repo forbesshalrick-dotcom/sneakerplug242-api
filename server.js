@@ -7563,6 +7563,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
       continue;
     }
+    /* 💳 "WE TAKE CARD" GOES OUT WITH THE CARD LINK (Rodney 10-22, FF 829-6624: "Yeah, we take card, bank transfer, cash, or SunCash …
+     * You can also pay online with the link when you're ready" - no link. "this message is suppose to sent with payment link. if you
+     * want to pay by card here is the online payment"). A reply that offers card with no 242plug.com/pay link gets one: the total of
+     * the pairs on their table, or - nothing picked yet - the link follows the moment they pick. */
+    try {
+      if (turnText && !staffName && /\bcard\b/i.test(turnText) && !/242plug\.com\/pay/i.test(turnText)) {
+        const _row = onTheTable.get(String(sub));
+        const _items = (_row && Date.now() - (_row.ts || 0) < 12 * 3600 * 1000) ? (_row.items || []) : [];
+        const _tot = _items.reduce((a, i) => a + (parseFloat(String(i.price || '').replace(/[^0-9.]/g, '')) || 0), 0);
+        turnText = turnText.replace(/\s*You can (?:also )?pay online with (?:the|a|our) link[^.!?\n]*[.!?]?\s*👟?/i, ' ').trim();
+        const _payLine = _tot > 0
+          ? '💳 If you want to pay by card, here\'s the online payment link: https://' + WEBSITE + '/pay?amount=' + Math.round(_tot) + ' (or just pay when we arrive)'
+          : '💳 If you want to pay by card, just tell me which pair you want and I\'ll send you the online payment link with the exact total';
+        const _parts = turnText.split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
+        if (_parts.length > 1 && /\?\s*\S*\s*$/.test(_parts[_parts.length - 1])) _parts.splice(_parts.length - 1, 0, _payLine);
+        else _parts.push(_payLine);
+        turnText = _parts.join('\n\n');
+        record(req, { endpoint: 'card-link-added', sub, total: _tot || null });
+      }
+    } catch (_) {}
     /* (Ported back 10-16 from the pre-reset brain, 2e9fa36 + later fixes.) 🙋 NEVER ASK PERMISSION TO SEND A PICTURE — JUST SEND IT (Rodney 2026-10-04, in the same
      * breath as the three-category rule: "never 'want me to send those?' — just send.")
      * Measured by the M5 FB2 session across BOTH brains on the same question: each one named a
