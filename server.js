@@ -6789,10 +6789,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _szKnown = !!(_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000);
           // "got it in your 8.5" only when it really comes in their size (2026-10-14: it was said blind).
           const _hasTheirs = _szKnown && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_csz0.size));
-          const _lead = "That's the " + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0)
-            + (_hasTheirs ? ' — got it in your ' + _csz0.size + ' 👇'
-              : _szKnown ? ' — no ' + _csz0.size + ' in that one right now, we only have it in ' + (sizesOf(_pickSh) || 'other sizes') + ' 👇'
-              : ' — we only have these sizes available 👇');
+          // Said the way a person says it (Rodney 10-22, FF 814-7995): the size answer first, then the name and price, once.
+          const _lead = _hasTheirs ? 'Yeah we got the ' + _csz0.size + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + ' 👇'
+              : _szKnown ? 'We don\'t have the ' + _csz0.size + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + ' — it comes in ' + (sizesOf(_pickSh) || 'other sizes') + ' 👇'
+              : 'That\'s the ' + displayName(_pickSh) + ' 🔥 it\'s $' + (parseFloat(_pickSh.price) || 0) + ' — these are the sizes we got 👇';
           const _rr = await sendShoePhotos(sub, [_pickSh.id], token, null, _lead, false, false, ctx.turnAt || 0, _szKnown).catch(() => null);
           if (_rr && _rr.sent > 0) {
             photosSentRun = true; sentToCustomer = true; turnSentIds.add(String(_pickSh.id)); photoCompareSent = true;
@@ -6835,11 +6835,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
               + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
-              + ' Answer about THIS shoe only, in one short line, e.g. "That\'s the ' + displayName(_pickSh) + ' 🔥 $' + (parseFloat(_pickSh.price) || 0) + ' — '
-              + (_sz && !_has ? 'no ' + _sz + ' in that one right now' + (_wom ? '' : ', we only have it in ' + _sizes) : _sz && _has ? 'got it in your ' + _sz + '. What time you available for the delivery? 👟' : 'we have it in ' + _sizes) + '". '
-              // Rodney 10-19 (stitch, Darnell): a card sent back IS the pick - never "Want the 13?", go to the delivery time.
-              + (_sz && _has ? 'End on that question — never "Want the ' + _sz + '?" and never "you\'re good in your ' + _sz + '". When they give a time: "Bet 🔥 Send me your location 📍". ' : '')
-              + 'If it comes in their size you may send its picture again. NEVER send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.)\n\n' + _lu.content[0].text;
+              + ' Answer about THIS shoe only, in ONE short line said the way a person says it - the size answer first, then the name and price, once - e.g. "'
+              + (_sz && !_has ? 'We don\'t have the ' + _sz + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + (_wom ? '' : ' — it comes in ' + _sizes)
+                : _sz && _has ? 'Yeah we got the ' + _sz + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + '. Let me know when you\'re ready for it to be delivered 👟'
+                : 'That\'s the ' + displayName(_pickSh) + ' 🔥 it\'s $' + (parseFloat(_pickSh.price) || 0) + ' — we have it in ' + _sizes + '. What size you need?') + '". '
+              // Rodney 10-19 (stitch, Darnell): a card sent back IS the pick - never "Want the 13?". Rodney 10-22 (FF 814-7995): not "What time you
+              // available for the delivery?" and never the name twice ("Yep! That's the ..." under the picture) - "let me know when you're ready".
+              + (_sz && _has ? 'Never "Want the ' + _sz + '?" and never "you\'re good in your ' + _sz + '". When they give a time: "Bet 🔥 Send me your location 📍". ' : '')
+              + 'If it comes in their size you may send its picture again - but then that ONE line is the picture\'s lead-in; never a second message repeating the name or price ("Yep! That\'s the ..."). NEVER send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.)\n\n' + _lu.content[0].text;
           }
         }
       }
@@ -9414,8 +9417,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _want = _sz ? ((_wom ? sizesToSend(_sz, true) : sizesToSend(_sz, false)) || [parseFloat(_sz)]) : [];
         const _has = _sz && (_sh.sizesRaw || _sh.sizes || []).some(z => _want.some(v => parseFloat(z) === parseFloat(v)));
         const _say = _wom ? "women's " + _sz : _sz;
-        _ptr = "That's the " + displayName(_sh) + ' 🔥 $' + (parseFloat(_sh.price) || '') + ' — '
-          + (_has ? 'got it in your ' + _say + '. Want it? 👟' : _sz ? 'no ' + _say + ' in that one right now 🙏' + (_wom ? '' : ' It comes in ' + (sizesOf(_sh) || '') + '.') : 'it comes in ' + (sizesOf(_sh) || '') + '. What size you need? 👟');
+        _ptr = _has ? 'Yeah we got the ' + _say + ' in that 🔥 That\'s the ' + displayName(_sh) + ', it\'s $' + (parseFloat(_sh.price) || '') + '. Let me know when you\'re ready for it to be delivered 👟'
+          : _sz ? 'We don\'t have the ' + _say + ' in that one right now 🙏 That\'s the ' + displayName(_sh) + ', it\'s $' + (parseFloat(_sh.price) || '') + (_wom ? '' : ' — it comes in ' + (sizesOf(_sh) || '') + '.')
+          : 'That\'s the ' + displayName(_sh) + ' 🔥 it\'s $' + (parseFloat(_sh.price) || '') + ' — it comes in ' + (sizesOf(_sh) || '') + '. What size you need? 👟';
         record(req, { endpoint: 'fallback-named-pointed-shoe', sub, shoe: String(_sh.id), size: _say, has: !!_has });
       }
     } catch (_) {}
