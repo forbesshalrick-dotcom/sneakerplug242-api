@@ -8302,6 +8302,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             }
           } catch (_) {}
         }
+        /* ⚫⚪ THE ONE THEY NAMED FIRST, THEN EVERY OTHER ALL-BLACK (ALL-WHITE) PAIR IN THEIR SIZE (Rodney 10-21: "if they ask for all
+         * black New Balance, it can send the black New Balance in 10. And then say, we have these other all black options too in 10 ...
+         * just so they get all the options"). Two labelled groups in one send_photos call. */
+        if (found.length && _sized && _bw && (p.query || p.brand) && !staffName) {
+          try {
+            const _have = new Set(found.map(x => String(x && x.id)));
+            const _FILL = new Set(['all', 'and', 'the', 'triple', 'gloss', 'glossy', 'patent', 'suede', 'leather', 'threaded', 'matte', 'mesh', 'knit', 'stripe', 'reflective']);
+            const _pure = (x) => { const t = String((x && x.color) || '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3 && !_FILL.has(w)); return t.length > 0 && t.every(w => w === _bw); };
+            const _more = searchInventory({ size: p.size, sizes: p.sizes, size_match: p.size_match, womens: p.womens, color: _bw, sneakers_only: true, max_price: p.max_price, on_sale: p.on_sale })
+              .filter(x => x && !_have.has(String(x.id)) && _pure(x));
+            if (_more.length) {
+              const _sz = p.size != null ? String(p.size) : [].concat(p.sizes || []).join(' & ');
+              const _named = String(p.query || p.brand || '').replace(/\b(all|triple)?\s*(black|white)\b/ig, '').trim();
+              result.other_all_colour_in_size = _more.map(x => ({ id: x.id, name: x.name, price: x.price, color: x.color }));
+              result.note = (result.note ? result.note + ' ' : '') + 'They asked for ' + _bw + (_named ? ' ' + _named : '') + '. Show what they asked for FIRST, then every other all-' + _bw
+                + ' pair in their size so they see all the options. Call send_photos ONCE with groups: [{label: "Here\'s the ' + _bw + ' ' + (_named || 'ones') + ' in your ' + _sz + ' 👇", ids: <the shoes above>}, '
+                + '{label: "We got these other all ' + _bw + ' options in your ' + _sz + ' too 👇", ids: <other_all_colour_in_size ids>}]. No price list in text - the pictures show name and price.';
+              lastSearchIds = lastSearchIds.concat(_more.map(x => x.id));
+              record(req, { endpoint: 'bw-other-options', sub, colour: _bw, named: found.length, more: _more.length });
+            }
+          } catch (_) {}
+        }
         if (!found.length && (p.size != null || (Array.isArray(p.sizes) && p.sizes.length)) && (p.query || p.brand || p.color)) {
           try {
             const q2 = Object.assign({}, p); delete q2.size; delete q2.sizes; delete q2.size_match; delete q2.exact_sizes;
