@@ -2839,8 +2839,13 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
       return toks.length > 0 && toks.every(w => cWords.includes(w));
     };
     const _single = cWords.filter(w => !COLOUR_FILLER.has(w) && w !== 'triple');
+    /* ⚫⚪ "BLACK" = EVERY MOSTLY-BLACK PAIR, ALL-BLACK FIRST (Rodney 10-21, TK Tyrese 437-3185: "black new balance" in 9/10 found only
+     * the all-black 2000 while the 9060 Black/White and both black 1906s sat in his size. "When customers want black shoes for work or
+     * school ... they must see all options available ... the more options the better"). All-black leads, then shoes whose colour
+     * STARTS with black (Black/White, Black/Grey/Red); a shoe that is only trimmed in black (White/Black, Red/Black) stays out. */
+    const _leadsWith = (w) => ({ s }) => (normC(s.color || '').split(/[^a-z]+/).filter(t => t.length >= 3 && !COLOUR_FILLER.has(t))[0] || '') === w;
     rows = (_single.length === 1 && (_single[0] === 'black' || _single[0] === 'white'))
-      ? rows.filter(isPureColour)                                   // black = triple black, white = triple white
+      ? [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r) && _leadsWith(_single[0])(r))]
       : [...rows.filter(isPureColour), ...rows.filter(r => !isPureColour(r))];
   }
   // 👟 SNEAKERS ONLY — they asked for "tennis"/sneakers, so drop the Crocs, slides and
@@ -8163,6 +8168,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
         undoWomensDoubleConvert(sub, p, record, req);
+        /* 💵 NO PRICE CAP THE CUSTOMER NEVER GAVE (TK Tyrese +1 242 437-3185 10-21 23:03: a voice note transcribed "No money, black
+         * shoes." became max_price 100, one Yeezy Foam went out, and he never saw the 13 other black pairs in his 9/10). A cap stays only
+         * when the customer's own words in the last 2 hours carry that number or a budget word. */
+        try {
+          if (p.max_price != null && !staffName) {
+            const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+            const _cw = [String(userText || '').split('(SYSTEM')[0]].concat(_th ? _th.msgs.filter(m => m.dir === 'in' && m.sender === 'customer' && Date.now() - m.ts < 2 * 3600 * 1000).map(m => m.text || '') : []).join(' \n ');
+            const _cap = String(parseFloat(p.max_price));
+            if (!new RegExp('(?<![\\d.])' + _cap.replace('.', '\\.') + '(?![\\d])').test(_cw) && !/\b(cheap\w*|budget|afford\w*|under|less than|below|low(?:er|est)? price|on sale|sale)\b/i.test(_cw)) {
+              record(req, { endpoint: 'price-cap-dropped', sub, max_price: p.max_price });
+              delete p.max_price;
+            }
+          }
+        } catch (_) {}
         /* 📏 THEIR SIZE, NOT A SIZE OUT OF NOWHERE (TK Sergent_JD 10-19 14:19: said "8", asked "You have these colors tho" on a picture
          * nobody could read, and got "Here's all the New Balance we got in a 5.5"). A searched size the customer never said is
          * swapped for the one they did say, unless their newest message names the new size. */
