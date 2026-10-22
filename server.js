@@ -12668,6 +12668,41 @@ app.post('/ycloud/webhook', async (req, res) => {
         record(req, { endpoint: 'ycloud-photo-no-link', sub: from, keys: Object.keys(m.image).join(',') });
       }
     }
+    /* 🎥 A VIDEO OF A SHOE IS A PICTURE OF A SHOE (Rodney 10-22, Foot Fetish 802-2992: a TikTok of a red Jordan 5 twice,
+     * "Yall have these ?", and Kiki answered "I don't see a picture yet!" twice. A video had no text, so it was dropped.)
+     * One still from the video goes to Kiki as the photo; if the still cannot be made she asks for a screenshot. */
+    if (t === 'video' && m.video) {
+      const link = String(m.video.link || m.video.url || '');
+      let _vErr = '';
+      if (link) {
+        const fs = require('fs'), os = require('os'), path = require('path');
+        const _base = path.join(os.tmpdir(), 'ycv-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
+        try {
+          const hdr = process.env.YCLOUD_API_KEY ? { 'X-API-Key': process.env.YCLOUD_API_KEY } : {};
+          let r = await fetch(link, { headers: hdr, signal: AbortSignal.timeout(30000), redirect: 'follow' });
+          if (!r.ok && Object.keys(hdr).length) r = await fetch(link, { signal: AbortSignal.timeout(30000), redirect: 'follow' });
+          if (!r.ok) throw new Error('fetch ' + r.status);
+          const buf = Buffer.from(await r.arrayBuffer());
+          if (!buf.length || buf.length > 40 * 1024 * 1024) throw new Error('size ' + buf.length);
+          fs.writeFileSync(_base + '.mp4', buf);
+          const ff = require('ffmpeg-static');
+          const { execFileSync } = require('child_process');
+          for (const at of ['1', '0']) {   // 1 s in skips a black first frame; a clip shorter than that falls back to the start
+            try { execFileSync(ff, ['-y', '-loglevel', 'error', '-ss', at, '-i', _base + '.mp4', '-frames:v', '1', '-vf', 'scale=900:-2', '-q:v', '4', _base + '.jpg'], { timeout: 20000 }); } catch (_) {}
+            if (fs.existsSync(_base + '.jpg') && fs.statSync(_base + '.jpg').size > 0) break;
+          }
+          const jpg = fs.existsSync(_base + '.jpg') ? fs.readFileSync(_base + '.jpg') : null;
+          if (jpg && jpg.length && jpg.length <= 4.5 * 1024 * 1024) ycImage = { data: jpg.toString('base64'), media_type: 'image/jpeg' };
+          else _vErr = 'no frame';
+        } catch (e) { _vErr = String(e && e.message || e).slice(0, 100); }
+        try { fs.unlinkSync(_base + '.mp4'); } catch (_) {} try { fs.unlinkSync(_base + '.jpg'); } catch (_) {}
+      } else _vErr = 'no link';
+      record(req, { endpoint: ycImage ? 'ycloud-video-frame' : 'ycloud-video-frame-failed', sub: from, error: _vErr || undefined });
+      const _cap = String((m.video && m.video.caption) || '').trim();
+      text = ycImage
+        ? '(SYSTEM: this picture is a still from a short VIDEO the customer sent. Treat it exactly like a photo of the shoe they want.)' + (_cap ? '\n' + _cap : '')
+        : '(SYSTEM: the customer sent a short VIDEO of a shoe and it could not be opened. Do NOT say you see no picture. Say: "Got your video 🎥 Send me a screenshot of the shoe and I\'ll check if we got it 👟")' + (_cap ? '\n' + _cap : '');
+    }
     // 🏷️ A TAGGED REPLY: they quoted one of our pictures. Hand Kiki that picture as the thing they mean.
     const _ctxId = m.context && (m.context.id || m.context.wamid || m.context.message_id || m.context.messageId);
     if (_ctxId) {
