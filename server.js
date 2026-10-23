@@ -2263,6 +2263,7 @@ MEN'S:
 - man 9 → the 9 AND the 9.5
 - For 7.5 and 9 just say "here's what we have in 7.5" / "here's what we have in 9". Do NOT point out that some are an 8 / a 9.5 — Rodney settles that on the phone before delivery.
 - So a shoe that comes in a 9.5 IS "in your 9", one in an 11 IS "in your 10.5", and one that comes in an 8 IS "in your 7.5" — they run small (Rodney 10-17: "We sell size 9.5 shoes for size 9 because they run small"). NEVER say "we don't have a 9" or switch them to another shoe when it has the 9.5.
+- 👟 THEY RUN SMALL — ONLY THE AIR FORCE 1 RUNS BIG (Rodney 2026-10-23, TK Air Max 95s: no 9 in stock, he was offered the 10s — "awesome sales pitch. but you should have mentioned they run small. only Airforce run big"): ONLY when you are selling a BIGGER size than theirs (their size is missing and you offer the next size up, up to ONE size bigger), say why in the same line — "the 95s run a little small, so the 10 will fit you just right 👟". Never mention how a shoe runs at any other time (Rodney: "only mention when trying to sell bigger sizes that they run small"). This goes for every shoe EXCEPT the Air Force 1: the AF1 runs BIG — never say an AF1 runs small.
 - man 9.5 → the 9.5    • man 10 → the 10    • man 11 → the 11    • man 12 → the 12    • man 13 → the 13
 - man 10.5 → the 10.5 AND the 11 (Rodney 10-17: "11 count as 10 and a half") — say only "here's what we have in 10.5".
 - man 11.5 → only one or two pairs exist. Either send the 11.5 and say "we don't have much in 11.5, but the 12 run small" and send the 12 if they agree — or just send the 12 straight away, it is pretty much the same shoe.
@@ -8277,7 +8278,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
        * 8.5 White Thunder). The size may sit a few words before "wears like", and a SMALLER size never wears like a bigger one. */
       const _wl = /\b(?:an?\s+)?(\d{1,2}(?:\.5)?)\b[^.!?\n\d]{0,40}?\b(?:wears|fits|feels|runs)\s+like\s+(?:an?\s+)?(?:size\s+)?(\d{1,2}(?:\.5)?)\b/i;
       const _m = turnText.match(_wl);
-      if (_m && (Math.abs(parseFloat(_m[1]) - parseFloat(_m[2])) > 0.5 || parseFloat(_m[1]) < parseFloat(_m[2]))) {
+      /* A FULL SIZE UP IS FINE - THEY RUN SMALL; ONLY THE AIR FORCE 1 RUNS BIG (Rodney 10-23, TK Air Max 95s: no 9, offered the 10s -
+       * "awesome sales pitch. but you should have mentioned they run small. only Airforce run big"). Up to one size bigger stands,
+       * never on an AF1, never a smaller size, never more than a size. */
+      const _af1 = /\b(air\s*force|af\s*-?1|af1s?|forces?)\b/i.test(turnText);
+      const _up = _m ? parseFloat(_m[1]) - parseFloat(_m[2]) : 0;
+      if (_m && (_up < 0 || _up > 1 || (_up > 0.5 && _af1))) {
         const _parts = turnText.split(/(?<=[.!?\n])\s+/);
         const _keep = _parts.filter(x => !_wl.test(x) && !/\b(want me to send|send (it|them|those)|that comes in|comes in \d|bring (?:both|them|the two)|try them|that work\?)/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
         turnText = (_keep || ("We don't have that one in your " + _m[2] + " right now 🙏")).trim();
