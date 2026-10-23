@@ -1159,6 +1159,7 @@ try {
     }
   }
 } catch (_) {}
+const brainDownSaid = new Map();   // sub -> when they last got the 'one sec' line while the AI call failed
 const ycloudFrom = new Map();   // customer phone -> the business number they wrote to
 const ycloudChain = new Map();  // customer phone -> the turn in flight, so replies never cross
 const ycloudBurst = new Map();  // customer phone -> { n, said } photos arriving together
@@ -7251,9 +7252,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'chat-error', sub, status, body: JSON.stringify(data).slice(0, 300) });
       // Only reached after the auto-retries above ALL failed. Keep the sale warm instead of
       // sounding broken: on a photo, acknowledge it and ask the size; otherwise ask for a resend.
+      /* 🪫 WHEN THE BRAIN IS DOWN, DON'T BLAME THE CUSTOMER (Rodney 10-23: the Anthropic credit ran out at 02:15 and every typed
+       * message - "Hello! Can I get more info on this?", "Mdf", "When will y'all have this in my size 10 or 11?" - got "that didn't
+       * come through on my end, send it once more?", five times in a row to the same man). Their message DID come through; we
+       * failed. Say we'll be right with them, once per customer per 30 min, and stay quiet after that until we can really answer. */
+      const _fbKey = String(sub), _fbLast = brainDownSaid.get(_fbKey) || 0;
+      if (Date.now() - _fbLast < 30 * 60 * 1000) return;
+      brainDownSaid.set(_fbKey, Date.now());
       const fallback = image
-        ? "Got your pic 📸 I'm running a lil slow this sec — what size you need? I'll check it for you right now 👟"
-        : "Hmm, that didn't come through on my end 👟 send it once more?";
+        ? "Got your pic 📸 Give me one sec — what size you need? 👟"
+        : "Got you 🙏 Give me one sec, I'll be right with you 👟";
       await sendChunk(sub, [{ type: 'text', text: fallback }], token).catch(() => {});
       return;
     }
