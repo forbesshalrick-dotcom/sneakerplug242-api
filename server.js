@@ -3412,6 +3412,17 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
         }
       } catch (_) {}
       let closing = what ? ('This is what we have in ' + what + ' 👟') : 'This is what we have 👟';
+      /* 📏 The closing line names a size only when the pictures come in it (TK 525-0217 10-23: a 12-and-13 album for a 12.5 closed
+       * "This is what we have in a 12.5"). None of them in the asked size = "the closest we got to a 12.5". */
+      try {
+        const _m = what.match(/^(?:women's )?(\d{1,2}(?:\.5)?)\b/) || what.match(/^a (\d{1,2}(?:\.5)?)$/);
+        if (_m) {
+          const _w = parseFloat(_m[1]); const _lm = liveShoeMap();
+          const _ids = albumTrace.filter(Boolean).map(t => String(t.id)).filter(id => _lm[id]);
+          const _in = _ids.some(id => ((_lm[id].sizesRaw || _lm[id].sizes || [])).some(z => parseFloat(z) === _w));
+          if (!_in && _ids.length) closing = 'These are the closest we got to a ' + _m[1] + ' 👟';
+        }
+      } catch (_) {}
       /* 💲 THEY ASKED THE PRICE - THE CLOSING LINE SAYS IT (Rodney 10-18, TK 445-6278: "How much for these 9060s", then "10", and got a
        * 9060 album closing "This is what we have in 9060s" with no price - "the guy asked for price"). A price question in the last
        * 15 minutes puts the price on the closing line: one price = "$130 each", several = "from $X to $Y". */
@@ -8513,8 +8524,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const _lmN = liveShoeMap();
             const _szOf = (r) => ((_lmN[r.id] && _lmN[r.id].sizesRaw) || []).map(parseFloat).filter(n => !isNaN(n));
             const _avail = [...new Set(_all.flatMap(_szOf))].sort((a, b) => (Math.abs(a - _want) - Math.abs(b - _want)) || (b - a));
-            const _near = isNaN(_want) ? [] : _avail.slice(0, 2);
-            const anySize = (_near.length ? _all.filter(r => _szOf(r).some(n => _near.includes(n))) : _all).slice(0, 8);
+            /* ⬆️ THE CLOSEST SIZE GOES UP, NOT DOWN (Rodney 10-23, TK 525-0217: "black shoes in 12.5" got 12s and one 13 - "the guy is
+             * looking for something bigger than 12"). 12 and 13 tie on distance; a 12 never fits a 12.5 foot. Bigger sizes within one
+             * size lead; only when there is nothing bigger does one half-size down count, and nothing further. */
+            const _up = _avail.filter(n => n > _want && n - _want <= 1).sort((a, b) => a - b);
+            const _dn = _avail.filter(n => n < _want && _want - n <= 0.5);
+            const _near = isNaN(_want) ? [] : (_up.length ? _up.slice(0, 2) : _dn.slice(0, 1));
+            const anySize = (_near.length ? _all.filter(r => _szOf(r).some(n => _near.includes(n))) : (isNaN(_want) ? _all : [])).slice(0, 8);
             if (anySize.length) {
               result.same_model_other_sizes = anySize.map(s => ({ id: s.id, name: s.name, price: s.price, sizes: s.sizes }));
               if (_near.length) result.closest_sizes = _near;
