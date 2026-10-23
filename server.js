@@ -8216,9 +8216,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     try {
       if (turnText && !staffName && !image) {
         const _hist = convos.get(sub) || [];
-        const _lastK = [..._hist].reverse().find(m => m && m.role === 'assistant');
-        const _lkT = !_lastK ? '' : typeof _lastK.content === 'string' ? _lastK.content
-          : (Array.isArray(_lastK.content) ? _lastK.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '');
+        // The last 3 of ours, not only the last: a picture lead-in after the question must not hide it (Gray 10-23).
+        const _lkT = _hist.filter(m => m && m.role === 'assistant').slice(-3).map(m => typeof m.content === 'string' ? m.content
+          : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')).filter(t => /\?/.test(t)).slice(-1).join(' ');   // the latest QUESTION we asked
         const _cw = customerWordsOnly(String(userText || '')).trim();
         if (/available now\s*\?/i.test(_lkT) && _cw && _cw.length < 80) {
           if (/^(?:no+|nah+|not (?:now|yet|right now|today)|later|tomorrow|after\b|when i\b|i'?m (?:at work|working|busy|out|not)|at work|working|busy|not available|give me|in a (?:bit|while|few))/i.test(_cw)) {
@@ -12943,6 +12943,7 @@ app.post('/ycloud/webhook', async (req, res) => {
     }
     // 🏷️ A TAGGED REPLY: they quoted one of our pictures. Hand Kiki that picture as the thing they mean.
     const _ctxId = m.context && (m.context.id || m.context.wamid || m.context.message_id || m.context.messageId);
+    let _ycTagPic = false;   // the picture is the card they quoted, not a new photo from them
     if (_ctxId) {
       // ⏳ LET THE ALBUM LAND FIRST (Rodney 10-21, Foot Fetish 438-0005: "missed and sent the wrong photo"). Meta fetches each
       // picture on its own, so album pictures reach the phone out of order — a 9060 sent at 10:46:30 landed at 10:47, right
@@ -12973,7 +12974,7 @@ app.post('/ycloud/webhook', async (req, res) => {
               const buf = Buffer.from(await r.arrayBuffer());
               let ct = (r.headers.get('content-type') || 'image/jpeg').split(';')[0].trim().toLowerCase();
               if (buf[0] === 0xFF && buf[1] === 0xD8) ct = 'image/jpeg'; else if (buf[0] === 0x89 && buf[1] === 0x50) ct = 'image/png';
-              if (buf.length > 0 && buf.length <= 4.5 * 1024 * 1024) ycImage = { data: buf.toString('base64'), media_type: ct };
+              if (buf.length > 0 && buf.length <= 4.5 * 1024 * 1024) { ycImage = { data: buf.toString('base64'), media_type: ct }; _ycTagPic = true; }
             }
           } catch (_) {}
         }
@@ -12983,7 +12984,17 @@ app.post('/ycloud/webhook', async (req, res) => {
           + ' If they ask for ANOTHER COLOUR ("you have black?", "in black", "other colours?"), they want the SAME MODEL'
           + (qShoe ? ' (' + String(qShoe.name || displayName(qShoe)) + ')' : '') + ' in that colour: search_inventory for that model + colour in their size and send THOSE pictures - never this same picture again, never "that\'s the one".)\n' + (text || '');
       } else {
-        text = '(SYSTEM: the customer quote-replied to an earlier message we no longer have. If it is unclear what they mean, ask them to send that picture again.)\n' + (text || '');
+        /* 💬 THEY QUOTED ONE OF OUR WORDS, NOT A PICTURE (FF Gray 242-816-4424 10-23: "No" quote-replied to "Are you available now?"
+         * was answered "could you send that pic again? 📸" - every text we send is missing from the picture list, so it read as lost). */
+        let _ourQ = '';
+        try {
+          const _h = convos.get(from) || [];
+          const _txt = (c) => typeof c === 'string' ? c : Array.isArray(c) ? c.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '';
+          const _as = _h.filter(x => x && x.role === 'assistant').slice(-3).map(x => _txt(x.content)).reverse();
+          _ourQ = (_as.find(t => /\?/.test(t)) || _as[0] || '').replace(/[()]/g, '').replace(/\s+/g, ' ').slice(0, 200);
+        } catch (_) {}
+        text = '(SYSTEM: the customer quote-replied to one of OUR TEXT messages, not a picture. Treat their words as their answer to what we last asked'
+          + (_ourQ ? ' - most likely: "' + _ourQ + '"' : '') + '. Never ask them to send a picture again because of this.)\n' + (text || '');
       }
       record(req, { endpoint: 'ycloud-tag', sub: from, found: !!(q && q.link), shoe: qShoe ? String(qShoe.id) : '', gotPic: !!ycImage });
     }
@@ -13015,10 +13026,11 @@ app.post('/ycloud/webhook', async (req, res) => {
     clearFollowUp(from);
     lastIncoming.set(from, Date.now());
     lastIncomingText.set(from, text || (ycImage ? '[photo]' : ''));   // a photo mid-album stops the album (PHOTO_IN)
-    if (ycImage) lastInboundPhoto.set(String(from), { img: ycImage, at: Date.now() });
+    if (ycImage && !_ycTagPic) lastInboundPhoto.set(String(from), { img: ycImage, at: Date.now() });
     // Several photos arrive as several webhooks within a second or two. Hold each one briefly;
     // if more came in meanwhile, say once that she's looking, then answer them one at a time.
-    if (ycImage) {
+    // A tagged card is not a photo they sent (Gray 10-23: two quick tags got "Let me see if I have any of those 👀").
+    if (ycImage && !_ycTagPic) {
       const st = ycloudBurst.get(from) || { n: 0, said: 0 };
       st.n += 1; ycloudBurst.set(from, st);
       await new Promise(r => setTimeout(r, 3000));
@@ -13032,7 +13044,7 @@ app.post('/ycloud/webhook', async (req, res) => {
     ycloudChain.set(from, _turn);
     try { await _turn; } finally {
       if (ycloudChain.get(from) === _turn) ycloudChain.delete(from);
-      if (ycImage) { const st = ycloudBurst.get(from); if (st) { st.n -= 1; if (st.n <= 0) ycloudBurst.delete(from); } }
+      if (ycImage && !_ycTagPic) { const st = ycloudBurst.get(from); if (st) { st.n -= 1; if (st.n <= 0) ycloudBurst.delete(from); } }
     }
     waLastOutboundAt = new Date().toISOString();
   } catch (e) {
