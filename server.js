@@ -7210,8 +7210,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _om = ((_th && _th.msgs) || []).filter(m => m && m.dir === 'out' && m.sender === 'rodney' && m.text && Date.now() - (m.ts || 0) < 21 * 86400000
             && /\b(ferr(?:y|ies)|boat|mail ?boat|flight|plane|airport|booking|receipt|bill of lading|b\/?l|tracking|dock|shipped|checked in|on the way|arriv|leav(?:es|ing)|depart|pick ?up|collect)\b/i.test(m.text)).slice(-4);
           if (_om.length) _ownerShip = _om.map(m => new Date(m.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Nassau' }) + ': "' + String(m.text).replace(/\s+/g, ' ').slice(0, 220) + '"').join(' | ');
+          // ❌ THE CUSTOMER SAID THAT WAS WRONG (10-23 Raymond Neymour: the 10-16 note said Grand Master II to George Town; he
+          // answered "Thats the wrong boat… I am not on the mainland" — a week later Kiki read him the same George Town ferry
+          // and "it'll be there on Monday" again, as fact.) What they answered after the last shipping note rides with it.
+          if (_om.length) {
+            const _after = ((_th && _th.msgs) || []).filter(m => m && m.dir === 'in' && m.text && (m.ts || 0) > (_om[_om.length - 1].ts || 0)).slice(0, 4);
+            const _said = _after.map(m => String(m.text).replace(/\s+/g, ' ').slice(0, 160)).join(' | ');
+            if (_said && /\b(wrong|not (?:on|in|at|the)|didn'?t|did not|never|mistake|that'?s not|isn'?t|no it|i (?:said|told)|i give you|i gave you)\b/i.test(_said))
+              _ownerShip += ' ⛔ BUT THE CUSTOMER THEN SAID THIS WAS WRONG: "' + _said.slice(0, 400) + '". So that shipping info is NOT the current plan: NEVER repeat it to them as fact. If a later owner note above fixed it, use that; otherwise say sorry, say it went the wrong way by mistake and the team is sorting out getting it to them, and that the team will message them with the plan — then call notify_manager.';
+          }
         } catch (_) {}
-        if (_ownerShip) system += '\n\n🚢 THE OWNER ALREADY TOLD THIS CUSTOMER ABOUT THE SHIPMENT: ' + _ownerShip + '. (oldest first — the LAST one is the current plan; an earlier plan it replaced no longer stands). Answer "where is it / is it at the office / when does it leave" FROM THIS — say what it went on, where, and the booking number. Only for something it does not cover (an exact time not given here) say you are checking with the team.';
+        if (_ownerShip) system += '\n\n🚢 THE OWNER ALREADY TOLD THIS CUSTOMER ABOUT THE SHIPMENT: ' + _ownerShip + '. (oldest first — the LAST one is the current plan; an earlier plan it replaced no longer stands). A day word inside a note ("Monday", "tomorrow") counts from THAT note\'s date, not today — if that day has passed, never repeat it. Answer "where is it / is it at the office / when does it leave" FROM THIS — say what it went on, where, and the booking number. Only for something it does not cover (an exact time not given here) say you are checking with the team.';
         system += '\n\n📦 THIS CUSTOMER ALREADY ORDERED (' + _when + '), the team has it: ' + _facts + '. "Checking on feedback / any update on my tennis" means WHERE IS MY ORDER, not a review of the shoe. Treat it as fact: never ask again what they want, '
           + 'the island, the receiver or whether they paid (a card/transfer order here is PAID). You do NOT know if or when it went out — if they ask, '
           + 'say you have passed it to the team and they will update them. Never tell them "you\'re good" about a boat, a date or a change; the team decides.';
