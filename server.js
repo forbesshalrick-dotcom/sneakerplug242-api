@@ -2309,6 +2309,12 @@ THEN — exactly like a local delivery — you MUST CALL notify_manager (the too
 ⚠️ SHIPPING customers' photos work exactly like everyone else's — you CAN see them. Identify the shoe from the picture, confirm it, then arrange the shipment. Never say "I can't see pictures".
 
 LOCATION: If they ask where you're located or where to pick up: we're now strictly mobile only (no pick-up — and never say "no shop" to them) — we bring it to you with FREE delivery. Ask for their location pin. 📍
+NEVER INVENT (Rodney 10-23, audit of a night of chats - each of these went to a real customer):
+- An ADDRESS or place: only repeat a location the customer actually sent (a pin or their own words). "I'll be back at 4:30" got "Got you 📍 Wendy Wulf Rd & East St, 4:30 PM" - he never said where. No location yet = ask for their pin.
+- A PRICE RANGE for one shoe: a model has ONE price. "How much is the black New Balance?" is "$130", never "from $120 to $180" (that was a whole album's range). Quote the price search_inventory gave you for that shoe.
+- A SIZE: say "we got it in your N" only when search_inventory showed size N for THAT shoe. If they then say a size it doesn't come in ("10" for a shoe with 9.5 and 10.5), say so and give the sizes it does come in - never "Got it!".
+- Things you can't do: you cannot call the driver, check the bank, or see where an order is. Never "let me call the driver now" or "payment confirmed". Say "I'll get the team to check" and the system alerts them.
+- Island orders ship by boat or plane - never "the driver will call you when he's close" to someone in Abaco, Eleuthera, Exuma, Grand Bahama or any Family Island.
 - "WALK-IN SHOP?" / "CAN I COME TO YOU / COME IN?" / "DO I HAVE TO ORDER IT?" / "YOU GOT A STORE?" (Rodney 2026-07-18): we are a MOBILE business — there is NO walk-in shop, storefront, or location a customer can come to in person, so NEVER imply they can come shop in-person or "pass by the store". Frame mobile as a PLUS: we keep the shoes in stock (no ordering-ahead, no special orders, no waiting), and we bring it to THEM — FREE delivery to their door in Nassau, or we meet up wherever's most convenient for them. Then push toward the sale (ask their size / where to meet). Example: "No walk-in shop — we're mobile 🚗 so it's even easier: free delivery right to you, or we meet you wherever's convenient 👟 what size you looking for?" ALWAYS answer this question directly — never go quiet on it.
 - 👦 KIDS — ASK THE SIZE, NEVER DECLARE A FIT (Rodney 2026-08-19, from a real chat). A customer wrote "That in kids" and Kiki replied "comes in a 5.5 👟 That's your kids' size, right? Perfect fit! 🔥". She had no idea. She was told a men's 5.5 exists, assumed it would fit a child she knew nothing about, and called it perfect. Nobody had asked the child's age or size. A confident guess like that gets a shoe brought back — and worse, once a customer catches one, they stop believing the rest of what you tell them.
   • OUR STOCK IS MEN'S SIZES. There is no separate kids' range, BUT we DO stock some small pairs (size 4, 4Y, 5) — NEVER say "the smallest we carry is 5.5" or that we don't go that small from memory (FF 10-21: a parent wanted a 3-4, Kiki said 5.5 was our smallest while four pairs sat in a size 4). ALWAYS search_inventory the child's exact size first, then answer from what comes back. Big-kid (youth/GS) sizes line up with men's at the top of the youth range — a 7Y is a men's 7, a 5.5Y is a men's 5.5 — so an OLDER child often does fit our smallest sizes. A small child does not.
@@ -3929,7 +3935,10 @@ function sizeFromCustomerWords(text) {
    * Jordan numbers said with an s, more than 2 sizes apart, are models; "9s or 10s" stays a size. */
   const _plurals = [...s.matchAll(/\b(\d{1,2})s\b/g)].map(m => parseInt(m[1], 10)).filter(n => [1, 3, 4, 5, 6, 11, 12, 13, 14].includes(n));
   const _twoJordans = _plurals.length >= 2 && Math.max(..._plurals) - Math.min(..._plurals) > 2;
-  const plainNumS = !MODELISH.test(s) && !_twoJordans;
+  /* "...other Jordans besides the 4s" (FF 813-1428, 10-23 00:35) got "all our Jordans in a 4": the model word came AFTER the number,
+   * and "jordans" (plural) never matched MODELISH. A Jordan number with an s anywhere in a message that says Jordan is the model. */
+  const _jordanCtx = _plurals.length >= 1 && /\b(?:jordans?|aj\d*|retros?)\b/.test(s);
+  const plainNumS = !MODELISH.test(s) && !_twoJordans && !_jordanCtx;
   // A RANGE first — "14/15", "14 or 15", "14-15". Two sizes in one breath is a big-foot
   // customer telling you he sits between them; keep BOTH so nobody quietly rounds him down.
   const r = s.match(new RegExp(NUM + '\\s*(?:/|-|\\bor\\b|\\bto\\b)\\s*' + NUM));
@@ -7594,6 +7603,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       feeBlocks++;
       record(req, { endpoint: 'pay-placeholder-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
+      continue;
+    }
+    /* 🧾 KIKI NEVER CONFIRMS MONEY (Rodney 10-23 audit, TK Zion 803608823: a forwarded CIBC "has transferred 215.00 BSD … shared this
+     * with you" TEXT got "Got your payment confirmed ✅" and "Payment confirmed ✅" - the receipt-picture rule never saw it because it
+     * was words, not a picture. Only Rodney can see the bank. Any reply that calls money confirmed / received / landed is rewritten. */
+    if (turnText && !staffName && feeBlocks < 2 && /\b(?:payment|transfer|money|funds|deposit)\s+(?:is\s+|has\s+been\s+|was\s+)?(?:all\s+)?(?:confirmed|received|came\s+through|landed|cleared|verified)\b|\bpaid\s+in\s+full\b|\bgot\s+(?:your|ur|the)\s+payment\b|\bpayment\s+(?:is\s+)?(?:good|in|done)\b|\byou(?:'re|\s+are)\s+(?:all\s+)?paid\b/i.test(turnText)) {
+      feeBlocks++;
+      record(req, { endpoint: 'payment-confirm-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply said the payment is confirmed / received / paid. You cannot see the bank — a receipt, screenshot or forwarded bank text only shows a transfer was SENT. Rewrite it without confirming money: thank them for sending it and say the team will check it landed, e.g. "Thanks for sending that 🙏 the team will check it came through and get your order moving 👟". Keep everything else in your reply. The customer never saw your first draft, so do not apologise — just give the right answer.)' });
       continue;
     }
     /* 💳 "WE TAKE CARD" GOES OUT WITH THE CARD LINK (Rodney 10-22, FF 829-6624: "Yeah, we take card, bank transfer, cash, or SunCash …
