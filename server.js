@@ -13363,6 +13363,26 @@ function lockedShoeNote(sub) {
     + '• NEVER ask which shoe they mean, and never ask them to send the picture again.\n'
     + '• Only move off it if the CUSTOMER names something else outright.';
 }
+/* 🛵 POST /inbox/order-card { sub, text } — the group card for an order taken BY HAND (Rodney 10-23, TK 525-0217: the VaporMax +
+ * 9060 in 12.5 was agreed in the Inbox, "Okay thank you", and "no notification was sent for this" - only Kiki's notify_manager made
+ * cards). Same three places a Kiki order goes: the drivers' group, the Tasks board, and whoever is on shift. */
+app.post('/inbox/order-card', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = (req.body && typeof req.body === 'object') ? req.body : {};
+  const sub = String(b.sub || '').replace(/[^0-9]/g, '');
+  const body = String(b.text || '').trim().slice(0, 1200);
+  if (!sub || !body) return res.status(400).json({ ok: false, error: 'need sub and text' });
+  const th = inboxThreads.get(inboxSubIndex.get(sub) || '');
+  const store = (th && th.account) || String(b.account || '');
+  const lines = '🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* — please facilitate\n' + body + (store ? '\n🏬 ' + store : '');
+  let waOk = false, staffOk = false;
+  try { waOk = await waSendManager(lines, (store && storeTokens.get(store)) || lastToken || process.env.MANYCHAT_TOKEN, null); } catch (_) {}
+  try { require('./shop').addAlert(lines, 'Kiki 🤖', { sub, account: store }); } catch (_) {}
+  try { const r = await require('./shop').blastOnDuty(lines, null); staffOk = Array.isArray(r) && r.some(x => x && x.ok); } catch (_) {}
+  try { inboxRecord(store, sub, { dir: 'in', sender: 'system', text: '🛵 DELIVERY READY (by hand)\n' + body }); } catch (_) {}
+  record(req, { endpoint: 'order-card-by-hand', sub, store, waOk, staffOk });
+  res.json({ ok: true, waOk, staffOk });
+});
 app.post('/inbox/dispatch', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
