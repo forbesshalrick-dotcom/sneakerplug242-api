@@ -2263,7 +2263,7 @@ MEN'S:
 - man 9 → the 9 AND the 9.5
 - For 7.5 and 9 just say "here's what we have in 7.5" / "here's what we have in 9". Do NOT point out that some are an 8 / a 9.5 — Rodney settles that on the phone before delivery.
 - So a shoe that comes in a 9.5 IS "in your 9", one in an 11 IS "in your 10.5", and one that comes in an 8 IS "in your 7.5" — they run small (Rodney 10-17: "We sell size 9.5 shoes for size 9 because they run small"). NEVER say "we don't have a 9" or switch them to another shoe when it has the 9.5.
-- 👟 THEY RUN SMALL — ONLY THE AIR FORCE 1 RUNS BIG (Rodney 2026-10-23, TK Air Max 95s: no 9 in stock, he was offered the 10s — "awesome sales pitch. but you should have mentioned they run small. only Airforce run big"): ONLY when you are selling a BIGGER size than theirs (their size is missing and you offer the next size up, up to ONE size bigger), say why in the same line — "the 95s run a little small, so the 10 will fit you just right 👟". Never mention how a shoe runs at any other time (Rodney: "only mention when trying to sell bigger sizes that they run small"). This goes for every shoe EXCEPT the Air Force 1: the AF1 runs BIG — never say an AF1 runs small.
+- 👟 THEY RUN SMALL — ONLY THE AIR FORCE 1 RUNS BIG (Rodney 2026-10-23, TK Air Max 95s: no 9 in stock, he was offered the 10s — "awesome sales pitch. but you should have mentioned they run small. only Airforce run big"): ONLY when you are selling a BIGGER size than theirs (their size is missing and you offer the next size up, up to ONE size bigger), say why in the same line — "the 95s run a little small, so the 10 will fit you just right 👟". Never mention how a shoe runs at any other time (Rodney: "only mention when trying to sell bigger sizes that they run small"). This goes for every shoe EXCEPT the Air Force 1: the AF1 runs BIG — never say an AF1 runs small. For the AF1 it is the other way round: ONLY when you are selling a SMALLER AF1 size than theirs (theirs is missing, up to one size smaller), say "Air Forces run a little big, so the 9 will fit you just right 👟" (Rodney 10-23: "for airforce mention that they run big only when trying to sell smaller sizes").
 - man 9.5 → the 9.5    • man 10 → the 10    • man 11 → the 11    • man 12 → the 12    • man 13 → the 13
 - man 10.5 → the 10.5 AND the 11 (Rodney 10-17: "11 count as 10 and a half") — say only "here's what we have in 10.5".
 - man 11.5 → only one or two pairs exist. Either send the 11.5 and say "we don't have much in 11.5, but the 12 run small" and send the 12 if they agree — or just send the 12 straight away, it is pretty much the same shoe.
@@ -3421,7 +3421,19 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
           const _w = parseFloat(_m[1]); const _lm = liveShoeMap();
           const _ids = albumTrace.filter(Boolean).map(t => String(t.id)).filter(id => _lm[id]);
           const _in = _ids.some(id => ((_lm[id].sizesRaw || _lm[id].sizes || [])).some(z => parseFloat(z) === _w));
-          if (!_in && _ids.length) closing = 'These are the closest we got to a ' + _m[1] + ' 👟';
+          if (!_in && _ids.length) {
+            /* 👟 SAY WHY THE OTHER SIZE FITS (Rodney 10-23: "only mention when trying to sell bigger sizes that they run small" / "for
+             * airforce mention that they run big only when trying to sell smaller sizes"). Bigger pairs that aren't AF1s run small;
+             * smaller AF1s run big. Anything else gets no fit line. */
+            const _sh = _ids.map(id => _lm[id]);
+            const _isAF = (x) => /\b(air\s*force|af\s*-?1)\b/i.test(String(x.name || '') + ' ' + displayName(x));
+            const _zs = (x) => (x.sizesRaw || x.sizes || []).map(parseFloat);
+            const _allUp = _sh.every(x => !_isAF(x) && _zs(x).some(z => z > _w && z - _w <= 1));
+            const _allAFdn = _sh.every(x => _isAF(x) && _zs(x).some(z => z < _w && _w - z <= 1));
+            closing = _allUp ? 'These are the closest we got to a ' + _m[1] + ' 👟 They run a little small, so a size up will fit you just right'
+              : _allAFdn ? 'These are the closest we got to a ' + _m[1] + ' 👟 Air Forces run a little big, so a size down will fit you just right'
+              : 'These are the closest we got to a ' + _m[1] + ' 👟';
+          }
         }
       } catch (_) {}
       /* 💲 THEY ASKED THE PRICE - THE CLOSING LINE SAYS IT (Rodney 10-18, TK 445-6278: "How much for these 9060s", then "10", and got a
@@ -8283,7 +8295,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
        * never on an AF1, never a smaller size, never more than a size. */
       const _af1 = /\b(air\s*force|af\s*-?1|af1s?|forces?)\b/i.test(turnText);
       const _up = _m ? parseFloat(_m[1]) - parseFloat(_m[2]) : 0;
-      if (_m && (_up < 0 || _up > 1 || (_up > 0.5 && _af1))) {
+      // AF1: a SMALLER size up to one down may "wear like" theirs (they run big); never a bigger one. Everything else: up to one up.
+      if (_m && (_af1 ? (_up > 0 || _up < -1) : (_up < 0 || _up > 1))) {
         const _parts = turnText.split(/(?<=[.!?\n])\s+/);
         const _keep = _parts.filter(x => !_wl.test(x) && !/\b(want me to send|send (it|them|those)|that comes in|comes in \d|bring (?:both|them|the two)|try them|that work\?)/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
         turnText = (_keep || ("We don't have that one in your " + _m[2] + " right now 🙏")).trim();
@@ -8684,7 +8697,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
              * size lead; only when there is nothing bigger does one half-size down count, and nothing further. */
             const _up = _avail.filter(n => n > _want && n - _want <= 1).sort((a, b) => a - b);
             const _dn = _avail.filter(n => n < _want && _want - n <= 0.5);
-            const _near = isNaN(_want) ? [] : (_up.length ? _up.slice(0, 2) : _dn.slice(0, 1));
+            // Air Force 1s run BIG (Rodney 10-23): for an AF1 the closest is DOWN, up to a size smaller; up only when nothing is smaller.
+            const _isAFq = _all.length && _all.every(r => /\b(air\s*force|af\s*-?1)\b/i.test(String(r.name || '')));
+            const _dnAF = _avail.filter(n => n < _want && _want - n <= 1).sort((a, b) => b - a);
+            const _upAF = _avail.filter(n => n > _want && n - _want <= 0.5);
+            const _near = isNaN(_want) ? [] : _isAFq ? (_dnAF.length ? _dnAF.slice(0, 2) : _upAF.slice(0, 1)) : (_up.length ? _up.slice(0, 2) : _dn.slice(0, 1));
             const anySize = (_near.length ? _all.filter(r => _szOf(r).some(n => _near.includes(n))) : (isNaN(_want) ? _all : [])).slice(0, 8);
             if (anySize.length) {
               result.same_model_other_sizes = anySize.map(s => ({ id: s.id, name: s.name, price: s.price, sizes: s.sizes }));
