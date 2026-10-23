@@ -6518,9 +6518,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _rs = (typeof recentlySent !== 'undefined' && recentlySent.get(sub)) || null;
         const _ph = getPhone(req) || '';
         record(req, { endpoint: 'paused-chat-pinged-owner', sub, pin: _pin, said: _w.slice(0, 100) });
-        waSendManager('📍 *' + (ctx.name || 'Customer') + (_pin ? ' just sent a LOCATION PIN' : ' is ready for delivery') + '* — you\'re handling this chat, Kiki is paused'
+        /* ⏰ "Same location as last time" a minute after "I'll be available after 4pm" read as "ready for delivery" in the group
+         * (TK 525-0217 10-23 11:14, Deashinique: "??"). The customer's last few lines are read together: a later time = say LATER,
+         * and the card shows what we last told them (the order), not just the last album. */
+        const _hc = convos.get(sub) || [];
+        const _prevC = _hc.filter(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\s*\(/.test(m.content)).slice(-2).map(m => customerWordsOnly(m.content)).filter(x => x && x !== _w);
+        const _allW = _prevC.concat(_w ? [_w] : []).join(' / ');
+        const _when = (_allW.match(/\b(?:after|around|by|at|before)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|o'?clock)?|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\btomorrow\b|\btonight\b|\blater\b|\bthis (?:evening|afternoon)\b|\bwhen i (?:get|reach) (?:home|back|off)\b/i) || [])[0];
+        const _lastK = [..._hc].reverse().find(m => m && m.role === 'assistant' && typeof m.content === 'string' && !/^\(not answered/.test(m.content));
+        waSendManager('📍 *' + (ctx.name || 'Customer') + (_pin ? ' just sent a LOCATION PIN' : _when ? ' wants delivery LATER (' + _when + ') — not now' : ' is ready for delivery') + '* — you\'re handling this chat, Kiki is paused'
           + (ctx.store ? '\n🏬 ' + ctx.store : '') + (_ph ? '\n📞 ' + _ph : '')
-          + (_w && !_pin ? '\n💬 "' + _w.slice(0, 240) + '"' : '')
+          + (_allW && !_pin ? '\n💬 "' + _allW.slice(0, 300) + '"' : '')
+          + (_lastK ? '\n🗣️ We last said: "' + String(_lastK.content).slice(0, 200) + '"' : '')
           + (_rs && _rs.names && _rs.names.length ? '\n👟 Last shown: ' + _rs.names.slice(0, 2).join(', ') : '')
           + (ctx.chatUrl ? '\n💬 Open the chat: ' + ctx.chatUrl : ''), token).catch(() => {});
       }
