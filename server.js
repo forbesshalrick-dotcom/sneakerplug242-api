@@ -2313,7 +2313,7 @@ NEVER INVENT (Rodney 10-23, audit of a night of chats - each of these went to a 
 - An ADDRESS or place: only repeat a location the customer actually sent (a pin or their own words). "I'll be back at 4:30" got "Got you 📍 Wendy Wulf Rd & East St, 4:30 PM" - he never said where. No location yet = ask for their pin.
 - A PRICE RANGE for one shoe: a model has ONE price. "How much is the black New Balance?" is "$130", never "from $120 to $180" (that was a whole album's range). Quote the price search_inventory gave you for that shoe.
 - A SIZE: say "we got it in your N" only when search_inventory showed size N for THAT shoe. If they then say a size it doesn't come in ("10" for a shoe with 9.5 and 10.5), say so and give the sizes it does come in - never "Got it!".
-- Things you can't do: you cannot call the driver, check the bank, or see where an order is. Never "let me call the driver now" or "payment confirmed". Say "I'll get the team to check" and the system alerts them.
+- Things you can't do: you cannot check the bank or see where an order is. Never "payment confirmed". (For "how long / where's the driver" on a confirmed order, Rodney's line stays: "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟".)
 - Island orders ship by boat or plane - never "the driver will call you when he's close" to someone in Abaco, Eleuthera, Exuma, Grand Bahama or any Family Island.
 - "WALK-IN SHOP?" / "CAN I COME TO YOU / COME IN?" / "DO I HAVE TO ORDER IT?" / "YOU GOT A STORE?" (Rodney 2026-07-18): we are a MOBILE business — there is NO walk-in shop, storefront, or location a customer can come to in person, so NEVER imply they can come shop in-person or "pass by the store". Frame mobile as a PLUS: we keep the shoes in stock (no ordering-ahead, no special orders, no waiting), and we bring it to THEM — FREE delivery to their door in Nassau, or we meet up wherever's most convenient for them. Then push toward the sale (ask their size / where to meet). Example: "No walk-in shop — we're mobile 🚗 so it's even easier: free delivery right to you, or we meet you wherever's convenient 👟 what size you looking for?" ALWAYS answer this question directly — never go quiet on it.
 - 👦 KIDS — ASK THE SIZE, NEVER DECLARE A FIT (Rodney 2026-08-19, from a real chat). A customer wrote "That in kids" and Kiki replied "comes in a 5.5 👟 That's your kids' size, right? Perfect fit! 🔥". She had no idea. She was told a men's 5.5 exists, assumed it would fit a child she knew nothing about, and called it perfect. Nobody had asked the child's age or size. A confident guess like that gets a shoe brought back — and worse, once a customer catches one, they stop believing the rest of what you tell them.
@@ -7614,6 +7614,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply said the payment is confirmed / received / paid. You cannot see the bank — a receipt, screenshot or forwarded bank text only shows a transfer was SENT. Rewrite it without confirming money: thank them for sending it and say the team will check it landed, e.g. "Thanks for sending that 🙏 the team will check it came through and get your order moving 👟". Keep everything else in your reply. The customer never saw your first draft, so do not apologise — just give the right answer.)' });
       continue;
     }
+    /* 🏬 NEVER "NO SHOP" (Rodney 10-22: "But no shop, I don't like that"). The prompt says it four times as an instruction and the
+     * model kept echoing it - TK Oscar Hotel 822-4112 10-23 09:35: "We're strictly mobile only 🚗 — no shop, so we bring it…". */
+    try {
+      if (turnText && /\bno\s+(?:physical\s+)?(?:shop|store)\b/i.test(turnText)) {
+        turnText = turnText.replace(/\s*[—–-]?\s*(?:we(?:'re| are| have)\s+)?no\s+(?:physical\s+)?(?:shop|store)(?:\s+to\s+come\s+to)?\s*[,.—–-]?\s*/gi, ' — ').replace(/\s+—\s+—\s+/g, ' — ').replace(/(^|\n)\s*—\s*/g, '$1').trim().replace(/^[a-z]/, c => c.toUpperCase());
+        record(req, { endpoint: 'no-shop-scrubbed', sub });
+      }
+    } catch (_) {}
     /* 💳 "WE TAKE CARD" GOES OUT WITH THE CARD LINK (Rodney 10-22, FF 829-6624: "Yeah, we take card, bank transfer, cash, or SunCash …
      * You can also pay online with the link when you're ready" - no link. "this message is suppose to sent with payment link. if you
      * want to pay by card here is the online payment"). A reply that offers card with no 242plug.com/pay link gets one: the total of
