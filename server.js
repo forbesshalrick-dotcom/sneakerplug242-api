@@ -2110,7 +2110,7 @@ ${welcomeRule}
 - Talk like a real, friendly shop assistant having a normal conversation. Do NOT fire off photos the moment you see a number — but do NOT interrogate them either.
 - NEVER ask the customer whether they're "looking for something specific" or have "anything specific in mind", and never ask "what kind of shoe are you after". Don't make them name a model. Your DEFAULT move is simply to offer to show what we have, e.g. "Want me to show you what we've got in {size}? 👟" (or without the size if they haven't given one). Only dig into a specific shoe/brand/colour if THEY bring it up first. DELIVERY QUESTION (IMPORTANT — answer this FIRST, always): if a customer's very first message or any message mentions delivery — "do u deliver", "do you deliver", "delivery?", "can you bring it", "you does deliver" — answer it IMMEDIATELY: "Yes! We deliver right to your door in Nassau 🛵 What shoe and size are you looking for?" Do NOT send follow-up nudge messages to a customer whose delivery question was never answered.
 - THEIR SHOE NOT IN THEIR SIZE = SAY SO, THEN OFFER MORE (Rodney 2026-10-21, Sneaker 295 asked for the Jordan 5 in "8.5 or 9" and only got its size list): name the sizes we DO have, say plainly we don't have their size in that one, and end with "We got other styles in your size 🔥 want me to send you pictures? 👟". Never stop at the size list.
-- THEIR SHOE IN THEIR SIZE = ASK, THEN DELIVER (Rodney 2026-10-16): when the shoe they picked comes in their size, END WITH THE QUESTION "Want the 8.5? 👟" (their size). NEVER "you're good in your 8.5", "you're set", "that works for you". When they say yes: "Bet 🔥 Send me your location 📍 — we can come right now 👟" (when we're closed, the 8 AM line from the closed rule instead), then the pin steps.
+- THEIR SHOE IN THEIR SIZE = ASK, THEN DELIVER (Rodney 2026-10-16): when the shoe they picked comes in their size, END WITH THE QUESTION "Want the 8.5? 👟" (their size). NEVER "you're good in your 8.5", "you're set", "that works for you". When they say yes: "Bet 🔥 Are you available now? 👟" (Rodney 10-23, his own words to a customer). If they say YES (now / I'm home / ready): "Please send me your location 📍 the driver can come right now 🚗", then the pin steps. If they say NO or later (at work, after 5, tomorrow): "Okay, just let me know when you're ready 👟" - nothing more. (When we're closed, the 8 AM line from the closed rule instead.)
 - NEVER "ALRIGHT, I SEE YOU 👀" or "I see you" (Rodney 2026-10-16: "alright I see … is not good, you can move it").
 - 🛵 WE COME TO THEM — "I REACH" MEANS SEND THE PIN (Rodney 2026-10-16: a customer came in on the boat and wrote "I reach", Kiki answered "Come through" and "You outside?" — we have no shop to come to). "I reach", "I'm here", "I landed", "I in Nassau now" = they arrived where THEY are: ask for their WhatsApp location pin so we bring the shoes. Never "come through", "pull up", "you outside?" or "come by".
 - 🇧🇸 "BAD" MEANS GOOD (Bahamian): "this bad", "dem bad tho", "that's bad" = they LOVE it. Never argue ("nah it's fire!") — agree and move them forward: "Right? 🔥 That one's $X — want it in your size?". Same for "nasty", "wicked", "too sweet".
@@ -6919,7 +6919,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
               + ' Answer about THIS shoe only, in ONE short line said the way a person says it - the size answer first, then the name and price, once - e.g. "'
               + (_sz && !_has ? 'We don\'t have the ' + _sz + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + (_wom ? '' : ' — it comes in ' + _sizes)
-                : _sz && _has ? 'Yeah we got the ' + _sz + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + '. Let me know when you\'re ready for it to be delivered 👟'
+                : _sz && _has ? 'Yeah we got the ' + _sz + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + '. Are you available now? 👟'
                 : 'That\'s the ' + displayName(_pickSh) + ' 🔥 it\'s $' + (parseFloat(_pickSh.price) || 0) + ' — we have it in ' + _sizes + '. What size you need?') + '". '
               // Rodney 10-19 (stitch, Darnell): a card sent back IS the pick - never "Want the 13?". Rodney 10-22 (FF 814-7995): not "What time you
               // available for the delivery?" and never the name twice ("Yep! That's the ..." under the picture) - "let me know when you're ready".
@@ -8166,10 +8166,31 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _n = _wq[1].replace('.', '\\.');
         if (new RegExp('(?:size|sz|in\\s+(?:a|an)|an?)\\s*' + _n + '(?![\\d.])', 'i').test(_said)) {
           record(req, { endpoint: 'size-confirm-cut', sub, said: _wq[0] });
-          turnText = 'Bet 🔥 What time you available for the delivery? 👟';
+          turnText = 'Bet 🔥 Are you available now? 👟';
         }
       }
     }
+    /* 🙋 "ARE YOU AVAILABLE NOW?" → THE HUMAN ANSWER (Rodney 10-23, writing it himself to TK 525-0217: "Are you available now? If he
+     * answers yes … please send the location for me, the driver can come right now. If the answer is no … okay, just let me know when
+     * you're ready." - "I'm giving you good human reactions so you can put that in code"). */
+    try {
+      if (turnText && !staffName && !image) {
+        const _hist = convos.get(sub) || [];
+        const _lastK = [..._hist].reverse().find(m => m && m.role === 'assistant');
+        const _lkT = !_lastK ? '' : typeof _lastK.content === 'string' ? _lastK.content
+          : (Array.isArray(_lastK.content) ? _lastK.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '');
+        const _cw = customerWordsOnly(String(userText || '')).trim();
+        if (/available now\s*\?/i.test(_lkT) && _cw && _cw.length < 80) {
+          if (/^(?:no+|nah+|not (?:now|yet|right now|today)|later|tomorrow|after\b|when i\b|i'?m (?:at work|working|busy|out|not)|at work|working|busy|not available|give me|in a (?:bit|while|few))/i.test(_cw)) {
+            turnText = 'Okay, just let me know when you\'re ready 👟';
+            record(req, { endpoint: 'available-now-no', sub });
+          } else if (/^(?:y+e+s+|yeah|ya+|yea|yep|yup|ye|ok(?:ay)?|sure|bet|now|right now|i am|i'?m (?:available|free|home|here|ready|good)|ready|come (?:now|through)|available)\b/i.test(_cw)) {
+            turnText = 'Please send me your location 📍 the driver can come right now 🚗\n\nTap 📎 (or ＋) → Location → Send your current location — then text me "sent" so I know it came through 👟';
+            record(req, { endpoint: 'available-now-yes', sub });
+          }
+        }
+      }
+    } catch (_) {}
     /* 👠 "A women's 8 would be a men's 6.5" - THE TABLE, NOT ARITHMETIC (Rodney 10-18, TK Ronny +1 242 436-8286 asked "Will that size 8 be
      * women size" and was told women's 8 = men's 6.5; Rodney's table says a women's 8 is a men's 7). Any women's→men's figure she writes is
      * corrected from SIZE_TABLE_WOMENS. */
@@ -9569,7 +9590,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _want = _sz ? ((_wom ? sizesToSend(_sz, true) : sizesToSend(_sz, false)) || [parseFloat(_sz)]) : [];
         const _has = _sz && (_sh.sizesRaw || _sh.sizes || []).some(z => _want.some(v => parseFloat(z) === parseFloat(v)));
         const _say = _wom ? "women's " + _sz : _sz;
-        _ptr = _has ? 'Yeah we got the ' + _say + ' in that 🔥 That\'s the ' + displayName(_sh) + ', it\'s $' + (parseFloat(_sh.price) || '') + '. Let me know when you\'re ready for it to be delivered 👟'
+        _ptr = _has ? 'Yeah we got the ' + _say + ' in that 🔥 That\'s the ' + displayName(_sh) + ', it\'s $' + (parseFloat(_sh.price) || '') + '. Are you available now? 👟'
           : _sz ? 'We don\'t have the ' + _say + ' in that one right now 🙏 That\'s the ' + displayName(_sh) + ', it\'s $' + (parseFloat(_sh.price) || '') + (_wom ? '' : ' — it comes in ' + (sizesOf(_sh) || '') + '.')
           : 'That\'s the ' + displayName(_sh) + ' 🔥 it\'s $' + (parseFloat(_sh.price) || '') + ' — it comes in ' + (sizesOf(_sh) || '') + '. What size you need? 👟';
         record(req, { endpoint: 'fallback-named-pointed-shoe', sub, shoe: String(_sh.id), size: _say, has: !!_has });
