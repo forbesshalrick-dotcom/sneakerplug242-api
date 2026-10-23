@@ -6074,6 +6074,77 @@ function expectedFloatNow() {
     return Math.max(0, register - payouts - expenses);
   } catch (_) { return null; }
 }
+// 📢 (ported back 10-23 from the pre-reset build) THE ADS THAT ARE ACTUALLY RUNNING. See ads.json.
+// Rodney 2026-09-29: "Kiki never understands when a customer asks for a certain
+// advertisement... the guy asks for the price in size nine and Kiki starts sending them all
+// type of pictures. She don't even know which one he want the price for. That's the problem.
+// She just starts sending pictures."
+// Facebook does not tell us which ad was tapped and ManyChat does not pass it on, so every
+// ad-click arrives looking like a stranger saying "how much". We cannot see the ad - but we
+// know what is running, and it is three ads, six shoes. That turns an unanswerable question
+// into a short one: name them and price them.
+// Reloaded off disk so the list can be updated without touching code.
+let LIVE_ADS = null, LIVE_ADS_AT = 0;
+function liveAds() {
+  if (LIVE_ADS && Date.now() - LIVE_ADS_AT < 60000) return LIVE_ADS;
+  try { LIVE_ADS = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'ads.json'), 'utf8')); }
+  catch (_) { LIVE_ADS = { ads: [] }; }
+  LIVE_ADS_AT = Date.now();
+  return LIVE_ADS;
+}
+/* 🏬 EACH SHOP RUNS ITS OWN ADS (Rodney 2026-10-07: "foot fetish only has these jordans up
+ * on an ad now. why the confusion?").
+ * ads.json was written for Trendy Kicks and nothing in it was ever scoped to a shop, so every
+ * line was told TK's ads and Foot Fetish's were invisible. A customer tapped FF's six-Jordan
+ * $150 ad, typed "11", and got "This is what we have in 11 rite now" - the whole shelf -
+ * because as far as she knew FF was advertising nothing at all.
+ * An ad entry may now carry `shop`. No `shop` means every line, as before. */
+// The shoe ids this shop is advertising right now, for the paths that must LEAD with them.
+function adShoeIds(store) {
+  try {
+    const _st = String(store || '').toLowerCase().trim();
+    const out = [];
+    for (const ad of (liveAds().ads || [])) {
+      if (ad.shop && String(ad.shop).toLowerCase().trim() !== _st) continue;
+      for (const sh of (ad.shoes || [])) if (sh && sh.id) out.push({ id: String(sh.id), name: sh.name, price: sh.price });
+    }
+    return out;
+  } catch (_) { return []; }
+}
+// What a shoe costs on THIS line: the ad price when this shop is advertising it, else the shelf price.
+function adPrice(sh, store) {
+  try { const a = adShoeIds(store).find(x => sh && String(x.id) === String(sh.id)); if (a && a.price) return parseFloat(a.price); } catch (_) {}
+  return parseFloat(sh && sh.price) || 0;
+}
+function adsBlock(store) {
+  try {
+    const _all = liveAds().ads || [];
+    const _st = String(store || '').toLowerCase().trim();
+    const a = _st ? _all.filter(ad => !ad.shop || String(ad.shop).toLowerCase().trim() === _st) : _all;
+    if (!a.length) return '';
+    const lines = a.map(ad => '  \u2022 ' + ad.label + ': '
+      + (ad.shoes || []).map(sh => sh.name + ' $' + sh.price).join(', ')).join('\n');
+    return `\n\n\u{1F4E2} THE ADS WE ARE RUNNING RIGHT NOW \u2014 THIS IS THE WHOLE LIST:\n${lines}\n`
+      + `Facebook does not tell us which one a customer tapped, so when somebody opens with an `
+      + `ad-click message ("Can I get more info on this?", "how much are the size 9", "is this `
+      + `available", "I want this") those shoes above are the ONLY things they can be asking `
+      + `about. Do NOT dump the catalogue at them.\n`
+      + `⛔ Do NOT bolt a guess onto the welcome. The welcome is the two questions and NOTHING `
+      + `else - never add "(I'm guessing you tapped one of our ads...)" or any other aside to it. `
+      + `Use what you know about the ads to answer their NEXT message well, not to narrate.\n`
+      + `\u2022 If they ask a PRICE, give the prices from that list in one short line \u2014 there are `
+      + `only two or three answers, so just say them: "The 9060s are $130 and the VaporMax is `
+      + `$120 \u{1F45F} which one you after?"\n`
+      + `\u2022 If they give a SIZE with it, tell them which of those shoes you have in that size, `
+      + `by name and price. Still do not send the whole size album.\n`
+      + `\u2022 Only send pictures once you know WHICH of them they mean, or if they ask to see `
+      + `them all.\n`
+      + `\u2022 Never name a shoe that is not on that list as "the one from the ad".\n`
+      + `\u{1F4B0} THE AD PRICE IS THE PRICE ON THIS LINE (Rodney 10-07; ported back 10-23 after the 10-12 reset lost it - FF 242-438-4764 asked `
+      + `"The sale still $150 or stand at $180?" and was told "no sale right now"): whenever you name or price one of the shoes above - in `
+      + `ANY message, even when the catalogue or a picture line says more - quote the price on this list. If they ask about "the sale", it is ON.`;
+  } catch (_) { return ''; }
+}
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // 🔁 OUR OWN SHOP LINES NEVER GET ANSWERED (2026-10-14 00:27: Rodney tested Luxury Boutique from the
   // Trendy Kicks phone; TK's Kiki and Luxury Boutique's Kiki answered each other six times until both
@@ -6607,6 +6678,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (FIT_QUESTION_RE.test(String(userText || ''))) {
       system += `\n\n👟 THEY JUST ASKED ABOUT FIT. Never send them to friends, reviews or Google, and never explain that sneakers vary. ONE short sizing line is fine and welcome if you have one ("it runs a touch small so an 8 wears like a 7.5") — then ALWAYS land on the try-on: in Nassau we bring BOTH sizes to the door, they try both and keep the one that fits. Say it confidently, then ask their size. (Island shipments are pay-first with no try-on: there, tell them the sizes that shoe comes in and help them pick.)`;
     }
+    try { system += adsBlock(ctx.store); } catch (_) {}
     system += `\n\n(Current Bahamas date & time: ${bah.toISOString().slice(0, 10)} ${bah.toISOString().slice(11, 16)} — 24h clock.)`;
 
     /*
@@ -6903,9 +6975,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // "got it in your 8.5" only when it really comes in their size (2026-10-14: it was said blind).
           const _hasTheirs = _szKnown && (_pickSh.sizesRaw || []).some(x => parseFloat(x) === parseFloat(_csz0.size));
           // Said the way a person says it (Rodney 10-22, FF 814-7995): the size answer first, then the name and price, once.
-          const _lead = _hasTheirs ? 'Yeah we got the ' + _csz0.size + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + ' 👇'
-              : _szKnown ? 'We don\'t have the ' + _csz0.size + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + ' — it comes in ' + (sizesOf(_pickSh) || 'other sizes') + ' 👇'
-              : 'That\'s the ' + displayName(_pickSh) + ' 🔥 it\'s $' + (parseFloat(_pickSh.price) || 0) + ' — these are the sizes we got 👇';
+          const _lead = _hasTheirs ? 'Yeah we got the ' + _csz0.size + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + adPrice(_pickSh, ctx.store) + ' 👇'
+              : _szKnown ? 'We don\'t have the ' + _csz0.size + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + adPrice(_pickSh, ctx.store) + ' — it comes in ' + (sizesOf(_pickSh) || 'other sizes') + ' 👇'
+              : 'That\'s the ' + displayName(_pickSh) + ' 🔥 it\'s $' + adPrice(_pickSh, ctx.store) + ' — these are the sizes we got 👇';
           const _rr = await sendShoePhotos(sub, [_pickSh.id], token, null, _lead, false, false, ctx.turnAt || 0, _szKnown).catch(() => null);
           if (_rr && _rr.sent > 0) {
             photosSentRun = true; sentToCustomer = true; turnSentIds.add(String(_pickSh.id)); photoCompareSent = true;
@@ -6947,11 +7019,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _lu = history[history.length - 1];
           if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
             _lu.content[0].text = '(SYSTEM: the picture is OUR OWN card, forwarded back: the ' + displayName(_pickSh) + ' (shoe id ' + _pickSh.id + '), $'
-              + (parseFloat(_pickSh.price) || 0) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
+              + adPrice(_pickSh, ctx.store) + '. It comes ONLY in: ' + _sizes + '.' + (_sz ? (' Their size is ' + _sz + (_has ? ' — we have it.' : ' — we do NOT have it in their size.')) : '')
               + ' Answer about THIS shoe only, in ONE short line said the way a person says it - the size answer first, then the name and price, once - e.g. "'
-              + (_sz && !_has ? 'We don\'t have the ' + _sz + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + (_wom ? '' : ' — it comes in ' + _sizes)
-                : _sz && _has ? 'Yeah we got the ' + _sz + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + (parseFloat(_pickSh.price) || 0) + '. Are you available now? 👟'
-                : 'That\'s the ' + displayName(_pickSh) + ' 🔥 it\'s $' + (parseFloat(_pickSh.price) || 0) + ' — we have it in ' + _sizes + '. What size you need?') + '". '
+              + (_sz && !_has ? 'We don\'t have the ' + _sz + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + adPrice(_pickSh, ctx.store) + (_wom ? '' : ' — it comes in ' + _sizes)
+                : _sz && _has ? 'Yeah we got the ' + _sz + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + adPrice(_pickSh, ctx.store) + '. Are you available now? 👟'
+                : 'That\'s the ' + displayName(_pickSh) + ' 🔥 it\'s $' + adPrice(_pickSh, ctx.store) + ' — we have it in ' + _sizes + '. What size you need?') + '". '
               // Rodney 10-19 (stitch, Darnell): a card sent back IS the pick - never "Want the 13?". Rodney 10-22 (FF 814-7995): not "What time you
               // available for the delivery?" and never the name twice ("Yep! That's the ..." under the picture) - "let me know when you're ready".
               + (_sz && _has ? 'Never "Want the ' + _sz + '?" and never "you\'re good in your ' + _sz + '". When they give a time: "Bet 🔥 Send me your location 📍". ' : '')
@@ -9631,9 +9703,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _want = _sz ? ((_wom ? sizesToSend(_sz, true) : sizesToSend(_sz, false)) || [parseFloat(_sz)]) : [];
         const _has = _sz && (_sh.sizesRaw || _sh.sizes || []).some(z => _want.some(v => parseFloat(z) === parseFloat(v)));
         const _say = _wom ? "women's " + _sz : _sz;
-        _ptr = _has ? 'Yeah we got the ' + _say + ' in that 🔥 That\'s the ' + displayName(_sh) + ', it\'s $' + (parseFloat(_sh.price) || '') + '. Are you available now? 👟'
-          : _sz ? 'We don\'t have the ' + _say + ' in that one right now 🙏 That\'s the ' + displayName(_sh) + ', it\'s $' + (parseFloat(_sh.price) || '') + (_wom ? '' : ' — it comes in ' + (sizesOf(_sh) || '') + '.')
-          : 'That\'s the ' + displayName(_sh) + ' 🔥 it\'s $' + (parseFloat(_sh.price) || '') + ' — it comes in ' + (sizesOf(_sh) || '') + '. What size you need? 👟';
+        _ptr = _has ? 'Yeah we got the ' + _say + ' in that 🔥 That\'s the ' + displayName(_sh) + ', it\'s $' + adPrice(_sh, ctx.store) + '. Are you available now? 👟'
+          : _sz ? 'We don\'t have the ' + _say + ' in that one right now 🙏 That\'s the ' + displayName(_sh) + ', it\'s $' + adPrice(_sh, ctx.store) + (_wom ? '' : ' — it comes in ' + (sizesOf(_sh) || '') + '.')
+          : 'That\'s the ' + displayName(_sh) + ' 🔥 it\'s $' + adPrice(_sh, ctx.store) + ' — it comes in ' + (sizesOf(_sh) || '') + '. What size you need? 👟';
         record(req, { endpoint: 'fallback-named-pointed-shoe', sub, shoe: String(_sh.id), size: _say, has: !!_has });
       }
     } catch (_) {}
