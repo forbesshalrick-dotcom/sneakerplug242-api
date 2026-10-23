@@ -9561,8 +9561,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'fallback-pointed-up', sub });
       }
     } catch (_) {}
+    /* 👍 "Okay 👍" NEEDS NO ANSWER (FF Markly 446-9700 10-23 08:39: "When I get back I will let you know" → "No problem…" → "Okay 👍"
+     * got "Sorry, that didn't come through right 🙈 Tell me the shoe"). An empty turn after a plain thank-you / ok is correct. */
+    let _okOnly = false;
+    try { _okOnly = !image && /^(?:ok(?:ay|ey)?|k+|kk|cool|bet|alright|aight|ight|thanks?|thank you|ty|thx|appreciate it|good|great|perfect|sure|yes|yea|yeah|np|no problem|respect|[\s👍🙏✊🤝💯🔥❤️😊🙂👌]+)[\s.!👍🙏✊🤝💯🔥❤️😊🙂👌]*$/iu.test(customerWordsOnly(String(userText || '')).trim()); } catch (_) {}
     const fb = _lt || _ptr || (image
       ? "That's a clean pair 👀 — what size you looking for and I'll pull up what we've got 👟"
+      : _okOnly ? '👍'
       : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
     await sendChunk(sub, [{ type: 'text', text: fb }], token).catch(() => {});
     sentToCustomer = true;
