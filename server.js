@@ -6729,6 +6729,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       ? `\n\n[THIS CUSTOMER'S SIZE = ${knownSize} (they told you earlier in this chat). When they ask to see ANY other shoe, brand or model next — "any New Balance?", "show me Jordans", "what you got in ___" — go STRAIGHT to search_inventory + send_photos in size ${knownSize} on this turn. Do NOT reply "what size you looking for?" — you already know it. Only ask again if they clearly want a DIFFERENT size.]`
       : `\n\n[THIS CUSTOMER'S SIZE = ${knownSize}, AND WE DO NOT CARRY IT. They have already told you — NEVER ask their size again, not once. The biggest size on our shelf right now is a ${ceiling}. Do NOT offer them anything more than ONE size below what they asked for: a ${ceiling} to somebody who wears a ${knownSize} is not "the closest we can get you", it is a shoe that does not fit, and "some of these run big" is a sales line, not help. Do NOT use the try-on offer to bridge that gap either — bringing him two shoes that are both too small is still bringing him nothing. Say plainly and warmly that we top out at a ${ceiling} right now, and then STOP SELLING — that is a complete answer on its own. Offer NOTHING on the end of it (Rodney 2026-09-06, his exact words: "no callback just say sorry no we dont") — no call back, no taking his name or number, no get_agent, no nearest size, no try-on. "Nah sorry — we stop at a ${ceiling} right now 🙏" is the whole message. (If they wrote it as "${knownSize}s" — "any 14s?" — it may be the Jordan ${knownSize}: search it, and if we have none say both, "No Jordan ${knownSize}s right now, and in sizes we stop at a ${ceiling} 🙏".) If he asks again, answer again just as short — but if he asks to SEE pictures or what we have, send our ${ceiling}s; if he asks for something else, help him with that as normal.]`;
   }
+  /* 📞 A PHONE NUMBER IS NOT A SIZE (10-22, TK "The Inventory": "4782955" alone got "is that your size?", then "size 4.78? Or
+   * closer to a 5?"). sizeFromCustomerWords already drops it; this tells Kiki too. */
+  try {
+    const _w = customerWordsOnly(String(userText || '')).trim(); const _d = _w.replace(/\D/g, '');
+    if (/^\+?[\d\s().-]+$/.test(_w) && [7, 10, 11].includes(_d.length))
+      sizeCtx += `\n\n[THIS MESSAGE IS A PHONE NUMBER (${_w}), NOT A SIZE. Never read it as a size or ask "is that your size". If you asked for a number, thank them for it; otherwise ask, short, what they need it for or what they're looking for.]`;
+  } catch (_) {}
   // `image` is now the photo's URL — send it to Claude as a URL source so Anthropic
   // fetches + resizes it server-side (no local 4.5MB download cap that was killing
   // full-res customer photos with an "I can't open that file" reply).
