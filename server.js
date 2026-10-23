@@ -13641,6 +13641,52 @@ app.get('/inbox/ycloud-status', async (req, res) => {
     res.json({ ok: true, to, messages: out.slice(0, 10), sample: out.length ? undefined : raw });
   } catch (e) { res.status(502).json({ ok: false, error: String(e).slice(0, 160) }); }
 });
+// 📨 WHATSAPP TEMPLATES (Rodney 10-22, after both payment messages to Make It Happen failed on the 24-hour rule:
+// he pointed at Meta's template docs). Outside the 24-hour window only an approved template gets through.
+// GET lists the templates on the WABA behind a business number; POST {create:{name,category,language,components}}
+// asks Meta to approve one; POST {send:{sub,name,language,params}} sends an approved one to a customer.
+async function ycloudWabaFor(from) {
+  const key = process.env.YCLOUD_API_KEY;
+  const want = String(from || process.env.YCLOUD_FROM || '').replace(/\D/g, '');
+  const r = await fetch('https://api.ycloud.com/v2/whatsapp/phoneNumbers?limit=100', { headers: { 'X-API-Key': key }, signal: AbortSignal.timeout(15000) });
+  const j = await r.json(); const items = j.items || [];
+  const hit = items.find(x => String(x.phoneNumber || '').replace(/\D/g, '') === want) || null;
+  return { wabaId: hit && hit.wabaId, numbers: items.map(x => ({ phone: x.phoneNumber, wabaId: x.wabaId, name: x.verifiedName })) };
+}
+app.get('/inbox/ycloud-templates', async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  try {
+    const w = await ycloudWabaFor(req.query.from);
+    if (!w.wabaId) return res.json({ ok: false, error: 'no WABA for that number', numbers: w.numbers });
+    const r = await fetch('https://api.ycloud.com/v2/whatsapp/templates?limit=100&filter.wabaId=' + encodeURIComponent(w.wabaId), { headers: { 'X-API-Key': process.env.YCLOUD_API_KEY }, signal: AbortSignal.timeout(15000) });
+    const j = await r.json();
+    res.json({ ok: r.ok, wabaId: w.wabaId, templates: (j.items || []).map(t => ({ name: t.name, language: t.language, category: t.category, status: t.status, reason: t.reason || null, body: ((t.components || []).find(c => c.type === 'BODY') || {}).text })), raw: r.ok ? undefined : j });
+  } catch (e) { res.status(502).json({ ok: false, error: String(e).slice(0, 160) }); }
+});
+app.post('/inbox/ycloud-templates', express.json(), async (req, res) => {
+  if (!consoleAuth(req, res)) return;
+  const b = req.body || {};
+  try {
+    const w = await ycloudWabaFor(b.from);
+    if (!w.wabaId) return res.json({ ok: false, error: 'no WABA for that number', numbers: w.numbers });
+    const H = { 'X-API-Key': process.env.YCLOUD_API_KEY, 'Content-Type': 'application/json' };
+    if (b.create) {
+      const r = await fetch('https://api.ycloud.com/v2/whatsapp/templates', { method: 'POST', headers: H, body: JSON.stringify(Object.assign({ wabaId: w.wabaId }, b.create)), signal: AbortSignal.timeout(20000) });
+      return res.json({ ok: r.ok, status: r.status, body: await r.json().catch(() => null) });
+    }
+    if (b.send) {
+      const s = b.send; const to = '+' + String(s.sub || '').replace(/\D/g, '');
+      const fromE = '+' + String(b.from || process.env.YCLOUD_FROM || '').replace(/\D/g, '');
+      const tpl = { name: s.name, language: { code: s.language || 'en' } };
+      if (Array.isArray(s.params) && s.params.length) tpl.components = [{ type: 'body', parameters: s.params.map(t => ({ type: 'text', text: String(t) })) }];
+      const r = await fetch('https://api.ycloud.com/v2/whatsapp/messages/sendDirectly', { method: 'POST', headers: H, body: JSON.stringify({ from: fromE, to, type: 'template', template: tpl }), signal: AbortSignal.timeout(20000) });
+      const body = await r.json().catch(() => null);
+      try { recent.unshift({ at: new Date().toISOString(), endpoint: 'ycloud-template-send', to, name: s.name, status: r.status, id: body && body.id }); } catch (_) {}
+      return res.json({ ok: r.ok, status: r.status, body });
+    }
+    res.status(400).json({ ok: false, error: 'need create or send' });
+  } catch (e) { res.status(502).json({ ok: false, error: String(e).slice(0, 160) }); }
+});
 app.get('/inbox/customer-media', async (req, res) => {
   if (!consoleAuth(req, res)) return;
   const sub = String(req.query.sub || '').replace(/[^0-9]/g, '');
