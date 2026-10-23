@@ -8113,6 +8113,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* 📋 A COLOUR LIST IS NOT AN ANSWER (Rodney 10-23 "why does this message exist? why" - TK 118… asked "what all color do you
+     * have in 95s" then "Size 9"; Kiki typed out seventeen colourways "— all $130", then an album of every 95 in every size). With
+     * no size yet, a reply that recites five or more colours/shoes is replaced by the size question; the pictures come once the
+     * size is in. */
+    try {
+      if (turnText && !staffName && !knownSize && !photosSentRun && !image) {
+        const _flat = String(turnText).replace(/[*_]/g, '');
+        const _CW = /\b(black|white|grey|gray|red|blue|navy|green|yellow|pink|purple|brown|orange|teal|mint|cream|beige|tan|gold|silver|volt|olive|burgundy|sail|bone|triple)\b/i;
+        const _items = _flat.split(/,|\band\b|\n|•/i).filter(x => _CW.test(x) && x.trim().length < 60);
+        if (_items.length >= 5) {
+          record(req, { endpoint: 'colour-list-cut', sub, n: _items.length, was: _flat.slice(0, 140) });
+          turnText = 'We got a lot of colours in those 🔥 What size you need? I\'ll send you everything we got in your size 👟';
+          forcedPhotosOnce = true;   // no album of every size off the back of a list
+        }
+      }
+    } catch (_) {}
     const _picsLately = (() => { for (const [k, t] of photoConfirmSeen) if (k.startsWith(String(sub) + '|') && Date.now() - t < 45 * 60 * 1000) return true; return false; })();
     if (turnText && !staffName && !knownSize && !photosSentRun && !_picsLately && !image && !ctx.listingTitle && !pinnedPickIds.size
         && /\b(what|which)\s+(?:shoe|shoes|brand|brands|model|one|kicks|style|sneaker)s?\b|name and (?:the )?size|give me the name|(?:nike|adidas|jordans?|new balance|asics) or (?:nike|adidas|jordans?|new balance|asics)|two different brands/i.test(String(turnText).replace(/[*_]/g, ''))) {
