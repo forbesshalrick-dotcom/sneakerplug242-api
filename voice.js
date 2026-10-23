@@ -410,6 +410,31 @@ function getCallRev() { return callRev; }
 function mountVoice(app, deps) {
   const { searchInventory, record, waSendManager, express } = deps;
 
+  // 🎨 A LISTING'S FINISH WORD IS NOT IN THE SHELF'S NAME (FB1 10-22, Tami/Trill: "10" on the listing "Asics Gel-NYC Green Suede"
+  // got "No 10 showing" - the shop app calls that shoe Green Cream, Kiki put the listing's words in the query, "suede" matched
+  // nothing, and a shoe we hold in a 10 came back as none). When a query finds NOTHING, it is tried once more without its
+  // material / shade words (suede, leather, fire, cement...). Real colour words still have to match - "9060 pink" in a 7 stays
+  // "none" - and a word that is part of a model name is never dropped.
+  const _FINISH_WORDS = new Set(['suede', 'leather', 'mesh', 'knit', 'patent', 'gloss', 'glossy', 'matte', 'nubuck', 'canvas',
+    'premium', 'light', 'dark', 'pale', 'baby', 'neon', 'metallic', 'fire', 'cement', 'legend', 'royal', 'university', 'sail',
+    'bone', 'wolf', 'cool']);
+  function withoutFinishWords(q) {
+    const nameWords = new Set();
+    for (const r of searchInventory({})) {
+      String(r.name || '').split(' — ')[0].replace(/\([^)]*\)/g, ' ').concat(' ', r.brand || '').toLowerCase()
+        .split(/[^a-z0-9.]+/).forEach(w => w && nameWords.add(w));
+    }
+    const dropped = [];
+    const kept = String(q || '').split(/[\s\/,]+/).filter(t => {
+      const w = t.toLowerCase().replace(/[^a-z]/g, '');
+      if (w && _FINISH_WORDS.has(w) && !nameWords.has(w)) { dropped.push(t); return false; }
+      return true;
+    });
+    return { query: kept.join(' ').trim(), dropped };
+  }
+  const finishNote = (dropped, shoes) => `"${dropped.join(' ')}" is not in our shelf's name for this shoe - the shelf calls it `
+    + `${[...new Set((shoes || []).map(s => s.color).filter(Boolean))].slice(0, 4).join(', ')}. Use the shelf's colour name.`;
+
   const auth = (req, res) => {
     const k = req.query.key || (req.body && req.body.key) || req.headers['x-voice-key'];
     if (k !== VOICE_KEY) { res.status(403).json({ error: 'bad key' }); return false; }
@@ -728,13 +753,22 @@ function mountVoice(app, deps) {
         const womens = /women|lady|ladies|female|girl/i.test(String(args.for_who || args.gender || ''));
         const rawSize = args.size != null ? parseFloat(args.size) : null;
         const size = womens && rawSize != null ? toMens(rawSize) : rawSize;
-        const found = searchInventory({
+        const _ask = {
           size: size != null && !isNaN(size) ? size : undefined,
           brand: args.brand || undefined,
           color: args.color || undefined,
           query: args.query || args.shoe || undefined,
           sneakers_only: /tennis|sneaker|kicks|runner/i.test(String(args.query || args.shoe || '')),
-        });
+        };
+        let found = searchInventory(_ask);
+        let _finishNote = null;
+        if (!found.length && _ask.query) {
+          const _r = withoutFinishWords(_ask.query);
+          if (_r.dropped.length && _r.query) {
+            const again = searchInventory(Object.assign({}, _ask, { query: _r.query }));
+            if (again.length) { found = again; _finishNote = finishNote(_r.dropped, again); }
+          }
+        }
         c.asked.push([args.brand, args.color, args.query || args.shoe, args.size].filter(Boolean).join(' ') || 'what you have');
         if (!found.length) {
           return {
@@ -823,6 +857,7 @@ function mountVoice(app, deps) {
             };
           }),
           say,
+          ...(_finishNote ? { name_note: _finishNote } : {}),
         };
       }
 
@@ -858,7 +893,15 @@ function mountVoice(app, deps) {
         // the name — so "you got the BLACK 97 in a 9.5" came back about the GOLF GREEN one.
         // A yes/no about the wrong colourway is worse than no answer at all.
         const colour = String(args.color || args.colour || '').trim() || undefined;
-        const found = searchInventory({ query: q, color: colour, size: isNaN(size) ? undefined : size });
+        let found = searchInventory({ query: q, color: colour, size: isNaN(size) ? undefined : size });
+        let _finishNote = null;
+        if (!found.length && q) {     // same finish-word gap as check_stock ("Green Suede" vs the shelf's "Green Cream")
+          const _r = withoutFinishWords(q);
+          if (_r.dropped.length && _r.query) {
+            const again = searchInventory({ query: _r.query, color: colour, size: isNaN(size) ? undefined : size });
+            if (again.length) { found = again; _finishNote = finishNote(_r.dropped, again); }
+          }
+        }
         // THE FALSE YES. searchInventory also returns the half-size UP on purpose, so this
         // said "yes, I have that in your size" about a shoe we only had half a size up in —
         // and the driver went out with the wrong shoe. A yes/no tool has to check the EXACT
@@ -867,11 +910,13 @@ function mountVoice(app, deps) {
         if (exact.length) {
           const s = rankForPhone(exact)[0];
           return { in_stock: true, exact: true, count: exact.length, shoes: rankForPhone(exact).slice(0, 4).map(shoeOut),
-            say: `Yes, I have that in ${sizeWord(size)}. ${spokenName(s.name)}, ${spokenPrice(s.price)}.` };
+            say: `Yes, I have that in ${sizeWord(size)}. ${spokenName(s.name)}, ${spokenPrice(s.price)}.`,
+            ...(_finishNote ? { name_note: _finishNote } : {}) };
         }
         if (found.length) {
           const s = rankForPhone(found)[0];
           return { in_stock: false, exact: false, near: true, shoes: rankForPhone(found).slice(0, 4).map(shoeOut),
+            ...(_finishNote ? { name_note: _finishNote } : {}),
             say: `Not in ${sizeWord(size)} exactly — I have it in ${spokenSizes(s.sizes, true)}. In Nassau the driver brings two sizes so you can try both at the door and keep the one that fits.` };
         }
         const anySize = searchInventory({ query: q });
