@@ -5253,12 +5253,34 @@ const reminderTick = setInterval(async () => {
       continue;
     }
     if (r.kind === 'keep-warm') {
+      /* 🛑 ONE NUDGE A DAY, CHECKED ON THE CHAT ITSELF (FF Jay 242-827-6525 10-23: booked "next week" at 12:46, said "Okay",
+       * then got all four "still holding your order" lines plus a repeat between 12:47:24 and 12:48:22 - the chain fired 5 times
+       * in a minute). The chat is the record, not memory: no nudge within 20 h of the booking, of the last nudge, or of the
+       * customer's own last message - it waits a day instead, and a customer only ever has one keep-warm booked. */
+      try {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(r.sub)) || '');
+        const _ms = (_th && _th.msgs) || [];
+        const _20h = Date.now() - 20 * 3600 * 1000;
+        const _kw = /Still holding your order|pair's set aside for|order boxed and waiting|order is ready whenever you are|Sigo guardando tu pedido|M ap kenbe kòmand|Je garde ta commande/;
+        const _nudged = _ms.some(m => m && m.dir === 'out' && (m.ts || 0) > _20h && _kw.test(m.text || ''));
+        const _theySpoke = _ms.some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > _20h);
+        if (_nudged || _theySpoke || (r.bookedAt && r.bookedAt > _20h)) {
+          reminders = reminders.filter(x => !(String(x.sub || '') === String(r.sub) && x.kind === 'keep-warm'));
+          if (!r.finalAt || Date.now() + 44 * 3600 * 1000 < r.finalAt) reminders.push(Object.assign({}, r, { at: Date.now() + 24 * 3600 * 1000 }));
+          saveReminders();
+          reminderSentAt.delete(String(r.sub));   // nothing went out, so it must not count as today's reminder
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'keep-warm-held', sub: r.sub, n: r.n || 0, why: _nudged ? 'nudged-in-20h' : _theySpoke ? 'they-spoke-in-20h' : 'booked-in-20h' });
+          if (recent.length > 120) recent.length = 120;
+          continue;
+        }
+      } catch (_) {}
       let ok = false;
       try {
         const res = await sendChunk(r.sub, [{ type: 'text', text: keepWarmLine(r.sub, r.dayLabel || 'your day', r.n || 0) }], tk);
         ok = !!(res && res.ok);
       } catch (_) { ok = false; }
       if (ok && r.finalAt && Date.now() + 20 * 3600 * 1000 < r.finalAt) {
+        reminders = reminders.filter(x => !(String(x.sub || '') === String(r.sub) && x.kind === 'keep-warm'));
         reminders.push({ at: Date.now() + 24 * 3600 * 1000, store: r.store, lines: r.lines, image: null,
           sub: r.sub, kind: 'keep-warm', n: (r.n || 0) + 1, dayLabel: r.dayLabel, finalAt: r.finalAt, bookedAt: r.bookedAt });
         saveReminders();
@@ -9194,6 +9216,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const finalAt = Date.now() + remindH * 3600 * 1000;
             const dayLabel = (inp.location && /(?:for|on)\s+([A-Za-z]+day|tomorrow|next week)/i.exec(inp.location) || [])[1]
                              || (remindH >= 150 ? 'next week' : 'the day you said');
+            reminders = reminders.filter(x => !(String(x.sub || '') === String(sub) && x.kind === 'keep-warm'));
             reminders.push({ at: Date.now() + 24 * 3600 * 1000, store: ctx.store, lines: detail, image: null,
               sub, kind: 'keep-warm', n: 0, dayLabel, finalAt, bookedAt: Date.now() });
             saveReminders();
