@@ -1668,6 +1668,21 @@ app.get('/send-photos', handleSendPhotos);
 // push Claude's replies + the shoe photos back through ManyChat's Sending API.
 // Needs ANTHROPIC_API_KEY (Claude) in the env and a ManyChat token (header).
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
+/* 🏦 OUR ACCOUNTS - the one copy. Kiki's bank-details blocks are built from it, and every customer receipt is checked
+ * against it (Rodney 10-23 on Make It Happen, FF 478-2955: "why didnt you realize the receipt before we paid?" - both Scotia
+ * receipts read "Fcib - Carmichael Road Branch 09736 (7284)", ours is transit 09786; the $950 never landed and the shoes
+ * had already gone out). */
+const OUR_PAYEE = 'Rodney Munnings';
+const OUR_BANKS = [
+  { key: 'scotia', label: 'Scotiabank', match: /scotia/i, account: '004005367', transit: '70045' },
+  { key: 'cibc', label: 'CIBC', match: /cibc|fcib|first\s*caribbean/i, account: '201727284', transit: '09786' },
+  { key: 'suncash', label: 'SunCash', match: /sun\s*cash/i, account: '8033126', transit: null },
+];
+function bankBlock(key) {
+  const b = OUR_BANKS.find(x => x.key === key);
+  return key === 'suncash' ? `SunCash 📲\nNumber: ${b.account}\nName: ${OUR_PAYEE}`
+    : `${b.label} 🏦\nAccount #: ${b.account}\nTransit #: ${b.transit}\nName: ${OUR_PAYEE}`;
+}
 const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-4-5-20251001';
 
 const BRANDS = [...new Set(catalog.map(s => s.brand))];
@@ -2290,9 +2305,9 @@ PAYMENT (ONLY when THEY ask — NEVER bring it up yourself): Do NOT ask the cust
 3. If you're not 100% sure which bank they meant, ASK "Scotiabank or CIBC?" before sending anything — don't guess.
 4. Send the full block for ONE bank only; never mix numbers from the two banks.
 5. Start the message with the bank's name so it's crystal clear which bank the numbers are for.
-- Scotiabank → "Scotiabank 🏦\nAccount #: 004005367\nTransit #: 70045\nName: Rodney Munnings"
-- CIBC → "CIBC 🏦\nAccount #: 201727284\nTransit #: 09786\nName: Rodney Munnings"
-- SunCash (📲, ONLY if they choose SunCash) → "SunCash 📲\nNumber: 8033126\nName: Rodney Munnings"
+- Scotiabank → "${bankBlock('scotia')}"
+- CIBC → "${bankBlock('cibc')}"
+- SunCash (📲, ONLY if they choose SunCash) → "${bankBlock('suncash')}"
 🎰 "ISLAND LUCK?" IS A PAYMENT QUESTION, NOT A SHOE (Rodney 2026-07-24: a customer asked "Do you have island luck?" right after the payment-options list, and Kiki answered "I can't find that exact one in our system 🤷 What colour is it?" — treating it like an unknown SNEAKER. Island Luck is a Bahamian payment/gambling app people ask about as a payment method — NEVER call search_inventory or ask its colour): we do NOT accept Island Luck — our account kept getting closed because we only used it to receive money, not to gamble, and Island Luck requires real gambling activity on the account. If asked, just say plainly we don't take Island Luck anymore and offer what we DO accept: "We don't do Island Luck anymore, unfortunately 🙏 but I can take 💵 cash on delivery, 🏦 bank transfer, or 📲 SunCash — whichever's easiest!" Only explain the "why" (the account-closure reason above) if they specifically ask why, and keep it short.
 
 WHERE WE ARE (Rodney 2026-07-14 — a customer asked "Which island?" and Kiki answered with a question instead of the address): we're in NASSAU and we have NO SHOP to come to — we're MOBILE ONLY with FREE delivery (Rodney 2026-10-16: "we dont have a shop, we only do delivery, many people always ask me where to pick up"). When a customer asks which island we're on / where we're located / where the store is / where to pick up, ANSWER IT: "We're in Nassau — we're now strictly mobile only, so we bring it straight to you with FREE delivery 🚗 Send me your location 📍" (Rodney 10-22: never say "no shop" to a customer — it reads cold; "strictly mobile only" says it) (Family Islands: "and we ship to ALL the Family Islands!"). Never name a street as a place to come to" Never reply to a location question with only a question back. This includes the Creole "Kote w ye?" / "Kote nou ye?" (= "where are you / where are you located?") and Spanish "¿Dónde están?" — answer the address, don't ask back.
@@ -2599,6 +2614,81 @@ function aliasTokens(s) {
  * whatever is on the list ("match it to one of THESE") - a 9060 became a yellow Lightning 4.
  * So the photo gets its own short call first: the image, one question, and our live stock
  * list. The answer is handed to Kiki as the thing to trust. Plain text, a few lines. */
+/* 🧾 RECEIPT CHECK (Rodney 10-23: "why didnt you realize the receipt before we paid?"). A payment screenshot gets its own
+ * read: where the money was sent TO - bank, account, transit/branch, payee - copied digit for digit, then compared with
+ * OUR_BANKS. Any difference, or a detail the receipt does not show, puts a stop line on the order card and alerts the owner.
+ * The customer is never told either way: a receipt is not money, and money messages go out only on Rodney's yes. */
+async function readReceipt(imageSource) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !imageSource) return null;
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const system = 'You read payment receipts for a shop. You get one picture a customer sent. If it is a bank transfer, deposit, '
+      + 'SunCash or other payment receipt / confirmation screen, copy what it says about where the money went. Answer ONLY one JSON object:\n'
+      + '{"receipt":true|false,"bank":"","account":"","transit":"","payee":"","amount":"","reference":"","from":"","when":""}\n'
+      + 'bank = the bank or service the money was sent TO, as written (e.g. "Savings - Fcib - Carmichael Road Branch"). '
+      + 'account = the destination account number or the digits shown for it (e.g. "7284" from "(7284)"). '
+      + 'transit = the destination transit / branch number as written (e.g. "09736"). payee = the name the money was sent TO. '
+      + 'from = the sending account as written. Copy every digit EXACTLY as printed - never correct, complete or guess one. '
+      + 'The destination is the TO side, never the FROM side. Use "" for anything the picture does not show. '
+      + 'If the picture is not a payment receipt at all, answer {"receipt":false}.';
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-opus-5-5', max_tokens: 600, system,
+        messages: [{ role: 'user', content: [ { type: 'text', text: 'Read this picture.' }, { type: 'image', source: imageSource } ] }] }),
+    });
+    const j = await r.json();
+    const txt = (Array.isArray(j && j.content) ? j.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '').trim();
+    const m = txt.match(/\{[\s\S]*\}/);
+    return m ? JSON.parse(m[0]) : null;
+  } catch (_) { return null; } finally { clearTimeout(tm); }
+}
+function compareReceipt(r) {
+  const dig = (x) => String(x || '').replace(/\D/g, '');
+  const noLead = (x) => x.replace(/^0+/, '');
+  const problems = [];
+  const bank = OUR_BANKS.find(b => b.match.test(String(r.bank || '')))
+    || OUR_BANKS.find(b => b.match.test([r.payee, r.account, r.transit].join(' ')));
+  const acct = dig(r.account), tr = dig(r.transit);
+  if (!bank) problems.push('bank "' + (String(r.bank || '').trim() || 'not shown') + '" is not one of ours');
+  else {
+    if (!acct) problems.push('account number not shown');
+    else if (!(noLead(acct) === noLead(bank.account) || (acct.length >= 3 && acct.length < bank.account.length && bank.account.endsWith(acct))))
+      problems.push('account …' + acct.slice(-4) + ' is not ours (…' + bank.account.slice(-4) + ')');
+    if (bank.transit) {
+      if (!tr) problems.push('transit/branch number not shown');
+      else if (noLead(tr) !== noLead(bank.transit)) problems.push('transit ' + tr + ' is not ours (' + bank.transit + ')');
+    }
+  }
+  const payee = String(r.payee || '').trim();
+  if (!payee) problems.push('payee name not shown');
+  else if (!/munnings/i.test(payee)) problems.push('sent to "' + payee + '", not ' + OUR_PAYEE);
+  return { ok: problems.length === 0, bank, acct, tr, problems };
+}
+function receiptCardLine(r, c) {
+  const amt = String(r.amount || '').trim(), ref = String(r.reference || '').trim();
+  const what = (amt ? amt + ' ' : '') + (ref ? '(ref ' + ref + ') ' : '');
+  if (c.ok) return '🧾 Receipt ' + what + 'matches our ' + c.bank.label + ' account (…' + c.bank.account.slice(-4)
+    + (c.bank.transit ? ', transit ' + c.bank.transit : '') + ') - still check the money is IN the account before handing over the shoes.';
+  const ours = c.bank ? c.bank.label + (c.bank.transit ? ' transit ' + c.bank.transit : '') + ' acct …' + c.bank.account.slice(-4)
+    : OUR_BANKS.filter(b => b.transit).map(b => b.label + ' transit ' + b.transit + ' acct …' + b.account.slice(-4)).join(' / ');
+  return '⛔ RECEIPT DOES NOT MATCH OUR ACCOUNT — receipt ' + what + 'says ' + (String(r.bank || '').trim() || '(bank not shown)')
+    + ' transit ' + (c.tr || '?') + ' acct …' + (c.acct ? c.acct.slice(-4) : '?') + (r.payee ? ' to ' + String(r.payee).trim() : '')
+    + '; ours is ' + ours + ' (' + c.problems.join('; ') + '). DO NOT HAND OVER THE SHOES until the money shows in the account.';
+}
+const receiptChecks = new Map();   // sub -> [{ at, line, ok }]  (48 h)
+const receiptPending = new Map();  // sub -> Promise of the read still running
+function receiptLinesFor(sub) {
+  const list = (receiptChecks.get(String(sub)) || []).filter(x => Date.now() - x.at < 12 * 3600 * 1000);
+  return list.map(x => x.line);
+}
+async function receiptLinesSettled(sub) {
+  const p = receiptPending.get(String(sub));
+  if (p) { try { await Promise.race([p, new Promise(r => setTimeout(r, 25000))]); } catch (_) {} }
+  return receiptLinesFor(sub);
+}
 async function identifyPhoto(imageSource, stockList, words) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key || !imageSource) return null;
@@ -6920,6 +7010,30 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       cardBurst.delete(sub);
     } catch (_) {}
   }
+  // 🧾 A payment screenshot is read for where the money went, and checked against OUR_BANKS while Kiki answers.
+  if (image && !staffName && (!_idVerdict || (/NOT A SHOE/i.test(_idVerdict)
+      && /receipt|transfer|payment|bank|deposit|sun\s*cash|transaction|confirmation|scotia|cibc|fcib/i.test(_idVerdict)))) {
+    const _rsub = String(sub), _rstore = ctx.store || '', _rtok = token;
+    const _rp = readReceipt(imageSource).then(async (r) => {
+      if (!r || !r.receipt) return;
+      const c = compareReceipt(r);
+      const line = receiptCardLine(r, c);
+      const list = (receiptChecks.get(_rsub) || []).filter(x => Date.now() - x.at < 48 * 3600 * 1000);
+      list.push({ at: Date.now(), line, ok: c.ok });
+      receiptChecks.set(_rsub, list.slice(-6));
+      if (receiptChecks.size > 500) receiptChecks.delete(receiptChecks.keys().next().value);
+      record(req, { endpoint: c.ok ? 'receipt-matches' : 'receipt-MISMATCH', sub: _rsub, store: _rstore, receipt: r, problems: c.problems });
+      if (!c.ok) {
+        let _ph = ''; try { _ph = (inboxThreads.get(inboxSubIndex.get(_rsub) || '') || {}).phone || ''; } catch (_) {}
+        let _nm = ''; try { _nm = (inboxThreads.get(inboxSubIndex.get(_rsub) || '') || {}).name || ''; } catch (_) {}
+        const msg = line + '\n👤 ' + (_nm || 'customer') + (_ph ? '  📞 ' + _ph : '') + (_rstore ? '\n🏬 ' + _rstore : '');
+        try { await waSendManager(msg, _rtok, null); } catch (_) {}
+        try { require('./shop').addAlert(msg, 'Kiki 🤖', { sub: _rsub, account: _rstore }); } catch (_) {}
+        try { inboxRecord(_rstore, _rsub, { dir: 'in', sender: 'system', text: line }); } catch (_) {}
+      }
+    }).catch(() => {}).finally(() => { if (receiptPending.get(_rsub) === _rp) receiptPending.delete(_rsub); });
+    receiptPending.set(_rsub, _rp);
+  }
   const userMsg = {
     role: 'user',
     content: image
@@ -9251,6 +9365,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _pinIn = (() => { try { const _p = pinReceived.get(String(sub)); return !!(_p && Date.now() - (_p.at || 0) < 2 * 3600 * 1000)
           || /https?:\/\/maps\.google\.com\/\?q=-?[\d.]+,-?[\d.]+/.test(String(userText || '')); } catch (_) { return false; } })();
         const forLater = Number(inp.remind_in_hours) > 0 && !(_pinIn && !earlyStage);
+        // 🧾 Every receipt this customer sent in the last 12 h, checked against our accounts (waits for a read still running).
+        let _rcptLines = []; try { _rcptLines = await receiptLinesSettled(sub); } catch (_) {}
         if (Number(inp.remind_in_hours) > 0 && !forLater) record(req, { endpoint: 'later-card-made-ready', sub, hours: inp.remind_in_hours });
         const lines = [
           forLater ? "📅 *ORDER SET FOR LATER — NOTHING TO DO NOW* — Kiki has it booked and will chase the customer on the day"
@@ -9264,6 +9380,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // nothing in CIBC two days later). Any transfer/receipt payment carries the check on the card itself.
           (/receipt|transfer|scotia|cibc|fcib|firstcaribbean|suncash|bank|paid/i.test(String(inp.payment || '') + ' ' + String(inp.price || '')))
             ? '🏦 PAID BY TRANSFER — check the money is IN the account before handing over the shoes (a receipt picture is not money).' : null,
+          ..._rcptLines,
           `📍 ${inp.location || '(no location given)'}`,
           // 🗺️ THE PIN ITSELF, when we have its coordinates (Rodney 10-16: the Foot Fetish phone died and the card only said "open
           // the chat to see it" — nobody could). A pin that reached us as coordinates (YCloud, Graph) rides on the card as a maps link.
@@ -13456,7 +13573,8 @@ app.post('/inbox/order-card', async (req, res) => {
   if (!sub || !body) return res.status(400).json({ ok: false, error: 'need sub and text' });
   const th = inboxThreads.get(inboxSubIndex.get(sub) || '');
   const store = (th && th.account) || String(b.account || '');
-  const lines = '🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* — please facilitate\n' + body + (store ? '\n🏬 ' + store : '');
+  let _rc = []; try { _rc = receiptLinesFor(sub); } catch (_) {}
+  const lines = '🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* — please facilitate\n' + body + (_rc.length ? '\n' + _rc.join('\n') : '') + (store ? '\n🏬 ' + store : '');
   let waOk = false, staffOk = false;
   try { waOk = await waSendManager(lines, (store && storeTokens.get(store)) || lastToken || process.env.MANYCHAT_TOKEN, null); } catch (_) {}
   try { require('./shop').addAlert(lines, 'Kiki 🤖', { sub, account: store }); } catch (_) {}
