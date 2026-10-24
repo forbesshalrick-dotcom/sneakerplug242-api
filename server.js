@@ -6936,6 +6936,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let photosSentRun = false; // did any photos go out this turn?
   let lastText = '';         // last non-empty reply Claude wrote (safety net if nothing lands)
   let lastSearchCount = 0;   // # results from the latest search — used to force a send on a photo
+  let lastSimilarIds = [];  // same-family pairs in their size when the model they named stops short of it (10-23 Air Max 97 in 13)
   let lastSearchIds = [];    // the ids that search matched — our pictures go to Kiki beside the customer's photo
   let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
@@ -7820,7 +7821,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
        * answered with the pictures, searched on THAT model only (the 10-10 AF1 mistake was a
        * search that lost the model, so the note names it). */
       const _otherM = String(turnText || '').match(/\bother\s+((?:[A-Za-z0-9.'-]+\s+){0,3}?[A-Za-z0-9.'-]+?)s?\s+(?:in|that|we|i)\b/i);
-      const _otherModelOffer = !!(_sizeGapHonest && _otherM);
+      /* 🔥 "...BUT WE GOT OTHER HEAT IN YOUR SIZE" NAMES NO MODEL (Rodney 10-23, TK 812-7684: "Size 13 air max 97" -> "We don't have
+       * the Air Max 97 in a size 13 right now 🙏 but we've got other heat in your size", and "heat" was searched as the model: a
+       * size-only search, 34 Jordans and Dunks). A generic word is not a model - the offer is answered with the same-family pairs
+       * the search handed back, or not widened at all. */
+      const _genericOther = !!(_otherM && /^(heat|options?|shoes?|stuff|pairs?|styles?|ones?|kicks?|sneakers?|colou?rs?|models?|things?|joints?|fire|drip)$/i.test(_otherM[1].trim()));
+      const _otherModelOffer = !!(_sizeGapHonest && _otherM && !_genericOther);
+      if (turnText && !staffName && !photosSentRun && askedPermission < 1 && _sizeGapHonest && _genericOther && ASK_TO_SEND.test(turnText)
+          && Array.isArray(lastSimilarIds) && lastSimilarIds.length) {
+        askedPermission++;
+        record(req, { endpoint: 'asked-permission-similar', sub, said: turnText.slice(0, 90), similar: lastSimilarIds });
+        history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you offered to send "other" pairs instead of sending them. '
+          + 'Keep your honest line about the size, drop the question, and call send_photos on THIS turn with ONLY these ids: ' + lastSimilarIds.join(', ')
+          + ' (the similar_in_their_size pairs). Do NOT search their size on its own and send nothing else.)' });
+        lastSearchIds = lastSimilarIds.slice();
+        forcePhotosNext = true;
+        continue;
+      }
       if (turnText && !staffName && !photosSentRun && askedPermission < 1
           && ASK_TO_SEND.test(turnText) && (!_sizeGapHonest || _otherModelOffer)) {
         const _haveIds = Array.isArray(lastSearchIds) && lastSearchIds.length;
@@ -8710,6 +8727,32 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
                 + ' Never say "out of stock", never offer a size that is not in that list, and never list far-off sizes ahead of the closest.';
               lastSearchIds = anySize.map(x => x && x.id).filter(x => x != null);
               askP = q2;
+            } else if (_all.length && !isNaN(_want)) {
+              /* 📏 THE MODEL STOPS SHORT OF THEIR SIZE (Rodney 10-23, TK GK Greatness 812-7684: "Size 13 air max 97" - the 97s stop at a 12,
+               * nothing came back, and he got a 34-pair album of every Jordan and Dunk in a 13. "We dont have the 97s in 13 only in size 12
+               * biggest. we have the black vapormax in 13."). Say the biggest (or smallest) size that model really comes in, and offer only
+               * the same family in their size (Air Max -> VaporMax/Air Max, Jordan -> Jordans, Dunk -> Dunks), never the whole shelf. */
+              const _below = _avail.filter(n => n < _want).sort((a, b) => b - a)[0];
+              const _above = _avail.filter(n => n > _want).sort((a, b) => a - b)[0];
+              const _FAM = [/\b(air\s*max|airmax|vapor\s*max|vapormax)\b/i, /\b(air\s*force|af\s*-?1)\b/i, /\bdunks?\b/i, /\bjordans?\b/i, /\byeezy\b/i,
+                /\bnew\s*balance\b/i, /\basics\b/i, /\bcrocs?\b/i, /\bconverse\b/i, /\bvans\b/i, /\bpuma\b/i, /\badidas\b/i];
+              const _hay = String(p.query || '') + ' ' + _all.slice(0, 3).map(r => String(r.name || '') + ' ' + String(r.brand || '')).join(' ');
+              const _fam = _FAM.find(re => re.test(_hay));
+              const _simBase = { size: p.size, sizes: p.sizes, size_match: p.size_match, womens: p.womens, sneakers_only: true };
+              const _asked = new Set(_all.map(r => String(r.id)));
+              const _sim = _fam ? searchInventory(_simBase).filter(r => r && !_asked.has(String(r.id)) && _fam.test(String(r.name || '') + ' ' + String(r.brand || ''))).slice(0, 3) : [];
+              const _model = String(p.query || p.brand || (_all[0] && _all[0].name) || 'that one').trim();
+              const _gap = _below != null && _above != null ? 'the closest we got in the ' + _model + ' is a ' + _below + ' or a ' + _above
+                : _below != null ? 'the biggest we got in the ' + _model + ' is a ' + _below : 'the smallest we got in the ' + _model + ' is a ' + _above;
+              result.model_sizes_we_have = _avail.slice().sort((a, b) => a - b);
+              if (_sim.length) result.similar_in_their_size = _sim.map(x => ({ id: x.id, name: x.name, price: x.price, color: x.color }));
+              result.note = 'NO ' + _model + ' in a ' + _want + ' - ' + _gap + '. Say exactly that in one line ("No ' + _want + ' in the ' + _model + ' right now 🙏 ' + _gap + '"). '
+                + (_sim.length ? 'Then send_photos with ONLY the similar_in_their_size ids (lead_in like "But we got these in your ' + _want + ' 👇"). ' : 'Then stop - no other pictures. ')
+                + 'NEVER search their size on its own and NEVER send other brands or models to fill the album - he asked for the ' + _model + '.';
+              lastSearchIds = _sim.map(x => x && x.id).filter(x => x != null);
+              lastSimilarIds = lastSearchIds.slice();
+              askP = q2;
+              record(req, { endpoint: 'model-short-of-size', sub, model: _model, want: _want, below: _below, above: _above, similar: lastSearchIds });
             }
           } catch (_) {}
         }
