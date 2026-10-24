@@ -6494,7 +6494,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _pq = pinRequests.get(String(sub));
     if (_pq && !_pq.done && Date.now() - _pq.at < 5000 && Date.now() - tagReaderSeenAt < 3 * 60 * 1000) {
       const _t0 = Date.now();
-      while (Date.now() - _t0 < 20000 && !(pinRequests.get(String(sub)) || {}).done) await new Promise(z => setTimeout(z, 1000));
+      // A stale re-delivery has nothing else to answer, so it waits longer for the Mac (a read takes 5-25 s).
+      while (Date.now() - _t0 < (ctx.staleRepeat ? 35000 : 20000) && !(pinRequests.get(String(sub)) || {}).done) await new Promise(z => setTimeout(z, 1000));
       const _pr = pinReceived.get(String(sub));
       if (_pr && _pr.at >= _pq.at) {
         userText = '(SYSTEM: their WhatsApp LOCATION PIN just arrived — ' + _pr.maps + '. This message is that pin, not new words. Say "Got your location 📍" and, if the shoe and size are settled, call notify_manager stage "delivery_ready" with location = ' + _pr.maps + '. Never ask for their location again.)\n' + String(userText || '');
@@ -6509,7 +6510,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           _ordering = !!(_th && (_th.msgs || []).some(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600 * 1000))
             || /\b(location|pin|address|where (?:you|u) at|send (?:it|the) (?:location|pin))\b/i.test(String(((convos.get(sub) || []).slice(-3).reverse().find(m => m && m.role === 'assistant') || {}).content || ''));
         } catch (_) {}
-        if (!_ordering) userText = '(SYSTEM: something non-text just arrived - most likely a picture that has not reached you yet. Do NOT ask for their location. Answer their words normally; if a picture follows you will see it next.)\n' + String(userText || '');
+        if (ctx.staleRepeat) userText = '(SYSTEM: these words are a WhatsApp re-delivery of their EARLIER message, which you already answered - a non-text thing (pin, photo or sticker) just arrived in its place. Do NOT answer these words again.'
+          + (_ordering ? ' If you were waiting on their location, say you could not open it on your side and ask them to send their CURRENT location once more: tap the paperclip -> Location -> "Send your current location".' : ' If a picture follows you will see it next; otherwise just keep helping from where the chat is.') + ')\n' + String(userText || '');
+        else if (!_ordering) userText = '(SYSTEM: something non-text just arrived - most likely a picture that has not reached you yet. Do NOT ask for their location. Answer their words normally; if a picture follows you will see it next.)\n' + String(userText || '');
         else userText = '(SYSTEM: something non-text just arrived but it was not a readable pin. If they are sending their location, it was probably a LIVE location, which does not come through to us — ask them to send their CURRENT location instead: tap 📎 → Location → "Send your current location". Do not say you cannot see anything else.)\n' + String(userText || '');
         record(req, { endpoint: 'pin-waited-none', sub, waitedMs: Date.now() - _t0 });
       }
@@ -10114,6 +10117,7 @@ function handleChat(req, res) {
   // ...but MEANINGFUL emoji are real replies, not junk (2026-07-15: a customer answered
   // "which brand?" with a pointing finger meaning "the one I already said" and got
   // silence): pointing, thumbs, hearts, fire, checkmarks, prayer = the customer talking.
+  let staleRepeat = false; // words that are a re-delivery, not new ones (a pin or photo came in their place)
   const MEANINGFUL_EMOJI = /[\u{1F446}\u{1F447}\u{1F448}\u{1F449}\u{1F44C}\u{1F44D}\u{1F44E}\u{1F4AF}\u{1F525}\u{1F60D}\u{1F64F}\u{261D}\u{2705}\u{2764}]/u;
   if (!audioUrl && !imageUrl && !/[a-z0-9]/i.test(userText) && !MEANINGFUL_EMOJI.test(userText)) {
     // A junk "." on a BRAND-NEW conversation is almost always a real customer ARRIVING
@@ -10131,7 +10135,23 @@ function handleChat(req, res) {
         _nudge = !!(_thN && (_thN.msgs || []).some(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 30 * 60 * 1000));
       }
     } catch (_) {}
-    if (_nudge) {
+    /* "." WHILE KIKI WAITS FOR THE PIN (TK 'Jr' 535-6310 10-24 13:16: he quote-replied his own pin with "." after Kiki asked for it a
+     * second time; it was skipped as a receipt). On ManyChat, a "." in a chat whose last Kiki message asked for the location is the
+     * pin or a reply to it - ask the Mac reader to read the chat, and let runChat wait for it. */
+    let _pinDot = false;
+    try {
+      if (!_nudge && !isNewConvo && req.body && /manychat\.com/.test(String(req.body.live_chat_url || ''))
+          && !(pinReceived.get(String(sub)) && Date.now() - (pinReceived.get(String(sub)).at || 0) < 2 * 3600 * 1000)) {
+        const _thD = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _lastOut = _thD && (_thD.msgs || []).slice().reverse().find(m => m && m.dir === 'out' && m.text);
+        _pinDot = !!(_lastOut && Date.now() - (_lastOut.ts || 0) < 30 * 60 * 1000 && /\b(location|pin)\b/i.test(_lastOut.text));
+      }
+    } catch (_) {}
+    if (_pinDot) {
+      try { pinRequests.set(String(sub), { sub: String(sub), store, url: String(req.body.live_chat_url), phone: getPhone(req) || '', name, token, at: Date.now(), done: false }); } catch (_) {}
+      staleRepeat = true;
+      record(req, { endpoint: 'stale-text-wordless', sub, q: userText.slice(0, 20), why: 'dot-while-waiting-for-pin' });
+    } else if (_nudge) {
       record(req, { endpoint: 'nudge-answered', sub, q: userText.slice(0, 20) });
       userText = '(SYSTEM: the customer sent "' + userText.trim().slice(0, 6) + '" - a nudge, they are still waiting. Read their last real message and your last reply: if their question was not answered, or pictures you promised did not arrive, answer it NOW in full - the shoe, its price and their size, or send the pictures. Do not ask what they mean and do not apologise more than once.)';
     } else if (isNewConvo) {
@@ -10237,8 +10257,20 @@ function handleChat(req, res) {
   // "their pin/attachment probably just arrived" instead of answering stale words.
   let nonTextReplay = false;
   if (userText.trim() && !imageUrl && !audioUrl) {
-    const prevTxt = (lastIncomingText.get(sub) || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    let prevTxt = (lastIncomingText.get(sub) || '').trim().toLowerCase().replace(/\s+/g, ' ');
     const nowTxt = userText.trim().toLowerCase().replace(/\s+/g, ' ');
+    /* AFTER A RESTART lastIncomingText is empty (TK 'Jr' +1 242 535-6310 10-24: "Free delivery right." at 12:56, a deploy at 13:10,
+     * his pin at 13:15 came in as "Free delivery right." again - nothing to compare with, so Kiki answered the stale words and
+     * asked for the pin twice). The saved inbox thread still holds his last real words. */
+    let prevAtSaved = 0;
+    if (!prevTxt) {
+      try {
+        const _thP = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _lastIn = _thP && (_thP.msgs || []).slice().reverse().find(m => m && m.dir === 'in' && m.sender === 'customer' && m.text
+          && !/^(?:\u{1F4CD}|\u{1F4CE}|\u{1F4E9}|\u{1F4F7}|\u21A9)/u.test(String(m.text)));
+        if (_lastIn) { prevTxt = String(_lastIn.text).trim().toLowerCase().replace(/\s+/g, ' '); prevAtSaved = _lastIn.ts || 0; }
+      } catch (_) {}
+    }
     // ⏱️ BOUNDED TO 90 SECONDS (Rodney 2026-08-21). This used to fire on ANY exact repeat,
     // with no time limit at all. WhatsApp re-delivers the old words within SECONDS of the
     // attachment that displaced them (the case this was built for was ~22s), so a repeat
@@ -10249,7 +10281,7 @@ function handleChat(req, res) {
     // nothing — "Sen a pic pls" came in at 11:30 and again 11.8 minutes later, and Kiki
     // answered the stale copy with "hmm that pic didn't come through on my end 🙈" — and
     // fired a false "📎 SOMETHING DIDN'T COME THROUGH" alert at staff on top of it.
-    const prevAt = lastIncoming.get(sub) || 0;
+    const prevAt = lastIncoming.get(sub) || prevAtSaved || 0;
     const withinReplayWindow = prevAt && (Date.now() - prevAt) < 90 * 1000;
     if (prevTxt && prevTxt === nowTxt && withinReplayWindow) {
       nonTextReplay = true; lastReplayAt.set(sub, Date.now());
@@ -10265,7 +10297,13 @@ function handleChat(req, res) {
     else if (prevTxt && prevTxt === nowTxt && req.body && /manychat\.com/.test(String(req.body.live_chat_url || ''))) {
       try {
         pinRequests.set(String(sub), { sub: String(sub), store, url: String(req.body.live_chat_url), phone: getPhone(req) || '', name, token, at: Date.now(), done: false });
-        record(req, { endpoint: 'late-repeat-pin-check', sub, q: nowTxt.slice(0, 40) });
+        // Stale words, not new ones: runChat waits for the pin and is told never to answer these words again - but only when Kiki
+        // already answered the first copy (a customer retyping an unanswered question is asking again).
+        try {
+          const _thS = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+          staleRepeat = !!(_thS && prevAt && (_thS.msgs || []).some(m => m && m.dir === 'out' && m.text && (m.ts || 0) > prevAt));
+        } catch (_) {}
+        record(req, { endpoint: 'stale-text-wordless', sub, stale: staleRepeat, q: nowTxt.slice(0, 40), sincePrevS: prevAt ? Math.round((Date.now() - prevAt) / 1000) : null });
       } catch (e) { record(req, { endpoint: 'late-repeat-pin-check-error', sub, error: String(e).slice(0, 120) }); }
     }
     else if (nowTxt && pinRequests.has(String(sub)) && /manychat\.com/.test(String((req.body || {}).live_chat_url || ''))) {
@@ -10369,7 +10407,7 @@ function handleChat(req, res) {
     }
     let chatUrl = null;
     try { chatUrl = (req.body && typeof req.body === 'object' && req.body.live_chat_url) ? String(req.body.live_chat_url) : null; } catch (_) {}
-    return runChat(req, sub, text, token, { store, name, turnAt, chatUrl, inPhotoUrl: inboxPhotoUrl }, photo);
+    return runChat(req, sub, text, token, { store, name, turnAt, chatUrl, inPhotoUrl: inboxPhotoUrl, staleRepeat }, photo);
   }).catch(e => record(req, { endpoint: 'chat-crash', sub, error: String(e).slice(0, 200) }));
   chatLocks.set(sub, next);
 }
