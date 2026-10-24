@@ -7246,6 +7246,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let turnMatchingPair = false;         // a search this turn wanted pairs in EVERY size given (size_match "all") — never widened
   const turnSizeSearchBrands = [];      // the brand filter on each of those searches ('' = none)
   let turnHadRestrictiveSearch = false; // a colour/query/price/womens search happened → don't widen
+  const turnSearchColors = [];          // colours searched this turn (the outfit-match fallback ranks by them)
   let turnGenericSizeAlbum = false;     // an album went out with a size-only lead-in (no brand/model/colour)
   let turnTopUpMerged = false;          // the "rest of your size" was folded into the FIRST album, so don't send it again after
   // 🔒 STAFF PHOTO = float/receipt, NEVER a shoe (2026-07-17): the photo→shoe machinery is so
@@ -8557,7 +8558,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // Remembered for the safety net only AFTER every guard above passed it — set before them, a blocked reply (a fee
     // we don't charge, a [TOTAL] link, "I can't see your picture") went out anyway when the retry came back empty.
     if (turnText) lastText = turnText;
-    if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch) {
+    /* \u{1F447} A WORDS-ONLY REPLY POINTING AT PICTURES (Rodney 10-24, TK Pablo Esco 814-8430) is held: the safety net below sends
+     * the pictures under it, or cuts the arrow. */
+    const _pointsAtNothing = !!(turnText && !staffName && !photosSentRun && !toolUses.length && /\u{1F447}/u.test(turnText));
+    if (_pointsAtNothing) record(req, { endpoint: 'pointing-text-held', sub, text: String(turnText).slice(0, 100) });
+    if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch && !_pointsAtNothing) {
       // Only count the turn as answered if the send actually SUCCEEDED — otherwise the
       // safety net below stays armed instead of the customer getting dead silence.
       const sc = await sendChunk(sub, [{ type: 'text', text: turnText }], token).catch(() => ({ ok: false }));
@@ -8878,6 +8883,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
         record(req, { endpoint: 'search', sub, params: p, found: found.length });
+        if (p.color && String(p.color).trim()) turnSearchColors.push(String(p.color).trim());
         // 🙅 "WANT SOME PICTURES" IS NOT "SEND ALL 351" (FF Eddie +1 242 818-5730 10-18: an empty search found 351, the album was too big to
         // go, and he got "Here's what we have rite now 👇" over nothing). A search with no size, brand, colour, model or price is too broad:
         // she is told to ask the size, and nothing is handed to send_photos.
@@ -9922,11 +9928,51 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * got "Sorry, that didn't come through right 🙈 Tell me the shoe"). An empty turn after a plain thank-you / ok is correct. */
     let _okOnly = false;
     try { _okOnly = !image && /^(?:ok(?:ay|ey)?|k+|kk|cool|bet|alright|aight|ight|thanks?|thank you|ty|thx|appreciate it|good|great|perfect|sure|yes|yea|yeah|np|no problem|respect|[\s👍🙏✊🤝💯🔥❤️😊🙂👌]+)[\s.!👍🙏✊🤝💯🔥❤️😊🙂👌]*$/iu.test(customerWordsOnly(String(userText || '')).trim()); } catch (_) {}
-    const fb = _lt || _ptr || (image
-      ? "That's a clean pair 👀 — what size you looking for and I'll pull up what we've got 👟"
-      : _okOnly ? '👍'
-      : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
-    await sendChunk(sub, [{ type: 'text', text: fb }], token).catch(() => {});
+    /* \u{1F447} A LEAD-IN POINTING AT NOTHING (Rodney 10-24, TK Pablo Esco 814-8430: a photo of his khaki outfit + "This size 9". The
+     * only colour match was a Yeezy Foam RNR, the sneaker guard dropped it five times, and "Here's what we got to match that in a 9 \u{1F447}"
+     * went out over no pictures.) When the words promise pictures and none went, the server sends real sneakers in their size - the
+     * colour she searched first (earth tones together), then white/black/grey - at most 6. No size known, or nothing found: the
+     * pointing sentence is cut and the size is asked instead. */
+    try {
+      if (_lt && !staffName && !photosSentRun && /\u{1F447}|\bhere(?:'|\u2019)?s what we (?:got|have)\b/iu.test(_lt)) {
+        const _csF = custSize.get(String(sub));
+        const _szF = (_csF && _csF.size && Date.now() - (_csF.ts || 0) < 12 * 3600 * 1000) ? String(_csF.size) : '';
+        const _wF = womensSaid.get(String(sub));
+        const _womF = !!(_szF && _wF && Date.now() - (_wF.at || 0) < 12 * 3600 * 1000 && parseFloat(_wF.size) === parseFloat(_szF));
+        let _idsF = [];
+        if (_szF) {
+          const _rowsF = searchInventory({ sizes: sizesToSend(_szF, _womF) || [String(parseFloat(_szF))], size_match: 'any', exact_sizes: true, sneakers_only: true });
+          const _cw = turnSearchColors.join(' ').toLowerCase();
+          const _EARTH = /\b(tan|brown|khaki|beige|wheat|taupe|cream|sand|camel|mocha|olive|stone|gum|flax|sail|bone|oatmeal|coffee|chocolate)\b/;
+          const _cWords = (_cw.match(/[a-z]+/g) || []).filter(w => w.length > 2);
+          const _tier = (c) => { c = String(c || '').toLowerCase();
+            if (_EARTH.test(_cw) ? _EARTH.test(c) : (_cWords.length && _cWords.some(w => c.includes(w)))) return 0;
+            return /\b(white|black|grey|gray|silver)\b/.test(c) ? 1 : 2; };
+          _idsF = _rowsF.filter(r => r && r.id != null && !turnSentIds.has(String(r.id)))
+            .map((r, i) => ({ id: String(r.id), t: _tier(r.color + ' ' + r.name), i }))
+            .sort((a, b) => a.t - b.t || a.i - b.i).slice(0, 6).map(x => x.id);
+        }
+        if (_idsF.length) {
+          const _rF = await sendShoePhotos(sub, _idsF, token, null, _lt, false, false, ctx.turnAt || 0, true).catch(() => null);
+          record(req, { endpoint: 'guard-emptied-fallback', sub, size: _szF, colours: turnSearchColors.slice(0, 3), ids: _idsF, sent: (_rF && _rF.sent) || 0 });
+          if (_rF && _rF.sent > 0) { photosSentRun = true; sentToCustomer = true; scheduleFollowUp(sub, token); }
+        }
+        if (!sentToCustomer) {
+          const _cutF = _lt.replace(/[^.!?\n]*(?:\u{1F447}|\bhere(?:'|\u2019)?s what we (?:got|have)\b)[^.!?\n]*[.!?]?/giu, '').trim();
+          _lt = ((_cutF ? _cutF + ' ' : '') + (_szF
+            ? "We don't have one to match in a " + _szF + " right now \u{1F64F} Want me to send everything we got in your size? \u{1F45F}"
+            : "What size you wear? \u{1F45F} I'll send you what we got")).trim();
+          record(req, { endpoint: 'pointing-leadin-cut', sub, size: _szF });
+        }
+      }
+    } catch (e) { record(req, { endpoint: 'guard-emptied-fallback-error', sub, error: String(e).slice(0, 120) }); }
+    if (!sentToCustomer) {
+      const fb = _lt || _ptr || (image
+        ? "That's a clean pair 👀 — what size you looking for and I'll pull up what we've got 👟"
+        : _okOnly ? '👍'
+        : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
+      await sendChunk(sub, [{ type: 'text', text: fb }], token).catch(() => {});
+    }
     sentToCustomer = true;
   }
   // If this was their first message (we just sent the welcome) and we didn't send
@@ -10075,7 +10121,20 @@ function handleChat(req, res) {
     // delivered it as "." — and got dead silence = lost lead). On an EXISTING chat a "." is
     // just a delivery/read receipt, so we still ignore it there. New convo → greet them once.
     const isNewConvo = !convos.has(sub) || !(convos.get(sub) || []).length;
-    if (isNewConvo) {
+    /* \u2753 "??" / ".." IS A NUDGE, NOT A RECEIPT (Rodney 10-24: TK 809-9888 "??" at 12:50 and TK Pablo Esco 814-8430 ".." at 13:00 were
+     * both skipped - each was waiting on an answer that never reached them). A lone "." stays a receipt; question marks or two+ dots
+     * in a chat Kiki spoke in within 30 min make her answer their last open question again. */
+    let _nudge = false;
+    try {
+      if (!isNewConvo && /^[\s?.!\u061F\uFF1F]*$/.test(userText) && /[?\u061F\uFF1F]|\.{2,}/.test(userText)) {
+        const _thN = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        _nudge = !!(_thN && (_thN.msgs || []).some(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 30 * 60 * 1000));
+      }
+    } catch (_) {}
+    if (_nudge) {
+      record(req, { endpoint: 'nudge-answered', sub, q: userText.slice(0, 20) });
+      userText = '(SYSTEM: the customer sent "' + userText.trim().slice(0, 6) + '" - a nudge, they are still waiting. Read their last real message and your last reply: if their question was not answered, or pictures you promised did not arrive, answer it NOW in full - the shoe, its price and their size, or send the pictures. Do not ask what they mean and do not apologise more than once.)';
+    } else if (isNewConvo) {
       record(req, { endpoint: 'junk-new-greet', sub, q: userText.slice(0, 20) });
       userText = MEDIA_GREET_NOTE; // makes Kiki send the welcome instead of staying silent
     } else {
