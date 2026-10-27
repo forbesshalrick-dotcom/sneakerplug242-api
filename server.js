@@ -4957,6 +4957,7 @@ function firstLine(t) {
   return String(t || '').split('\n')[0].replace(/[*_]/g, '').trim().slice(0, 80) || 'Delivery';
 }
 const ownerSeen = new Map();   // dedupe memory for queueForOwner: key -> when (30 min)
+const thiefPingAt = new Map(); // the Make It Happen numbers - last owner ping per number
 function queueForOwner(text, title, noLink) {
   try {
     let t = String(text || '').trim();
@@ -10064,6 +10065,23 @@ function handleChat(req, res) {
   const name = getName(req);
   record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, imageUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY, dbgPhone: getPhone(req), dbgStaff: staffNameFor(req) });
   rememberCustomer(sub, name, store, userText, token); // for the /console control panel
+  /* 🚨 THE MAKE IT HAPPEN NUMBERS (Rodney 10-27: "If any of the two thief numbers contact me on any of my platforms…"). They took
+   * $930 of shoes on 10-20 with two Scotia receipts that never landed (police report filed). Any message from either number, on any
+   * line, pings the owner at once (30-min dedupe). YCloud subs ARE the phone number; ManyChat lines carry it in the payload. */
+  try {
+    const _thiefDigits = String(getPhone(req) || '').replace(/\D/g, '') + '|' + String(sub || '');
+    const _thief = ['2424782955', '2424666095'].find(n => _thiefDigits.includes(n));
+    if (_thief && !staffNameFor(req)) {
+      record(req, { endpoint: 'thief-number-contact', sub, store, text: String(userText || '').slice(0, 80) });
+      if (Date.now() - (thiefPingAt.get(_thief) || 0) > 30 * 60000) {
+        thiefPingAt.set(_thief, Date.now());
+        queueForOwner('🚨 *THIEF NUMBER IS MESSAGING* — Make It Happen (+1 ' + _thief.slice(0, 3) + '-' + _thief.slice(3, 6) + '-' + _thief.slice(6) + ')\n'
+          + '🏬 ' + (store || 'unknown line') + (name ? ('  👤 ' + name) : '') + '\n'
+          + '💬 "' + String(userText || '').replace(/\s+/g, ' ').slice(0, 160) + '"\n'
+          + '⚠️ Nothing leaves the shop until the money is IN the account.', 'Thief number', true);
+      }
+    }
+  } catch (_) {}
   // Track the customer's language (conservative; English by default) so the automatic
   // nudges/handoff go out in Creole/Spanish only when they clearly speak it.
   if (sub && userText) { try { subLang.set(sub, detectLang(userText, subLang.get(sub))); } catch (_) {} }
