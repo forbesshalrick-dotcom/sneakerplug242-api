@@ -3149,8 +3149,11 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
     // "You have these in 8??" / "And this" on a quoted picture is the customer PICKING mid-album (TK Sergent_JD +1 242 445-3266
     // 10-19 14:17: the album rolled on for 90 s and Rodney saw "kiki ignoring ques"). Stop the album so the answer comes now.
     const POINTER_PICK = /^\W*(?:(?:and|what about|how about|you (?:got|have)|u (?:got|have)|do (?:you|u) have|got)\s+)?(?:this|these|that|those|dis|dem|this one|that one)\b[^.!]{0,30}$|\b(?:this|these|that|those|dis|dem)\b[^.!]{0,20}\b(?:in|size|sz)\s*\d/i;
+    // "That's wa I wanted to see in 7" is them ASKING for the album, not pointing at a picture (TK 824-2114 10-26 11:43: it
+    // matched POINTER_PICK and stopped a 160-shoe size-7 album before photo one - "Here's everything we have in size 7" over nothing).
+    const WANTED_SEE = /^\W*(?:that'?s|that[’]s|thats|that is|dat'?s|dats)\s+(?:wa|wat|wah|what|wht|wha|wut)\b/i;
     return STOPPISH.test(txt) || REDIRECT.test(txt) || NO_ONLY.test(txt) || (!_oneShoe && PHOTO_IN.test(txt.trim()))
-      || (!_oneShoe && POINTER_PICK.test(txt.trim()));
+      || (!_oneShoe && !WANTED_SEE.test(txt.trim()) && POINTER_PICK.test(txt.trim()));
   };
   // PAUSE-ANSWER-CONTINUE (Rodney 2026-07-14: a customer asked "How much" mid-album,
   // the pictures kept rolling and the question never got answered): a non-stop message
@@ -7231,7 +7234,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
     const _oc = (!staffName && userText) ? orderCheckins.get(String(sub)) : null;
     const _askRe = /\b(boat|freight|ship(ped|ping)?|mail ?boat|plane|flight|track(ing)?|airport|receipt|refund|money back|my money|on (the|da) way|is it (there|here|on|gone|ready|done|coming)|where('s| is| my)|how long|still coming|hope (it'?s|its)|cut ?off|stop(s)? taking|before \d|by \d)\b/i;
-    if (_oc && (Date.now() - (_oc.at || 0)) < 3 * 24 * 3600000 && _askRe.test(userText)) {
+    /* Not while the sale is still being made (Rodney 10-26, TK Jenny 808-3697: "Im in freeport do u ship" one minute after her
+     * card, no pin, nothing paid - the owner was pinged "Kiki told them you will confirm" while Kiki was already answering with
+     * the boat/plane prices and the pay link). A pre-sale question in the first hour of an order that isn't ready yet is hers. */
+    const _selling = _oc && !_oc.ready && (Date.now() - (_oc.at || 0)) < 60 * 60000;
+    if (_oc && !_selling && (Date.now() - (_oc.at || 0)) < 3 * 24 * 3600000 && _askRe.test(userText)) {
       const _lastPing = orderStatusPingAt.get(String(sub)) || 0;
       if (Date.now() - _lastPing > 15 * 60000) {
         orderStatusPingAt.set(String(sub), Date.now());
