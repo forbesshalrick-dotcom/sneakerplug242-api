@@ -162,6 +162,17 @@
   refEl.textContent = ref || 'SneakerPlug242 purchase';
 
   function showErr(msg) { errEl.textContent = msg; errEl.classList.add('on'); }
+  /* A failed card used to leave no trace anywhere - PayPal runs on the customer's phone, so the shop only heard "it failed"
+     (Rodney 10-27: "payment link just tried by customer and failed, second this week"). Now every failure, cancel and
+     success is posted to the server log with PayPal's own reason, so the next one can be read instead of guessed. */
+  function report(what, detail) {
+    try {
+      var body = JSON.stringify({ what: what, detail: String(detail || '').slice(0, 300), amount: amt, ref: ref, ua: navigator.userAgent.slice(0, 120) });
+      if (!(navigator.sendBeacon && navigator.sendBeacon('/pay/log', new Blob([body], { type: 'application/json' }))))
+        fetch('/pay/log', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true }).catch(function () {});
+    } catch (e) {}
+  }
+  report('opened', '');
 
   var sdk = null;
   function loadSDK() {
@@ -179,6 +190,7 @@
 
   loadSDK().then(function (ok) {
     if (!ok || !window.paypal) {
+      report('sdk-failed', '');
       showErr('Card payment will not load right now. Show this to staff and pay them another way.');
       return;
     }
@@ -201,10 +213,13 @@
       onApprove: function (_data, actions) {
         return actions.order.capture().then(function (details) { paid(details); });
       },
-      onError: function () {
+      onCancel: function () { report('cancel', ''); },
+      onError: function (err) {
+        report('error', err && (err.message || String(err)));
         showErr('That payment did not go through. Nothing has been charged — show this to staff.');
       }
-    }).render('#paypal-box').catch(function () {
+    }).render('#paypal-box').catch(function (err) {
+      report('render-failed', err && (err.message || String(err)));
       showErr('Card payment will not load right now. Show this to staff and pay them another way.');
     });
   });
@@ -213,6 +228,7 @@
     var id = '';
     try { id = details.purchase_units[0].payments.captures[0].id; } catch (e) {}
     if (!id) id = (details && details.id) || 'paid';
+    report('paid', id + ' ' + ((details && details.status) || ''));
     var when = new Date().toLocaleString('en-BS', {
       day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit'
     });

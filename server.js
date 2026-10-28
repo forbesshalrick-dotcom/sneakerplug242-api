@@ -14922,6 +14922,19 @@ app.get('/', (req, res, next) => {
 let PAY_HTML = null;
 try { PAY_HTML = require('fs').readFileSync(require('path').join(__dirname, 'pay.html'), 'utf8'); }
 catch (e) { console.log('[pay] pay.html missing — customer self-checkout will 404:', e.message); }
+// What the customer's phone saw on /pay - PayPal fails client-side, so this is the only record (Rodney 10-27, second failed card this week).
+app.post('/pay/log', (req, res) => {
+  try {
+    const b = (req.body && typeof req.body === 'object') ? req.body : (() => { try { return JSON.parse(req.rawBody || '{}'); } catch (_) { return {}; } })();
+    const what = String(b.what || '').slice(0, 20);
+    record(req, { endpoint: 'pay-' + what, amount: b.amount, ref: String(b.ref || '').slice(0, 80), detail: String(b.detail || '').slice(0, 300), ua: String(b.ua || '').slice(0, 120) });
+    if (what === 'error' || what === 'sdk-failed' || what === 'render-failed')
+      queueForOwner('💳 *CARD PAYMENT FAILED* on 242plug.com/pay — $' + (b.amount || '?') + (b.ref ? ('  (' + String(b.ref).slice(0, 60) + ')') : '') + '\n'
+        + '🧾 PayPal said: ' + (String(b.detail || '').slice(0, 200) || 'no reason given') + '\n'
+        + '⚠️ Nothing was charged. Offer bank transfer / SunCash or try another card.', 'Card failed', true);
+  } catch (_) {}
+  res.status(204).end();
+});
 app.get('/pay', (req, res) => {
   if (!PAY_HTML) return res.status(404).type('text/plain').send('not set up yet');
   // A payment page is never something a stale cache should serve — always fresh.
