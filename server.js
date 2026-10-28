@@ -8345,7 +8345,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _ut = customerWordsOnly(String(userText || '')).toLowerCase();
       const _en = (_ut.match(/\b(i|you|the|is|my|to|but|what|and|it|that|in|for|me|be|have|got|want|ready|tell|send|how|much|do|this|they|he|she|we|ain'?t|gonna|wanna)\b/g) || []).length;
       const _ht = /\b(mwen|ou|nou|yo|pa|nan|se|kisa|kote|konbyen|bonjou|m[eè]si|kounye|tanpri|soulye|tenis|gen|vle|quiero|tienen|cu[aá]nto|zapatos|hola|gracias)\b/i.test(_ut);
-      if (_en >= 3 && !_ht) {
+      // A chat the language tracker calls English never gets the line, however short the message (Rodney 10-28, TK 819-1596:
+      // "You got white thunders" - only 2 of the listed words, so the reply went out with 🔎 Customer said: "You got white thunders").
+      const _chatLang = subLang.get(sub) || 'en';
+      if ((_en >= 3 || _chatLang === 'en') && !_ht) {
         turnText = turnText.replace(/^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim, '').replace(/\n{3,}/g, '\n\n').trim();
         record(req, { endpoint: 'english-translation-cut', sub });
       }
