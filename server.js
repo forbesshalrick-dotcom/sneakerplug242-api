@@ -6575,6 +6575,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'stale-note-no-reader', sub });
     }
   } catch (_) {}
+  /* 🎥 A VIDEO REQUEST GOES TO THE OWNER (Rodney 10-29: FF Gio 814-1106 asked "can I see them like in video please. This my first
+   * time ordering off marketplace" and Kiki said "I can't send videos through WhatsApp". "I'm supposed to have the notification that
+   * somebody needed a video so I can do it for them.") Kiki says one is coming; the owner gets the alert with the chat. */
+  try {
+    const _vw = customerWordsOnly(String(userText || ''));
+    if (!staffName && /\b(video|vid|vidz|vids|vidio|videos|recording|facetime|video call)\b/i.test(_vw)
+        && /\b(send|see|show|can (?:i|u|you)|could (?:i|u|you)|got|have|want|need|pls|please|plz|take|make|record)\b/i.test(_vw)) {
+      const _k = 'video|' + sub;
+      if (Date.now() - (nonTextAlertAt.get(_k) || 0) > 30 * 60000) {
+        nonTextAlertAt.set(_k, Date.now());
+        const _ph = (getPhone(req) || (isYcloudSub(sub) ? String(sub) : '')).replace(/\D/g, '');
+        let _shoe = '';
+        try { const _r = recentlySent.get(sub); _shoe = (_r && Array.isArray(_r.names) && _r.names.length === 1) ? String(_r.names[0]) : ''; } catch (_) {}
+        queueForOwner('🎥 *VIDEO REQUEST* - a customer wants a video before buying\n👤 ' + (ctx.name || sub) + (_ph ? ('  📞 +' + _ph + '  (wa.me/' + _ph + ')') : '')
+          + (ctx.store ? ('  🏬 ' + ctx.store) : '') + (_shoe ? ('\n👟 ' + _shoe) : '') + '\n💬 "' + _vw.replace(/\s+/g, ' ').slice(0, 160) + '"\n👉 Film the shoe and send it to me or straight into their chat.', 'Video request', true);
+        record(req, { endpoint: 'video-request', sub, store: ctx.store || '' });
+      }
+      userText = '(SYSTEM: they are asking for a VIDEO of the shoe. Never say you cannot send videos. Say yes warmly: "Yes! I\'ll get you a video of them shortly 🎥" - the team has been told and will film it. Then keep helping as normal.)\n' + String(userText || '');
+    }
+  } catch (_) {}
   /* 📅 "TOMORROW" SAID ON AN EARLIER DAY IS TODAY (same chat: at 23:13 Kiki said "Tomorrow morning 8 AM"; next morning she told him
    * "tomorrow" again, and "Tomorrow???" got "Yeah man, tomorrow morning from 8 AM"). The model has no clock on old lines. */
   try {
