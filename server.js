@@ -221,6 +221,16 @@ const DEBUG_KEY = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
    Nissan Daze. D-A-Y-Z."). Lost in the 10-12 brain reset; restored 10-29 after TK Bankzz 821-2265 asked "Kind of car" and "I don't see
    them" and got "Let me call the driver now" twice. Set DRIVER_VEHICLE in Railway to change it without a deploy. */
 const DRIVER_VEHICLE = process.env.DRIVER_VEHICLE || 'a burgundy Nissan Dayz';
+/* 🏷️ A SALE PRICE ON ONE LINE ONLY (Rodney 10-29: "Black af1 is 100" - "Sale price for trendy kicks whatsapp"; his ad shows $100 and
+   customers were quoted $120). The shop price stays as it is everywhere else; on that line Kiki quotes the sale price and the photo
+   card shows it. Keyed by the store name ManyChat sends. */
+const LINE_SALES = {
+  'Trendy Kicks': { co574: { price: 100, was: 120, name: 'Nike Air Force 1 — All Black', card: 'co574-card-tk100.jpg' } },
+};
+function lineSale(sub, id, store) {
+  const st = store || ((recentCustomers.get(sub) || {}).store) || '';
+  return (LINE_SALES[st] || {})[String(id)] || null;
+}
 const recent = [];
 // Persist the debug log across restarts (2026-07-14: every deploy wiped the evidence
 // mid-investigation four times in one day). Best-effort, debounced, /data volume only.
@@ -3322,9 +3332,10 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   const showSizes = !sizeKnown && !photosOnly && !isStaff;
   let sizesLabel = '📏 Sizes: ';   // in the customer's language (big four by table, the rest by say())
   if (showSizes) { try { sizesLabel = await say(L(SIZES_LABEL_T, sub), sub) || sizesLabel; } catch (_) {} }
+  const _cardFor = (s) => { const _ls = s && lineSale(sub, s.id); return _ls && s.image ? s.image.replace(/[^/]+$/, _ls.card) : (s && s.image); };
   const photoMsg = (s) => showSizes
-    ? [{ type: 'image', url: s.image }, { type: 'text', text: sizesLabel + sizesOf(s) }]
-    : [{ type: 'image', url: s.image }];
+    ? [{ type: 'image', url: _cardFor(s) }, { type: 'text', text: sizesLabel + sizesOf(s) }]
+    : [{ type: 'image', url: _cardFor(s) }];
 
   if (Array.isArray(groups) && groups.length) {
     // Grouped by size: a size header, then that size's photos (each labelled when small).
@@ -6810,6 +6821,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // covers this, but a model deciding it fresh each time is exactly how "pics only" ended up
     // working on one account and not the other — so when the words plainly ask about fit, the
     // answer is put in front of her again for THIS turn.
+    try {
+      const _sales = LINE_SALES[ctx.store || ''] || {};
+      const _ids = Object.keys(_sales);
+      if (_ids.length) system += '\n\n🏷️ SALE PRICES ON THIS LINE (Rodney 10-29) - these override any other price you see, including search results: '
+        + _ids.map(id => _sales[id].name + ' (id ' + id + ') is $' + _sales[id].price + ' (was $' + _sales[id].was + ')').join('; ')
+        + '. Quote the sale price, total orders with it, and put it on the order (notify_manager price).';
+    } catch (_) {}
     if (FIT_QUESTION_RE.test(String(userText || ''))) {
       system += `\n\n👟 THEY JUST ASKED ABOUT FIT. Never send them to friends, reviews or Google, and never explain that sneakers vary. ONE short sizing line is fine and welcome if you have one ("it runs a touch small so an 8 wears like a 7.5") — then ALWAYS land on the try-on: in Nassau we bring BOTH sizes to the door, they try both and keep the one that fits. Say it confidently, then ask their size. ⚠️ Only promise "both" when that shoe has two sizes in stock to bring - if it comes in ONE size near theirs (their own size is out), offer that one size and NEVER say "both" (Rodney 10-25, TK 456-4633: Air Max Plus Grey/Orange 9.5 only, she said "I can bring both"). (Island shipments are pay-first with no try-on: there, tell them the sizes that shoe comes in and help them pick.)`;
     }
