@@ -8487,18 +8487,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (turnText && !staffName) {
       /* "The 8.5 runs small so IT wears like a 12" slipped past the first form (OSC Thorn +1 242 808-8008 10-19 07:42, a 12 offered an
        * 8.5 White Thunder). The size may sit a few words before "wears like", and a SMALLER size never wears like a bigger one. */
-      const _wl = /\b(?:an?\s+)?(\d{1,2}(?:\.5)?)\b[^.!?\n\d]{0,40}?\b(?:wears|fits|feels|runs)\s+like\s+(?:an?\s+)?(?:size\s+)?(\d{1,2}(?:\.5)?)\b/i;
+      const _wl = /\b(?:an?\s+)?(\d{1,2}(?:\.5)?)\b[^.!?\n\d]{0,40}?\b(?:wears?|fits?|feels?|runs?)\s+(?:you\s+|on\s+you\s+)?like\s+(?:an?\s+)?(?:size\s+)?(\d{1,2}(?:\.5)?)\b/i;  // "will fit you like" / "it'll fit like" too (Rodney 10-29, TK Raynaldow 823-7550)
       const _m = turnText.match(_wl);
       /* A FULL SIZE UP IS FINE - THEY RUN SMALL; ONLY THE AIR FORCE 1 RUNS BIG (Rodney 10-23, TK Air Max 95s: no 9, offered the 10s -
        * "awesome sales pitch. but you should have mentioned they run small. only Airforce run big"). Up to one size bigger stands,
        * never on an AF1, never a smaller size, never more than a size. */
-      const _af1 = /\b(air\s*force|af\s*-?1|af1s?|forces?)\b/i.test(turnText);
+      // The shoe may not be named in THIS reply ("The 9 runs big, so the 9 will fit you like an 8.5" - Rodney 10-29: "This doesn't make
+      // any damn sense", TK Raynaldow 823-7550, black AF1). The last few lines of the chat count too.
+      let _af1 = /\b(air\s*force|af\s*-?1|af1s?|forces?)\b/i.test(turnText);
+      if (!_af1) { try { _af1 = (convos.get(sub) || []).slice(-6).some(m => /\b(air\s*force|af\s*-?1|af1s?|forces?)\b/i.test(typeof m.content === 'string' ? m.content : JSON.stringify(m.content || ''))); } catch (_) {} }
       const _up = _m ? parseFloat(_m[1]) - parseFloat(_m[2]) : 0;
       // AF1: a SMALLER size up to one down may "wear like" theirs (they run big); never a bigger one. Everything else: up to one up.
       if (_m && (_af1 ? (_up > 0 || _up < -1) : (_up < 0 || _up > 1))) {
         const _parts = turnText.split(/(?<=[.!?\n])\s+/);
-        const _keep = _parts.filter(x => !_wl.test(x) && !/\b(want me to send|send (it|them|those)|that comes in|comes in \d|bring (?:both|them|the two)|try them|that work\?)/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
+        const _keep = _parts.filter(x => !_wl.test(x) && !/\b(want me to send|send (it|them|those)|that comes in|comes in \d|bring (?:both|them|the two)|try them|that work\?)/i.test(x) && !(_af1 && /\bruns?\s+(?:a\s+(?:little|touch|bit)\s+)?big\b|\btight\b/i.test(x)) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
         turnText = (_keep || ("We don't have that one in your " + _m[2] + " right now 🙏")).trim();
+        // A bigger AF1 offered "like" a smaller size: say the real rule instead (Air Forces run big, so the size BELOW fits like theirs).
+        if (_af1 && _up > 0) turnText = (turnText + ' Air Forces run a little big, so go with your size or half a size down 👟 We can bring two sizes so you can try them on.').trim();
         record(req, { endpoint: 'wears-like-cut', sub, said: _m[0] });
       }
     }
