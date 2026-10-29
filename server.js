@@ -8471,8 +8471,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 🛵 NO "COME THROUGH" / "YOU OUTSIDE?" — WE DELIVER (Rodney 10-16, TK +1 242 824-3666: "I reach" after the boat got both). */
     if (turnText && !staffName && /\b(come through|come thru|pull up|you outside|come by the (?:shop|store))\b/i.test(turnText)) {
       const _keep = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !/\b(come through|come thru|pull up|you outside|come by the (?:shop|store))\b/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
-      turnText = ((_keep ? _keep + ' ' : '') + 'Send me your location 📍 and we\'ll bring it straight to you 👟').trim();
-      record(req, { endpoint: 'come-through-replaced', sub });
+      /* Not when the pin is already in and the driver is out (Rodney 10-29, TK 804-8474 Red Cement 7: driver outside, she wrote "Omw na",
+       * and this line turned Kiki's reply into "Send me your location" for a location the card already carried). */
+      let _haveLoc = false;
+      try {
+        const _thL = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        _haveLoc = !!(_thL && (_thL.msgs || []).some(m => m && m.sender === 'system' && /DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 12 * 3600000));
+      } catch (_) {}
+      turnText = ((_keep ? _keep + ' ' : '') + (_haveLoc ? 'See you in a minute 🚗👟' : 'Send me your location 📍 and we\'ll bring it straight to you 👟')).trim();
+      record(req, { endpoint: 'come-through-replaced', sub, haveLoc: _haveLoc });
     }
     /* 📏 "A 12 WEARS LIKE A 10.5" IS NOT A THING (TK Wally +1 242 455-3362 10-17 15:04: he wears a 10.5 and was offered a 9060 in a
      * 12 because "those run a touch small"). Rodney's run-small rule is half a size (9.5 for a 9, 11 for a 10.5, 8 for a 7.5);
