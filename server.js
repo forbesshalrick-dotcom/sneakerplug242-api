@@ -1263,6 +1263,33 @@ async function ycloudSendMessages(phoneDigits, messages) {
     return { ok: n > 0, n, why: n ? '' : 'nothing sendable in the message list' };
   } catch (e) { return { ok: false, why: String(e).slice(0, 120) }; }
 }
+/* 💰 THE YCLOUD WALLET (Rodney 10-29: Foot Fetish sent NOTHING from 10-27 ~15:00 to 10-29 16:50 - every reply failed "Your account
+ * balance is insufficient, please top up" while Kiki looked busy. "I need some type of notification when I'm about to run low.")
+ * The balance is read every 30 min; under $5 the owner is warned (once per 6 h), and an actual out-of-money failure warns at once. */
+const ycWallet = { amount: null, at: 0, warnedLowAt: 0, warnedEmptyAt: 0, raw: '' };
+const YC_LOW_USD = Number(process.env.YCLOUD_LOW_USD || 5);
+async function checkYcloudBalance() {
+  const key = process.env.YCLOUD_API_KEY; if (!key) return;
+  try {
+    const r = await fetch('https://api.ycloud.com/v2/balance', { headers: { 'X-API-Key': key }, signal: AbortSignal.timeout(20000) });
+    const t = await r.text(); ycWallet.raw = t.slice(0, 200);
+    const j = JSON.parse(t); const a = Number(j.amount != null ? j.amount : j.balance != null ? j.balance : (j.data && (j.data.amount != null ? j.data.amount : j.data.balance)));
+    if (!isFinite(a)) return;
+    ycWallet.amount = a; ycWallet.at = Date.now();
+    if (a < YC_LOW_USD && Date.now() - ycWallet.warnedLowAt > 6 * 3600000) {
+      ycWallet.warnedLowAt = Date.now();
+      queueForOwner('💰 *YCLOUD BALANCE LOW* - $' + a.toFixed(2) + ' left (Foot Fetish + Luxury Boutique WhatsApp).\nAt $0 every reply on those lines fails. Top up: ycloud.com -> Settings -> Billing -> Recharge.', 'YCloud balance low', true);
+    }
+  } catch (_) {}
+}
+function ycloudOutOfMoney(why) {
+  if (!/balance is insufficient|top up/i.test(String(why || ''))) return;
+  if (Date.now() - ycWallet.warnedEmptyAt < 3600000) return;
+  ycWallet.warnedEmptyAt = Date.now();
+  queueForOwner('💰 *YCLOUD IS OUT OF MONEY* - Foot Fetish / Luxury Boutique replies are NOT reaching customers right now.\nTop up: ycloud.com -> Settings -> Billing -> Recharge.', 'YCloud empty', true);
+}
+setTimeout(checkYcloudBalance, 60000);
+{ const _ycT = setInterval(checkYcloudBalance, 30 * 60000); if (_ycT.unref) _ycT.unref(); }
 async function sendChunkRaw(subscriberId, messages, token) {
   // A phone-shaped id that came in through YCloud never goes to ManyChat (which has no such subscriber).
   try {
@@ -1270,6 +1297,7 @@ async function sendChunkRaw(subscriberId, messages, token) {
     if (_phoneSub) {
       const _r = await ycloudSendMessages(String(subscriberId), messages);
       if (_r.ok) return { ok: true, status: 200, body: JSON.stringify({ ycloud: 'sent', n: _r.n }) };
+      try { ycloudOutOfMoney(_r.why); } catch (_) {}
       try { recent.unshift({ at: new Date().toISOString(), endpoint: 'ycloud-api-send-failed', sub: String(subscriberId), why: String(_r.why || '').slice(0, 200) }); if (recent.length > 120) recent.length = 120; } catch (_) {}
       return { ok: false, status: 0, body: JSON.stringify({ skipped: 'ycloud line - API send failed: ' + String(_r.why || '').slice(0, 120) }) };
     }
@@ -13281,6 +13309,7 @@ app.post('/admin/reminders/clear', (req, res) => {
   saveReminders();
   res.json({ ok: true, removed: before - reminders.length });
 });
+app.get('/admin/ycloud-balance', async (req, res) => { if (!consoleAuth(req, res)) return; await checkYcloudBalance(); res.json(ycWallet); });
 app.get('/admin/ycloud-status', (req, res) => {
   if (!consoleAuth(req, res)) return;
   res.json({ keyLoaded: !!process.env.YCLOUD_API_KEY, from: process.env.YCLOUD_FROM || null, knownCustomers: ycloudStore.size, lastInboundAt: waLastInboundAt, lastOutboundAt: waLastOutboundAt });
