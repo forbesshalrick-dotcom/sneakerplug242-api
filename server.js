@@ -7940,7 +7940,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
        * Jordan 4s and Dunks went to a man who asked for Air Force. "The guy only asked for Air
        * Force." When the reply is telling him the shoe he named is not in his size, the honest
        * line stands as it is; pictures of other shoes are not what he asked for. */
-      const _sizeGapHonest = /\b(just )?not in (an?|your) \d|\b(does ?n'?t|do ?n'?t|dont|does not|did ?n'?t) (come|have)[^.!?]{0,20}\b(in )?(an?|your)? ?\d{1,2}(\.5)?\b|\bno \d{1,2}(\.5)? (right now|in)|\bonly (comes|come|left) in\b/i.test(turnText);
+      const _sizeGapHonest = /\b(just )?not in (an?|your) \d|\b(does ?n'?t|do ?n'?t|dont|does not|did ?n'?t) (come|have)[^.!?]{0,20}\b(in )?(an?|your)? ?\d{1,2}(\.5)?\b|\bno \d{1,2}(\.5)? (right now|in)|\bonly (comes|come|left) in\b/i.test(turnText)
+        /* "We don't carry size 14 - 13 is our biggest, want the 13?" (Rodney 10-28, TK 556-2080 "Hello any sz 14": not read as a gap, so this
+         * guard pushed all 34 size 13s out before she had said a word about the 14; he wrote "Sorry looking fa sz14" mid-album). */
+        || /\b(?:do ?n'?t|dont|do not|we no)\s+(?:carry|stock|have|got|go up to)\b[^.!?]{0,15}?\b(?:size\s*|a\s+|an\s+)?\d{1,2}(?:\.5)?s?\b|\b(?:our|the) (?:biggest|largest|smallest)(?: size)?\b|\bwe (?:stop|only go up) (?:at|to)\b/i.test(turnText);
       /* 📸 BUT "...ONLY COMES IN A 13. WE GOT OTHER JORDAN 5s IN A 10.5 AND 11 - WANT TO SEE THEM?" IS
        * A SIZE GAP THAT NAMES A SAME-MODEL OFFER (Rodney 2026-10-12, +1 242 375-9815: it read well,
        * "but you can also send the picture afterwards"). The honest line stands; the offer gets
