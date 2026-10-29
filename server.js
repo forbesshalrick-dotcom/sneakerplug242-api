@@ -6522,6 +6522,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (_) {}
+  /* 📍 STALE WORDS WITH NO PIN READER STILL MUST NOT BE ANSWERED (Rodney 10-29, TK Bankzz 821-2265: "You lost the only sale I had
+   * for today". His pin at 08:46 came in as last night's "...tomorrow for sure"; the Mac pin reader had been dead since 10-24, so the
+   * wait above never ran, the stale note was never added, and Kiki answered the old words: "Tomorrow morning 8 AM we got you".) */
+  try {
+    if (ctx.staleRepeat && !/^\(SYSTEM/.test(String(userText || ''))) {
+      userText = '(SYSTEM: these words are a WhatsApp re-delivery of their EARLIER message, which you already answered - a pin, photo or sticker just arrived in its place. Do NOT answer these words again. If you were waiting on their location, that was most likely their pin: say "Got your location 📍" and ask what time works TODAY.)\n' + String(userText || '');
+      record(req, { endpoint: 'stale-note-no-reader', sub });
+    }
+  } catch (_) {}
+  /* 📅 "TOMORROW" SAID ON AN EARLIER DAY IS TODAY (same chat: at 23:13 Kiki said "Tomorrow morning 8 AM"; next morning she told him
+   * "tomorrow" again, and "Tomorrow???" got "Yeah man, tomorrow morning from 8 AM"). The model has no clock on old lines. */
+  try {
+    const _thD = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+    const _tm = _thD && (_thD.msgs || []).slice().reverse().find(m => m && m.dir === 'out' && /\btomorrow\b/i.test(String(m.text || '')));
+    const _day = (t) => new Date(t).toLocaleDateString('en-US', { timeZone: 'America/Nassau' });
+    if (_tm && _tm.ts && _day(_tm.ts) !== _day(Date.now()) && Date.now() - _tm.ts < 3 * 24 * 3600000) {
+      userText = '(SYSTEM: the "tomorrow" you promised earlier in this chat was said on ' + _day(_tm.ts) + '. That day is NOW - it is ' + _day(Date.now()) + '. A delivery you set for "tomorrow" is due TODAY: never tell them "tomorrow" again for it, and if they want it now, the driver can come now.)\n' + String(userText || '');
+      record(req, { endpoint: 'tomorrow-is-today', sub });
+    }
+  } catch (_) {}
   // 🏷️ ASK THE MAC WHICH CARD THEY TAGGED (see /social/tag-requests). ManyChat lines only, a short pointing message within 45 min
   // of pictures that were more than one shoe, and only while the Mac reader is polling.
   try {
