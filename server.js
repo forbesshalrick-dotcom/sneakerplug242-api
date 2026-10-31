@@ -5001,6 +5001,7 @@ function firstLine(t) {
   return String(t || '').split('\n')[0].replace(/[*_]/g, '').trim().slice(0, 80) || 'Delivery';
 }
 const ownerSeen = new Map();   // dedupe memory for queueForOwner: key -> when (30 min)
+const driverAskPingAt = new Map(); // "where's the driver?" on an order with no pin - one group card per 30 min
 const thiefPingAt = new Map(); // the Make It Happen numbers - last owner ping per number
 function queueForOwner(text, title, noLink) {
   try {
@@ -6885,12 +6886,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         .map(m => typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : ''))
         .filter(t => /\?/.test(t)).slice(-1).join(' ');
       const _ans = customerWordsOnly(String(userText || '')).trim();
-      if (!staffNameFor(req) && !image && _ans && _ans.length <= 60 && !/\?/.test(_ans)
-          && /available now\s*\?|where (?:should|do|can) (?:the driver|we|i) (?:come|bring|meet|drop)|where (?:you|u) (?:want|need) (?:it|them)|send (?:me )?your location|drop your (?:whatsapp )?location/i.test(_lastQ)
+      // "You could meet me on the fries?" is a place with a question mark (Rodney 10-30, OSC Donville 525-2787: it got "Drop your
+      // WhatsApp location pin" twice, the order never reached the group, and he waited at the Fish Fry from 8:33 to 10:14 PM).
+      const _meetAt = /\b(?:meet (?:me|us)?\s*(?:at|on|by|in|outside)?|i'?m (?:at|on|by|in|outside)|im (?:at|on|by|in)|heading (?:to|for)|going to|(?:on|at|by) the)\b/i.test(_ans);
+      if (!staffNameFor(req) && !image && _ans && _ans.length <= 60 && (!/\?/.test(_ans) || _meetAt)
+          && (_meetAt || /available now\s*\?|where (?:should|do|can) (?:the driver|we|i) (?:come|bring|meet|drop)|where (?:you|u) (?:want|need) (?:it|them)|send (?:me )?your location|drop your (?:whatsapp )?location|where should we meet/i.test(_lastQ))
           && !/^(?:y+e+s+|yeah|ya+|yea|yep|yup|ye|ok(?:ay)?|sure|bet|no+|nah+|not|later|tomorrow|now|right now|ready|sent|done|available|busy|working|at work|i'?m|im\b|i am|home|here|outside|on my way|omw|when|what|how|which|thanks?|thank you|ty)\b/i.test(_ans)
           && !/\b(?:size|sz|\d{1,2}(?:\.5)?\s*(?:\b|$)|jordans?|forces?|af1|air ?max|nike|new balance|nb|asics|dunks?|vapor|tn|shoes?|sneakers?|kicks|price|how much|\$)/i.test(_ans)) {
         system += '\n\n📍 THEY JUST TOLD YOU WHERE TO DELIVER. You asked "' + _lastQ.replace(/\s+/g, ' ').slice(-90) + '" and they answered "' + _ans + '" - that is a PLACE (a cafe, store, school, street, area or landmark), the spot to bring the shoes. Never joke about it, never say it is not a shoe, never ask what they mean. Confirm it back in one short line ("Bet 🔥 the driver will meet you at ' + _ans + ' 🚗"), and call notify_manager with that place as the location (exactly what they wrote) so the order card goes out. Do not ask them for a pin as well.';
         record(req, { endpoint: 'place-as-location', sub, place: _ans.slice(0, 60) });
+      }
+    } catch (_) {}
+    /* 🚗 "WHERE'S THE DRIVER?" ON AN ORDER NO DRIVER HAS (Rodney 10-30 22:29, "I never got this": Donville's order sat at "location
+     * still coming", so it never reached the drivers' group, and he was told "Let me call the driver now" at 8:48 and 10:14 PM).
+     * That line is only true once the order is DELIVERY READY. Before that, there is no driver to call. */
+    try {
+      const _oc2 = orderCheckins.get(String(sub));
+      if (!staffNameFor(req) && _oc2 && !_oc2.ready && /\b(?:where(?:'s| is)? (?:the |my )?driver|how (?:far|long)|you (?:coming|reaching|close)|eta|driver (?:coming|close|reach))\b/i.test(String(userText || ''))) {
+        system += '\n\n🚗 NO DRIVER HAS THIS ORDER YET. Their ' + (_oc2.shoe || 'order') + (_oc2.size ? ' (size ' + _oc2.size + ')' : '') + ' is still missing WHERE to meet them, so it has not gone to the drivers. Never say you will call the driver or that he is on the way. Read the chat: if they already told you a place (a street, a store, "the fries", a landmark), call notify_manager NOW with that place as the location and say "Got you 🙏 sending the driver to <place> now 🚗". If they never said where, apologise in one line and ask where to meet them.';
+        record(req, { endpoint: 'driver-ask-no-driver', sub });
+        if (Date.now() - (driverAskPingAt.get(String(sub)) || 0) > 30 * 60000) driverAskPingAt.set(String(sub), Date.now()) && queueForOwner('🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* — please facilitate\n📞 ' + (_oc2.phone ? '+' + _oc2.phone : sub) + '\n👟 ' + (_oc2.shoe || '?') + (_oc2.size ? ' — size ' + _oc2.size : '') + (_oc2.price ? '\n💰 ' + _oc2.price : '') + '\n📍 ⚠️ NO PIN - customer is asking where the driver is: "' + String(userText || '').slice(0, 80) + '" - open the chat for where they are' + (_oc2.store ? '\n🏬 ' + _oc2.store : ''), 'Customer waiting, no pin');
       }
     } catch (_) {}
     if (FIT_QUESTION_RE.test(String(userText || ''))) {
