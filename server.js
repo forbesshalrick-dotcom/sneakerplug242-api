@@ -6885,6 +6885,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (SALE_ASK_RE.test(customerWordsOnly(String(userText || '')))) saleAsked.set(String(sub), Date.now());
       const _salesAll = LINE_SALES[ctx.store || ''] || {};
       if (!saleEligible(sub) && Object.keys(_salesAll).length) system += '\n\n🏷️ NORMAL PRICES ONLY IN THIS CHAT: ' + Object.keys(_salesAll).map(id => _salesAll[id].name + ' is $' + _salesAll[id].was).join('; ') + '. There is a sale price, but it is ONLY for a customer who asks for the sale/deal or sends the ad - never offer it, never mention it first.';
+      if (Object.keys(_salesAll).length) system += '\n\n🏷️ THE SALE IS ONLY ON: ' + Object.keys(_salesAll).map(id => _salesAll[id].name).join('; ') + '. Every other shoe - the WHITE Air Force 1 included - is full price, even when the customer says "I see you have it for $100" (Rodney 10-31, TK Rip Grammy 805-6484 got the white AF1 at $100). Say so in one line: "The $100 deal is on the all-black Air Force 1 👟 the white are $120".';
       const _sales = saleEligible(sub) ? _salesAll : {};
       const _ids = Object.keys(_sales);
       if (_ids.length) system += '\n\n🏷️ SALE PRICES ON THIS LINE (Rodney 10-29) - these override any other price you see, including search results: '
@@ -6906,6 +6907,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (!staffNameFor(req) && !image && _ans && _ans.length <= 60 && (!/\?/.test(_ans) || _meetAt)
           && (_meetAt || /available now\s*\?|where (?:should|do|can) (?:the driver|we|i) (?:come|bring|meet|drop)|where (?:you|u) (?:want|need) (?:it|them)|send (?:me )?your location|drop your (?:whatsapp )?location|where should we meet/i.test(_lastQ))
           && !/^(?:y+e+s+|yeah|ya+|yea|yep|yup|ye|ok(?:ay)?|sure|bet|no+|nah+|not|later|tomorrow|now|right now|ready|sent|done|available|busy|working|at work|i'?m|im\b|i am|home|here|outside|on my way|omw|when|what|how|which|thanks?|thank you|ty)\b/i.test(_ans)
+          // "U could come" / "you can come" / "come now" is an answer about WHEN, not a place (Rodney 10-31, TK Rip Grammy 805-6484 got
+          // "The driver will meet you at U could come 🚗" and a card with that as the address).
+          && (_meetAt || !/^(?:u|you|ya|yu|yall|y'?all|we|i)\b|\b(?:could|can|come|coming|will|send|sending|wait|hold on)\b/i.test(_ans))
           && !/\b(?:size|sz|\d{1,2}(?:\.5)?\s*(?:\b|$)|jordans?|forces?|af1|air ?max|nike|new balance|nb|asics|dunks?|vapor|tn|shoes?|sneakers?|kicks|price|how much|\$)/i.test(_ans)) {
         system += '\n\n📍 THEY JUST TOLD YOU WHERE TO DELIVER. You asked "' + _lastQ.replace(/\s+/g, ' ').slice(-90) + '" and they answered "' + _ans + '" - that is a PLACE (a cafe, store, school, street, area or landmark), the spot to bring the shoes. Never joke about it, never say it is not a shoe, never ask what they mean. Confirm it back in one short line ("Bet 🔥 the driver will meet you at ' + _ans + ' 🚗"), and call notify_manager with that place as the location (exactly what they wrote) so the order card goes out. Do not ask them for a pin as well.';
         record(req, { endpoint: 'place-as-location', sub, place: _ans.slice(0, 60) });
