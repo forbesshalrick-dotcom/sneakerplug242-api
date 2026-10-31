@@ -6267,6 +6267,8 @@ function adShoeIds(store) {
 }
 // What a shoe costs on THIS line: the ad price when this shop is advertising it, else the shelf price.
 function adPrice(sh, store) {
+  // The line's sale price wins (Rodney 10-31, TK Ronnie 821-1200 sent the $100 black AF1 ad and got "it's $120": "we should honor it").
+  try { const _ls = (LINE_SALES[String(store || '')] || {})[String(sh && sh.id)]; if (_ls && _ls.price) return parseFloat(_ls.price); } catch (_) {}
   try { const a = adShoeIds(store).find(x => sh && String(x.id) === String(sh.id)); if (a && a.price) return parseFloat(a.price); } catch (_) {}
   return parseFloat(sh && sh.price) || 0;
 }
