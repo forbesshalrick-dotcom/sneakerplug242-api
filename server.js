@@ -1752,6 +1752,8 @@ const INTERNAL_LEAK_RE = new RegExp([
   // Her own reasoning, sent to the customer (Raymond Neymour, TK 10-11/12: "(This is a re-delivery of their previous 👍 —
   // nothing new to act on, so I'll leave it there.)" and "You're right — my mistake. Nothing to do here.").
   'nothing (?:new )?to (?:act on|do here|reply to|respond to)', 're-?delivery of (?:their|the|a|his|her) ',
+  // TK 828-1607 10-31: "They quote-replied another picture — the Dunk (Panda) in Black/White (id 208), $120..." went to the customer.
+  'quote-?repl(?:ied|y)', '\\(id \\d+\\)',
   'i\\047?ll leave it there',
   // OSC Farryy 10-18 13:53: "The order is already confirmed and delivery_ready has been called — the team is handling it. This is just
   // the customer acknowledging the last message." went to the customer.
@@ -7440,7 +7442,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _lmP = liveShoeMap();
       const _toks = _w.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).map(t => t.length > 3 ? t.replace(/s$/, '') : t).filter(t => t.length >= 3 && !/^(how|much|the|these|those|this|that|for|price|prices|cost|you|got|have|are|is|what|pair|pairs|shoe|shoes|sneakers?)$/.test(t));
       const _hits = _toks.length ? Object.values(_lmP).filter(x => x && x.name && (x.sizesRaw || x.sizes || []).length && _toks.some(t => (String(x.name) + ' ' + String(x.nickname || '')).toLowerCase().includes(t))) : [];
-      const _pr = [...new Set(_hits.map(x => parseFloat(x.price)).filter(n => n > 0))].sort((a, b) => a - b);
+      // The line's sale price, not the list price (Rodney 10-31, TK 828-1607: the black AF1 is $100 on Trendy Kicks and she said "$120").
+      const _pr = [...new Set(_hits.map(x => { const _ls = lineSale(sub, x.id, ctx.store); return _ls ? _ls.price : parseFloat(x.price); }).filter(n => n > 0))].sort((a, b) => a - b);
       if (_hits.length && _pr.length) {
         const _nm = _toks.join(' ');
         system += '\n\n(SYSTEM NOTE — the customer cannot see this: they asked the PRICE. Say it FIRST, from memory, like staff do: '
