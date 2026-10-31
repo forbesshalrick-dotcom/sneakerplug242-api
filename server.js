@@ -8580,7 +8580,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // The shoe may not be named in THIS reply ("The 9 runs big, so the 9 will fit you like an 8.5" - Rodney 10-29: "This doesn't make
       // any damn sense", TK Raynaldow 823-7550, black AF1). The last few lines of the chat count too.
       let _af1 = /\b(air\s*force|af\s*-?1|af1s?|forces?)\b/i.test(turnText);
-      if (!_af1) { try { _af1 = (convos.get(sub) || []).slice(-6).some(m => /\b(air\s*force|af\s*-?1|af1s?|forces?)\b/i.test(typeof m.content === 'string' ? m.content : JSON.stringify(m.content || ''))); } catch (_) {} }
+      // ...but only when THIS reply names no other model (Rodney 10-31, TK 376-8537: "That's the Air Max 97 Blue/White — the 11 wears like
+      // a 10.5" was cut as an AF1 because black AF1s were in the album a minute earlier, and he got "Air Forces run a little big").
+      const _otherModel = /\b(air\s*max|am\s*\d{2}|jordan|aj\s*\d|dunk|vapor\s*max|tn|new balance|nb|9060|1906|2000|asics|kayano|gel|vomero|scorpion|shox|yeezy|foam|crocs|samba|campus|gazelle|p-?6000|zoom)\b/i.test(turnText);
+      if (!_af1 && !_otherModel) { try { _af1 = (convos.get(sub) || []).slice(-6).some(m => /\b(air\s*force|af\s*-?1|af1s?|forces?)\b/i.test(typeof m.content === 'string' ? m.content : JSON.stringify(m.content || ''))); } catch (_) {} }
       const _up = _m ? parseFloat(_m[1]) - parseFloat(_m[2]) : 0;
       // AF1: a SMALLER size up to one down may "wear like" theirs (they run big); never a bigger one. Everything else: up to one up.
       if (_m && (_af1 ? (_up > 0 || _up < -1) : (_up < 0 || _up > 1))) {
