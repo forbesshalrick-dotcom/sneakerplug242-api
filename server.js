@@ -8599,7 +8599,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * photo, said "yes", and Kiki asked "Want the 11?"). Rodney: once they pick, tell the price and ask when they're available. */
     if (turnText && !staffName) {
       const _wq = turnText.match(/\b(?:want|need|grab|get)\s+(?:the|it in|them in|a|an)\s+(?:an?\s+)?(?:size\s+)?(\d{1,2}(?:\.5)?)\s*\?/i);
-      if (_wq && /^\s*(?:yes+|yeah|ya+|yea|yep|yup|ok(?:ay)?|bet|sure|deal|that one|i want (?:it|that|them|those)|i(?:'| a)?ll take (?:it|that|them))\b/i.test(String(userText || ''))) {
+      if (_wq && /^\s*(?:yes+|yeah|ya+|yea|yep|yup|ok(?:ay)?|bet|sure|deal|that one|i want (?:it|that|them|those|the)|i(?:'| a)?ll take (?:it|that|them|the)|give me|gimme|bring (?:me|it|the)|lemme get|let me get|send (?:me )?the)\b/i.test(String(userText || ''))) {   // "Give me the blue style" is a pick too (Rodney 10-31, TK MeekMobb 829-2345)
         const _said = (convos.get(sub) || []).filter(m => m && m.role === 'user').slice(-6)
           .map(m => typeof m.content === 'string' ? m.content : '').join(' ');
         const _n = _wq[1].replace('.', '\\.');
