@@ -231,7 +231,7 @@ const LINE_SALES = {
 // person wanted the af1 for awhile now" - TK Raynaldow 823-7550 was told $100 unasked). A chat earns it by saying sale/deal/promo/$100/ad,
 // or by sending the ad picture (a photo that matches the sale shoe). Everyone else hears the normal price.
 const saleAsked = new Map();   // sub -> when they asked for / showed the sale
-const SALE_ASK_RE = /\b(?:sale|on sale|deal|discount|promo|special|\$\s*100|100\s*(?:dollars|\$|bucks)|a hundred|hundred dollars|the ad|your ad|advert|flyer|the post|i saw (?:it|this|dat|that) (?:on|online))\b/i;
+const SALE_ASK_RE = /\b(?:on sale|sales?|deals?|discounts?|promos?|specials?|a hundred|hundred dollars|the ad|your ad|advert|flyer|the post|i saw (?:it|this|dat|that) (?:on|online))\b|\$\s*100\b|\b100\s*(?:\$|dollars|bucks)/i;
 function saleEligible(sub) { const t = saleAsked.get(String(sub)); return !!(t && Date.now() - t < 7 * 24 * 3600 * 1000); }
 function lineSale(sub, id, store) {
   if (!saleEligible(sub)) return null;
