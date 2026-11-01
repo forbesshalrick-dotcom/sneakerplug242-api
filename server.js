@@ -8627,7 +8627,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     /* 🌙 "WE ARE CLOSED" WHILE WE ARE OPEN (Rodney 10-31, TK Tøp 821-8505 at 9:30 PM: "Are u still delivering?" got "🌙 WE ARE CLOSED RIGHT
      * NOW ... tomorrow morning" - she copied the after-hours line from her instructions; the clock said open). Before 10 PM it is cut. */
-    if (turnText && !staffName && /we(?:'| a)?re closed|we are closed|closed right now|first thing tomorrow/i.test(turnText)) {
+    if (turnText && !staffName && /we(?:'| a)?re closed|we are closed|closed right now/i.test(turnText)) {
       const _h = new Date(Date.now() - 4 * 3600 * 1000).getUTCHours();
       if (_h >= 8 && _h < 22) {
         turnText = 'Yes, we\'re still delivering 🚗 we go until 10 PM tonight. Send me your location pin 📍 and the driver will bring it to you 👟';
