@@ -6922,7 +6922,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           && !/^(?:y+e+s+|yeah|ya+|yea|yep|yup|ye|ok(?:ay)?|sure|bet|no+|nah+|not|later|tomorrow|now|right now|ready|sent|done|available|busy|working|at work|i'?m|im\b|i am|home|here|outside|on my way|omw|when|what|how|which|thanks?|thank you|ty)\b/i.test(_ans)
           // "U could come" / "you can come" / "come now" is an answer about WHEN, not a place (Rodney 10-31, TK Rip Grammy 805-6484 got
           // "The driver will meet you at U could come 🚗" and a card with that as the address).
-          && (_meetAt || !/^(?:u|you|ya|yu|yall|y'?all|we|i)\b|\b(?:could|can|come|coming|will|send|sending|wait|hold on)\b/i.test(_ans))
+          && (_meetAt || !/^(?:u|you|ya|yu|yall|y'?all|we|i|if|when|ok(?:ay)?)\b|\b(?:could|can|come|coming|will|send|sent|sending|wait|hold on|accept(?:ed)?|location|pin)\b/i.test(_ans))   // "If accepted sent you my location" (Rodney 11-01, TK Kevin 422-0495)
           && !/\b(?:size|sz|\d{1,2}(?:\.5)?\s*(?:\b|$)|jordans?|forces?|af1|air ?max|nike|new balance|nb|asics|dunks?|vapor|tn|shoes?|sneakers?|kicks|price|how much|\$)/i.test(_ans)) {
         system += '\n\n📍 THEY JUST TOLD YOU WHERE TO DELIVER. You asked "' + _lastQ.replace(/\s+/g, ' ').slice(-90) + '" and they answered "' + _ans + '" - that is a PLACE (a cafe, store, school, street, area or landmark), the spot to bring the shoes. Never joke about it, never say it is not a shoe, never ask what they mean. Confirm it back in one short line ("Bet 🔥 the driver will meet you at ' + _ans + ' 🚗"), and call notify_manager with that place as the location (exactly what they wrote) so the order card goes out. Do not ask them for a pin as well.';
         record(req, { endpoint: 'place-as-location', sub, place: _ans.slice(0, 60) });
@@ -6937,6 +6937,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         system += '\n\n🚗 NO DRIVER HAS THIS ORDER YET. Their ' + (_oc2.shoe || 'order') + (_oc2.size ? ' (size ' + _oc2.size + ')' : '') + ' is still missing WHERE to meet them, so it has not gone to the drivers. Never say you will call the driver or that he is on the way. Read the chat: if they already told you a place (a street, a store, "the fries", a landmark), call notify_manager NOW with that place as the location and say "Got you 🙏 sending the driver to <place> now 🚗". If they never said where, apologise in one line and ask where to meet them.';
         record(req, { endpoint: 'driver-ask-no-driver', sub });
         if (Date.now() - (driverAskPingAt.get(String(sub)) || 0) > 30 * 60000) driverAskPingAt.set(String(sub), Date.now()) && queueForOwner('🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* — please facilitate\n📞 ' + (_oc2.phone ? '+' + _oc2.phone : sub) + '\n👟 ' + (_oc2.shoe || '?') + (_oc2.size ? ' — size ' + _oc2.size : '') + (_oc2.price ? '\n💰 ' + _oc2.price : '') + '\n📍 ⚠️ NO PIN - customer is asking where the driver is: "' + String(userText || '').slice(0, 80) + '" - open the chat for where they are' + (_oc2.store ? '\n🏬 ' + _oc2.store : ''), 'Customer waiting, no pin');
+      }
+    } catch (_) {}
+    /* 💵 A COUNTER-OFFER IS ANSWERED, NEVER SKIPPED (Rodney 11-01, TK Kevin 422-0495: "Yes for $90" on a $120 AF1 got "Please send me
+     * your location" - the driver was on the way to a sale at a price we never agreed; "No, I can't do 90"). */
+    try {
+      const _offer = customerWordsOnly(String(userText || '')).match(/(?:\$\s*(\d{2,3})\b|\b(?:for|at|do|take|give (?:you|u))\s+\$?(\d{2,3})\b|\b(\d{2,3})\s*(?:\$|dollars|bucks))/i);
+      if (!staffNameFor(req) && _offer) {
+        const _amt = parseInt(_offer[1] || _offer[2] || _offer[3], 10);
+        if (_amt >= 20 && _amt < 400) {
+          system += '\n\n💵 THEY NAMED A PRICE: $' + _amt + '. If that is LOWER than our price for the shoe they want (sale prices only as allowed above), your reply STARTS with "We can\'t do $' + _amt + ' 🙏 it\'s $<our price>" and only then carries on. Never accept or ignore a lower price, never ask for the location as if it was agreed, and never invent a discount - only the owner can agree to one.';
+          record(req, { endpoint: 'price-offer-seen', sub, amount: _amt });
+        }
       }
     } catch (_) {}
     if (FIT_QUESTION_RE.test(String(userText || ''))) {
