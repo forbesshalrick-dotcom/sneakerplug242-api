@@ -8625,6 +8625,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     }
+    /* 🌐 SHE NEVER MAKES UP A WEBSITE (Rodney 10-31, TK Abm V 448-2902 typed "Website" and got "trendy-kicks.com" - a domain we do not
+     * own, invented from the shop's name). Any web address that is not ours or a maps/WhatsApp/pay link becomes 242plug.com. */
+    if (turnText && !staffName) {
+      const _okHost = /(?:^|\.)(?:242plug\.com|google\.com|goo\.gl|wa\.me|whatsapp\.com|paypal\.com|manychat\.com|jsdelivr\.net|cloudinary\.com)$/i;
+      let _faked = '';
+      turnText = turnText.replace(/\b(?:https?:\/\/)?(?:www\.)?((?:[a-z0-9-]+\.)+(?:com|net|org|co|shop|store|bs|io|biz))\b(\/[^\s)]*)?/gi, (m, host) => {
+        if (_okHost.test(host)) return m;
+        _faked = host; return WEBSITE;
+      });
+      if (_faked) record(req, { endpoint: 'made-up-website-cut', sub, host: _faked });
+    }
     /* 🌙 "WE ARE CLOSED" WHILE WE ARE OPEN (Rodney 10-31, TK Tøp 821-8505 at 9:30 PM: "Are u still delivering?" got "🌙 WE ARE CLOSED RIGHT
      * NOW ... tomorrow morning" - she copied the after-hours line from her instructions; the clock said open). Before 10 PM it is cut. */
     if (turnText && !staffName && /we(?:'| a)?re closed|we are closed|closed right now/i.test(turnText)) {
