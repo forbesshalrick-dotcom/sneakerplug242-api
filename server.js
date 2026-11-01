@@ -4743,8 +4743,8 @@ const ORDER_CHECKIN_T = {
 };
 function nextNineAmAfter(ms) {
   // 9:00 Nassau (UTC-4) after the given moment
-  const d = new Date(ms - 4 * 3600000);                 // shift to Nassau wall-clock
-  const due = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 9, 0, 0) + 4 * 3600000;
+  const d = new Date(ms + nassauOffH(ms) * 3600000);                 // shift to Nassau wall-clock
+  const due = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 9, 0, 0) - nassauOffH(ms) * 3600000;
   return due > ms ? due : due + 24 * 3600000;
 }
 function armOrderCheckin(sub) {
@@ -5506,7 +5506,7 @@ let endOfDayList = null;    // { day, at, ns: [orderNumber, ...] }  index+1 = th
 try {
   if (DELIVERIES_FILE && require('fs').existsSync(DELIVERIES_FILE)) {
     const saved = JSON.parse(require('fs').readFileSync(DELIVERIES_FILE, 'utf8')) || {};
-    const today = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+    const today = new Date(Date.now() + nassauOffH() * 3600 * 1000).toISOString().slice(0, 10);
     if (saved.day === today) {
       endOfDayList = saved.endOfDay || null;
       deliveriesToday = Array.isArray(saved.rows) ? saved.rows : [];
@@ -5521,7 +5521,7 @@ function saveDeliveries() {
   clearTimeout(deliverySaveT);
   deliverySaveT = setTimeout(() => {
     try {
-      const day = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+      const day = new Date(Date.now() + nassauOffH() * 3600 * 1000).toISOString().slice(0, 10);
       require('fs').writeFileSync(DELIVERIES_FILE, JSON.stringify({ day, counter: deliveryCounter, rows: deliveriesToday, endOfDay: endOfDayList }));
     } catch (_) {}
   }, 800);
@@ -5935,8 +5935,18 @@ const SHIFT_HOURS_TXT = { morning: '8:00 AM - 3:00 PM', evening: '3:00 PM - 10:0
 const SHIFT_SENT_FILE = REMINDERS_FILE ? REMINDERS_FILE.replace('reminders.json', 'shift-sent.json') : null;
 let shiftSent = {};
 try { if (SHIFT_SENT_FILE && require('fs').existsSync(SHIFT_SENT_FILE)) shiftSent = JSON.parse(require('fs').readFileSync(SHIFT_SENT_FILE, 'utf8')) || {}; } catch (_) {}
-const NASSAU_OFFSET_H = -4; // Bahamas summer time (EDT). Winter is -5; adjust then.
-function nassauNow() { return new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000); }
+// 🕐 NASSAU'S REAL OFFSET, SUMMER OR WINTER (Rodney 11-01: the clocks went back and every "- 4 * 3600" put the shop an hour wrong -
+// closed at 9 PM, open at 7 AM). Read from the time-zone database, so it changes itself in March and November.
+function nassauOffH(t) {
+  try {
+    const at = new Date(t || Date.now()); at.setMilliseconds(0);
+    const wall = new Date(at.toLocaleString('en-US', { timeZone: 'America/Nassau', hour12: false }) + ' UTC');
+    const h = Math.round((wall.getTime() - at.getTime()) / 3600000);
+    return (h === -4 || h === -5) ? h : -5;
+  } catch (_) { return -5; }
+}
+const NASSAU_OFFSET_H = -5; // kept for old callers; use nassauOffH()
+function nassauNow() { return new Date(Date.now() + nassauOffH() * 3600 * 1000); }
 
 // 🚫 NO DELIVERIES TODAY (Rodney 2026-10-14 19:05: "no deliveries for today"). A day switch, not a prompt edit,
 // so the next time he says it nothing has to be deployed:
@@ -6168,7 +6178,7 @@ app.get('/post-picks', async (req, res) => {
 // with scheduled deliveries. Count only — no customer details leave this endpoint.
 app.get('/delivery-days', (req, res) => {
   const startLocal = nassauNow(); startLocal.setUTCHours(0, 0, 0, 0);
-  const dayStartUtc = startLocal.getTime() - NASSAU_OFFSET_H * 3600 * 1000;
+  const dayStartUtc = startLocal.getTime() - nassauOffH() * 3600 * 1000;
   const dayEndUtc = dayStartUtc + 24 * 3600 * 1000;
   const today = reminders.filter(r => r.at >= dayStartUtc && r.at < dayEndUtc).length;
   res.json({ today });
@@ -6876,7 +6886,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   }
   // Kiki needs the clock for the after-hours (11 PM+) morning-delivery rule.
   try {
-    const bah = new Date(Date.now() - 4 * 3600 * 1000); // Nassau summer time (UTC-4)
+    const bah = new Date(Date.now() + nassauOffH() * 3600 * 1000); // Nassau summer time (UTC-4)
     // 👟 Fit questions are a sales moment, not a disclaimer moment. The prompt rule above
     // covers this, but a model deciding it fresh each time is exactly how "pics only" ended up
     // working on one account and not the other — so when the words plainly ask about fit, the
@@ -8639,7 +8649,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 🌙 "WE ARE CLOSED" WHILE WE ARE OPEN (Rodney 10-31, TK Tøp 821-8505 at 9:30 PM: "Are u still delivering?" got "🌙 WE ARE CLOSED RIGHT
      * NOW ... tomorrow morning" - she copied the after-hours line from her instructions; the clock said open). Before 10 PM it is cut. */
     if (turnText && !staffName && /we(?:'| a)?re closed|we are closed|closed right now/i.test(turnText)) {
-      const _h = new Date(Date.now() - 4 * 3600 * 1000).getUTCHours();
+      const _h = new Date(Date.now() + nassauOffH() * 3600 * 1000).getUTCHours();
       if (_h >= 8 && _h < 22) {
         turnText = 'Yes, we\'re still delivering 🚗 we go until 10 PM tonight. Send me your location pin 📍 and the driver will bring it to you 👟';
         record(req, { endpoint: 'closed-while-open-cut', sub, hour: _h });
@@ -9839,10 +9849,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           result = { error: 'REFUSED — sales data is staff/owner only.' };
         } else {
           try {
-            const bahNow = new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000);
+            const bahNow = new Date(Date.now() + nassauOffH() * 3600 * 1000);
             const today = bahNow.toISOString().slice(0, 10);
             const sales = require('./shop').getSales().filter(x => {
-              const at = new Date(new Date(x.at).getTime() + NASSAU_OFFSET_H * 3600 * 1000);
+              const at = new Date(new Date(x.at).getTime() + nassauOffH() * 3600 * 1000);
               return !isNaN(at) && at.toISOString().slice(0, 10) === today;
             });
             result = {
@@ -14707,7 +14717,7 @@ app.get('/inbox/orders', (req, res) => {
   if (!consoleAuth(req, res)) return;
   let notes = [];
   try { notes = require('./shop').getNotes() || []; } catch (_) {}
-  const bahDay = (ts) => { try { return new Date(new Date(ts).getTime() - 4 * 3600 * 1000).toISOString().slice(0, 10); } catch (_) { return ''; } };
+  const bahDay = (ts) => { try { return new Date(new Date(ts).getTime() + nassauOffH(ts) * 3600 * 1000).toISOString().slice(0, 10); } catch (_) { return ''; } };
   const today = bahDay(Date.now());
   const orders = notes
     .filter(n => n && /NEW ORDER|DELIVERY READY|🛵/.test(n.text || '') && bahDay(n.createdAt) === today)

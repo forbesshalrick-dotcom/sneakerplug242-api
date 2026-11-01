@@ -840,7 +840,7 @@ function recordStaffSale(shoeId, size, by, price, label, baseSizes) {
   // Write BOTH dialects: the bot's fields (at/shoeLabel/by) AND the website sales
   // page's native fields (date/dateStr/timeStr/name/soldBy, Bahamas clock) so a
   // Kiki-reported sale counts in TODAY'S REGISTER immediately (2026-07-16).
-  const bah = new Date(Date.now() - 4 * 3600 * 1000);
+  const bah = new Date(Date.now() + nassauOffH() * 3600 * 1000);
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dateStr = MONTHS[bah.getUTCMonth()] + ' ' + bah.getUTCDate() + ', ' + bah.getUTCFullYear();
   let hr = bah.getUTCHours(); const ampm = hr >= 12 ? 'PM' : 'AM'; hr = hr % 12 || 12;
@@ -1018,8 +1018,18 @@ async function waSend(phoneDigits, text, name) {
 // when she's at work only." The call site had said "every on-duty staff number" since it
 // was written, but blastEmployees never looked at the rota, so every delivery pinged
 // everyone around the clock. Now it reads the shared schedule (see dayRoster / state.shifts).
-const NASSAU_OFFSET_H = -4;   // Bahamas summer time (EDT). Winter is -5 — same note as server.js.
-function nassauNow() { return new Date(Date.now() + NASSAU_OFFSET_H * 3600 * 1000); }
+// 🕐 NASSAU'S REAL OFFSET, SUMMER OR WINTER (Rodney 11-01: the clocks went back and every "- 4 * 3600" put the shop an hour wrong -
+// closed at 9 PM, open at 7 AM). Read from the time-zone database, so it changes itself in March and November.
+function nassauOffH(t) {
+  try {
+    const at = new Date(t || Date.now()); at.setMilliseconds(0);
+    const wall = new Date(at.toLocaleString('en-US', { timeZone: 'America/Nassau', hour12: false }) + ' UTC');
+    const h = Math.round((wall.getTime() - at.getTime()) / 3600000);
+    return (h === -4 || h === -5) ? h : -5;
+  } catch (_) { return -5; }
+}
+const NASSAU_OFFSET_H = -5; // kept for old callers; use nassauOffH()
+function nassauNow() { return new Date(Date.now() + nassauOffH() * 3600 * 1000); }
 function currentSlot(d) {
   const h = d.getUTCHours();                 // shifted above, so this IS the Nassau hour
   if (h >= 8 && h < 15) return 'morning';    // 8am–3pm
@@ -1904,7 +1914,7 @@ function mount(app) {
     const DBG = process.env.DEBUG_KEY || 'sp242-dbg-7a013111c1a7ae7603418f01';
     if (req.query.key !== DBG) return res.status(403).json({ error: 'bad key' });
     let at = null;
-    if (req.query.at) { const d = new Date(req.query.at); if (!isNaN(d)) at = new Date(d.getTime() + NASSAU_OFFSET_H * 3600 * 1000); }
+    if (req.query.at) { const d = new Date(req.query.at); if (!isNaN(d)) at = new Date(d.getTime() + nassauOffH() * 3600 * 1000); }
     const n = at || nassauNow();
     const nums = state.employees || {};
     const rostered = onDutyNames(n);
