@@ -8625,6 +8625,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     }
+    /* 🌙 "WE ARE CLOSED" WHILE WE ARE OPEN (Rodney 10-31, TK Tøp 821-8505 at 9:30 PM: "Are u still delivering?" got "🌙 WE ARE CLOSED RIGHT
+     * NOW ... tomorrow morning" - she copied the after-hours line from her instructions; the clock said open). Before 10 PM it is cut. */
+    if (turnText && !staffName && /we(?:'| a)?re closed|we are closed|closed right now|first thing tomorrow/i.test(turnText)) {
+      const _h = new Date(Date.now() - 4 * 3600 * 1000).getUTCHours();
+      if (_h >= 8 && _h < 22) {
+        turnText = 'Yes, we\'re still delivering 🚗 we go until 10 PM tonight. Send me your location pin 📍 and the driver will bring it to you 👟';
+        record(req, { endpoint: 'closed-while-open-cut', sub, hour: _h });
+      }
+    }
     /* 🤷 "EVERYTHING SORTED" WITH NOTHING DONE (Rodney 10-30, OSC 1080…: he called three times, wrote "What's gern on bro", then sent a
      * 16-second voice note - and got "My bad bro! You good — everything sorted 👟". Nothing had been sorted; he never heard what we have.)
      * A claim that it is all handled, with no order, driver or location in the same reply, becomes a real question. */
@@ -9064,7 +9073,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         // Remember the customer's size (a single concrete size search = their size) so we can
         // reuse it later without re-asking. Skip "all"/ranges/matching (sizes array).
-        if (p.size != null && String(p.size).trim() !== '' && !/all/i.test(String(p.size)))
+        // ...unless the CUSTOMER typed a different size in the last 12 h: their own words win over a search she ran (Rodney 10-31, TK Tøp
+        // 821-8505 said "size 11"; she searched the Asics in 5.5, that became "his size", and every reply plus the order card said 5.5).
+        const _own = custSize.get(sub);
+        const _ownWins = !!(_own && _own.fromCustomer && Date.now() - (_own.ts || 0) < 12 * 3600 * 1000 && parseFloat(_own.size) !== parseFloat(p.size));
+        if (!_ownWins && p.size != null && String(p.size).trim() !== '' && !/all/i.test(String(p.size)))
           try { custSize.set(sub, { size: String(p.size).trim(), ts: Date.now() }); saveConvos(); } catch (_) {}
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
