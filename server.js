@@ -6896,6 +6896,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // answer is put in front of her again for THIS turn.
     try {
       if (SALE_ASK_RE.test(customerWordsOnly(String(userText || '')))) saleAsked.set(String(sub), Date.now());
+      // Came in from the ad = saw the $100 (Rodney 11-01: "100 sale he came in from the ad", TK Kevin 422-0495). WhatsApp opens an ad chat
+      // with "Hello! Can I get more info on this?" - that opener anywhere in the chat earns the sale price.
+      try { if (!saleEligible(sub) && (convos.get(sub) || []).concat([{ role: 'user', content: String(userText || '') }]).some(m => m && m.role === 'user' && /can i get more info on this/i.test(typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '')))) saleAsked.set(String(sub), Date.now()); } catch (_) {}
       const _salesAll = LINE_SALES[ctx.store || ''] || {};
       if (!saleEligible(sub) && Object.keys(_salesAll).length) system += '\n\n🏷️ NORMAL PRICES ONLY IN THIS CHAT: ' + Object.keys(_salesAll).map(id => _salesAll[id].name + ' is $' + _salesAll[id].was).join('; ') + '. There is a sale price, but it is ONLY for a customer who asks for the sale/deal or sends the ad - never offer it, never mention it first.';
       if (Object.keys(_salesAll).length) system += '\n\n🏷️ THE SALE IS ONLY ON: ' + Object.keys(_salesAll).map(id => _salesAll[id].name).join('; ') + '. Every other shoe - the WHITE Air Force 1 included - is full price, even when the customer says "I see you have it for $100" (Rodney 10-31, TK Rip Grammy 805-6484 got the white AF1 at $100). Say so in one line: "The $100 deal is on the all-black Air Force 1 👟 the white are $120".';
