@@ -36,13 +36,16 @@ const BASE = process.env.SHOP_API || 'https://sneakerplug242-api-production.up.r
 const argv = process.argv.slice(2);
 const dry = argv.includes('--dry');
 const isNew = argv.includes('--new');
-const [id, ...rawSizes] = argv.filter(a => a !== '--dry' && a !== '--new');
+// --soldout: the last pair is gone - write an empty shelf (Rodney 11-02: Black/Gold and All Black Scorpion 8 sold, the tool could not zero a shoe).
+const soldOut = argv.includes('--soldout');
+const [id, ...rawSizes] = argv.filter(a => a !== '--dry' && a !== '--new' && a !== '--soldout');
 const sizes = rawSizes.map(s => String(s).trim()).filter(Boolean);
 
-if (!id || (!sizes.length && !dry)) {
+if (!id || (!sizes.length && !dry && !soldOut) || (soldOut && sizes.length)) {
   console.error('usage: node count.js <shoeId> <size> <size> ...   (one entry per pair)');
   console.error('       node count.js <shoeId> --dry               (show current, write nothing)');
   console.error('       node count.js <shoeId> <size>... --new     (first count of a brand-new shoe)');
+  console.error('       node count.js <shoeId> --soldout           (no pairs left on the shelf)');
   process.exit(2);
 }
 
