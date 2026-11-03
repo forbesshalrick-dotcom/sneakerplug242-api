@@ -10449,7 +10449,9 @@ function handleChat(req, res) {
       record(req, { endpoint: 'staff-unmute', sub });
       return;
     }
-    if (!imageUrl && !audioUrl && (/^agent\b/i.test(t) || /^[.\-]\s*\S/.test(t))) {
+    // Only the word "agent" now. A leading "." or "-" muted real customers (Rodney 11-03, TK 467-4292 wrote ".black" with his order
+    // and got nothing back) - the boss's own typing never reaches this server through ManyChat anyway.
+    if (!imageUrl && !audioUrl && /^agent\b/i.test(t)) {
       chatMuted.set(sub, Date.now() + MUTE_MS);
       record(req, { endpoint: 'staff-quiet', sub, q: t.slice(0, 30) });
       return; // silent — Kiki never replies to the boss's own message
