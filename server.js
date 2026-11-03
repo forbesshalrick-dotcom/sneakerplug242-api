@@ -1148,7 +1148,7 @@ function isYcloudSub(sub) {
   if (ycloudStore.has(s)) return true;
   try {
     const sidx = inboxSubIndex.get(s); const t = sidx ? inboxThreads.get(sidx) : null;
-    if (t && /^(Foot Fetish|Luxury Boutique|Nassau Shoe Lacky)$/.test(String(t.account || ''))) { ycloudStore.set(s, String(t.account)); saveYcloudStore(); return true; }
+    if (t && /^(Foot Fetish|Luxury Boutique|Shoe Lacky)$/.test(String(t.account || ''))) { ycloudStore.set(s, String(t.account)); saveYcloudStore(); return true; }
   } catch (_) {}
   return false;
 }
@@ -13658,8 +13658,8 @@ app.post('/ycloud/webhook', async (req, res) => {
     // Which shop a YCloud number answers as. 636-7431 was connected 2026-10-13 under the WhatsApp name
     // "Luxury Boutique" (its own WABA, BM "Sneaker crew"); customers see that name, so Kiki uses it too.
     // (845) 403-1330 joined 2026-11-03 by coexistence under the WhatsApp name "Nassau Shoe Lacky" (WABA 1083750004256992)
-    // after Meta refused to reconnect 636-7431; customers see that name, so Kiki uses it.
-    const YCLOUD_SHOPS = { '4324406': 'Foot Fetish', '6367431': 'Luxury Boutique', '4031330': 'Nassau Shoe Lacky' };
+    // after Meta refused to reconnect 636-7431; Rodney 11-03: Kiki calls it just "Shoe Lacky".
+    const YCLOUD_SHOPS = { '4324406': 'Foot Fetish', '6367431': 'Luxury Boutique', '4031330': 'Shoe Lacky' };
     const store = YCLOUD_SHOPS[String(toNum || '').slice(-7)] || waStoreFor(null);
     try { ycloudStore.set(from, store); saveYcloudStore(); } catch (_) {}
     try { if (toNum) ycloudFrom.set(from, String(toNum)); } catch (_) {}
@@ -13736,7 +13736,7 @@ async function handleYcloudCallEvent(req, body) {
     const up = await Promise.race([entry.wa.connected, new Promise(r => setTimeout(() => r(false), 8000))]);
     if (!up) { record(req, { endpoint: 'call-media-failed', wacid: c.wacid, pre }); await ycloudCallApi('reject', { phoneId: c.phoneId, wacid: c.wacid }).catch(() => {}); await endCall(c.wacid, 'media-failed'); return; }
     const acc = await ycloudCallApi('accept', { phoneId: c.phoneId, wacid: c.wacid, sdpType: 'answer', sdp: entry.wa.answerSdp });
-    const store = (to.endsWith('4324406') ? 'Foot Fetish' : to.endsWith('6367431') ? 'Luxury Boutique' : to.endsWith('4031330') ? 'Nassau Shoe Lacky' : 'Foot Fetish');
+    const store = (to.endsWith('4324406') ? 'Foot Fetish' : to.endsWith('6367431') ? 'Luxury Boutique' : to.endsWith('4031330') ? 'Shoe Lacky' : 'Foot Fetish');
     entry.retell = await bridge.createRetellLeg({ apiKey: callCfg.retellKey, agentId: callCfg.agentId,
       metadata: { line: store, from, wacid: c.wacid, via: 'ycloud-calling' }, onAgentPcm: pcm => entry.wa && entry.wa.sendPcm(pcm) });
     entry.timer = setTimeout(async () => { await ycloudCallApi('terminate', { phoneId: c.phoneId, wacid: c.wacid }).catch(() => {}); await endCall(c.wacid, 'max-minutes'); }, (callCfg.maxMinutes || 10) * 60000);
