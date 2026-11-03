@@ -8719,8 +8719,34 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             turnText = 'Okay, just let me know when you\'re ready 👟';
             record(req, { endpoint: 'available-now-no', sub });
           } else if (/^(?:y+e+s+|yeah|ya+|yea|yep|yup|ye|ok(?:ay)?|sure|bet|now|right now|i am|i'?m (?:available|free|home|here|ready|good)|ready|come (?:now|through)|available)\b/i.test(_cw)) {
+            /* 📍 A PIN ALREADY IN TODAY'S CHAT IS NOT ASKED FOR AGAIN (Rodney 11-03, TK Idk 428-1206: pin sent 7:36 AM for a 4 PM drop,
+             * at 5:07 PM "Yes" to "available now?" got "Please send me your location" again). Use the newest pin from the last 24 h. */
+            let _pinUrl = '';
+            try {
+              const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+              const _since = Date.now() - 24 * 3600 * 1000;
+              for (const m of ((_th && _th.msgs) || []).slice().reverse()) {
+                if (!m || (m.ts || 0) < _since) break;
+                const _u = (m.sender === 'customer' && m.loc) || ((m.sender === 'system' || m.sender === 'customer') && ((String(m.text || '').match(/https?:\/\/maps\.google\.com\/\?q=[-0-9.,]+/) || [])[0]));
+                if (_u) { _pinUrl = String(_u); break; }
+              }
+              if (!_pinUrl) { const _pr = pinReceived.get(String(sub)); if (_pr && _pr.maps && Date.now() - (_pr.at || 0) < 24 * 3600 * 1000) _pinUrl = _pr.maps; }
+            } catch (_) {}
+            if (_pinUrl) {
+              turnText = 'Bet 🔥 We got your location from earlier 📍 I\'ve passed it to the team — the driver will call you when he\'s close 🚗 If you moved, just send the new one 👟';
+              record(req, { endpoint: 'available-now-yes-pin-on-file', sub, pin: _pinUrl });
+              try {
+                const _th2 = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+                const _card = ((_th2 && _th2.msgs) || []).slice().reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 24 * 3600 * 1000);
+                const _ln = String((_card && _card.text) || '').split('\n');
+                const _shoe = (_ln.find(l => /👟/.test(l)) || '').trim(), _money = (_ln.find(l => /💰/.test(l)) || '').trim();
+                queueForOwner('🛵 *READY NOW — GO*\n👤 ' + (ctx && ctx.name ? ctx.name : 'Customer') + ' (' + (getPhone(req) || sub) + ', ' + (ctx && ctx.store || '') + ')\n'
+                  + (_shoe ? _shoe + '\n' : '') + (_money ? _money + '\n' : '') + '📍 ' + _pinUrl + ' (their pin from earlier today)\n💬 "' + _cw.slice(0, 60) + '"', 'Ready now (pin on file)');
+              } catch (_) {}
+            } else {
             turnText = 'Please send me your location 📍 the driver can come right now 🚗\n\nTap 📎 (or ＋) → Location → Send your current location — then text me "sent" so I know it came through 👟';
             record(req, { endpoint: 'available-now-yes', sub });
+            }
           }
         }
       }
