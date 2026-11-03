@@ -575,8 +575,8 @@ function render() {
     return '<div class="dstep' + (st.done ? ' on' : '') + '" data-step="' + i + '">' +
       (i ? '<span class="dline"></span>' : '') +
       '<span class="ddot">' + (st.done ? '✓' : '') + '</span>' +
-      '<span class="nm">' + ed('steps.' + i + '.label', st.label, '', 'step') + '</span>' +
-      '<small>' + ed('steps.' + i + '.date', prettyDate(st.date), '', 'date') + '</small></div>';
+      '<span class="nm">' + ed('steps.' + i + '.label', st.label, 'lw', 'step') + '</span>' +
+      '<small>' + ed('steps.' + i + '.date', prettyDate(st.date), 'lw', 'date') + '</small></div>';
   }).join('');
 
   var cards = inv.items.map(function (it, i) {
