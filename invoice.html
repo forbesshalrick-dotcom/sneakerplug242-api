@@ -59,6 +59,9 @@ header.top{background:var(--paper);border-bottom:1px solid var(--line);position:
 [contenteditable]:hover{background:#f1f5fb}
 [contenteditable]:focus{background:#e8f0fe;box-shadow:0 0 0 2px #bcd4fb}
 [contenteditable]:empty:before{content:attr(data-ph);color:#aab1bd}
+/* A cleared delivery-step date or name stays CLEAN - no grey "date"/"step" word, ever (Rodney 11-03: "when I move the date, the word
+ * date still remains. It's supposed to be clean"). An invisible blank keeps the spot tappable so it can be typed again. */
+.dstep [contenteditable]:empty:before{content:"\00a0\00a0\00a0\00a0\00a0\00a0";color:transparent}
 
 .pvtop{display:flex;flex-direction:column;gap:14px}   /* stacked at every width - side by side
    let the cursive thank-you run into DELIVERY INFO on a wide screen */
