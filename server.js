@@ -7783,6 +7783,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       turnText = '';                    // it did it twice — say nothing rather than leak
     }
+    /* 📍 NO PIN = NO DRIVER TALK (Rodney 10-28: nothing about the team, the driver or a call until they shared a pin. Broken again
+     * 11-03, FF Pengouin 429-2588: no pin, only "Podoleo Street", and he was told "Your location is already sent to the team" and
+     * "Driver's close — he'll be there before 3" - both made up; he waited for 3 PM work). The line is replaced, not re-asked. */
+    if (turnText && !staffName && /\b(location is already sent|already (got|have) your location|driver'?s close|driver is close|he'?ll be (there|right (there|with you))|on (the|his|our|my) way|passed (it|this) (on )?to the team|sent this (straight )?to the team|they'?ll (give you a )?call (you )?when|call the driver|see how far he is)/i.test(turnText)) {
+      try {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _since = Date.now() - 24 * 3600 * 1000;
+        const _hasPin = pinReceived.has(String(sub)) || ((_th && _th.msgs) || []).some(m => m && (m.ts || 0) > _since
+          && ((m.sender === 'customer' && /Shared a location|maps\.google|maps\.app/i.test(m.text || ''))
+            || (m.sender === 'system' && /DELIVERY READY[\s\S]*https?:\/\/maps\./.test(m.text || ''))));
+        if (!_hasPin) {
+          record(req, { endpoint: 'no-pin-driver-talk-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
+          turnText = 'Just need your location pin so the driver knows exactly where to bring it 📍 Tap 📎 (or ＋) → Location → Send your current location';
+        }
+      } catch (_) {}
+    }
     /* 📏 SIZE-CLAIM GUARD (2026-10-13, the 10-04 failure again: "we've got it in a 10 and an 11" for a
      * shoe that comes in 5.5/6.5/7). A size she names in words is checked against the shelf for the
      * shoe in play before it goes out; a wrong one is blocked and she is told the real sizes. Guards
