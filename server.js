@@ -7282,9 +7282,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // A photo of the sale shoe IS the ad being shown to us: that customer gets the sale price (Rodney 10-31).
           try { if (image && ((LINE_SALES[ctx.store || ''] || {})[String(_pickSh.id)])) saleAsked.set(String(sub), Date.now()); } catch (_) {}
           const _lead = _hasTheirs ? 'Yeah we got the ' + _csz0.size + ' in that 🔥 That\'s the ' + displayName(_pickSh) + ', it\'s $' + adPrice(_pickSh, ctx.store, sub) + ' 👇'
-              : _szKnown ? 'We don\'t have the ' + _csz0.size + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + adPrice(_pickSh, ctx.store, sub) + ' — it comes in ' + (sizesOf(_pickSh) || 'other sizes') + ' 👇'
+              : _szKnown ? 'We don\'t have the ' + _csz0.size + ' in that one right now 🙏 That\'s the ' + displayName(_pickSh) + ', it\'s $' + adPrice(_pickSh, ctx.store, sub) + ' — it comes in ' + (sizesOf(_pickSh) || 'other sizes') + '.'
               : 'That\'s the ' + displayName(_pickSh) + ' 🔥 it\'s $' + adPrice(_pickSh, ctx.store, sub) + ' — these are the sizes we got 👇';
-          const _rr = await sendShoePhotos(sub, [_pickSh.id], token, null, _lead, false, false, ctx.turnAt || 0, _szKnown).catch(() => null);
+          /* 🚫 NOT IN THEIR SIZE = NO PICTURE (Rodney 11-03, TK 824-6487: "said it was not available but still sent it" - a Jordan 5
+           * Black University Blue card went under "We don't have the 8 in that one"). They already have the picture; the line alone answers. */
+          const _noSize = _szKnown && !_hasTheirs;
+          const _rr = _noSize
+            ? await sendChunk(sub, [{ type: 'text', text: _lead }], token).then(() => ({ sent: 1 })).catch(() => null)
+            : await sendShoePhotos(sub, [_pickSh.id], token, null, _lead, false, false, ctx.turnAt || 0, _szKnown).catch(() => null);
           if (_rr && _rr.sent > 0) {
             photosSentRun = true; sentToCustomer = true; turnSentIds.add(String(_pickSh.id)); photoCompareSent = true;
             record(req, { endpoint: 'photo-shoe-sent-by-server', sub, store: ctx.store || '', shoe: String(_pickSh.id), said: _ours.slice(0, 80) });
@@ -7292,8 +7297,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             try { tableAdd(sub, { name: displayName(_pickSh), id: _pickSh.id, price: _pickSh.price }); } catch (_) {}
             const _lu = history[history.length - 1];
             if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') {
-              _lu.content[0].text = '(✅ ALREADY SENT TO THEM, IN THIS ORDER: "' + _lead + '", then the picture of the ' + displayName(_pickSh)
-                + (_szKnown ? '' : ' with its sizes printed under it') + '. Do NOT search, do NOT send photos, and do NOT name it again. '
+              _lu.content[0].text = '(✅ ALREADY SENT TO THEM: "' + _lead + '"' + (_noSize ? ' (no picture - it is not in their size)' : ', then the picture of the ' + displayName(_pickSh)
+                + (_szKnown ? '' : ' with its sizes printed under it')) + '. Do NOT search, do NOT send photos, and do NOT name it again. '
                 + 'If their message asked nothing else, reply with nothing at all. If it did ask something (price, delivery, a size), answer only that in one short line.)\n\n' + _lu.content[0].text;
             }
           }
