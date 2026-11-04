@@ -8704,6 +8704,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = (_keep.length > 30 ? _keep + ' ' : 'Sorry for the wait 🙏 ') + 'What can I get for you? 👟';
       record(req, { endpoint: 'sorted-claim-cut', sub });
     }
+    /* 📸 "Pic" AFTER "Do you want some pictures?" IS THE ANSWER, NOT A PHOTO COMING (Rodney 11-04, Shoe Lacky Keith 437-6791: the welcome
+     * asked "something specific OR pictures?", he wrote "Pic", and got "Send it through! 👀" as if he were about to send one). */
+    try {
+      if (turnText && !staffName && !image) {
+        const _lastK = (convos.get(sub) || []).filter(m => m && m.role === 'assistant').slice(-1).map(m => typeof m.content === 'string' ? m.content
+          : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')).join(' ');
+        const _cw2 = customerWordsOnly(String(userText || '')).trim();
+        if (/want some pictures\?/i.test(_lastK) && /^(?:(?:yes|yeah|ya|yh|ok|okay|sure)[\s,!.]*)?(?:the\s+)?(?:pics?|pix|pictures?|photos?|send (?:me )?(?:some |the )?(?:pics?|pictures?|photos?)|(?:pics?|pictures?|photos?) (?:please|pls|plz))[\s!.👀🙏]*$/i.test(_cw2)) {
+          turnText = 'What size you looking for? 👟';
+          record(req, { endpoint: 'pic-means-pictures-option', sub });
+        }
+      }
+    } catch (_) {}
     /* 🙋 "ARE YOU AVAILABLE NOW?" → THE HUMAN ANSWER (Rodney 10-23, writing it himself to TK 525-0217: "Are you available now? If he
      * answers yes … please send the location for me, the driver can come right now. If the answer is no … okay, just let me know when
      * you're ready." - "I'm giving you good human reactions so you can put that in code"). */
