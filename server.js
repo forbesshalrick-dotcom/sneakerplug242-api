@@ -8750,6 +8750,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* 🤷 "NOT THOSE" = ASK WHICH ONE (Rodney 11-05, Shoe Lacky Lunn Steven 525-3514: "Not those" got "The Nike Air Max 95 up there is
+     * $130 and comes in your size", then a green Air Max 90 he never asked for - "when customer says that we need to ask which 1",
+     * "which color was it"). Their "no" to what we showed is answered with the question, never with another pick. */
+    try {
+      if (turnText && !staffName && !image) {
+        const _cw3 = customerWordsOnly(String(userText || '')).trim();
+        if (/^(?:nah+|no+)?[\s,.]*(?:not?|nah) (?:those|that|this|these|them|dem|it)(?: (?:ones?|shoes?|pairs?|colou?rs?))?[\s!.🙏]*$|^(?:wrong|different) (?:one|ones|shoe|shoes|colou?r)[\s!.]*$|^(?:not (?:the )?(?:one|ones) i (?:want|meant|asked))/i.test(_cw3)) {
+          turnText = 'Which one you looking for? 🙏 What colour is it? Send me a pic of it and I\'ll check if we got it in your size 👟';
+          record(req, { endpoint: 'not-those-asked-which', sub });
+        }
+      }
+    } catch (_) {}
     /* 🙋 "ARE YOU AVAILABLE NOW?" → THE HUMAN ANSWER (Rodney 10-23, writing it himself to TK 525-0217: "Are you available now? If he
      * answers yes … please send the location for me, the driver can come right now. If the answer is no … okay, just let me know when
      * you're ready." - "I'm giving you good human reactions so you can put that in code"). */
