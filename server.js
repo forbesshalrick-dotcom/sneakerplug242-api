@@ -4076,6 +4076,8 @@ function sizeFromCustomerWords(text) {
     .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ')
   // "size 7:5" / "7,5" is a 7.5 typed fast (Tami 10-14 got a 7 album's worth of guesswork from it).
   .replace(/\b(\d{1,2})[:,]5\b/g, '$1.5')
+  // "8/2 to 9" is 8 and a half typed short (Rodney 11-04, TK Care Less Lees 636-5616: asked his size three more times after it).
+  .replace(/\b([4-9]|1[0-5])\/2\b/g, '$1.5')
   // 🗣️ A SPOKEN SIZE IS STILL A SIZE. (Rodney 2026-09-23: a customer sent a voice note -
   // "That's the same one, if you get size nine or ten" - and was asked his size twice more
   // afterwards.) Every pattern below reads DIGITS, and Whisper writes spoken numbers out as
@@ -8495,6 +8497,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'which-shoe-q-replaced', sub, store: ctx.store || '', was: turnText.slice(0, 120), now: _q });
       turnText = _q;
     }
+    /* 📸 THEY JUST GAVE THEIR SIZE = SEND THE ALBUM, NOT "WHICH SHOE?" (Rodney 11-04, TK Care Less Lees 636-5616: "Price" -> "8/2 to 9"
+     * -> voice "eight and a half, ten, nine" got "Which shoe you want in those sizes — the 9060 or the Air Force 1?" and no pictures;
+     * "kiki stop sending pics?"). The size rule says everyone who gives a size gets the whole lineup. */
+    try {
+      if (turnText && !staffName && knownSize && !photosSentRun && !_picsLately && !image && !pinnedPickIds.size
+          && /\b(?:which|what)\s+(?:shoe|shoes|one|style|model|kind)\b/i.test(String(turnText))
+          && sizeFromCustomerWords(customerWordsOnly(userText))) {
+        const _szs = String(knownSize).split('/').map(x => x.trim()).filter(Boolean);
+        const _ids = searchInventory({ sizes: _szs, size_match: 'any' }).map(r => r.id);
+        if (_ids.length) {
+          const _lead = 'This is what we have in ' + (_szs.length > 1 ? 'your sizes' : _szs[0]) + ' rite now 👇 Ready to Order!';
+          const _rr = await sendShoePhotos(sub, _ids, token, null, _lead, false, false, ctx.turnAt || 0, true).catch(() => null);
+          if (_rr && _rr.sent > 0) {
+            photosSentRun = true; sentToCustomer = true;
+            record(req, { endpoint: 'size-given-album-not-which-shoe', sub, sizes: _szs.join('/'), n: _ids.length, was: String(turnText).slice(0, 100) });
+            turnText = '';
+          }
+        }
+      }
+    } catch (e) { try { record(req, { endpoint: 'size-given-album-error', sub, error: String(e).slice(0, 90) }); } catch (_) {} }
     /* ✌️ THEY ALREADY GAVE BOTH SIZES (Rodney 10-16, Lamar Curling TK: "10 1/2 - 11", picked the Wet Cement, got "You want the
      * Air Jordan 4 Retro (Wet Cement) in size 10.5 or 11?" — "The guy already asked for 10 and a half or 11. Why ask him again").
      * When the customer named both sizes, the question is replaced by bringing both to try on. */
