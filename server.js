@@ -7785,6 +7785,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       turnText = '';                    // it did it twice — say nothing rather than leak
     }
+    /* 🚨 THE THIEF NUMBERS GET SCOTIABANK, NEVER CIBC (Rodney 11-05: "send Scotiabank, not cibc because that he already has" - "if he
+     * ask for the bank info"). 478-2955 / 466-6095 took $930 on 10-20 with CIBC receipts that never landed. Only when they ask: any CIBC
+     * block in a reply to them becomes the Scotiabank block. */
+    try {
+      const _thD = String(getPhone(req) || '').replace(/\D/g, '') + '|' + String(sub || '');
+      if (turnText && ['2424782955', '2424666095'].some(n => _thD.includes(n)) && /201727284|\bcibc\b|first ?caribbean/i.test(turnText)) {
+        turnText = turnText.replace(/CIBC[^\n]*\n?Account #:\s*201727284\s*\n?Transit #:\s*09786/gi, bankBlock('scotia').split('\nName:')[0])
+          .replace(/201727284/g, '004005367').replace(/09786/g, '70045').replace(/\bCIBC\b|First ?Caribbean/gi, 'Scotiabank');
+        record(req, { endpoint: 'thief-got-scotia-not-cibc', sub });
+      }
+    } catch (_) {}
     /* 📍 NO PIN = NO DRIVER TALK (Rodney 10-28: nothing about the team, the driver or a call until they shared a pin. Broken again
      * 11-03, FF Pengouin 429-2588: no pin, only "Podoleo Street", and he was told "Your location is already sent to the team" and
      * "Driver's close — he'll be there before 3" - both made up; he waited for 3 PM work). The line is replaced, not re-asked. */
