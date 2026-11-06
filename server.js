@@ -9290,6 +9290,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       })()) {
         result = { sent: 0, skipped: 'Those ids did not come from any search in this chat - nothing was sent. Call search_inventory for what they asked (model + their size) and send_photos with ONLY the ids it returns. If the model does not come in their size, say the closest size we have in one line.' };
       }
+      /* 📏 NO SIZE YET = NO ALBUM (Rodney 11-06, TK Strachanboy 2134176263: "why send so many pics thats not in his size?" - "In all black"
+       * with no size known got five dark 95s in 7s and 8s; he wears a 10). More than two shoes without their size is replaced by the
+       * size question; the album comes once the size is in. One or two shoes (the one they pointed at) may still go. */
+      else if (tu.name === 'send_photos' && !staffName && !knownSize && !(tu.input || {}).size
+        && [].concat((tu.input || {}).ids || [], ...(Array.isArray((tu.input || {}).groups) ? tu.input.groups.map(g => (g && g.ids) || []) : [])).length > 2) {
+        record(req, { endpoint: 'album-held-no-size', sub, n: [].concat((tu.input || {}).ids || []).length });
+        result = { sent: 0, skipped: 'NOT SENT - you do not know their size yet. Ask "What size you need? 👟" in one short line and send nothing else; the album goes once they tell you their size.' };
+      }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         undoWomensDoubleConvert(sub, inp, record, req);
