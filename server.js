@@ -6928,6 +6928,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // "U could come" / "you can come" / "come now" is an answer about WHEN, not a place (Rodney 10-31, TK Rip Grammy 805-6484 got
           // "The driver will meet you at U could come 🚗" and a card with that as the address).
           && (_meetAt || !/^(?:u|you|ya|yu|yall|y'?all|we|i|if|when|ok(?:ay)?)\b|\b(?:could|can|come|coming|will|send|sent|sending|wait|hold on|accept(?:ed)?|location|pin)\b/i.test(_ans))   // "If accepted sent you my location" (Rodney 11-01, TK Kevin 422-0495)
+          // A greeting is not a place (Rodney 11-06, OSC 💯 544-5188: "Hey" got "the driver will meet you at Hey 🚗" and a card with 📍 Hey).
+          && !/^(?:hey+|hi+|hello+|helo|yo+|sup|wassup|wa ?gwan|good ?(?:morning|afternoon|evening|night|day)|morning|gm|gn|thanks?|thank you|ty|cool|cool cool|alright|ight|aight|nice|lol|ok cool)[\s!.,🙏👋]*$/i.test(_ans)
           && !/\b(?:size|sz|\d{1,2}(?:\.5)?\s*(?:\b|$)|jordans?|forces?|af1|air ?max|nike|new balance|nb|asics|dunks?|vapor|tn|shoes?|sneakers?|kicks|price|how much|\$)/i.test(_ans)) {
         system += '\n\n📍 THEY JUST TOLD YOU WHERE TO DELIVER. You asked "' + _lastQ.replace(/\s+/g, ' ').slice(-90) + '" and they answered "' + _ans + '" - that is a PLACE (a cafe, store, school, street, area or landmark), the spot to bring the shoes. Never joke about it, never say it is not a shoe, never ask what they mean. Confirm it back in one short line ("Bet 🔥 the driver will meet you at ' + _ans + ' 🚗"), and call notify_manager with that place as the location (exactly what they wrote) so the order card goes out. Do not ask them for a pin as well.';
         record(req, { endpoint: 'place-as-location', sub, place: _ans.slice(0, 60) });
