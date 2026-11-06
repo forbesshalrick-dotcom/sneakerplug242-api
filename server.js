@@ -8106,7 +8106,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _items = (_row && Date.now() - (_row.ts || 0) < 12 * 3600 * 1000) ? (_row.items || []) : [];
         const _tot = _items.reduce((a, i) => a + (parseFloat(String(i.price || '').replace(/[^0-9.]/g, '')) || 0), 0);
         turnText = turnText.replace(/\s*You can (?:also )?pay online with (?:the|a|our) link[^.!?\n]*[.!?]?\s*👟?/i, ' ').trim();
-        const _payLine = _tot > 0
+        // Every shoe that was only LOOKED AT lands on the table too, so a 6-shoe browse became pay?amount=1020 (Rodney 11-06, TK
+        // Worldbo$$ 2127512502, Eleuthera: asked "how is the form of payment?" after looking at several pairs, got a $1,078.55 checkout).
+        // One pair on the table = its link; more than one = ask which pairs first.
+        const _payLine = _tot > 0 && _items.length === 1
           ? '💳 If you want to pay by card, here\'s the online payment link: https://' + WEBSITE + '/pay?amount=' + Math.round(_tot) + ' (or just pay when we arrive)'
           : '💳 If you want to pay by card, just tell me which pair you want and I\'ll send you the online payment link with the exact total';
         const _parts = turnText.split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
