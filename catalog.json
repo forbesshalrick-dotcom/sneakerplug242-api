@@ -8911,5 +8911,171 @@
     "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/airmax97silver001-thumb.jpg",
     "dominant": "silver",
     "blackShare": "none"
+  },
+  {
+    "id": "jordan12whtgreen001",
+    "brand": "Jordan",
+    "name": "Air Jordan 12 Retro",
+    "color": "White/Green",
+    "price": 200,
+    "sizes": [
+      "8.5",
+      "9.5",
+      "11"
+    ],
+    "sizesRaw": [
+      "8.5",
+      "9.5",
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/jordan12whtgreen001-thumb.jpg"
+  },
+  {
+    "id": "jordan5olive001",
+    "brand": "Jordan",
+    "name": "Air Jordan 5 Retro",
+    "color": "Olive",
+    "price": 200,
+    "sizes": [
+      "10",
+      "11"
+    ],
+    "sizesRaw": [
+      "10",
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/jordan5olive001-thumb.jpg"
+  },
+  {
+    "id": "airmaxplusnapoli001",
+    "brand": "Nike",
+    "name": "Nike Air Max Plus",
+    "color": "Napoli Blue",
+    "price": 130,
+    "sizes": [
+      "8.5",
+      "9.5",
+      "11",
+      "12"
+    ],
+    "sizesRaw": [
+      "8.5",
+      "9.5",
+      "11",
+      "12"
+    ],
+    "nickname": "",
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/airmaxplusnapoli001-thumb.jpg"
+  },
+  {
+    "id": "jordan4sbnavy001",
+    "brand": "Jordan",
+    "name": "Air Jordan 4 SB",
+    "color": "Navy/White",
+    "price": 170,
+    "sizes": [
+      "4",
+      "5.5",
+      "6.5",
+      "7",
+      "8",
+      "9.5",
+      "10",
+      "11",
+      "12",
+      "13"
+    ],
+    "sizesRaw": [
+      "4",
+      "5.5",
+      "6.5",
+      "7",
+      "8",
+      "9.5",
+      "10",
+      "11",
+      "12",
+      "13"
+    ],
+    "nickname": "",
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/jordan4sbnavy001-thumb.jpg"
+  },
+  {
+    "id": "jordan3sail001",
+    "brand": "Jordan",
+    "name": "Air Jordan 3 Retro",
+    "color": "Sail/Red/Teal",
+    "price": 190,
+    "sizes": [
+      "10",
+      "11"
+    ],
+    "sizesRaw": [
+      "10",
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/jordan3sail001-thumb.jpg"
+  },
+  {
+    "id": "jordan11cdg001",
+    "brand": "Jordan",
+    "name": "Air Jordan 11 CDG",
+    "color": "Triple Black",
+    "price": 220,
+    "sizes": [
+      "8.5",
+      "9.5",
+      "10",
+      "11"
+    ],
+    "sizesRaw": [
+      "8.5",
+      "9.5",
+      "10",
+      "11"
+    ],
+    "nickname": "",
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/jordan11cdg001-thumb.jpg"
+  },
+  {
+    "id": "jordan5wolfgrey001",
+    "brand": "Jordan",
+    "name": "Air Jordan 5 Retro",
+    "color": "Wolf Grey",
+    "price": 200,
+    "sizes": [
+      "7",
+      "8.5",
+      "10",
+      "13"
+    ],
+    "sizesRaw": [
+      "7",
+      "8.5",
+      "10",
+      "13"
+    ],
+    "nickname": "",
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/jordan5wolfgrey001-thumb.jpg"
+  },
+  {
+    "id": "jordan5blkmetal001",
+    "brand": "Jordan",
+    "name": "Air Jordan 5 Retro",
+    "color": "Black Metallic",
+    "price": 200,
+    "sizes": [
+      "9.5",
+      "10"
+    ],
+    "sizesRaw": [
+      "9.5",
+      "10"
+    ],
+    "nickname": "",
+    "image": "https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/master/jordan5blkmetal001-thumb.jpg"
   }
 ]
