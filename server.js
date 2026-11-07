@@ -9293,6 +9293,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       })()) {
         result = { sent: 0, skipped: 'Those ids did not come from any search in this chat - nothing was sent. Call search_inventory for what they asked (model + their size) and send_photos with ONLY the ids it returns. If the model does not come in their size, say the closest size we have in one line.' };
       }
+      /* 🎯 THEY NAMED THE SHOE = ONLY THAT SHOE GOES (Rodney 11-06, TK Sleepa 467-5308: "black air forces" in 9.5 - none in 9.5 - got
+       * 64 shoes in 9.5 and then a VaporMax called a black Air Force; "she was never mentioning other bullshit thats not involved").
+       * If the customer named a model this turn, ids of other models are dropped from the album. If nothing is left, nothing goes and
+       * she is told to give that shoe's real sizes and offer the two nearest to try on. */
+      else if (tu.name === 'send_photos' && !staffName && (() => {
+        const _cw = customerWordsOnly(String(userText || '')).toLowerCase();
+        const FAM = [[/\b(?:air ?force|forces?|af-?1s?)\b/, /air force/i], [/\bdunks?\b/, /dunk/i], [/\b(?:air ?max )?95s?\b/, /air max 95/i],
+          [/\b(?:air ?max )?97s?\b/, /air max 97/i], [/\b(?:air ?max )?90s?\b/, /air max 90/i], [/\b(?:tns?|air ?max plus|plus)\b/, /air max plus/i],
+          [/\bvapou?r ?max\b/, /vapou?rmax/i], [/\bvomero/, /vomero/i], [/\bshox\b/, /shox/i], [/\bcrocs?\b/, /crocs/i], [/\bscorpion/, /scorpion/i],
+          [/\b(?:jordan|aj|j) ?4s?\b/, /jordan 4\b/i], [/\b(?:jordan|aj|j) ?5s?\b/, /jordan 5\b/i], [/\b(?:jordan|aj|j) ?11s?\b/, /jordan 11\b/i],
+          [/\b(?:jordan|aj|j) ?1s?\b/, /jordan 1\b/i], [/\b(?:nb|new balance|9060)\b/, /new balance|nb /i], [/\basics\b/, /asics/i], [/\byeezys?|foam\b/, /yeezy|foam/i]];
+        const _fam = FAM.find(f => f[0].test(_cw)); if (!_fam) return false;
+        const _lm = liveShoeMap(); const _byId = {}; for (const k in _lm) { const x = _lm[k]; if (x) { _byId[String(x.id)] = x; _byId[String(k)] = x; } }
+        const inp = tu.input || {}; const _all = [].concat(inp.ids || []); if (!_all.length) return false;
+        const _keep = _all.filter(id => { const x = _byId[String(id)]; return x && _fam[1].test(displayName(x)); });
+        if (_keep.length === _all.length) return false;
+        record(req, { endpoint: 'named-shoe-album-trimmed', sub, asked: _cw.slice(0, 40), kept: _keep.length, dropped: _all.length - _keep.length });
+        if (_keep.length) { inp.ids = _keep; return false; }
+        return true;
+      })()) {
+        result = { sent: 0, skipped: 'NOT SENT - they asked for one shoe and none of these photos is that shoe in their size. Do NOT show other models. search_inventory for that shoe by NAME ONLY (no size) to see the sizes it really comes in, then say it in one line: "No [size] in the [shoe] right now 🙏 we got it in a [x] and a [y] — want me to bring both so you can try them on?"' };
+      }
       /* 👉 "YOU HAVE THESE IN SIZE 11?" WITH NO SHOE NAMED = ASK WHICH ONE, NEVER AN ALBUM (Rodney 11-07, TK Prøblęmş 556-5404 came in
        * from the $100 black AF1 ad, wrote "you have these in size 11" and got 50 Jordans; a customer told him he's "scared to message
        * because the AI just dumps pictures". "A human would try to find out what the fuck he's talking about."). A pointer word with
