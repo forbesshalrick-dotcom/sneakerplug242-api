@@ -9293,6 +9293,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       })()) {
         result = { sent: 0, skipped: 'Those ids did not come from any search in this chat - nothing was sent. Call search_inventory for what they asked (model + their size) and send_photos with ONLY the ids it returns. If the model does not come in their size, say the closest size we have in one line.' };
       }
+      /* 👉 "YOU HAVE THESE IN SIZE 11?" WITH NO SHOE NAMED = ASK WHICH ONE, NEVER AN ALBUM (Rodney 11-07, TK Prøblęmş 556-5404 came in
+       * from the $100 black AF1 ad, wrote "you have these in size 11" and got 50 Jordans; a customer told him he's "scared to message
+       * because the AI just dumps pictures". "A human would try to find out what the fuck he's talking about."). A pointer word with
+       * no model named, no tag read and no single shoe just shown = the question, not the album. */
+      else if (tu.name === 'send_photos' && !staffName && !pinnedPickIds.size && (() => {
+        const _cw = customerWordsOnly(String(userText || '')).toLowerCase();
+        if (!/\b(?:these|this|that|those|them|dem|dese|dis|dat|it)\b/.test(_cw)) return false;
+        if (/\b(?:jordans?|aj\d*|j\d{1,2}|retro|force|forces|af1|af-1|dunks?|air ?max|95s?|97s?|90s?|plus|tns?|vapou?r ?max|nb|new balance|9060|550|2000|1000|asics|kayano|gel|yeezy|yeezys|foam|slides?|crocs?|vomero|shox|scorpion|mind|huarache|blazers?|cortez|sb|adidas|puma|samba|campus|ugg)\b/.test(_cw)) return false;
+        if (/\(SYSTEM: they quote-replied OUR picture/.test(String(userText || ''))) return false;
+        const _ids = [].concat((tu.input || {}).ids || [], ...(Array.isArray((tu.input || {}).groups) ? tu.input.groups.map(g => (g && g.ids) || []) : []));
+        return _ids.length > 2;
+      })()) {
+        record(req, { endpoint: 'pointer-album-held', sub, q: customerWordsOnly(String(userText || '')).slice(0, 60) });
+        result = { sent: 0, skipped: 'NOT SENT - they said "these/this/that" but never named the shoe, and you cannot see what they are pointing at (an ad, a post or a picture you did not get). Ask in ONE short line which shoe they mean, e.g. "Which shoe you mean? 👟 Send me a pic of it or tell me the name and colour, and I\'ll check your 11". Send nothing else.' };
+      }
       /* 📏 NO SIZE YET = NO ALBUM (Rodney 11-06, TK Strachanboy 2134176263: "why send so many pics thats not in his size?" - "In all black"
        * with no size known got five dark 95s in 7s and 8s; he wears a 10). More than two shoes without their size is replaced by the
        * size question; the album comes once the size is in. One or two shoes (the one they pointed at) may still go. */
