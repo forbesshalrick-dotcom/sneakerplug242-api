@@ -9803,6 +9803,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       else if (tu.name === 'notify_manager') {
         const inp = tu.input || {};
+        /* ✌️ TWO SIZES PROMISED = TWO SIZES ON THE CARD (Rodney 11-07, TK A1 824-4745: "bring the 10 too" - Kiki said "We'll bring both the
+         * 10 and 10.5", the card said 10.5 and the driver only knew one). If she promised both sizes in this chat in the last 3 hours,
+         * the card's size carries both. */
+        try {
+          const _hist = (convos.get(sub) || []).slice(-30).filter(m => m && m.role === 'assistant')
+            .map(m => typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content.filter(x => x && x.type === 'text').map(x => x.text).join(' ') : '')).join(' ');
+          const _bm = [..._hist.matchAll(/bring (?:you )?both (?:the )?(\d{1,2}(?:\.5)?) and (?:the )?(\d{1,2}(?:\.5)?)/gi)].pop();
+          if (_bm && inp.size != null && !/\band\b|\//.test(String(inp.size)) && [_bm[1], _bm[2]].includes(String(parseFloat(inp.size)))) {
+            inp.size = _bm[1] + ' and ' + _bm[2] + ' (bring both)';
+            record(req, { endpoint: 'card-both-sizes', sub, size: inp.size });
+          }
+        } catch (_) {}
         // Pull the customer's WhatsApp number so staff can call/message them for the
         // drop-off. Prefer what Kiki passed or the request field; else ask ManyChat.
         let custPhone = inp.customer_phone || getPhone(req);
