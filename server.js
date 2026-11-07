@@ -1756,6 +1756,14 @@ const INTERNAL_LEAK_RE = new RegExp([
   'my (?:actual )?role (?:here )?is',
   'in (?:your|the) system prompt',
   'anything else i should adjust',                                    // she asked the OWNER, in public
+  // 11-07 two more of her notes reached customers: Shoe Lacky Kyra 462-6657 "I'm ready! But I don't see the customer's actual message or
+  // the picture they tagged. Please share their question…", and TK 823-7131 "Not replying to the repeated words — just standing by…".
+  "(?:don\\'t|do not|can\\'t|cannot) see the customer",
+  "the customer'?s (?:actual )?(?:message|question|picture)",
+  'please share their (?:question|message)',
+  'not replying to the repeated',
+  'standing by for what they send',
+  "i'?ll reply with one (?:warm )?line",
   // Her own reasoning, sent to the customer (Raymond Neymour, TK 10-11/12: "(This is a re-delivery of their previous 👍 —
   // nothing new to act on, so I'll leave it there.)" and "You're right — my mistake. Nothing to do here.").
   'nothing (?:new )?to (?:act on|do here|reply to|respond to)', 're-?delivery of (?:their|the|a|his|her) ',
