@@ -8792,7 +8792,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (/^(?:no+|nah+|not (?:now|yet|right now|today)|later|tomorrow|after\b|when i\b|i'?m (?:at work|working|busy|out|not)|at work|working|busy|not available|give me|in a (?:bit|while|few))/i.test(_cw)) {
             turnText = 'Okay, just let me know when you\'re ready 👟';
             record(req, { endpoint: 'available-now-no', sub });
-          } else if (/^(?:y+e+s+|yeah|ya+|yea|yep|yup|ye|ok(?:ay)?|sure|bet|now|right now|i am|i'?m (?:available|free|home|here|ready|good)|ready|come (?:now|through)|available)\b/i.test(_cw)) {
+          // "Ok could you ship to the family island or pick up only?" is a QUESTION that starts with ok (Rodney 11-07, Shoe Lacky
+          // Kloading 809-3269 got "send me your location, the driver can come right now"). Only a short yes with no question counts.
+          } else if (!/\?|\b(?:could|can|do|does|is|are|will|how|what|where|when|which|ship|pick ?up)\b/i.test(_cw) && _cw.length < 40 && /^(?:y+e+s+|yeah|ya+|yea|yep|yup|ye|ok(?:ay)?|sure|bet|now|right now|i am|i'?m (?:available|free|home|here|ready|good)|ready|come (?:now|through)|available)\b/i.test(_cw)) {
             /* 📍 A PIN ALREADY IN TODAY'S CHAT IS NOT ASKED FOR AGAIN (Rodney 11-03, TK Idk 428-1206: pin sent 7:36 AM for a 4 PM drop,
              * at 5:07 PM "Yes" to "available now?" got "Please send me your location" again). Use the newest pin from the last 24 h. */
             let _pinUrl = '';
