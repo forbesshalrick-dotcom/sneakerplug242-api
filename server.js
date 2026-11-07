@@ -9311,9 +9311,32 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (_keep.length === _all.length) return false;
         record(req, { endpoint: 'named-shoe-album-trimmed', sub, asked: _cw.slice(0, 40), kept: _keep.length, dropped: _all.length - _keep.length });
         if (_keep.length) { inp.ids = _keep; return false; }
+        /* 🎨 WHAT TO OFFER INSTEAD (Rodney 11-07): someone after BLACK (or WHITE) wants that colour - offer other black/white shoes
+         * in their size. Someone after a COLOURFUL pair (red 95, red AF1) can be offered the same model in other colours; if we have
+         * none of that model in their size, other shoes in their size. Always ASK first - pictures only after they say yes. */
+        try {
+          const _sz = String(knownSize || inp.size || '').split('/')[0];
+          const _col = (_cw.match(/\b(black|white)\b/) || [])[1] || '';
+          const _model = (displayName(Object.values(_byId).find(x => x && _fam[1].test(displayName(x))) || {}) || '').replace(/\s*[—–-].*$/, '').replace(/\s*\(.*$/, '') || 'that shoe';
+          const _inSize = (x) => _sz && (x.sizesRaw || x.sizes || []).some(z => parseFloat(z) === parseFloat(_sz));
+          const _uniq = [...new Set(Object.values(_byId))];
+          let _line;
+          if (_col && _sz) {
+            const n = _uniq.filter(x => _inSize(x) && new RegExp('\\b' + _col + '\\b', 'i').test(displayName(x) + ' ' + (x.color || '')) && !_fam[1].test(displayName(x))).length;
+            _line = n ? 'No ' + _col + ' ' + _model + ' in your ' + _sz + ' right now 🙏 but I have ' + (n > 1 ? 'other ' + _col + ' shoes' : 'another ' + _col + ' shoe') + ' in ' + _sz + ' — want to see them? 👟'
+                      : 'No ' + _col + ' ' + _model + ' in your ' + _sz + ' right now 🙏 Want to see what else we got in your ' + _sz + '? 👟';
+          } else if (_sz) {
+            const n = _uniq.filter(x => _inSize(x) && _fam[1].test(displayName(x))).length;
+            _line = n ? 'Not that one in your ' + _sz + ' right now 🙏 but I have ' + (n > 1 ? 'a few other ' + _model + 's' : 'another ' + _model) + ' in ' + _sz + ' — want to see them? 👟'
+                      : 'We don\'t have any ' + _model + 's in your ' + _sz + ' right now 🙏 but I have other shoes in ' + _sz + ' — want to see them? 👟';
+          }
+          tu._insteadLine = _line || '';
+        } catch (_) {}
         return true;
       })()) {
-        result = { sent: 0, skipped: 'NOT SENT - they asked for one shoe and none of these photos is that shoe in their size. Do NOT show other models. search_inventory for that shoe by NAME ONLY (no size) to see the sizes it really comes in, then say it in one line: "No [size] in the [shoe] right now 🙏 we got it in a [x] and a [y] — want me to bring both so you can try them on?"' };
+        result = { sent: 0, skipped: 'NOT SENT - they asked for one shoe and none of these photos is that shoe in their size. Do NOT show other models and do NOT send photos this turn. '
+          + (tu._insteadLine ? 'Reply with exactly this one line: "' + tu._insteadLine + '" - and only send pictures after they say yes.'
+            : 'Tell them that shoe is not in their size in one line and ASK if they want to see other options - pictures only after they say yes.') };
       }
       /* 👉 "YOU HAVE THESE IN SIZE 11?" WITH NO SHOE NAMED = ASK WHICH ONE, NEVER AN ALBUM (Rodney 11-07, TK Prøblęmş 556-5404 came in
        * from the $100 black AF1 ad, wrote "you have these in size 11" and got 50 Jordans; a customer told him he's "scared to message
