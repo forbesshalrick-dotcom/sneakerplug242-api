@@ -3366,7 +3366,7 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
 
   // Rodney 2026-10-13: a size-filtered album stays bare, but when the customer named a shoe
   // or brand and never gave a size, the sizes go under each picture so they can pick.
-  const showSizes = !sizeKnown && !photosOnly && !isStaff;
+  const showSizes = !sizeKnown && !isStaff && (!photosOnly || sizeKnown === false);   // a batched album (photosOnly) still gets its sizes
   let sizesLabel = '📏 Sizes: ';   // in the customer's language (big four by table, the rest by say())
   if (showSizes) { try { sizesLabel = await say(L(SIZES_LABEL_T, sub), sub) || sizesLabel; } catch (_) {} }
   const _cardFor = (s) => { const _ls = s && lineSale(sub, s.id); return _ls && s.image ? s.image.replace(/[^/]+$/, _ls.card) : (s && s.image); };
@@ -15117,7 +15117,9 @@ app.post('/inbox/send-shoe', async (req, res) => {
         // 2026-10-14, .SlimShady: one 50-pair size-12 send read as two — "This is what we have 👟" after batch 1,
         // then the size-12 lead-in again before batch 3). The closing names the whole album, from this ask.
         if (isLast) lastAsk.set(sub, { p: { size: b.size, sizes, size_match: b.size_match, brand: b.brand, brands, color: b.color, query: b.query }, ids: new Set(allIds.map(String)), at: Date.now() });
-        const r = await sendShoePhotos(sub, batchIds, token, null, '', !isLast);
+        // No size asked = the "📏 Sizes" line goes under every picture, same as Kiki's own albums (Rodney 11-07, TK Marilyn 525-1627:
+        // the yellow album went out bare - "that's a woman, she don't know the names of the shoes, put the sizes underneath").
+        const r = await sendShoePhotos(sub, batchIds, token, null, '', !isLast, false, 0, !!(b.size || (sizes && sizes.length)));
         totalSent += r.sent;
         // A stop inside a batch ends the WHOLE album, not just that batch.
         if (r.interrupted) { stopped = true; break; }
