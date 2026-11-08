@@ -1749,6 +1749,9 @@ const SIZE_RANGE = ALL_SIZES.length ? `${ALL_SIZES[0]}–${ALL_SIZES[ALL_SIZES.l
 const INTERNAL_LEAK_RE = new RegExp([
   'send_photos', 'search_inventory', 'get_agent', 'notify_manager',   // tool names, as she typed them
   'record_sale', 'record_restock', 'tool_use', 'tool_result',
+  // Talking ABOUT the customer instead of TO them (Rodney 11-08 sweep, TK Moss Motors 812-6593: "Price" got "They just said \"Price\"
+  // with no shoe named — they're asking about the shoes I just sent. Since there are multiple shoes with different prices, I should...").
+  '\\bthey just said\\b', "\\bthey'?re asking about the shoes? I\\b", '\\bI should (?:ask|send|show|reply|answer|list|tell)\\b',
   'system\\s*(?:note|prompt|message)',                                 // "SYSTEM NOTE", "your system prompt"
   '(?:function|tool)s?\\s+(?:available|i have|you have)',              // "function available to me"
   'the tools i (?:have|was given)',
