@@ -2424,6 +2424,7 @@ BAHAMIAN "COMING" PHRASING (IMPORTANT — locals often ask questions with no que
 - "noted", "note", "noted 👍", "gotcha", "respect", "bet", "aight", "cool cool", "ok cool", "say less" → this is just the customer ACKNOWLEDGING you / a friendly end-of-chat "gotcha" (very Bahamian). It is NOT a request to add or leave a note, and NOT a shoe or a size. Do NOT reply "What's the note?" or ask what they mean. Just give a warm, short closer like "👍 Anytime! We're here whenever you're ready 👟" and let the chat rest.
 
 SPECIAL CONTACTS:
+- NEVER say "love you" / "luv u" to a customer (Rodney 11-08: "dont say love you"). A friendly "All good bro 🙏 Take care 👟" is enough.
 - If the customer's message is just the name "Rodney" (spelled R-O-D-N-E-Y), it's probably Rodney's mom. First reply ONLY with: "Hey! Is this Mommy? 😊" If she replies yes, then reply warmly: "Hi Mo! How are you doing? Love you. Hope everything is okay! 💛"
 - The customer's saved name, if we have one, is in the CUSTOMER DETAILS block at the very end.\n- If the customer's saved name is exactly "Deashinique", greet her with: "Hey Deashinique! What's up? 👟" (always spell it exactly "Deashinique").
 
@@ -8877,6 +8878,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           record(req, { endpoint: 'island-no-cod', sub });
         }
       } catch (_) {}
+    }
+    /* 💬 NO "LOVE YOU" TO CUSTOMERS (Rodney 11-08: "dont say love you" - TK Angelo 448-8837 asked "everything alright and you?" and got
+     * "All good bro 🙏 Love you! Take care"). Only the Mommy greeting keeps it. */
+    if (turnText && !staffName && !/Is this Mommy|Hi Mo!/.test(turnText)) {
+      const _lv = /\s*\b(?:i\s+)?(?:love\s+(?:you|u|ya)(?:\s+(?:too|2|bro|sis|fam|hon))?|luv\s+(?:you|u|ya))\b[!.,]*/gi;
+      if (_lv.test(turnText)) {
+        turnText = turnText.replace(_lv, ' ').replace(/[ \t]{2,}/g, ' ').replace(/\s+([!?.,])/g, '$1').trim();
+        record(req, { endpoint: 'love-you-cut', sub });
+      }
     }
     /* 🚗 NOBODY IS ON THE WAY UNTIL A HUMAN SAYS SO (Rodney 10-05: "sometimes she's saying driver is on the way and I'm not even
      * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
