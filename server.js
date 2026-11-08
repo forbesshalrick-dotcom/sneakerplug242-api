@@ -8784,7 +8784,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * answers yes … please send the location for me, the driver can come right now. If the answer is no … okay, just let me know when
      * you're ready." - "I'm giving you good human reactions so you can put that in code"). */
     try {
-      if (turnText && !staffName && !image) {
+      // A RE-DELIVERED "YES" IS THE PIN, NOT A NEW YES (Rodney 11-08 00:54 "wtf", TK Studda 819-5465: answered "Yes" to "available now?",
+      // dropped his pin 4 min later, ManyChat re-delivered "Yes" in its place and he was asked for his location a second time).
+      if (turnText && !staffName && !image && !ctx.staleRepeat) {
         const _hist = convos.get(sub) || [];
         // The last 3 of ours, not only the last: a picture lead-in after the question must not hide it (Gray 10-23).
         const _lkT = _hist.filter(m => m && m.role === 'assistant').slice(-3).map(m => typeof m.content === 'string' ? m.content
