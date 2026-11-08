@@ -4098,7 +4098,9 @@ function sizeFromCustomerWords(text) {
            (m, w) => ' ' + ({ one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9,
                               ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15 })[w] + ' ')
   // "ten and a half", "nine n a half" - said aloud far more often than "10.5".
-  .replace(/\b(\d{1,2})\s*(?:and|n|\u0027n)?\s*a\s*half\b/g, '$1.5')
+  // "size 10 half" / "10 in a half" / "10 n half" too (Rodney 11-07, TK 726-249-3810: "Do you have size 10 half in black" got a
+  // 10.5 album that closed "This is what we have in a 10").
+  .replace(/\b(\d{1,2})\s*(?:and|n|\u0027n|in|en|an)?\s*(?:a\s*|the\s*)?half\b/g, '$1.5')
   .replace(/\b(\d{1,2})\s*point\s*(?:five|5)\b/g, '$1.5');
   const HALF = '(?:\\.5|\\s*1/2|\\s+and\\s+a\\s+half)?';
   const NUM = '(\\d{1,2}' + HALF + ')';
