@@ -7821,7 +7821,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _since = Date.now() - 24 * 3600 * 1000;
         const _hasPin = pinReceived.has(String(sub)) || ((_th && _th.msgs) || []).some(m => m && (m.ts || 0) > _since
           && ((m.sender === 'customer' && /Shared a location|maps\.google|maps\.app/i.test(m.text || ''))
-            || (m.sender === 'system' && /DELIVERY READY[\s\S]*https?:\/\/maps\./.test(m.text || ''))));
+            || (m.sender === 'system' && /DELIVERY READY[\s\S]*https?:\/\/maps\./.test(m.text || ''))
+            // ManyChat drops the pin itself: a delivery card that says the pin was dropped IS the pin (Rodney 11-08, TK Busy 436-2224:
+            // "Got your pin!" then "Just need your location pin" twice, the second time to "U know how far" while the driver drove there).
+            || (m.sender === 'system' && /DELIVERY READY[\s\S]*dropped a WhatsApp location pin/i.test(m.text || ''))));
         if (!_hasPin) {
           record(req, { endpoint: 'no-pin-driver-talk-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
           turnText = 'Just need your location pin so the driver knows exactly where to bring it 📍 Tap 📎 (or ＋) → Location → Send your current location';
