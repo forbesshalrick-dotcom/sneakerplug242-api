@@ -119,6 +119,15 @@ section{margin-top:22px}
 .fixbox input{width:100%;background:var(--surface2);border:1px solid var(--bad);color:var(--text);border-radius:9px;padding:11px 12px;font:700 16px Archivo,sans-serif}
 .fixbox input::placeholder{color:var(--muted);font-weight:400}
 .fixbox .eg{font-size:11.5px;color:var(--muted);margin-top:5px}
+.sayrow{display:flex;gap:8px}
+.sayrow input{flex:1}
+.mic{flex:0 0 52px;border-radius:9px;border:1px solid var(--bad);background:var(--surface2);font-size:22px;cursor:pointer}
+.mic.on{background:var(--bad);animation:micpulse 1s infinite}
+@keyframes micpulse{50%{opacity:.6}}
+.tl{margin-top:7px;font:700 13px Archivo,sans-serif;color:var(--text)}
+.tl:empty{display:none}
+.tl .chip{display:inline-block;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:3px 8px;margin:3px 4px 0 0}
+.tl .tot{color:var(--bad)}
 
 .noterow{padding:0 12px 12px}
 .note{width:100%;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:9px 12px;font:400 13.5px Archivo,sans-serif;resize:vertical;min-height:38px}
@@ -266,6 +275,10 @@ var shoes=(window.SP_SHOES||[]).slice();
    stock check, says it is for Deashinique, and lists the shelf BY BRAND in the order he walks it:
    Jordan first, then New Balance, then Nike, then everything else. */
 var INV=/\/inventory/.test(location.pathname)||/[?&]inventory/.test(location.search);
+/* 🧪 TEST MODE (Rodney 11-10: "I don't want it to shift any of the sizes... I just want to make sure it ticks"). ?test = a
+   private copy in this phone only: nothing is pulled from or sent to the shop, so no stock can change. */
+var TEST=/[?&]test/.test(location.search);
+if(TEST) STORE='sp_test_'+TODAY;
 function brandOf(x){
   var t=((x.b||'')+' '+(x.n||'')).toLowerCase();
   if(/jordan/.test(t)) return 'Jordan';
@@ -317,6 +330,7 @@ function save(){
   clearTimeout(pushT); pushT=setTimeout(pushDay,3000);
 }
 function pushDay(){
+  if(TEST) return;
   if(!pulled) return;              /* not yet — the pull will re-arm this */
   fetch(API+'/shop/daily?key='+KEY,{
     method:'POST',headers:{'Content-Type':'application/json'},
@@ -341,6 +355,7 @@ function mergeDay(mine,theirs){
   return mine;
 }
 function pullDay(){
+  if(TEST){ pulled=false; return Promise.resolve(); }
   return fetch(API+'/shop/daily?key='+KEY+'&date='+TODAY,{cache:'no-store'})
     .then(function(r){ return r.ok?r.json():null; })
     .then(function(j){
@@ -476,9 +491,11 @@ function checkCard(s){
     '</div>'+
     '<div class="fixbox" id="fx-'+esc(s.id)+'"'+(v==='bad'?'':' hidden')+'>'+
       '<div class="sign"><span>✍️</span><span>Write the correct sizes below</span></div>'+
-      '<input id="fr-'+esc(s.id)+'" data-real="'+esc(s.id)+'" autocomplete="off"'+
+      '<div class="sayrow"><input id="fr-'+esc(s.id)+'" data-real="'+esc(s.id)+'" autocomplete="off"'+
         ' value="'+esc(real)+'" placeholder="7, 8, 8, 9.5"/>'+
-      '<div class="eg">Every pair, one by one — two 8s is “8, 8”. This is what updates the shop.</div>'+
+        '<button class="mic" data-mic="'+esc(s.id)+'" aria-label="Say the sizes">🎤</button></div>'+
+      '<div class="tl" id="ty-'+esc(s.id)+'">'+tallyHtml(parseSizes(real))+'</div>'+
+      '<div class="eg">Tap 🎤 and read the stack out loud, box by box: “7, 8, 9, 8, 7, 12, 11 and a half”. Or type it. This is what updates the shop.</div>'+
     '</div>'+
   '</article>';
 }
@@ -643,6 +660,7 @@ document.getElementById('sendbtn').onclick=function(){
   if(okL.length) text+='\n\nCONFIRMED RIGHT ('+okL.length+'):\n'+okL.slice(0,30).join('\n')+
     (okL.length>30?'\n…and '+(okL.length-30)+' more.':'');
 
+  if(TEST){ btn.textContent='Test mode — nothing sent'; return; }
   btn.disabled=true; btn.textContent='Sending…';
   day.sentAt=new Date().toISOString();
   day.report=text;              /* the exact copy Rodney gets */
@@ -822,7 +840,48 @@ function redrawEvery(id){
 document.addEventListener('input',function(e){
   var t=e.target; if(!t||!t.dataset||!t.dataset.real) return;
   var id=t.dataset.real, v=(t.value||'').trim();
-  bag(id).real=v; tidy(id); save(); sendState();
+  var got=parseSizes(v);
+  bag(id).real=got.length?got.join(', '):v; tidy(id); save(); sendState();
+  var ty=document.getElementById('ty-'+id); if(ty) ty.innerHTML=tallyHtml(got);
+});
+
+/* 🎤 SAY THE STACK (Rodney 11-10: "it'd be easier to her just say what she sees on the stack... 7, 8, 9, 8, 7, 8, 9,
+   12, 13, 12, 11, like that. And normally Claude puts it together for me. Can she be able to do that"). Spoken or
+   typed, any order, words or digits, "and a half" - it becomes one entry per pair, and the tally shows under it. */
+var NUMW={zero:0,one:1,two:2,to:2,too:2,three:3,four:4,for:4,five:5,six:6,seven:7,eight:8,ate:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16};
+function parseSizes(t){
+  t=String(t||'').toLowerCase().replace(/½/g,' and a half').replace(/[-–]/g,' ');
+  t=t.replace(/(\d+)\s*1\s*\/\s*2/g,'$1.5');
+  t=t.replace(/\b[a-z]+\b/g,function(w){ var x=w.replace(/s$/,''); return NUMW.hasOwnProperty(w)?String(NUMW[w]):(NUMW.hasOwnProperty(x)?String(NUMW[x]):w); });
+  t=t.replace(/(\d+)\s*(?:and\s*)?(?:a\s*)?half\b/g,'$1.5').replace(/(\d+)\s*point\s*5\b/g,'$1.5').replace(/(\d+)\s*\.\s*5\b/g,'$1.5');
+  var out=[]; (t.match(/\d+(?:\.5)?/g)||[]).forEach(function(n){
+    var v=parseFloat(n); if(v>=3&&v<=17&&(v*2)%1===0) out.push(String(v)); });
+  return out;
+}
+function tallyHtml(a){
+  if(!a||!a.length) return '';
+  var c={}; a.forEach(function(x){ c[x]=(c[x]||0)+1; });
+  var ks=Object.keys(c).sort(function(x,y){ return parseFloat(x)-parseFloat(y); });
+  return '<span class="tot">'+a.length+' pair'+(a.length===1?'':'s')+':</span> '+
+    ks.map(function(k){ return '<span class="chip">'+k+(c[k]>1?' ×'+c[k]:'')+'</span>'; }).join('');
+}
+var micRec=null, micId=null;
+document.addEventListener('click',function(e){
+  var b=e.target&&e.target.closest&&e.target.closest('[data-mic]'); if(!b) return;
+  e.preventDefault();
+  var id=b.getAttribute('data-mic'), inp=document.getElementById('fr-'+id);
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ if(inp){ inp.focus(); } alert('Tap the box, then the 🎤 on your keyboard, and read the sizes out.'); return; }
+  if(micRec){ var same=micId===id; micRec.stop(); micRec=null; micId=null; if(same) return; }
+  var r=new SR(); r.lang='en-US'; r.continuous=true; r.interimResults=false;
+  var base=inp?inp.value:'';
+  r.onresult=function(ev){
+    var said=''; for(var i=0;i<ev.results.length;i++) if(ev.results[i].isFinal) said+=' '+ev.results[i][0].transcript;
+    if(inp){ inp.value=(base?base+', ':'')+said.trim(); inp.dispatchEvent(new Event('input',{bubbles:true})); }
+  };
+  r.onend=function(){ b.classList.remove('on'); if(micRec===r){ micRec=null; micId=null; } };
+  r.onerror=function(){ b.classList.remove('on'); };
+  micRec=r; micId=id; b.classList.add('on'); r.start();
 });
 var qEl=document.getElementById('q'), qT;
 qEl.oninput=function(){ clearTimeout(qT); qT=setTimeout(function(){
@@ -869,7 +928,7 @@ try{ startTab=localStorage.getItem('sp_day_tab')||'today'; }catch(e){}
 if(INV){
   startTab='count';
   document.title='Inventory for Deashinique - 242 Plug';
-  var h=document.querySelector('header h1'); if(h) h.innerHTML=(SINGLES?'Singles':'Inventory')+' <span>for Deashinique</span>';
+  var h=document.querySelector('header h1'); if(h) h.innerHTML=(TEST?'🧪 TEST · ':'')+(SINGLES?'Singles':'Inventory')+' <span>'+(TEST?'nothing is saved to the shop':'for Deashinique')+'</span>';
   var t=document.querySelector('.tabs'); if(t) t.style.display='none';
   var th=document.getElementById('todayhead'); if(th) th.style.display='none';
 }

@@ -5088,10 +5088,20 @@ function firstLine(t) {
 const ownerSeen = new Map();   // dedupe memory for queueForOwner: key -> when (30 min)
 const driverAskPingAt = new Map(); // "where's the driver?" on an order with no pin - one group card per 30 min
 const thiefPingAt = new Map(); // the Make It Happen numbers - last owner ping per number
+// 🚫 ORDERS WE IGNORE FOR NOW (Rodney 11-10: "we're going to ignore any orders come in from these two numbers for the time
+// being" - TK Paris 812-5254 and TK Chantae 809-8751). Their order / pin cards never reach the group; Kiki still chats.
+const IGNORE_ORDER_PHONES = ['8125254', '8098751'];
+function isIgnoredOrderCard(text) {
+  const t = String(text || '');
+  if (!/ORDER|DELIVERY READY|THE PIN|LOCATION PIN|DID THIS ONE GO THROUGH|STILL NEED AN ANSWER/i.test(t)) return false;
+  const digits = t.replace(/[^0-9]/g, ' ');
+  return IGNORE_ORDER_PHONES.some(p => new RegExp('(?:^|\\D)(?:1?242)?' + p + '(?:\\D|$)').test(t.replace(/[\s()+-]/g, '')) || digits.includes(p));
+}
 function queueForOwner(text, title, noLink) {
   try {
     let t = String(text || '').trim();
     if (!t) return;
+    if (isIgnoredOrderCard(t)) { try { record(null, { endpoint: 'ignored-order-card', q: t.slice(0, 60) }); } catch (_) {} return; }
     const raw = t;
     const now = Date.now();
     // The same alert twice is one order re-filed, not two orders. 60 s was too short: Kiki re-filed an
@@ -5162,6 +5172,7 @@ app.post('/alerts/raise', (req, res) => {
 });
 
 async function waSendManager(text, token, image) {
+  if (isIgnoredOrderCard(text)) return { ok: true, ignored: true };
   let ok = false;
   try { ok = await _waSendManagerInner(text, token, image); }
   finally {
@@ -6829,6 +6840,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const HUMAN_RE = /(talk|speak|chat)\s*(to|with)\s*(a\s*|the\s*)?(human|person|real\s*person|agent|owner|manager|boss|someone|somebody)|real\s*person|live\s*(agent|person)|actual\s*(person|human)|customer\s*service|need\s*(a\s*)?(human|agent)\b|\bhuman\s*please\b/i;
       const plain = String(userText || '').split('\n\n(SYSTEM')[0];
       if (HUMAN_RE.test(plain)) {
+        // 📞 WHAT SHE SAYS BACK (Rodney 11-10, after TK Paris 812-5254 "Can I speak to a human please" got "Let me get a team
+        // member to jump in... They'll be right with you"): "he can say, I'm going to have them call you right back."
+        userText = String(userText || '') + '\n\n(SYSTEM: they asked for a REAL PERSON. Reply in ONE short line, close to: "No problem 🙏 I\'ll have someone call you right back 📞" - nothing else, no questions, no shoes - and call get_agent.)';
         const last = humanAskAlerted.get(sub) || 0;
         if (Date.now() - last > 2 * 3600 * 1000) {
           humanAskAlerted.set(sub, Date.now());
@@ -15664,6 +15678,7 @@ const COUNT_ASSETS = {
   '/tasks':          ['tasks.html',    'text/html; charset=utf-8'],
   '/tasks.html':     ['tasks.html',    'text/html; charset=utf-8'],
   '/count':          ['tasks.html',    'text/html; charset=utf-8'],
+  '/inventory':      ['tasks.html',    'text/html; charset=utf-8'],   // Rodney 11-10: Deashinique's inventory, by brand
   '/tasks-data.js':  ['tasks-data.js', 'application/javascript; charset=utf-8']
 };
 const COUNT_CACHE = {};
