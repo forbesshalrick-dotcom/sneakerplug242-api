@@ -159,6 +159,9 @@ section{margin-top:22px}
 .toast{position:fixed;left:16px;right:16px;bottom:96px;z-index:70;background:var(--good);color:#06240F;border-radius:11px;padding:13px 15px;font:700 14px Archivo,sans-serif;text-align:center;transform:translateY(160%);transition:transform .25s ease}
 .toast.show{transform:translateY(0)}
 .toast.bad{background:var(--bad);color:#2A0710}
+.brandhead{grid-column:1/-1;margin:22px 4px 6px;font-size:22px;font-weight:800;letter-spacing:.02em}
+.brandhead.singles{margin-top:40px;padding-top:18px;border-top:2px dashed currentColor}
+.brandsub{grid-column:1/-1;margin:18px 4px 6px;font-size:20px;font-weight:800}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -259,6 +262,31 @@ var TODAY=(function(){
 })();
 var STORE='sp_day_'+TODAY;
 var shoes=(window.SP_SHOES||[]).slice();
+/* INVENTORY MODE (Rodney 2026-11-10): 242plug.com/inventory (or ?inventory) opens straight on the
+   stock check, says it is for Deashinique, and lists the shelf BY BRAND in the order he walks it:
+   Jordan first, then New Balance, then Nike, then everything else. */
+var INV=/\/inventory/.test(location.pathname)||/[?&]inventory/.test(location.search);
+function brandOf(x){
+  var t=((x.b||'')+' '+(x.n||'')).toLowerCase();
+  if(/jordan/.test(t)) return 'Jordan';
+  if(/new balance|\bnb\b/.test(t)) return 'New Balance';
+  if(/nike|air max|air force|dunk|vomero|roshe/.test(t)) return 'Nike';
+  return (x.b||'Other').replace(/^asics$/i,'Asics');
+}
+var BRANK={'Jordan':0,'New Balance':1,'Nike':2};
+/* SINGLES ARE SEPARATE STOCK (Rodney 11-10: "The shoes that only have one more, they're in the singles.
+   They're separate inventory. Leave the singles separately.") - a shoe with ONE pair left goes in its
+   own Singles section at the bottom, never mixed into the brand shelves. */
+function isSingle(x){ return (x.s||[]).length===1 ? 1 : 0; }
+/* The singles live together on ONE wall, so they get their OWN sheet: /inventory = the full stock with
+   no singles in it, /inventory?singles = only the singles. She never walks between the two. */
+var SINGLES=INV&&/[?&]singles/.test(location.search);
+if(INV){
+  shoes.sort(function(a,b){
+    var A=brandOf(a),B=brandOf(b),ra=(A in BRANK)?BRANK[A]:3,rb=(B in BRANK)?BRANK[B]:3;
+    return (isSingle(a)-isSingle(b))||(ra-rb)||A.localeCompare(B)||(a.n||'').localeCompare(b.n||'')||(a.c||'').localeCompare(b.c||'');
+  });
+}
 
 var day=loadDay();
 function loadDay(){
@@ -523,6 +551,7 @@ var filter='todo', query='';
 var listEl=document.getElementById('list'), emptyEl=document.getElementById('empty');
 function matches(s){
   if(!(s.s||[]).length) return false;             /* sold out — nothing to check */
+  if(INV && (SINGLES ? !isSingle(s) : isSingle(s))) return false;   /* full stock and singles are separate sheets */
   if(query){
     var hay=(s.b+' '+s.n+' '+(s.k||'')+' '+(s.c||'')+' '+s.id).toLowerCase();
     if(hay.indexOf(query)<0) return false;
@@ -535,7 +564,16 @@ function matches(s){
 }
 function renderCount(){
   var rows=shoes.filter(matches);
-  listEl.innerHTML=rows.map(checkCard).join('');
+  if(INV){
+    rows=rows.slice().sort(function(a,b){ return isSingle(a)-isSingle(b); });   /* live sizes can change who is a single */
+    var last='', sing=false, html='';
+    rows.forEach(function(r){
+      if(isSingle(r)&&!sing){ sing=true; last=''; html+='<h2 class="brandhead singles">Singles &middot; last pair, separate inventory</h2>'; }
+      var br=brandOf(r); if(br!==last){ last=br; html+='<h3 class="brandsub">'+br+'</h3>'; }
+      html+=checkCard(r);
+    });
+    listEl.innerHTML=html;
+  } else listEl.innerHTML=rows.map(checkCard).join('');
   emptyEl.hidden=rows.length>0;
   if(!rows.length){
     emptyEl.textContent = filter==='todo'
@@ -829,6 +867,13 @@ renderToday();
 countStats();
 var startTab='today';
 try{ startTab=localStorage.getItem('sp_day_tab')||'today'; }catch(e){}
+if(INV){
+  startTab='count';
+  document.title='Inventory for Deashinique - 242 Plug';
+  var h=document.querySelector('header h1'); if(h) h.innerHTML=(SINGLES?'Singles':'Inventory')+' <span>for Deashinique</span>';
+  var t=document.querySelector('.tabs'); if(t) t.style.display='none';
+  var th=document.getElementById('todayhead'); if(th) th.style.display='none';
+}
 showTab(startTab);
 pullDay();     /* what the shop already has for today, merged in before anything is sent */
 refresh();     /* and the live sizes */
