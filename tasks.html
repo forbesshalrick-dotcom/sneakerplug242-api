@@ -281,12 +281,11 @@ function isSingle(x){ return (x.s||[]).length===1 ? 1 : 0; }
 /* The singles live together on ONE wall, so they get their OWN sheet: /inventory = the full stock with
    no singles in it, /inventory?singles = only the singles. She never walks between the two. */
 var SINGLES=INV&&/[?&]singles/.test(location.search);
-if(INV){
-  shoes.sort(function(a,b){
+function invSort(a,b){
     var A=brandOf(a),B=brandOf(b),ra=(A in BRANK)?BRANK[A]:3,rb=(B in BRANK)?BRANK[B]:3;
     return (isSingle(a)-isSingle(b))||(ra-rb)||A.localeCompare(B)||(a.n||'').localeCompare(b.n||'')||(a.c||'').localeCompare(b.c||'');
-  });
 }
+if(INV) shoes.sort(invSort);
 
 var day=loadDay();
 function loadDay(){
@@ -565,7 +564,7 @@ function matches(s){
 function renderCount(){
   var rows=shoes.filter(matches);
   if(INV){
-    rows=rows.slice().sort(function(a,b){ return isSingle(a)-isSingle(b); });   /* live sizes can change who is a single */
+    rows=rows.slice().sort(invSort);   /* re-sort on live sizes: a shoe that gains or loses pairs moves to the right shelf */
     var last='', sing=false, html='';
     rows.forEach(function(r){
       if(isSingle(r)&&!sing){ sing=true; last=''; html+='<h2 class="brandhead singles">Singles &middot; last pair, separate inventory</h2>'; }
