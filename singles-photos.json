@@ -1456,9 +1456,9 @@
 "brand": "Jordan",
 "name": "Air Jordan 4 Retro",
 "color": "White/Red (Red Cement)",
-"size": "8.5",
+"size": "7",
 "price": 180,
-"sku": "DH6927 161",
+"sku": "DH6927 161 (women's 8.5)",
 "img": "https://res.cloudinary.com/dhtoimjnv/image/upload/f_auto,q_auto,w_760/singles/dq1015-aj4",
 "full": "https://res.cloudinary.com/dhtoimjnv/image/upload/f_auto,q_auto,w_1600/singles/dq1015-aj4"
 },
@@ -1527,17 +1527,6 @@
 "sku": "AJ1285 011 (kids 5.5Y)",
 "img": "https://res.cloudinary.com/dhtoimjnv/image/upload/f_auto,q_auto,w_760/singles/dq1015-am90blk55",
 "full": "https://res.cloudinary.com/dhtoimjnv/image/upload/f_auto,q_auto,w_1600/singles/dq1015-am90blk55"
-},
-{
-"id": "sg140",
-"brand": "Nike",
-"name": "Air Max 95 TT",
-"color": "Olive/Black",
-"size": "10",
-"price": 130,
-"sku": "FV4710 002",
-"img": "https://res.cloudinary.com/dhtoimjnv/image/upload/f_auto,q_auto,w_760/singles/dq1015-am95olive",
-"full": "https://res.cloudinary.com/dhtoimjnv/image/upload/f_auto,q_auto,w_1600/singles/dq1015-am95olive"
 },
 {
 "id": "sg141",

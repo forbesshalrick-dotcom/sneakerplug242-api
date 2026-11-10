@@ -6946,6 +6946,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // Nor is a yes typed as "Year" (Shoe Lacky Lunn 525-3514: "Monday delivery at Year"), nor a sentence about money
           // ("Brother I jus tell you I only have 100 brother" became the address for OSC Ian Penn 825-5101).
           && !/\b(?:pay|paying|payment|allow(?:ing)?|link|card|not working|won'?t|can'?t|doesn'?t|isn'?t|only have|i have|i got|i get paid|money|cash|dollars?|\$\s*\d|\d{2,4} ?(?:dollars|bucks))\b|^(?:brother|bro|bredda)\b/i.test(_ans)
+          // A request for pictures or a WHEN is not a place (Rodney 11-10: TK Bolo 448-6050 "Picture of 95s" and TK Mastermiind
+          // "Soon get off" both got "the driver will meet you at ..." and a DELIVERY READY card with that as the address).
+          && !/\b(?:pic|pics|picture|pictures|photo|photos|show|see|send (?:me|pic)|9[05]s?|97s?|270s?|720s?|plus|soon|get off|gettin(?:g)? off|off work|after work|in a (?:bit|while|min)|mins?|minutes?|hours?|hrs?|o'?clock|\d{1,2}\s*(?:am|pm)|tonight|this evening|lunch|break)\b/i.test(_ans)
           && !/^(?:year|yeh|yh|yah|yuh|ye+a+h*|brother|bro|bredda|hey+|hi+|hello+|helo|yo+|sup|wassup|wa ?gwan|good ?(?:morning|afternoon|evening|night|day)|morning|gm|gn|thanks?|thank you|ty|cool|cool cool|alright|ight|aight|nice|lol|ok cool)[\s!.,🙏👋]*$/i.test(_ans)
           && !/\b(?:size|sz|\d{1,2}(?:\.5)?\s*(?:\b|$)|jordans?|forces?|af1|air ?max|nike|new balance|nb|asics|dunks?|vapor|tn|shoes?|sneakers?|kicks|price|how much|\$)/i.test(_ans)) {
         system += '\n\n📍 THEY JUST TOLD YOU WHERE TO DELIVER. You asked "' + _lastQ.replace(/\s+/g, ' ').slice(-90) + '" and they answered "' + _ans + '" - that is a PLACE (a cafe, store, school, street, area or landmark), the spot to bring the shoes. Never joke about it, never say it is not a shoe, never ask what they mean. Confirm it back in one short line ("Bet 🔥 the driver will meet you at ' + _ans + ' 🚗"), and call notify_manager with that place as the location (exactly what they wrote) so the order card goes out. Do not ask them for a pin as well.';
@@ -9049,6 +9052,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               && parseFloat(p.size) !== parseFloat(_cs.size) && !new RegExp('(?<![\\d.])' + String(parseFloat(p.size)).replace('.', '\\.') + '(?![\\d])').test(_ut)) {
             record(req, { endpoint: 'search-size-restored', sub, searched: p.size, theirs: _cs.size });
             p.size = String(_cs.size);
+          }
+        } catch (_) {}
+        /* 📏 NO SIZE AT ALL FROM THE CUSTOMER = NO SIZE IN THE SEARCH (Rodney 11-09 19:37 "whats wrong with kiki", TK Laboy 812-7833:
+         * came in off the All Black AF1 ad, said only "Hello! Can I get more info on this?", and got "This is what we have in size 11"
+         * + a 50-photo album - he never gave a size). A size the customer never typed in the last 12 h is dropped; the search is then
+         * too broad and she asks the size, as the rule says. */
+        try {
+          const _cs0 = custSize.get(sub);
+          const _theirs = !!(_cs0 && _cs0.fromCustomer && Date.now() - (_cs0.ts || 0) < 12 * 3600 * 1000);
+          if (!staffName && !_theirs && (p.size != null || (Array.isArray(p.sizes) && p.sizes.length))) {
+            const _th0 = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+            const _cw0 = [customerWordsOnly(String(userText || '').split('(SYSTEM')[0])].concat(_th0 ? _th0.msgs.filter(m => m.dir === 'in' && m.sender === 'customer' && Date.now() - m.ts < 12 * 3600 * 1000).map(m => m.text || '') : []).join(' \n ');
+            const _said = (z) => new RegExp('(?<![\\d.])' + String(parseFloat(z)).replace('.', '\\.') + '(?![\\d])').test(_cw0) || !!sizeFromCustomerWords(_cw0);
+            const _all = [].concat(p.size != null ? [p.size] : [], Array.isArray(p.sizes) ? p.sizes : []).filter(z => !/all/i.test(String(z)));
+            if (_all.length && !_all.some(_said)) {
+              record(req, { endpoint: 'search-size-invented-dropped', sub, size: p.size, sizes: p.sizes });
+              delete p.size; delete p.sizes; delete p.size_match;
+            }
           }
         } catch (_) {}
         // brand: '["Nike", "adidas"]' (a list typed as text, drill 10-16 07:28) or "Nike and adidas" is two brands.
