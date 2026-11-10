@@ -971,7 +971,7 @@ const MANAGER_ALIASES = {
 };
 const MANAGER_TAIL_NAMES = {};
 // Every WhatsApp number a Kiki answers on. A message from one of these is a bot, never a customer.
-const SHOP_LINE_TAILS = new Set(['12424324406', '12428256405', '12428033126', '12426367431', '18454031330'].map(n => n.slice(-10)));
+const SHOP_LINE_TAILS = new Set(['12424324406', '12428256405', '12428033126', '12426367431', '18454031330', '16592229328'].map(n => n.slice(-10)));
 Object.keys(MANAGER_ALIASES).forEach(function (n) { MANAGER_TAIL_NAMES[n.replace(/\D/g, '').slice(-10)] = MANAGER_ALIASES[n]; });
 const EXTRA_STAFF = {};
 // 📱 SHOW-IN-INBOX NUMBERS: numbers to treat as a normal CUSTOMER (not staff) so their messages
@@ -4433,6 +4433,63 @@ function setHumanPause(sub, ms) {
   inboxRev++; saveInbox();
 }
 function clearHumanPause(sub) { if (humanPaused.delete(String(sub))) { inboxRev++; saveInbox(); } }
+/* ⏰ NOBODY SITS UNANSWERED (Rodney 11-10, "4 chats sat overnight"). TK ☺️ 816-6619 got the brain-down line "Give me one sec, I'll be
+ * right with you" on 11-08 12:22 and 11-09 17:11, then NOTHING - his "Cani get that" and "both of them" were never answered because the
+ * fallback is once per 30 min and no one ever came back. TK the boss 827-3479's "K" got no reply either. Every 2 minutes: any WhatsApp
+ * chat whose customer spoke last (the one-sec line does not count as an answer) 4+ minutes ago, under 6 hours, not paused for a human,
+ * gets the turn re-run with everything they said since our last real reply. Two tries per message, then the group is told. */
+const lastTurnCtx = new Map();   // sub -> { req, token, ctx } from the last real runChat, so a retry goes out on the same line
+const sweepTried = new Map();    // sub -> { key, tries, alerted }
+const ONE_SEC_RE = /^(?:Got you 🙏 Give me one sec, I'll be right with you|Got your pic 📸 Give me one sec)/;
+function unansweredSweep() {
+  const now = Date.now();
+  for (const [sub, lt] of lastTurnCtx) {
+    try {
+      if (!lt || now - (lt.at || 0) > 12 * 3600 * 1000) { lastTurnCtx.delete(sub); sweepTried.delete(sub); continue; }
+      if (/facebook|\bfb\d*\b/i.test(String((lt.ctx && lt.ctx.store) || ''))) continue;
+      if (isHumanPaused(sub)) continue;
+      try { if (staffNameFor(lt.req)) continue; } catch (_) {}
+      const t = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      if (!t || !Array.isArray(t.msgs) || !t.msgs.length) continue;
+      const msgs = t.msgs;
+      let i = msgs.length - 1;
+      const waiting = [];
+      for (; i >= 0; i--) {
+        const m = msgs[i];
+        if (m.dir === 'out' && !ONE_SEC_RE.test(String(m.text || '').trim())) break;
+        if (m.dir === 'in' && m.sender === 'customer') waiting.unshift(m);
+      }
+      if (!waiting.length) { sweepTried.delete(sub); continue; }
+      const last = waiting[waiting.length - 1];
+      const age = now - (last.ts || 0);
+      if (age < 4 * 60 * 1000 || age > 6 * 3600 * 1000) continue;
+      const key = String(last.ts) + '|' + String(last.text || '').slice(0, 40);
+      const st = sweepTried.get(sub) && sweepTried.get(sub).key === key ? sweepTried.get(sub) : { key, tries: 0, alerted: false, at: 0 };
+      sweepTried.set(sub, st);
+      if (now - st.at < 4 * 60 * 1000) continue;
+      if (st.tries >= 2) {
+        if (!st.alerted) {
+          st.alerted = true;
+          try {
+            require('./shop').addAlert('⏰ *CUSTOMER WAITING — NO REPLY*\n' + (t.name || sub) + ' (' + (t.account || '') + ') said "' + waiting.map(m => String(m.text || (m.img ? '[photo]' : ''))).join(' / ').slice(0, 200)
+              + '" ' + Math.round(age / 60000) + ' min ago and Kiki could not answer after 2 tries. Open the chat and answer.', 'Kiki 🤖', { sub, account: t.account });
+          } catch (_) {}
+        }
+        continue;
+      }
+      st.tries++; st.at = now;
+      const text = waiting.map(m => String(m.text || '').trim()).filter(Boolean).join('\n');
+      const img = (waiting.slice().reverse().find(m => m.img) || {}).img || null;
+      if (!text && !img) continue;
+      record(lt.req, { endpoint: 'unanswered-retry', sub, tries: st.tries, q: text.slice(0, 60), ageMin: Math.round(age / 60000) });
+      const prev = chatLocks.get(sub) || Promise.resolve();
+      const next = prev.catch(() => {}).then(() => runChat(lt.req, sub, text, lt.token, Object.assign({}, lt.ctx, { turnAt: Date.now(), sweepRetry: true, staleRepeat: false }), img))
+        .catch(e => record(lt.req, { endpoint: 'unanswered-retry-crash', sub, error: String(e).slice(0, 200) }));
+      chatLocks.set(sub, next);
+    } catch (_) {}
+  }
+}
+{ const _uw = setInterval(unansweredSweep, 2 * 60 * 1000); if (_uw.unref) _uw.unref(); }
 // Append one message to a customer's thread. Best-effort — never throws into the send path.
 function inboxHas(account, sub, ts, text) { return inboxFind(account, sub, ts, text).exact; }
 const DUP_WINDOW_MS = 10 * 60 * 1000;
@@ -6338,6 +6395,7 @@ function adsBlock(store) {
   } catch (_) { return ''; }
 }
 async function runChat(req, sub, userText, token, ctx = {}, image = null) {
+  try { if (!ctx.sweepRetry) lastTurnCtx.set(String(sub), { req, token, ctx, at: Date.now() }); } catch (_) {}
   // 🔁 OUR OWN SHOP LINES NEVER GET ANSWERED (2026-10-14 00:27: Rodney tested Luxury Boutique from the
   // Trendy Kicks phone; TK's Kiki and Luxury Boutique's Kiki answered each other six times until both
   // were paused). Every one of these numbers is run by a Kiki, so a message FROM one is another bot
@@ -6812,7 +6870,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // Capture the customer's REAL phone (ManyChat `sub` is a subscriber_id, NOT a phone).
       // If the webhook carried it, store it now; otherwise ensureCustomerAvatar backfills it.
       const inPhone = getPhone(req) || '';
-      if (locM) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: '📍 Shared a location', loc: locM[1].replace(/\)+$/, ''), name: ctx.name, phone: inPhone });
+      if (ctx.sweepRetry) { /* already in the thread - a retry must not add the bubbles again */ }
+      else if (locM) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: '📍 Shared a location', loc: locM[1].replace(/\)+$/, ''), name: ctx.name, phone: inPhone });
       else if (isReplay && !inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: '📎 Sent a pin or photo — open WhatsApp to view', name: ctx.name, phone: inPhone });
       else if (inTxt || inImg) inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: inTxt, name: ctx.name, img: inImg, phone: inPhone });
       if (!ctx.wa) ensureCustomerAvatar(ctx.store, sub, token); // fire-and-forget: fetch their photo + phone once
@@ -7729,6 +7788,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
        * message - "Hello! Can I get more info on this?", "Mdf", "When will y'all have this in my size 10 or 11?" - got "that didn't
        * come through on my end, send it once more?", five times in a row to the same man). Their message DID come through; we
        * failed. Say we'll be right with them, once per customer per 30 min, and stay quiet after that until we can really answer. */
+      if (ctx && ctx.sweepRetry) return;   // a retry that fails again stays quiet; the sweep tries once more, then tells the group
       const _fbKey = String(sub), _fbLast = brainDownSaid.get(_fbKey) || 0;
       if (Date.now() - _fbLast < 30 * 60 * 1000) return;
       brainDownSaid.set(_fbKey, Date.now());
@@ -13903,7 +13963,8 @@ app.post('/ycloud/webhook', async (req, res) => {
     // "Luxury Boutique" (its own WABA, BM "Sneaker crew"); customers see that name, so Kiki uses it too.
     // (845) 403-1330 joined 2026-11-03 by coexistence under the WhatsApp name "Nassau Shoe Lacky" (WABA 1083750004256992)
     // after Meta refused to reconnect 636-7431; Rodney 11-03: Kiki calls it just "Shoe Lacky".
-    const YCLOUD_SHOPS = { '4324406': 'Foot Fetish', '6367431': 'Luxury Boutique', '4031330': 'Shoe Lacky' };
+    // +1 (659) 222-9328 = the NEW Luxury Boutique number (Rodney 11-10: "the other number came off WhatsApp").
+    const YCLOUD_SHOPS = { '4324406': 'Foot Fetish', '6367431': 'Luxury Boutique', '2229328': 'Luxury Boutique', '4031330': 'Shoe Lacky' };
     const store = YCLOUD_SHOPS[String(toNum || '').slice(-7)] || waStoreFor(null);
     try { ycloudStore.set(from, store); saveYcloudStore(); } catch (_) {}
     try { if (toNum) ycloudFrom.set(from, String(toNum)); } catch (_) {}
@@ -13980,7 +14041,7 @@ async function handleYcloudCallEvent(req, body) {
     const up = await Promise.race([entry.wa.connected, new Promise(r => setTimeout(() => r(false), 8000))]);
     if (!up) { record(req, { endpoint: 'call-media-failed', wacid: c.wacid, pre }); await ycloudCallApi('reject', { phoneId: c.phoneId, wacid: c.wacid }).catch(() => {}); await endCall(c.wacid, 'media-failed'); return; }
     const acc = await ycloudCallApi('accept', { phoneId: c.phoneId, wacid: c.wacid, sdpType: 'answer', sdp: entry.wa.answerSdp });
-    const store = (to.endsWith('4324406') ? 'Foot Fetish' : to.endsWith('6367431') ? 'Luxury Boutique' : to.endsWith('4031330') ? 'Shoe Lacky' : 'Foot Fetish');
+    const store = (to.endsWith('4324406') ? 'Foot Fetish' : (to.endsWith('6367431') || to.endsWith('2229328')) ? 'Luxury Boutique' : to.endsWith('4031330') ? 'Shoe Lacky' : 'Foot Fetish');
     entry.retell = await bridge.createRetellLeg({ apiKey: callCfg.retellKey, agentId: callCfg.agentId,
       metadata: { line: store, from, wacid: c.wacid, via: 'ycloud-calling' }, onAgentPcm: pcm => entry.wa && entry.wa.sendPcm(pcm) });
     entry.timer = setTimeout(async () => { await ycloudCallApi('terminate', { phoneId: c.phoneId, wacid: c.wacid }).catch(() => {}); await endCall(c.wacid, 'max-minutes'); }, (callCfg.maxMinutes || 10) * 60000);
