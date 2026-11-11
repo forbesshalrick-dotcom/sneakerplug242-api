@@ -868,6 +868,10 @@ function parseSizes(t){
     if(A<3&&A%1===0) return rep(b,a); if(B<3&&B%1===0) return rep(a,b);
     if(A%1) return rep(a,b); if(B%1) return rep(b,a);
     return A<=B?rep(b,a):rep(a,b); });
+  /* COUNT WORD BEFORE A SIZE (Rodney 11-10: he reads the shelf as "I have a 10, I have two 13, another 12").
+     No shoe is a size 1 or 2, so a lone 1 or 2 right before a size is a count. 3-6 only count after have / got / there's. */
+  t=t.replace(/(^|[^\d.])([12])\s+(\d+(?:\.5)?)(?![\d.])/g,function(m,p,c,v){ return parseFloat(v)>=3 ? p+rep(v,c) : m; });
+  t=t.replace(/\b(have|got|there's|theres|there is|there are)\s+([3-6])\s+(\d+(?:\.5)?)(?![\d.])/g,function(m,w,c,v){ return parseFloat(v)>=3 ? w+' '+rep(v,c) : m; });
   function rep(v,c){ c=parseInt(c,10); if(!(c>=1&&c<=12)) return v; return Array(c).fill(v).join(' , '); }
   var out=[]; (t.match(/\d+(?:\.5)?/g)||[]).forEach(function(n){
     var v=parseFloat(n); if(v>=3&&v<=17&&(v*2)%1===0) out.push(String(v)); });
