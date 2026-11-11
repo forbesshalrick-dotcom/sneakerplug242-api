@@ -1209,7 +1209,17 @@ function rememberYcloudSent(keys, rec) {
 async function ycloudSendMessages(phoneDigits, messages) {
   try {
     const key = process.env.YCLOUD_API_KEY;
-    const from = ycloudFrom.get(String(phoneDigits)) || process.env.YCLOUD_FROM || '';
+    // The customer->business-number map is memory only, so after every restart a Shoe Lacky customer fell back to
+    // YCLOUD_FROM = the dead Foot Fetish 432-4406 and every reply failed WHATSAPP_PHONE_NUMBER_UNAVAILABLE (11-10, Shoe Lacky
+    // POCA 424-0813 "Are u in the bahamas" got no answer). Fall back to the shop saved for them (ycloudStore is on the volume),
+    // and never send from a number that is gone.
+    const YC_LIVE = { 'Shoe Lacky': '18454031330', 'New Wave': '16592229328' };
+    const YC_DEAD = /(?:4324406|6367431)$/;
+    let from = ycloudFrom.get(String(phoneDigits)) || '';
+    if (!from || YC_DEAD.test(String(from).replace(/\D/g, ''))) {
+      const st = (() => { try { return ycloudStore.get(String(phoneDigits)); } catch (_) { return null; } })();
+      from = YC_LIVE[st] || (YC_DEAD.test(String(process.env.YCLOUD_FROM || '').replace(/\D/g, '')) ? YC_LIVE['Shoe Lacky'] : (process.env.YCLOUD_FROM || YC_LIVE['Shoe Lacky']));
+    }
     if (!key) return { ok: false, why: 'no YCLOUD_API_KEY' };
     if (!from) return { ok: false, why: 'no business number known yet (no inbound seen, YCLOUD_FROM unset)' };
     const fromE = String(from).startsWith('+') ? String(from) : '+' + String(from).replace(/\D/g, '');
