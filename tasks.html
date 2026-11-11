@@ -432,12 +432,28 @@ function saw(id,size){ var c=chk(id); return !!(c&&c.here[size]); }
 function verdictOf(id){ var c=chk(id); return (c&&c.verdict)||''; }
 function realOf(id){ var c=chk(id); return (c&&c.real)||''; }
 
+/* CHECKED ON AN EARLIER DAY STAYS CHECKED (Rodney 11-11: "she told me she did all the jordans yesterday" -
+   the sheet started every day empty, so all 13 shoes she did this morning were ones she had already done).
+   PREV = shoes checked in the last 3 days. They count as done and leave the To-check list, but they are NOT
+   copied into today's record, so nothing she sent before is applied to the stock a second time. */
+var PREV={};
+function doneV(id){ return verdictOf(id) || (PREV[id]?'ok':''); }
+function loadPrev(){
+  if(!INV||TEST) return;
+  var ds=[]; for(var i=1;i<=3;i++){ var d=new Date(TODAY+'T12:00:00'); d.setDate(d.getDate()-i); ds.push(d.toISOString().slice(0,10)); }
+  Promise.all(ds.map(function(dt){ return fetch(API+'/shop/daily?key='+KEY+'&date='+dt,{cache:'no-store'})
+    .then(function(r){ return r.ok?r.json():null; }).catch(function(){ return null; }); }))
+  .then(function(all){
+    all.forEach(function(j){ var c=j&&j.day&&j.day.check; if(c) for(var id in c) if(c[id]&&c[id].verdict) PREV[id]=1; });
+    if(!document.getElementById('page-count').hidden) renderCount(); else countStats();
+  });
+}
 function totals(){
   var t={shoes:0,checked:0,ok:0,bad:0};
   shoes.forEach(function(s){
     if(!(s.s||[]).length) return;
     t.shoes++;
-    var v=verdictOf(s.id);
+    var v=doneV(s.id);
     if(v){ t.checked++; if(v==='ok') t.ok++; else t.bad++; }
   });
   return t;
@@ -575,8 +591,8 @@ function matches(s){
     if(hay.indexOf(query)<0) return false;
   }
   var v=verdictOf(s.id);
-  if(filter==='todo') return !v;
-  if(filter==='done') return !!v;
+  if(filter==='todo') return !doneV(s.id);
+  if(filter==='done') return !!doneV(s.id);
   if(filter==='bad')  return v==='bad';
   return true;
 }
@@ -963,6 +979,7 @@ if(INV){
 }
 showTab(startTab);
 pullDay();     /* what the shop already has for today, merged in before anything is sent */
+loadPrev();    /* and what she already checked on the last 3 days */
 refresh();     /* and the live sizes */
 })();
 </script>
