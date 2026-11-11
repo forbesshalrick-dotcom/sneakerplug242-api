@@ -121,7 +121,7 @@ section{margin-top:22px}
 .fixbox .eg{font-size:11.5px;color:var(--muted);margin-top:5px}
 .sayrow{display:flex;gap:8px}
 .sayrow input{flex:1}
-.mic{flex:0 0 52px;border-radius:9px;border:1px solid var(--bad);background:var(--surface2);font-size:22px;cursor:pointer}
+.mic{display:none!important;flex:0 0 52px;border-radius:9px;border:1px solid var(--bad);background:var(--surface2);font-size:22px;cursor:pointer}
 .mic.on{background:var(--bad);animation:micpulse 1s infinite}
 @keyframes micpulse{50%{opacity:.6}}
 .tl{margin-top:7px;font:700 13px Archivo,sans-serif;color:var(--text)}
@@ -287,6 +287,8 @@ function brandOf(x){
   return (x.b||'Other').replace(/^asics$/i,'Asics');
 }
 var BRANK={'Jordan':0,'New Balance':1,'Nike':2};
+/* Jordan 1s are the LAST of the Jordans (Rodney 11-10: "let's leave the Jordan 1s for the last pair of Jordans in the brand"). */
+function isJ1(x){ return brandOf(x)==='Jordan'&&/\b(?:air\s*)?jordan\s*1\b|\baj\s*1\b/i.test((x.n||'')+' '+(x.k||'')) ? 1 : 0; }
 /* SINGLES ARE SEPARATE STOCK (Rodney 11-10: "The shoes that only have one more, they're in the singles.
    They're separate inventory. Leave the singles separately.") - a shoe with ONE pair left goes in its
    own Singles section at the bottom, never mixed into the brand shelves. */
@@ -296,7 +298,7 @@ function isSingle(x){ return (x.s||[]).length===1 ? 1 : 0; }
 var SINGLES=INV&&/[?&]singles/.test(location.search);
 function invSort(a,b){
     var A=brandOf(a),B=brandOf(b),ra=(A in BRANK)?BRANK[A]:3,rb=(B in BRANK)?BRANK[B]:3;
-    return (isSingle(a)-isSingle(b))||(ra-rb)||A.localeCompare(B)||(a.n||'').localeCompare(b.n||'')||(a.c||'').localeCompare(b.c||'');
+    return (isSingle(a)-isSingle(b))||(ra-rb)||A.localeCompare(B)||(isJ1(a)-isJ1(b))||(a.n||'').localeCompare(b.n||'')||(a.c||'').localeCompare(b.c||'');
 }
 if(INV) shoes.sort(invSort);
 
@@ -495,7 +497,7 @@ function checkCard(s){
         ' value="'+esc(real)+'" placeholder="7, 8, 8, 9.5"/>'+
         '<button class="mic" data-mic="'+esc(s.id)+'" aria-label="Say the sizes">🎤</button></div>'+
       '<div class="tl" id="ty-'+esc(s.id)+'">'+tallyHtml(parseSizes(real))+'</div>'+
-      '<div class="eg">Tap 🎤 and read the stack out loud, box by box: “7, 8, 9, 8, 7, 12, 11 and a half”. Or type it. This is what updates the shop.</div>'+
+      '<div class="eg">Every pair, one by one — two 8s is “8, 8”. The count shows under the box. This is what updates the shop.</div>'+
     '</div>'+
   '</article>';
 }
@@ -851,9 +853,22 @@ document.addEventListener('input',function(e){
 var NUMW={zero:0,one:1,two:2,to:2,too:2,three:3,four:4,for:4,five:5,six:6,seven:7,eight:8,ate:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16};
 function parseSizes(t){
   t=String(t||'').toLowerCase().replace(/½/g,' and a half').replace(/[-–]/g,' ');
+  /* "two 8s", "2 sevens", "three eights" = that many pairs of that size */
+  t=t.replace(/\b(\d{1,2}|one|two|three|four|five|six)\s+(\d{1,2}(?:\.5)?|[a-z]+?)s\b/g,function(m,c,w){
+    return (/^\d/.test(w)||NUMW.hasOwnProperty(w)) ? c+' size '+w : m; });
   t=t.replace(/(\d+)\s*1\s*\/\s*2/g,'$1.5');
   t=t.replace(/\b[a-z]+\b/g,function(w){ var x=w.replace(/s$/,''); return NUMW.hasOwnProperty(w)?String(NUMW[w]):(NUMW.hasOwnProperty(x)?String(NUMW[x]):w); });
   t=t.replace(/(\d+)\s*(?:and\s*)?(?:a\s*)?half\b/g,'$1.5').replace(/(\d+)\s*point\s*5\b/g,'$1.5').replace(/(\d+)\s*\.\s*5\b/g,'$1.5');
+  /* COUNTS: "two size seven" / "2 size 7" / "2 sevens" / "7 x2" / "2 x 7" mean TWO pairs of 7 (Rodney 11-10: he said
+     "two size seven, two size eight, two size eight point five" and it came out as 3 pairs). Expand them to one entry per pair. */
+  t=t.replace(/\b(\d{1,2})\s*(?:x|times|pairs?(?:\s*of)?)?\s*(?:size|sizes|of\s*size|in\s*size)\s*(\d+(?:\.5)?)/g,function(m,c,v){ return rep(v,c); });
+  /* "7 x2" and "2 x 7" both mean two 7s: the number under 3, or else the smaller whole number, is the count */
+  t=t.replace(/\b(\d+(?:\.5)?)\s*(?:x|times)\s*(\d+(?:\.5)?)/g,function(m,a,b){
+    var A=parseFloat(a),B=parseFloat(b);
+    if(A<3&&A%1===0) return rep(b,a); if(B<3&&B%1===0) return rep(a,b);
+    if(A%1) return rep(a,b); if(B%1) return rep(b,a);
+    return A<=B?rep(b,a):rep(a,b); });
+  function rep(v,c){ c=parseInt(c,10); if(!(c>=1&&c<=12)) return v; return Array(c).fill(v).join(' , '); }
   var out=[]; (t.match(/\d+(?:\.5)?/g)||[]).forEach(function(n){
     var v=parseFloat(n); if(v>=3&&v<=17&&(v*2)%1===0) out.push(String(v)); });
   return out;
@@ -871,7 +886,11 @@ document.addEventListener('click',function(e){
   e.preventDefault();
   var id=b.getAttribute('data-mic'), inp=document.getElementById('fr-'+id);
   var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ if(inp){ inp.focus(); } alert('Tap the box, then the 🎤 on your keyboard, and read the sizes out.'); return; }
+  var tip=document.getElementById('ty-'+id);
+  function say(m){ if(tip) tip.innerHTML='<span class="tot">'+m+'</span>'; }
+  /* No alert(): inside an app's built-in browser (WhatsApp, Claude) alerts are swallowed and SpeechRecognition does not
+     exist, so the button looked dead (Rodney 11-10: "Nothing happens when I press record, nothing at all"). */
+  if(!SR){ say('This browser has no voice button. Tap the box, then the 🎤 on your keyboard. Or open this page in Chrome.'); if(inp) inp.focus(); return; }
   if(micRec){ var same=micId===id; micRec.stop(); micRec=null; micId=null; if(same) return; }
   var r=new SR(); r.lang='en-US'; r.continuous=true; r.interimResults=false;
   var base=inp?inp.value:'';
@@ -879,9 +898,15 @@ document.addEventListener('click',function(e){
     var said=''; for(var i=0;i<ev.results.length;i++) if(ev.results[i].isFinal) said+=' '+ev.results[i][0].transcript;
     if(inp){ inp.value=(base?base+', ':'')+said.trim(); inp.dispatchEvent(new Event('input',{bubbles:true})); }
   };
-  r.onend=function(){ b.classList.remove('on'); if(micRec===r){ micRec=null; micId=null; } };
-  r.onerror=function(){ b.classList.remove('on'); };
-  micRec=r; micId=id; b.classList.add('on'); r.start();
+  r.onstart=function(){ say('🎤 Listening… say the sizes, then tap 🎤 again to stop'); };
+  r.onend=function(){ b.classList.remove('on'); if(micRec===r){ micRec=null; micId=null; }
+    if(inp) inp.dispatchEvent(new Event('input',{bubbles:true})); };
+  r.onerror=function(ev){ b.classList.remove('on'); var er=(ev&&ev.error)||'';
+    say(er==='not-allowed'||er==='service-not-allowed' ? 'The microphone is blocked. Allow it for 242plug.com in the browser settings, or use the 🎤 on your keyboard.'
+      : er==='no-speech' ? 'Didn’t hear anything. Tap 🎤 and speak a bit closer.'
+      : 'Voice didn’t work ('+er+'). Tap the box and use the 🎤 on your keyboard.'); };
+  micRec=r; micId=id; b.classList.add('on'); say('Starting the microphone…');
+  try{ r.start(); }catch(ex){ b.classList.remove('on'); micRec=null; say('Voice didn’t start. Tap the box and use the 🎤 on your keyboard.'); }
 });
 var qEl=document.getElementById('q'), qT;
 qEl.oninput=function(){ clearTimeout(qT); qT=setTimeout(function(){
