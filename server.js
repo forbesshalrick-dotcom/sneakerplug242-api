@@ -13970,6 +13970,36 @@ app.post('/ycloud/webhook', async (req, res) => {
       }
       record(req, { endpoint: 'ycloud-tag', sub: from, found: !!(q && q.link), shoe: qShoe ? String(qShoe.id) : '', gotPic: !!ycImage });
     }
+    /* 📢 WHICH AD DID THEY TAP (Rodney 11-12, Shoe Lacky 468-7270: tapped the $150 Jordan 4 ad and was answered about a
+     * New Balance; Cindy 465-8167 quoted the ad's $150 and was told "Nah, it's $180"). A click-to-WhatsApp opener carries a
+     * `referral` with the ad's headline, text and picture - it was thrown away, so Kiki guessed. Now the ad picture goes to
+     * her as the photo (she reads ads well when a customer screenshots one) and the price on it is the price. */
+    try {
+      const rf = m.referral || m.adReferral || (m.context && m.context.referral) || null;
+      if (rf && typeof rf === 'object') {
+        const hl = String(rf.headline || '').slice(0, 200), bd = String(rf.body || '').slice(0, 300);
+        const pic = String(rf.imageUrl || rf.image_url || rf.thumbnailUrl || rf.thumbnail_url || '');
+        let gotAdPic = false;
+        if (pic && !ycImage) {
+          try {
+            const r = await fetch(pic, { signal: AbortSignal.timeout(15000), redirect: 'follow' });
+            if (r.ok) {
+              const buf = Buffer.from(await r.arrayBuffer());
+              let ct = (r.headers.get('content-type') || 'image/jpeg').split(';')[0].trim().toLowerCase();
+              if (buf[0] === 0xFF && buf[1] === 0xD8) ct = 'image/jpeg'; else if (buf[0] === 0x89 && buf[1] === 0x50) ct = 'image/png';
+              if (buf.length > 0 && buf.length <= 4.5 * 1024 * 1024 && /^image\//.test(ct)) { ycImage = { data: buf.toString('base64'), media_type: ct }; gotAdPic = true; }
+            }
+          } catch (_) {}
+        }
+        text = '(SYSTEM: this customer opened the chat by tapping one of OUR ADS'
+          + (hl ? ' - ad headline "' + hl + '"' : '') + (bd ? ', ad text "' + bd + '"' : '') + '. '
+          + (gotAdPic ? 'The attached picture IS that ad, not a photo they took. ' : '')
+          + 'The shoes in that ad are what they are asking about - name THOSE shoes. Any price printed on the ad IS the price, honour it. '
+          + 'Do NOT send the whole size album: tell them which of the ad shoes we have (in their size if they gave one) with the price, '
+          + 'and ask their size if you need it.) ' + String(text || '');
+        record(req, { endpoint: 'ycloud-ad-referral', sub: from, headline: hl.slice(0, 80), pic: gotAdPic, keys: Object.keys(rf).join(',').slice(0, 120) });
+      }
+    } catch (_) {}
     record(req, { endpoint: 'ycloud-in', sub: from, to: toNum, kind, msgType: t, q: String(text).slice(0, 60), photo: !!ycImage });
     // A first message of type "unsupported" is a click-to-WhatsApp ad opener we cannot read: answer it as one.
     if (!String(text).trim() && t === 'unsupported' && !lastIncoming.has(from)) {
