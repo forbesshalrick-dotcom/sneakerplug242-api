@@ -7268,7 +7268,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     : { type: 'url', url: image };
   // 🔎 The stronger look goes first, and Kiki is told to trust it over her own read.
   let _idVerdict = null;
-  if (image) {
+  // An AD picture shows several shoes - never 'identify' one of them (11-12 New Wave: six-shoe ad -> 'That's the Lightning!').
+  if (image && !image.isAd) {
     try {
       const _seen = await identifyPhoto(imageSource, stockListForIdentify(), String(userText || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0].trim());
       record(req, { endpoint: _seen ? 'photo-identified' : 'photo-identify-failed', sub, store: ctx.store || '', seen: _seen ? _seen.slice(0, 240) : null });
@@ -7807,8 +7808,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // Step 0 is NOT forced anymore: let her first tell a SHOE from a RECEIPT/document (the
     // photoNote guides her). If she chose to SEARCH (a shoe), we then force the SHOW so she
     // can't stall on "what size?". If she DIDN'T search (a receipt), we never force photos.
-    const forceTool = (image && !photosSentRun && didSearch && step >= 1 && lastSearchCount > 0) ? { type: 'tool', name: 'send_photos' }
-      : (image && !photosSentRun && didSearch && step === 1 && lastSearchCount === 0) ? { type: 'tool', name: 'search_inventory' }
+    const forceTool = (image && !image.isAd && !photosSentRun && didSearch && step >= 1 && lastSearchCount > 0) ? { type: 'tool', name: 'send_photos' }
+      : (image && !image.isAd && !photosSentRun && didSearch && step === 1 && lastSearchCount === 0) ? { type: 'tool', name: 'search_inventory' }
       : forcePhotosNext ? { type: 'tool', name: 'send_photos' }
       : forceSearchNext ? { type: 'tool', name: 'search_inventory' }
       : undefined;
@@ -14013,7 +14014,7 @@ app.post('/ycloud/webhook', async (req, res) => {
               const buf = Buffer.from(await r.arrayBuffer());
               let ct = (r.headers.get('content-type') || 'image/jpeg').split(';')[0].trim().toLowerCase();
               if (buf[0] === 0xFF && buf[1] === 0xD8) ct = 'image/jpeg'; else if (buf[0] === 0x89 && buf[1] === 0x50) ct = 'image/png';
-              if (buf.length > 0 && buf.length <= 4.5 * 1024 * 1024 && /^image\//.test(ct)) { ycImage = { data: buf.toString('base64'), media_type: ct }; gotAdPic = true; }
+              if (buf.length > 0 && buf.length <= 4.5 * 1024 * 1024 && /^image\//.test(ct)) { ycImage = { data: buf.toString('base64'), media_type: ct, isAd: true }; gotAdPic = true; }
             }
           } catch (_) {}
         }
