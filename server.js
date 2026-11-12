@@ -10540,7 +10540,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _tier = (c) => { c = String(c || '').toLowerCase();
             if (_EARTH.test(_cw) ? _EARTH.test(c) : (_cWords.length && _cWords.some(w => c.includes(w)))) return 0;
             return /\b(white|black|grey|gray|silver)\b/.test(c) ? 1 : 2; };
+          /* 🏷 SAME BRAND OR NOTHING (Rodney 11-12, TK Praise The Lord 726-675953: "I mean Acics" -> "Thats it?" -> Kiki wrote
+           * "here's all the Asics we got in an 8 👇", her album was held, and this net filled it with six JORDANS - "They not acics").
+           * The brand in her own line, else in the customer's last words, limits what this net may send. */
+          const _BR = [['asics', /\b(?:a[cs]i[cs]s?|asics|aisics|gel[- ]?(?:kayano|1130|nyc))\b/i, /asics|gel-/i],
+            ['new balance', /\b(?:new ?balance|nb|9060|2000|1906|990|550|530)\b/i, /new balance/i],
+            ['jordan', /\b(?:jordans?|js|retro|aj ?\d+)\b/i, /jordan/i],
+            ['air max', /\b(?:air ?max|95s?|97s?|90s?|tn|plus)\b/i, /air max/i],
+            ['air force', /\b(?:air ?force|af1|forces)\b/i, /air force/i],
+            ['dunk', /\bdunks?\b/i, /dunk/i], ['vapormax', /\bvapou?r ?max\b/i, /vapormax/i]];
+          const _br = _BR.find(b => b[1].test(String(_lt))) || _BR.find(b => b[1].test(String((typeof _recentCust !== 'undefined' && _recentCust) || userText || '')));
+          if (_br) record(req, { endpoint: 'guard-fallback-brand', sub, brand: _br[0] });
           _idsF = _rowsF.filter(r => r && r.id != null && !turnSentIds.has(String(r.id)))
+            .filter(r => !_br || _br[2].test(String(r.brand || '') + ' ' + String(r.name || '')))
             .map((r, i) => ({ id: String(r.id), t: _tier(r.color + ' ' + r.name), i }))
             .sort((a, b) => a.t - b.t || a.i - b.i).slice(0, 6).map(x => x.id);
         }
