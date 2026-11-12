@@ -26,7 +26,7 @@
   },
   {
    "id": "nb-asics-4",
-   "label": "New Balance + ASICS — white/black ASICS, grey/black/red NB, silver/grey NB, black/green NB — free delivery",
+   "label": "New Balance 1906 + ASICS — ASICS white/black, NB 1906 black/grey/red, NB 1906 grey/silver, NB 1906 black/green — free delivery",
    "caption": "FREE DELIVERY",
    "shoes": [
     {
@@ -35,13 +35,18 @@
      "price": 130
     },
     {
-     "id": "nb2000blkwhtred001",
-     "name": "New Balance grey/black/red",
+     "id": "co612",
+     "name": "New Balance 1906 Black/Grey/Red",
      "price": 130
     },
     {
-     "id": "nb2000blackwhite001",
-     "name": "New Balance silver/grey (bottom left of the ad)",
+     "id": "co634",
+     "name": "New Balance 1906 Grey/Silver (bottom left of the ad)",
+     "price": 130
+    },
+    {
+     "id": "co617",
+     "name": "New Balance 1906 Black/Green",
      "price": 130
     }
    ]
