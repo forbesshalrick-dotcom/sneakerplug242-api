@@ -50,6 +50,118 @@
      "price": 130
     }
    ]
+  },
+  {
+   "id": "nw-wall-6",
+   "shop": "New Wave",
+   "label": "White wall, 6 shoes: VaporMax Utility $60, VaporMax Plus Black $60, TN White/Purple $80, TN Black/Blue $80, Air Max 97 Red Leopard $70, Air Force 1 Low Kid $70",
+   "caption": "Free delivery",
+   "shoes": [
+    {
+     "id": "vapormaxutil001",
+     "name": "VaporMax Utility (sizes 7, 8, 8.5)",
+     "price": 60
+    },
+    {
+     "name": "VaporMax Plus Black (sizes 7, 8)",
+     "price": 60
+    },
+    {
+     "id": "airmaxpluswpur001",
+     "name": "Air Max Plus TN White/Purple (sizes 7, 8)",
+     "price": 80
+    },
+    {
+     "id": "c0453",
+     "name": "Air Max Plus TN Black/Blue (size 7)",
+     "price": 80
+    },
+    {
+     "id": "airmax97cheet001",
+     "name": "Air Max 97 Red Leopard (size 5.5)",
+     "price": 70
+    },
+    {
+     "id": "c0449",
+     "name": "Air Force 1 Low Kid green/white (size 8)",
+     "price": 70
+    }
+   ]
+  },
+  {
+   "id": "nw-trunk-6",
+   "shop": "New Wave",
+   "label": "Car trunk (Cube), 6 shoes: Air Max 2021 $50, Air Max Plus Drift $80, Air Max Plus Terrascape $80, Jordan 1 Low Triple Black $80, Air Max Plus Pink/Blue/Black $80, Air Max Plus Drift Black/Red/Purple $70",
+   "caption": "Free delivery",
+   "shoes": [
+    {
+     "id": "c0455",
+     "name": "Nike Air Max 2021 (sizes 5.5, 8)",
+     "price": 50
+    },
+    {
+     "id": "co584",
+     "name": "Air Max Plus Drift black (sizes 8, 8.5)",
+     "price": 80
+    },
+    {
+     "id": "c0425",
+     "name": "Air Max Plus Terrascape (sizes 7, 8)",
+     "price": 80
+    },
+    {
+     "id": "co548",
+     "name": "Air Jordan 1 Low Triple Black (sizes 7, 9)",
+     "price": 80
+    },
+    {
+     "id": "co581",
+     "name": "Air Max Plus Pink/Blue/Black (sizes 8, 8.5)",
+     "price": 80
+    },
+    {
+     "name": "Air Max Plus Drift Black/Red/Purple (sizes 5.5, 6.5)",
+     "price": 70
+    }
+   ]
+  },
+  {
+   "id": "nw-porch-6",
+   "shop": "New Wave",
+   "label": "Porch with palm trees, 6 shoes: NB 9060 multicolour $120, NB 9060 cream/blue $120, Air Max Plus 3 blue $80, Dunk pink/white $80, NB 740 pink/silver $120, Air Max Plus blue $120",
+   "caption": "",
+   "shoes": [
+    {
+     "id": "c0395",
+     "name": "New Balance 9060 multicolour purple/orange (sizes 5.5, 6.5, 9.5)",
+     "price": 120
+    },
+    {
+     "id": "c0411",
+     "name": "New Balance 9060 cream/blue (sizes 5.5, 6.5, 11, 12.5)",
+     "price": 120
+    },
+    {
+     "id": "c0429",
+     "name": "Air Max Plus 3 blue/purple (sizes 7, 8, 10)",
+     "price": 80
+    },
+    {
+     "id": "c0434",
+     "name": "Nike Dunk Low pink/white (sizes 11, 12, 13)",
+     "price": 80
+    },
+    {
+     "id": "nb740pinksilv001",
+     "name": "New Balance 740 pink/silver (sizes 5.5, 7, 7.5, 9, 9.5)",
+     "price": 120
+    },
+    {
+     "id": "c0456",
+     "name": "Air Max Plus blue/black (sizes 7, 8, 8.5)",
+     "price": 120
+    }
+   ]
   }
  ]
 }
