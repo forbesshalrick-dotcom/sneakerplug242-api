@@ -3969,6 +3969,13 @@ function repairToolPairs(h) {
 }
 async function callClaude(messages, system, toolChoice, toolsOverride) {
   try { repairToolPairs(messages); } catch (_) {}
+  /* 🧹 NO PRIVATE FIELDS ON A TOOL CALL (11-12, New Wave fully duns 829-7409: "messages.27.content.0.tool_use._insteadLine: Extra
+   * inputs are not permitted" - a guard parked its line on the tool_use block, it was saved in the chat, and EVERY later turn for
+   * that customer failed with a 400). Anything starting with "_" is stripped from tool_use blocks before the API sees them. */
+  try {
+    for (const m of messages || []) if (m && Array.isArray(m.content)) for (const b of m.content)
+      if (b && b.type === 'tool_use') for (const k of Object.keys(b)) if (k.startsWith('_')) delete b[k];
+  } catch (_) {}
   const _sys = system || buildSystemPrompt();
   const _i = _sys.indexOf(SYS_SPLIT);
   const _head = _i < 0 ? _sys : _sys.slice(0, _i), _tail = _i < 0 ? '' : _sys.slice(_i + SYS_SPLIT.length).trim();
