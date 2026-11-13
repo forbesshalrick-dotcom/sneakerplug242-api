@@ -6702,6 +6702,26 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'stale-note-no-reader', sub });
     }
   } catch (_) {}
+  /* 💰 A PAYMENT CLAIM GOES TO THE OWNER AT ONCE (Rodney 11-13: Gino TK said "I just made the payment online" and Kiki
+   * answered "You're all set ✅" - "If someone's saying they just made a payment, that's some serious news. I should be notified
+   * right away.") A receipt or a claim is not money (receipt-is-not-money): Rodney checks the account, Kiki never confirms it. */
+  try {
+    const _pw = customerWordsOnly(String(userText || ''));
+    if (!staffName && (/\b(?:i|we|just|already|done|have|has|did)\b[^.?!]{0,25}\b(?:paid|payed|made (?:the |a )?payment|transferr?ed|deposited|cashapped)\b/i.test(_pw)
+        || /\b(?:sent|send|did|made)\b[^.?!]{0,15}\b(?:the |a |your )?(?:money|cash|payment|transfer|deposit|funds)\b/i.test(_pw)
+        || /\b(?:payment|transfer|deposit|money)\s+(?:sent|made|done|went through|gone|is sent|has been sent)\b/i.test(_pw)
+        || /\bpaid\b/i.test(_pw)) && !/\b(?:how|where|can i|could i|do (?:i|you)|when do|what)\b[^.?!]{0,20}\bpay/i.test(_pw)) {
+      const _k = 'paid|' + sub;
+      if (Date.now() - (nonTextAlertAt.get(_k) || 0) > 20 * 60000) {
+        nonTextAlertAt.set(_k, Date.now());
+        const _ph = (getPhone(req) || (isYcloudSub(sub) ? String(sub) : '')).replace(/\D/g, '');
+        queueForOwner('💰 *CUSTOMER SAYS THEY PAID* - check your account NOW before anything leaves\n👤 ' + (ctx.name || sub) + (_ph ? ('  📞 +' + _ph + '  (wa.me/' + _ph + ')') : '')
+          + (ctx.store ? ('  🏬 ' + ctx.store) : '') + '\n💬 "' + _pw.replace(/\s+/g, ' ').slice(0, 160) + '"\n⚠️ A message or receipt is not money - confirm it landed (PayPal / CIBC / Scotia).', 'Payment claim', true);
+        record(req, { endpoint: 'payment-claim', sub, store: ctx.store || '' });
+      }
+      userText = '(SYSTEM: they say they PAID. Never say "you\'re all set", "payment received" or "confirmed" - you cannot see the account. Say thanks and that the team is checking it now 🙏, then carry on with the pin / delivery as normal.)\n' + String(userText || '');
+    }
+  } catch (_) {}
   /* 🎥 A VIDEO REQUEST GOES TO THE OWNER (Rodney 10-29: FF Gio 814-1106 asked "can I see them like in video please. This my first
    * time ordering off marketplace" and Kiki said "I can't send videos through WhatsApp". "I'm supposed to have the notification that
    * somebody needed a video so I can do it for them.") Kiki says one is coming; the owner gets the alert with the chat. */
@@ -9099,7 +9119,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // Suppressing the forced CALL was never enough; the note itself had to stop being sent.
       // A forwarded card is excluded: they already hold its picture, and the forced send came out as a second line
       // ("Yep, that's the Nike Shox All Black! Here it is 👇") under her answer (Van Roberts, TK, 2026-10-14).
-      if (!wholesale && !staffName && !photosSentRun && !pinnedPickIds.size && !resendDroppedNames.length && lastSearchCount > 0 && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
+      if (!wholesale && !staffName && !(image && image.isAd) && !photosSentRun && !pinnedPickIds.size && !resendDroppedNames.length && lastSearchCount > 0 && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
         record(req, { endpoint: 'force-photo-after-text', sub, q: (turnText || '').slice(0, 60) });
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just described a specific shoe with its price/sizes in WORDS but never sent its picture, so the customer is left having to ask for a pic. Call send_photos NOW for that exact shoe you just found (a short lead_in like "Here it is 👇"). The photo, with its name/price/sizes label, IS the answer — never make them ask to see it.)' });
         forcePhotosNext = true; forcedPhotosOnce = true;
@@ -10349,7 +10369,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * on a photo turn where a search ran, hand her ours, numbered, and let her look. Once per
      * turn, capped, and wrapped so it can never break a reply. Same-model shoes we are OUT of
      * come too, labelled SOLD OUT, so she can NAME a shoe she cannot sell. */
-    if (image && !photoCompareSent && lastSearchIds.length) {
+    // 11-13: never on a click-to-WhatsApp AD picture - it holds six shoes; comparing it to our
+    // photos picked the White/Purple $120 and she sent it under the trunk ad (Bolo, Tyson, NW).
+    if (image && !image.isAd && !photoCompareSent && lastSearchIds.length) {
       try {
         const lm = liveShoeMap();
         const picks = lastSearchIds.slice(0, 5).map(id => lm[id]).filter(sh => sh && sh.image);
@@ -15547,6 +15569,9 @@ app.post('/pay/log', (req, res) => {
     const b = (req.body && typeof req.body === 'object') ? req.body : (() => { try { return JSON.parse(req.rawBody || '{}'); } catch (_) { return {}; } })();
     const what = String(b.what || '').slice(0, 20);
     record(req, { endpoint: 'pay-' + what, amount: b.amount, ref: String(b.ref || '').slice(0, 80), detail: String(b.detail || '').slice(0, 300), ua: String(b.ua || '').slice(0, 120) });
+    if (what === 'paid')
+      queueForOwner('💰 *CARD PAYMENT MADE* on 242plug.com/pay - $' + (b.amount || '?') + (b.ref ? ('  (' + String(b.ref).slice(0, 60) + ')') : '') + '\n'
+        + '✅ PayPal told the customer\'s phone it went through. Check PayPal to see it landed, then match it to the chat.', 'Card paid', true);
     if (what === 'error' || what === 'sdk-failed' || what === 'render-failed')
       queueForOwner('💳 *CARD PAYMENT FAILED* on 242plug.com/pay — $' + (b.amount || '?') + (b.ref ? ('  (' + String(b.ref).slice(0, 60) + ')') : '') + '\n'
         + '🧾 PayPal said: ' + (String(b.detail || '').slice(0, 200) || 'no reason given') + '\n'
