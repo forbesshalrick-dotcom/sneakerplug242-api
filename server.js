@@ -971,7 +971,7 @@ const MANAGER_ALIASES = {
 };
 const MANAGER_TAIL_NAMES = {};
 // Every WhatsApp number a Kiki answers on. A message from one of these is a bot, never a customer.
-const SHOP_LINE_TAILS = new Set(['12424324406', '12428256405', '12428033126', '12426367431', '18454031330', '16592229328'].map(n => n.slice(-10)));
+const SHOP_LINE_TAILS = new Set(['12424324406', '12428256405', '12428033126', '12426367431', '18454031330', '16592229328', '18157832764'].map(n => n.slice(-10)));
 Object.keys(MANAGER_ALIASES).forEach(function (n) { MANAGER_TAIL_NAMES[n.replace(/\D/g, '').slice(-10)] = MANAGER_ALIASES[n]; });
 const EXTRA_STAFF = {};
 // 📱 SHOW-IN-INBOX NUMBERS: numbers to treat as a normal CUSTOMER (not staff) so their messages
@@ -1148,7 +1148,7 @@ function isYcloudSub(sub) {
   if (ycloudStore.has(s)) return true;
   try {
     const sidx = inboxSubIndex.get(s); const t = sidx ? inboxThreads.get(sidx) : null;
-    if (t && /^(Foot Fetish|Luxury Boutique|Shoe Lacky|New Wave)$/.test(String(t.account || ''))) { ycloudStore.set(s, String(t.account)); saveYcloudStore(); return true; }
+    if (t && /^(Foot Fetish|Luxury Boutique|Shoe Lacky|New Wave|The Shoebox)$/.test(String(t.account || ''))) { ycloudStore.set(s, String(t.account)); saveYcloudStore(); return true; }
   } catch (_) {}
   return false;
 }
@@ -1213,7 +1213,7 @@ async function ycloudSendMessages(phoneDigits, messages) {
     // YCLOUD_FROM = the dead Foot Fetish 432-4406 and every reply failed WHATSAPP_PHONE_NUMBER_UNAVAILABLE (11-10, Shoe Lacky
     // POCA 424-0813 "Are u in the bahamas" got no answer). Fall back to the shop saved for them (ycloudStore is on the volume),
     // and never send from a number that is gone.
-    const YC_LIVE = { 'Shoe Lacky': '18454031330', 'New Wave': '16592229328' };
+    const YC_LIVE = { 'Shoe Lacky': '18454031330', 'New Wave': '16592229328', 'The Shoebox': '18157832764' };
     const YC_DEAD = /(?:4324406|6367431)$/;
     let from = ycloudFrom.get(String(phoneDigits)) || '';
     if (!from || YC_DEAD.test(String(from).replace(/\D/g, ''))) {
@@ -6700,6 +6700,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (ctx.staleRepeat && !/^\(SYSTEM/.test(String(userText || ''))) {
       userText = '(SYSTEM: these words are a WhatsApp re-delivery of their EARLIER message, which you already answered - a pin, photo or sticker just arrived in its place. Do NOT answer these words again. If you were waiting on their location, that was most likely their pin: say "Got your location 📍" and ask what time works TODAY.)\n' + String(userText || '');
       record(req, { endpoint: 'stale-note-no-reader', sub });
+    }
+  } catch (_) {}
+  /* 📞 A QUESTION FOR THE DRIVER GOES TO THE DRIVER (Rodney 11-13, at Gino's paid drop: Kiki told the customer "the driver will
+   * call you" and "let me call him now" and Rodney never heard a word. "Send me the question in the group chat - customer wants to
+   * know how far are you - I can let you know in your personal chat, then you go back to the customer with the answer.") */
+  try {
+    const _dw = customerWordsOnly(String(userText || ''));
+    if (!staffName && (/\b(?:call|ring|phone)\s+(?:me|him|her)\b/i.test(_dw) || /\b(?:give|gimme)\s+(?:me\s+)?a\s+(?:call|ring)\b/i.test(_dw)
+        || /\bhow (?:far|long)\b/i.test(_dw) || /\bwhere\s+(?:is|r|are|u|you|ya|the)\b[^.?!]{0,15}\b(?:driver|him|you|u|ya|man)\b/i.test(_dw)
+        || /\b(?:eta|on (?:the|ur|your) way|(?:u|you|he|driver)\s+(?:close|coming|reach(?:ing)?|here|outside|almost))\b/i.test(_dw)
+        || /\b(?:i'?m|im|i am)\s+(?:outside|here|waiting|downstairs|at the)\b/i.test(_dw))) {
+      const _k = 'driverq|' + sub;
+      if (Date.now() - (nonTextAlertAt.get(_k) || 0) > 10 * 60000) {
+        nonTextAlertAt.set(_k, Date.now());
+        const _ph = (getPhone(req) || (isYcloudSub(sub) ? String(sub) : '')).replace(/\D/g, '');
+        queueForOwner('📞 *CUSTOMER QUESTION FOR THE DRIVER*\n👤 ' + (ctx.name || sub) + (_ph ? ('  📞 +' + _ph + '  (wa.me/' + _ph + ')') : '')
+          + (ctx.store ? ('  🏬 ' + ctx.store) : '') + '\n💬 "' + _dw.replace(/\s+/g, ' ').slice(0, 160) + '"\n👉 Call them, or answer in your chat (e.g. "10 mins") and it gets passed on.', 'Driver question', true);
+        record(req, { endpoint: 'driver-question', sub, store: ctx.store || '' });
+      }
     }
   } catch (_) {}
   /* 💰 A PAYMENT CLAIM GOES TO THE OWNER AT ONCE (Rodney 11-13: Gino TK said "I just made the payment online" and Kiki
@@ -14071,7 +14090,7 @@ app.post('/ycloud/webhook', async (req, res) => {
     // (845) 403-1330 joined 2026-11-03 by coexistence under the WhatsApp name "Nassau Shoe Lacky" (WABA 1083750004256992)
     // after Meta refused to reconnect 636-7431; Rodney 11-03: Kiki calls it just "Shoe Lacky".
     // +1 (659) 222-9328 = NEW WAVE, a new channel (Rodney 11-10: "The new number listed as a new channel. We're gonna call it New Wave.").
-    const YCLOUD_SHOPS = { '4324406': 'Foot Fetish', '6367431': 'Luxury Boutique', '2229328': 'New Wave', '4031330': 'Shoe Lacky' };
+    const YCLOUD_SHOPS = { '4324406': 'Foot Fetish', '6367431': 'Luxury Boutique', '2229328': 'New Wave', '4031330': 'Shoe Lacky', '7832764': 'The Shoebox' };
     const store = YCLOUD_SHOPS[String(toNum || '').slice(-7)] || waStoreFor(null);
     try { ycloudStore.set(from, store); saveYcloudStore(); } catch (_) {}
     try { if (toNum) ycloudFrom.set(from, String(toNum)); } catch (_) {}
@@ -14148,7 +14167,7 @@ async function handleYcloudCallEvent(req, body) {
     const up = await Promise.race([entry.wa.connected, new Promise(r => setTimeout(() => r(false), 8000))]);
     if (!up) { record(req, { endpoint: 'call-media-failed', wacid: c.wacid, pre }); await ycloudCallApi('reject', { phoneId: c.phoneId, wacid: c.wacid }).catch(() => {}); await endCall(c.wacid, 'media-failed'); return; }
     const acc = await ycloudCallApi('accept', { phoneId: c.phoneId, wacid: c.wacid, sdpType: 'answer', sdp: entry.wa.answerSdp });
-    const store = (to.endsWith('4324406') ? 'Foot Fetish' : to.endsWith('6367431') ? 'Luxury Boutique' : to.endsWith('2229328') ? 'New Wave' : to.endsWith('4031330') ? 'Shoe Lacky' : 'Foot Fetish');
+    const store = (to.endsWith('4324406') ? 'Foot Fetish' : to.endsWith('6367431') ? 'Luxury Boutique' : to.endsWith('2229328') ? 'New Wave' : to.endsWith('4031330') ? 'Shoe Lacky' : to.endsWith('7832764') ? 'The Shoebox' : 'Foot Fetish');
     entry.retell = await bridge.createRetellLeg({ apiKey: callCfg.retellKey, agentId: callCfg.agentId,
       metadata: { line: store, from, wacid: c.wacid, via: 'ycloud-calling' }, onAgentPcm: pcm => entry.wa && entry.wa.sendPcm(pcm) });
     entry.timer = setTimeout(async () => { await ycloudCallApi('terminate', { phoneId: c.phoneId, wacid: c.wacid }).catch(() => {}); await endCall(c.wacid, 'max-minutes'); }, (callCfg.maxMinutes || 10) * 60000);
