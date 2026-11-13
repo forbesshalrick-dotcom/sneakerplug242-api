@@ -1931,6 +1931,37 @@ function detectLang(text, prev) {
 }
 function L(map, sub) { return map[subLang.get(sub) || 'en'] || map.en; }
 
+/* 🗣️ EACH SHOP SOUNDS A LITTLE DIFFERENT (Rodney 11-13: "Each one of these businesses a bit different. The answers can mean the
+ * same thing ... just a bit different with different mannerisms." and "Instead of let me know if you need a delivery for
+ * everyone, one can say let me know if you want something, or you see something you like"). Same meaning, own wording per line.
+ * English only - the other languages keep their one translation. Never "which one caught your eye?" (removed 10-13). */
+const STORE_VOICE = {
+  'Trendy Kicks':          { hello: 'Hello! 👋',      size: 'What size you wear? 👟',            end: 'let me know if you see something you like 👟',
+                             style: 'warm and polite, full sentences, "for sure", "no problem"' },
+  'Official Sneaker Crew': { hello: 'Yo! 👋',         size: 'What size you need, bro? 👟',        end: 'let me know if you want any of them 🔥',
+                             style: 'street and hype, short, "bro", "say less", "this heat"' },
+  'Shoe Lacky':            { hello: 'Hey hey! 👋',    size: 'What size you looking for? 👟',      end: 'let me know if you need a delivery 🚗',
+                             style: 'easy-going and helpful, "bet", "we got you"' },
+  'New Wave':              { hello: 'Wassup! 👋',     size: 'What size you rocking? 👟',          end: 'see something you like? we bring it to you free 🚗',
+                             style: 'young and fun, emojis, "fire", "vibes", "it\'s giving"' },
+  'The Shoebox':           { hello: 'Hi there! 👋',   size: "What's your size? 👟",               end: 'just tell me which pair you want 👟',
+                             style: 'calm and classy, neat short sentences, "lovely", "great choice"' },
+};
+function voiceOf(store) {
+  const k = Object.keys(STORE_VOICE).find(n => n.toLowerCase() === String(store || '').toLowerCase());
+  return k ? STORE_VOICE[k] : null;
+}
+function storeOfSub(sub) {
+  try { const r = recentCustomers.get(sub); if (r && r.store) return r.store; } catch (_) {}
+  try { const y = ycloudStore.get(String(sub)); if (y) return y; } catch (_) {}
+  try { const tk = inboxSubIndex.get(sub); if (tk) return String(tk).split('|')[0]; } catch (_) {}
+  return '';
+}
+function LV(map, sub, kind) {
+  if ((subLang.get(sub) || 'en') === 'en') { const v = voiceOf(storeOfSub(sub)); if (v && v[kind]) return v[kind]; }
+  return L(map, sub);
+}
+
 // ── 🌍 EVERY OTHER LANGUAGE (Rodney 2026-08-23: "yes speak any language the
 // customer speaks") ───────────────────────────────────────────────────────────
 // L() above can only serve the four languages that are hand-written into the _T
@@ -2161,7 +2192,7 @@ function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
   const welcomeRule = greet
     ? `- WELCOME (their first message — greet ONCE, keep it SHORT). Send it in EXACTLY this layout, with a BLANK LINE between each part so every question sits on its OWN line — customers here get confused when it's all jumbled together, so the spacing matters. Keep the *asterisks* exactly (in WhatsApp, *asterisks* make that part show up BOLD). Send exactly this, line breaks and blank lines included:
 
-Hello! 👋
+${(voiceOf(storeName) || {}).hello || 'Hello! 👋'}
 
 Are you looking for something specific?
 *OR*
@@ -2194,6 +2225,7 @@ How to chat:
 - LANGUAGE — REPLY IN WHATEVER LANGUAGE THEY WROTE IN (Rodney 2026-08-23: \"yes speak any language the customer speaks\"). ANY language, not a fixed list. If you can read it, answer it — Haitian Creole, Spanish, French, Portuguese, Gaelic, anything. ⛔ NEVER tell a customer you cannot help in their language. That happened on 23 Aug: a customer wrote in Scottish Gaelic, you UNDERSTOOD him (you restated it correctly in the translation line) and told him in the same breath that you could not help in that language. Understanding him and refusing him at once is worse than not understanding at all. If you grasp the message, serve them; if you genuinely cannot, ask them to try again in English — but only then, and never as a policy. Do NOT switch languages over a single borrowed word or a name; only switch when the message is genuinely in that language. When in doubt, stay in English. Keep the exact same warm, short, casual style in any language — translate YOUR OWN words (the welcome greeting, your questions, the price-list wording, and all delivery/payment/size info) into their language. Shoe names, brand names, colours and prices stay exactly as they are (they're the same in every language). Read their language from their very FIRST message and answer in it — including the welcome. If a customer switches language mid-chat, switch right along with them.
 - ⚠️ TRANSLATE THEIR MESSAGE FOR THE OWNER (Creole/Spanish — NEVER SKIP, EVERY SINGLE REPLY): The shop owner reads English only — this translation line is his ONLY way to follow a Spanish/Creole chat, so LEAVING IT OFF LEAVES HIM BLIND (Rodney 2026-07-17: a whole Spanish chat came through with no translations and he couldn't tell what the customer wanted). So: whenever the customer's message is in ANY language other than English, reply to them normally in their language, then at the very END add a blank line and this EXACT single line: 🔎 _Customer said: "<their latest message in plain, natural English>"_. This is MANDATORY on EVERY such reply — no exceptions, not for a short message, not for a one-word reply, not for a bare size number or code. Even a lone "42" or "A1" still gets the line (🔎 _Customer said: "42 (size)"_ / _"A1 (the code)"_). NEVER add this line when the customer wrote in English (English needs no translation).
 ${welcomeRule}
+${voiceOf(storeName) ? ('- YOUR VOICE ON ' + storeName.toUpperCase() + ' (Rodney 11-13: every shop says the same things a little differently): ' + voiceOf(storeName).style + '. Ask for a size as "' + voiceOf(storeName).size + '". Same rules and facts as every line - only the wording and mannerisms change. Never copy another shop\'s catchphrases.') : ''}
 - Talk like a real, friendly shop assistant having a normal conversation. Do NOT fire off photos the moment you see a number — but do NOT interrogate them either.
 - NEVER ask the customer whether they're "looking for something specific" or have "anything specific in mind", and never ask "what kind of shoe are you after". Don't make them name a model. Your DEFAULT move is simply to offer to show what we have, e.g. "Want me to show you what we've got in {size}? 👟" (or without the size if they haven't given one). Only dig into a specific shoe/brand/colour if THEY bring it up first. DELIVERY QUESTION (IMPORTANT — answer this FIRST, always): if a customer's very first message or any message mentions delivery — "do u deliver", "do you deliver", "delivery?", "can you bring it", "you does deliver" — answer it IMMEDIATELY: "Yes! We deliver right to your door in Nassau 🛵 What shoe and size are you looking for?" Do NOT send follow-up nudge messages to a customer whose delivery question was never answered.
 - THEIR SHOE NOT IN THEIR SIZE = SAY SO, THEN OFFER MORE (Rodney 2026-10-21, Sneaker 295 asked for the Jordan 5 in "8.5 or 9" and only got its size list): name the sizes we DO have, say plainly we don't have their size in that one, and end with "We got other styles in your size 🔥 want me to send you pictures? 👟". Never stop at the size list.
@@ -4958,7 +4990,7 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
 // nudge read like the chat was STARTING OVER; Kiki should never sound like a restart.
 // The later follow-up is "let me know if you need a delivery" (Rodney 2026-10-14), replacing the "Still here whenever
 // you're ready… (If you already replied and I missed it…)" closer. END_OF_PHOTOS_T carries that line in every language.
-function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: L(END_OF_PHOTOS_T, sub), ms: CLOSER_MS, isCloser: true }); }
+function scheduleFollowUp(sub, token) { scheduleNudge(sub, token, L(FOLLOWUP_T, sub), FOLLOWUP_MS, { text: LV(END_OF_PHOTOS_T, sub, 'end'), ms: CLOSER_MS, isCloser: true }); }
 // 5-min "how can we help? want pictures?" after the welcome if they go quiet.
 function scheduleWelcomeNudge(sub, token, wholesale) {
   if (isComposeSub(sub)) return;
@@ -4978,7 +5010,7 @@ function scheduleWelcomeNudge(sub, token, wholesale) {
     if (!carried) return;             // we don't go that big — leave him alone
     return scheduleNudge(sub, token, `Want me to send what we got in a ${cs.size}? 👟`, WELCOME_NUDGE_MS);
   }
-  scheduleNudge(sub, token, wholesale ? L(WS_ASKME_T, sub) : L(ASKME_T, sub), WELCOME_NUDGE_MS);
+  scheduleNudge(sub, token, wholesale ? L(WS_ASKME_T, sub) : LV(ASKME_T, sub, 'size'), WELCOME_NUDGE_MS);
 }
 
 // Ping the owner's WhatsApp with a delivery-ready alert. Uses the live chat's
@@ -8667,7 +8699,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _list = _brands.length > 1 ? _brands.slice(0, -1).join(', ') + ' and ' + _brands[_brands.length - 1] : (_brands[0] || '');
       const _q = _list
         ? _list + ' — got you 👟 What size you wear? I\'ll send you everything we got in ' + (_brands.length > 1 ? 'both' : 'it') + ' 🔥'
-        : 'What size you looking for? 👟 I\'ll send you pics and prices!';
+        : (((voiceOf(ctx.store) || {}).size) || 'What size you looking for? 👟') + ' I\'ll send you pics and prices!';
       record(req, { endpoint: 'which-shoe-q-replaced', sub, store: ctx.store || '', was: turnText.slice(0, 120), now: _q });
       turnText = _q;
     }
@@ -8908,7 +8940,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')).join(' ');
         const _cw2 = customerWordsOnly(String(userText || '')).trim();
         if (/want some pictures\?/i.test(_lastK) && /^(?:(?:yes|yeah|ya|yh|ok|okay|sure)[\s,!.]*)?(?:the\s+)?(?:pics?|pix|pictures?|photos?|send (?:me )?(?:some |the )?(?:pics?|pictures?|photos?)|(?:pics?|pictures?|photos?) (?:please|pls|plz))[\s!.👀🙏]*$/i.test(_cw2)) {
-          turnText = 'What size you looking for? 👟';
+          turnText = ((voiceOf(ctx.store) || {}).size) || 'What size you looking for? 👟';
           record(req, { endpoint: 'pic-means-pictures-option', sub });
         }
       }
