@@ -6425,6 +6425,34 @@ function adPrice(sh, store, sub) {
   try { const a = adShoeIds(store).find(x => sh && String(x.id) === String(sh.id)); if (a && a.price) return parseFloat(a.price); } catch (_) {}
   return parseFloat(sh && sh.price) || 0;
 }
+/* 🏷️ TODAY'S SPECIALS, EVERY LINE (Rodney 11-14: "we have to mention to customers about the daily special ... let all customers know
+ * about the special. If they're interested in any of the specials we have going on today. On all accounts"). specials.json is
+ * size-bound: the special price is for the listed sizes only. Re-read every minute so an edit + deploy is all it takes. */
+let LIVE_SPECIALS = null, LIVE_SPECIALS_AT = 0;
+function liveSpecials() {
+  if (LIVE_SPECIALS && Date.now() - LIVE_SPECIALS_AT < 60000) return LIVE_SPECIALS;
+  try { LIVE_SPECIALS = JSON.parse(require('fs').readFileSync(require('path').join(__dirname, 'specials.json'), 'utf8')); } catch (_) { LIVE_SPECIALS = { specials: [] }; }
+  LIVE_SPECIALS_AT = Date.now();
+  return LIVE_SPECIALS;
+}
+function specialsBlock() {
+  try {
+    const lm = liveShoeMap();
+    const rows = (liveSpecials().specials || []).map(sp => {
+      const sh = lm[sp.id]; const have = sh ? new Set((sh.sizes || []).map(String)) : new Set();
+      const sz = (sp.sizes || []).map(String).filter(z => have.has(z));
+      return sz.length ? ('  • ' + sp.name + ' in ' + sz.join(' / ') + ' — $' + sp.price + (sh.price && parseFloat(sh.price) > sp.price ? ' (normally $' + sh.price + ')' : '')) : '';
+    }).filter(Boolean);
+    if (!rows.length) return '';
+    return `\n\n\u{1F3F7}️ TODAY'S SPECIALS (every line, Rodney 11-14) — THE SPECIAL PRICE IS ONLY FOR THE SIZES LISTED:\n${rows.join('\n')}\n`
+      + `• When a customer's size matches a special, SHOW THEM ONCE in this chat: call send_photos with those special shoes in their size (pictures first, bare), then ONE short line in your own shop's words with the special prices (e.g. "Specials in your 12 today 👆 the 9060s are \$100"). NEVER a text-only list of specials - Rodney 11-14: "we don't have any pictures, just text. What's that about?" Never more than once per chat.\n`
+      + `• Quote the special price for those sizes even if the picture card shows a higher price. Any other size of the same shoe is the normal price.\n`
+      + `• ONLY THEIR SIZE (Rodney 11-14: "if the person already said their size ... only the special that's in their size instead of showing them every size"). Size known = mention only the specials in that size, and say nothing about specials if none fit. Size not known = ask their size first, never read out the whole list.`;
+  } catch (_) { return ''; }
+}
+function specialPrice(id, size) {
+  try { const sp = (liveSpecials().specials || []).find(x => String(x.id) === String(id) && (x.sizes || []).map(String).includes(String(size))); return sp ? sp.price : null; } catch (_) { return null; }
+}
 function adsBlock(store) {
   try {
     const _all = liveAds().ads || [];
@@ -6432,7 +6460,14 @@ function adsBlock(store) {
     const a = _st ? _all.filter(ad => !ad.shop || String(ad.shop).toLowerCase().trim() === _st) : _all;
     if (!a.length) return '';
     const lines = a.map(ad => '  \u2022 ' + ad.label + ': '
-      + (ad.shoes || []).map(sh => sh.name + ' $' + sh.price).join(', ')).join('\n');
+      + (ad.shoes || []).map(sh => {
+          // 11-13 Anthon Taylor (NW): "We got the Air Max 2021 in a 12" - there is NO 12; she took the ad as proof of stock.
+          // Give her the LIVE shelf sizes for every ad shoe so she never has to guess.
+          let _sz = '';
+          try { const _lm = liveShoeMap(); const _l = sh.id ? _lm[sh.id] : null;
+                _sz = _l ? (' (in stock: ' + ([...new Set((_l.sizes || []).map(String))].sort((x, y) => parseFloat(x) - parseFloat(y)).join(', ') || 'SOLD OUT') + ')') : ' (sizes: search first)'; } catch (_) {}
+          return sh.name + ' $' + sh.price + _sz;
+        }).join(', ')).join('\n');
     return `\n\n\u{1F4E2} THE ADS WE ARE RUNNING RIGHT NOW \u2014 THIS IS THE WHOLE LIST:\n${lines}\n`
       + `Facebook does not tell us which one a customer tapped, so when somebody opens with an `
       + `ad-click message ("Can I get more info on this?", "how much are the size 9", "is this `
@@ -6444,6 +6479,9 @@ function adsBlock(store) {
       + `\u2022 If they ask a PRICE, give the prices from that list in one short line \u2014 there are `
       + `only two or three answers, so just say them: "The 9060s are $130 and the VaporMax is `
       + `$120 \u{1F45F} which one you after?"\n`
+      + `\u26d4 THE SIZES IN BRACKETS ARE THE WHOLE SHELF. An ad shows what we sell, NOT that we have their size. If their size is not `
+      + `in the brackets, we DO NOT have it - say so plainly and offer what we DO have in their size. Never say "we got it in a 12" `
+      + `unless 12 is in the brackets (Rodney 11-13: a fake Air Max 2021 size 12 order went to the drivers).\n`
       + `\u2022 If they give a SIZE with it, tell them which of those shoes you have in that size, `
       + `by name and price. Still do not send the whole size album.\n`
       + `\u2022 Only send pictures once you know WHICH of them they mean, or if they ask to see `
@@ -6732,6 +6770,27 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (ctx.staleRepeat && !/^\(SYSTEM/.test(String(userText || ''))) {
       userText = '(SYSTEM: these words are a WhatsApp re-delivery of their EARLIER message, which you already answered - a pin, photo or sticker just arrived in its place. Do NOT answer these words again. If you were waiting on their location, that was most likely their pin: say "Got your location 📍" and ask what time works TODAY.)\n' + String(userText || '');
       record(req, { endpoint: 'stale-note-no-reader', sub });
+    }
+  } catch (_) {}
+  /* 🔢 "NUMBER 12 AND NUMBER 18" = PICTURES 12 AND 18 OF THE ALBUM (Rodney 11-13, TK Sean: "why cant kiki see number 12 and 18 from
+   * the pics?"). The customer counts the grid; we remember the order each album went out in and name those shoes for her. */
+  try {
+    const _nw = customerWordsOnly(String(userText || ''));
+    const _rs = recentlySent.get(sub);
+    const _ord = (_rs && Array.isArray(_rs.order) && (Date.now() - (_rs.ts || 0)) < 12 * 3600 * 1000) ? _rs.order : [];
+    if (!staffName && _ord.length >= 2 && !/\b(?:wear|wears|size|sz)\b[^.?!]{0,12}\b(?:number|numba|num|no\.?)\s*\d/i.test(_nw) && !/\b(?:number|numba|num|no\.?)\s*\d{1,2}\s*(?:shoe|size|foot)\b/i.test(_nw)) {
+      const _nums = [];
+      const _re = /(?:\b(?:number|numba|num|no\.?|pic(?:ture)?|photo|#)\s*#?\s*(\d{1,2})\b|#(\d{1,2})\b|\b(\d{1,2})(?:st|nd|rd|th)\s+(?:one|pic|picture|photo|shoe)\b)/gi;
+      let _m; while ((_m = _re.exec(_nw))) { const n = parseInt(_m[1] || _m[2] || _m[3], 10); if (n >= 1 && n <= _ord.length) _nums.push(n); }
+      if (_nums.length) {
+        const _lm = liveShoeMap();
+        const _pick = [...new Set(_nums)].map(n => { const sh = _lm[_ord[n - 1]]; return sh ? ('picture ' + n + ' = ' + displayName(sh) + ' ($' + sh.price + ', sizes ' + sizesOf(sh) + ')') : null; }).filter(Boolean);
+        if (_pick.length) {
+          record(req, { endpoint: 'album-number-picked', sub, q: _pick.join(' | ').slice(0, 160) });
+          userText = '(SYSTEM: they are pointing at pictures BY NUMBER, counted in the album we sent: ' + _pick.join('; ')
+            + '. Those are the shoes they mean - name them, confirm the size, and move to the delivery. Never ask "which shoes you mean".)\n' + String(userText || '');
+        }
+      }
     }
   } catch (_) {}
   /* 📞 A QUESTION FOR THE DRIVER GOES TO THE DRIVER (Rodney 11-13, at Gino's paid drop: Kiki told the customer "the driver will
@@ -7147,6 +7206,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       system += `\n\n👟 THEY JUST ASKED ABOUT FIT. Never send them to friends, reviews or Google, and never explain that sneakers vary. ONE short sizing line is fine and welcome if you have one ("it runs a touch small so an 8 wears like a 7.5") — then ALWAYS land on the try-on: in Nassau we bring BOTH sizes to the door, they try both and keep the one that fits. Say it confidently, then ask their size. ⚠️ Only promise "both" when that shoe has two sizes in stock to bring - if it comes in ONE size near theirs (their own size is out), offer that one size and NEVER say "both" (Rodney 10-25, TK 456-4633: Air Max Plus Grey/Orange 9.5 only, she said "I can bring both"). (Island shipments are pay-first with no try-on: there, tell them the sizes that shoe comes in and help them pick.)`;
     }
     try { system += adsBlock(ctx.store); } catch (_) {}
+    try { if (ctx.store !== SI.STORE) system += specialsBlock(); } catch (_) {}
     system += `\n\n(Current Bahamas date & time: ${bah.toISOString().slice(0, 10)} ${bah.toISOString().slice(11, 16)} — 24h clock.)`;
 
     /*
@@ -7351,7 +7411,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           + 'TRUST THAT over your own read of the picture. If it names one of OUR shoes under OURS, search that exact name '
           + 'now and send it, and SAY it is the one ("that\'s our Air Force 1 Teal/Green 👟"). If it says NOT IN STOCK, tell '
           + 'the customer what the shoe is and that we don\'t carry it, then offer the CLOSEST one with its picture - never '
-          + 'hand them a different shoe as if it were theirs. If it says NOT A SHOE, follow the rules below for that kind of picture.)\n\n' + photoNote;
+          + 'hand them a different shoe as if it were theirs. If it says NOT A SHOE, follow the rules below for that kind of picture.\n'
+          + '👕 A SHIRT / OUTFIT / COLOUR TO MATCH (Rodney 11-14, NW one love sent a green memorial shirt "looking for something that will go '
+          + 'with this shirt" and got ONE $180 Jordan, no size asked): that is a request for OPTIONS. If you do not know their size, ask it '
+          + 'first and send nothing. Once you know it, search those colours in their size and send SEVERAL pairs (4-8, mixed brands and prices), '
+          + 'never a single shoe. Same when their shoe is NOT IN STOCK: offer the closest 2-4, not one.)\n\n' + photoNote;
       }
     } catch (_) {}
   }
@@ -9326,7 +9390,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _w = parseFloat(p.size != null ? p.size : (Array.isArray(p.sizes) ? p.sizes[0] : NaN)); if (!isFinite(_w)) return false;
           const q3 = Object.assign({}, p); delete q3.size; delete q3.sizes; delete q3.size_match; delete q3.exact_sizes;
           const _lm3 = liveShoeMap();
-          return searchInventory(q3).some(x => { const sh = _lm3[x.id]; return sh && (sh.sizesRaw || []).some(z => Math.abs(parseFloat(z) - _w) <= 1); });
+          // 11-13 TK Plasticman "white Air Force size 9 or 9.5": the all-BLACK AF1 has a 9, so this said "same shoe a size away" and the
+          // white ask got the black pair with no word about white. The near pair must be the colour they asked for.
+          const _bwRe = new RegExp('\\b' + _bw + '\\b', 'i');
+          return searchInventory(q3).some(x => { const sh = _lm3[x.id]; if (!sh) return false;
+            let _nm = ''; try { _nm = String(displayName(sh) || '') + ' ' + String(sh.color || sh.colour || sh.name || ''); } catch (_) { _nm = String(sh.name || ''); }
+            return _bwRe.test(_nm) && !(_bw === 'white' ? /\bblack\b/i : /\bwhite\b/i).test(_nm.replace(/black\/white|white\/black/ig, ''))
+              ? (sh.sizesRaw || []).some(z => Math.abs(parseFloat(z) - _w) <= 1) : false; });
         } catch (_) { return false; } })();
         if (_nearSame) record(req, { endpoint: 'colour-fallback-bw-skipped-near-size', sub, asked: p });
         if (!found.length && _sized && _bw && (p.query || p.brand) && !_nearSame) {
@@ -9996,7 +10066,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             ? inp.groups.flatMap(g => g.ids || [])
             : (inp.ids || []);
           const names = shownIds.map(id => liveM[id]).filter(Boolean).map(displayName);
-          if (names.length) { recentlySent.set(sub, { ts: Date.now(), names: [...new Set(names)].slice(0, 25) }); saveRecentlySent(); }
+          // 11-13 TK Sean 544-3253 (voice note): "number 12 and number 18" = the 12th and 18th picture. Keep the ORDER they went out in.
+          const _order = [...new Set(shownIds.map(String))].filter(id => liveM[id]);
+          if (names.length) { recentlySent.set(sub, { ts: Date.now(), names: [...new Set(names)].slice(0, 25), order: _order.slice(0, 80) }); saveRecentlySent(); }
         } catch (_) {}
       }
       /* 🛑 A SIZE IS NOT AN ORDER (Rodney 2026-10-14, "kiki made her own delivery with no customer"): Judy J on Foot Fetish

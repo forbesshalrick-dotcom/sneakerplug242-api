@@ -1,0 +1,17 @@
+{
+  "updated": "2026-11-14",
+  "note": "Rodney 11-14: today's specials, every line. Size-bound: the special price is ONLY for the listed sizes.",
+  "specials": [
+    { "id": "c0388", "name": "New Balance 9060 Grey/Black", "sizes": ["12", "12.5"], "price": 100 },
+    { "id": "c0402", "name": "New Balance 9060 Cream/Grey", "sizes": ["12", "12.5"], "price": 100 },
+    { "id": "c0400", "name": "New Balance 9060 White/Black", "sizes": ["12", "12.5"], "price": 100 },
+    { "id": "c0411", "name": "New Balance 9060 Brown/Blue", "sizes": ["12.5"], "price": 100 },
+    { "id": "c0392", "name": "New Balance 9060 Wavy Blue", "sizes": ["12"], "price": 100 },
+    { "id": "c0410", "name": "New Balance 9060 Pink/Purple", "sizes": ["12", "12.5"], "price": 100 },
+    { "id": "co583", "name": "Nike Air Force 1 Aqua/White", "sizes": ["11"], "price": 80 },
+    { "id": "c0343", "name": "Nike Air Max DN Black/Orange", "sizes": ["10"], "price": 80 },
+    { "id": "co513", "name": "Nike Air Max 97 Golf Green (green/white)", "sizes": ["9.5"], "price": 80 },
+    { "id": "c0434", "name": "Nike Dunk Pink/White", "sizes": ["11", "12", "13"], "price": 80 },
+    { "id": "c0364", "name": "Nike Air Max 90 Brown/Cream", "sizes": ["12"], "price": 80 }
+  ]
+}
