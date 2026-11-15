@@ -6772,6 +6772,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'stale-note-no-reader', sub });
     }
   } catch (_) {}
+  /* 🚫 "NO YELLOW" / "NOT NOW" MEANS IT (11-14 Shoe Lacky 😊 size 7: "No yellow" got the Lightning, "Not now" got the Taupe). */
+  try {
+    const _nw2 = customerWordsOnly(String(userText || '')).toLowerCase().trim();
+    const _noCol = (_nw2.match(/\b(?:no|not|dont want|don't want|ion want|no more)\s+(?:the\s+)?(black|white|red|blue|green|grey|gray|yellow|orange|purple|pink|brown|tan|navy|cream|beige|gold|silver|teal)\b/) || [])[1];
+    const _notNow = /^(?:not now|not noe|not right now|not today|no thanks?|nah|maybe later|later)[\s!.🙏]*$/.test(_nw2);
+    if (!staffName && (_noCol || _notNow)) {
+      record(req, { endpoint: 'customer-said-no', sub, q: _nw2.slice(0, 40) });
+      userText = '(SYSTEM: ' + (_noCol ? 'they said NO ' + _noCol.toUpperCase() + '. Never send or offer a ' + _noCol + ' shoe in this chat again. Ask what colour they DO like, or show other colours in their size - nothing ' + _noCol + '.'
+        : 'they said NOT NOW. Send NO pictures and push nothing. Reply in one short line like "No problem, holla when you\'re ready 👟".') + ')\n' + String(userText || '');
+    }
+  } catch (_) {}
   /* 🔢 "NUMBER 12 AND NUMBER 18" = PICTURES 12 AND 18 OF THE ALBUM (Rodney 11-13, TK Sean: "why cant kiki see number 12 and 18 from
    * the pics?"). The customer counts the grid; we remember the order each album went out in and name those shoes for her. */
   try {
@@ -9648,6 +9659,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         && [].concat((tu.input || {}).ids || [], ...(Array.isArray((tu.input || {}).groups) ? tu.input.groups.map(g => (g && g.ids) || []) : [])).length > 2) {
         record(req, { endpoint: 'album-held-no-size', sub, n: [].concat((tu.input || {}).ids || []).length });
         result = { sent: 0, skipped: 'NOT SENT - you do not know their size yet. Ask "What size you need? 👟" in one short line and send nothing else; the album goes once they tell you their size.' };
+      }
+      /* 🔁 NO SECOND ALBUM ON TOP OF THE FIRST (Rodney 11-14 "made customer angry": NW Just 455-3866 asked "6 r 6.5", got a 66-picture
+       * album at 14:30 and another at 14:34, and wrote "Ok stop"; TK Billy got the same Jordan 4s twice at 12:38 and 12:47). An album
+       * of 3+ within 15 minutes of the last one is held unless they asked for more / other / different shoes. */
+      else if (tu.name === 'send_photos' && !staffName && (() => {
+        const _ids = [].concat((tu.input || {}).ids || [], ...(Array.isArray((tu.input || {}).groups) ? tu.input.groups.map(g => (g && g.ids) || []) : []));
+        if (_ids.length < 3) return false;
+        const _rs = recentlySent.get(sub);
+        if (!_rs || !_rs.ts || Date.now() - _rs.ts > 15 * 60000 || !Array.isArray(_rs.names) || _rs.names.length < 3) return false;
+        const _cw = customerWordsOnly(String(userText || '')).toLowerCase();
+        return !/\b(?:more|other|others|else|different|another|next|rest|show me|send (?:me )?(?:more|all|the rest)|all (?:the )?(?:jordans?|nikes?|shoes|of them))\b/.test(_cw);
+      })()) {
+        record(req, { endpoint: 'repeat-album-held', sub });
+        result = { sent: 0, skipped: 'NOT SENT - you already sent them an album a few minutes ago and they did not ask for more. Do not send pictures again. Answer what they said in one short line (e.g. "Those up there are all in your 6.5 👆 which one you like?").' };
       }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
