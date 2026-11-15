@@ -2446,7 +2446,7 @@ NEVER INVENT (Rodney 10-23, audit of a night of chats - each of these went to a 
 LOCAL DELIVERY / MEET-UP (IMPORTANT — this is how a sale gets finished): The flow is simple: (1) customer says WHAT they want (shoe + size), (2) the MOMENT they commit to buying, call notify_manager with stage "order_confirmed" so the owner knows a sale is happening RIGHT NOW, (3) you get their LOCATION and ask them to text "sent", (4) once the location is sent, call notify_manager AGAIN with stage "delivery_ready". You do NOT ask about or wait on payment — that's handled on arrival by default (only discuss payment if THEY ask). When a customer in Nassau has picked a pair and wants it brought to them:
 - 🚨 ALERT THE OWNER AT COMMITMENT, NOT JUST AT THE PIN (Rodney's rule 2026-07-13 — a real $260 order slipped by unnoticed because the pin never registered): as soon as the customer has picked their shoe + size and is clearly buying (arranging where to meet, "bring it", "I'll take it"), call notify_manager with stage="order_confirmed" and location="not sent yet" ON THAT SAME TURN — even though you don't have the pin. Then keep going and get the pin as normal. Call it with stage "order_confirmed" only ONCE per order — if the order then changes (extra pair, different size), do NOT re-send order_confirmed; the update goes in the later delivery_ready alert.
 - 🛑 CONFIRM THE SHOE BEFORE YOU EVER ASK FOR A LOCATION (CRITICAL, Rodney 2026-07-19): NEVER ask for the location pin until the customer has actually CONFIRMED which shoe AND size they want. A photo THEY sent is NOT a confirmation, and a shoe you GUESSED from a photo is NOT confirmed until they say yes. When they send a photo, SHOW your best-guess pair and ask "is this the one? 👟" — get a clear yes on the shoe + size FIRST. Jumping straight to "where should we meet you?" off an unconfirmed guess is what caused the mess on 2026-07-19 (wrong shoe guessed → asked for location → their next shoe photo got misread as the pin → phantom driver). Shoe + size confirmed → THEN ask for the location.
-- ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Example: "Where should we meet you? 📍 Drop your WhatsApp location pin — tap 📎 (or ＋) → Location → Send your current location — then text me \"sent\" so I know it came through 👟".
+- ⚠️ ALWAYS ASK FOR THE WHATSAPP LOCATION PIN (a real GPS pin — NOT a described corner/landmark). A shared pin does NOT reach you as readable text, so ask for the pin ONCE and, in the SAME message, tell them to text "sent" right after so you KNOW it came through. Do NOT offer "or just describe the spot with a landmark" — we always want the actual pin. Say it EXACTLY like this (Rodney 11-15: "Instead of saying perfect, can you just say okay?"): "Okay 👍 Can you send your location, or where do you want to meet? 📍" - start with "Okay", never "Perfect!", and no tap-by-tap instructions unless they ask how.
 - ⚠️ NEVER KEEP ASKING FOR THE PIN once they've SAID they sent it — "sent", "sent it", "sent the location", "dropped it", "dropped the pin", "pin sent", "location sent", "done", "there", "i'm here". TREAT THE LOCATION AS RECEIVED and move on. Do NOT reply "go ahead and send the pin" after they've said they sent it — that's the #1 thing that frustrates customers. (You can't see the pin, but it's sitting in the chat for the driver to open.)
 - 🗺️ A TYPED ADDRESS IS A REAL ORDER — TAKE IT (Rodney's rule 2026-08-16, and he was firm on this): plenty of good customers do not know how to drop a pin, or they simply prefer to type where they live. Typing out an address is EFFORT — it shows they're serious. NEVER treat a written address as a dead end and NEVER hold the sale hostage waiting for a pin. Ask for the pin ONCE, warmly, because it genuinely helps the driver: "Got you! 📍 If you can, drop your WhatsApp location too — tap 📎 (or ＋) → Location → Send your current location — that way the driver comes straight to you instead of hunting for the turn 👟". Then: if they send the pin, great. If they give the address again, say they can't, say they don't know how, or just don't send one — TAKE THE ADDRESS AND GO. Call delivery_ready with location = the address they typed, and start it with "ADDRESS (no pin): " so the driver knows to phone ahead rather than follow a dot. If they say they don't know how, offer the tap-by-tap once in a friendly way — but never make them feel silly, and never make it a condition of getting their shoes.
 - 📍 HOW A DROPPED PIN ACTUALLY REACHES YOU (IMPORTANT): when the customer sends a pin (or any non-text thing), WhatsApp can't hand you the pin itself — instead the system RE-DELIVERS their PREVIOUS text word-for-word, marked with a SYSTEM NOTE saying a non-text message probably arrived. So if you were waiting on a location pin and their last message suddenly repeats (with that note), that is PROBABLY the pin arriving — say "Got your pin! 📍 (if that was a photo or something else, just say so!)" and treat the location as received. ⚠️ The replay can also be a PHOTO or sticker WhatsApp couldn't deliver (2026-07-14: a shoe photo got a "Got your pin!"), so always include that little escape hatch, and if the customer corrects you ("that was a picture"), apologize lightly, handle what they actually sent, and ask for the pin again. Do NOT answer the repeated words as if they typed them again, and do NOT re-confirm the order.
@@ -2824,7 +2824,8 @@ async function identifyPhoto(imageSource, stockList, words) {
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       // The stock list is ~7k tokens and the same for every photo until stock changes, so it
       // sits in a cached system block: full price once, a tenth of it on every photo after.
-      body: JSON.stringify({ model: 'claude-opus-5-5', max_tokens: 2000,
+      // 11-15 Rodney (API bill): photo ID moved Opus -> Sonnet to cut cost; switch back if identification gets worse.
+      body: JSON.stringify({ model: process.env.PHOTO_ID_MODEL || 'claude-sonnet-5-5', max_tokens: 2000,
         system: [ { type: 'text', text: system },
                   { type: 'text', text: 'IN STOCK RIGHT NOW:\n' + String(stockList || '').slice(0, 12000), cache_control: { type: 'ephemeral' } } ],
         messages: [{ role: 'user', content: [
@@ -3424,9 +3425,26 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   let sizesLabel = '📏 Sizes: ';   // in the customer's language (big four by table, the rest by say())
   if (showSizes) { try { sizesLabel = await say(L(SIZES_LABEL_T, sub), sub) || sizesLabel; } catch (_) {} }
   const _cardFor = (s) => { const _ls = s && lineSale(sub, s.id); return _ls && s.image ? s.image.replace(/[^/]+$/, _ls.card) : (s && s.image); };
-  const photoMsg = (s) => showSizes
-    ? [{ type: 'image', url: _cardFor(s) }, { type: 'text', text: sizesLabel + sizesOf(s) }]
-    : [{ type: 'image', url: _cardFor(s) }];
+  /* 🔥 SALE PRICE UNDER THE PICTURE (Rodney 11-15: "even though it has the 120 price in the picture, you could put underneath
+   * sale price 80, sale price 50, sale price 70 ... set this up like some professional shit"). An ad price or today's special
+   * that is LOWER than the card's printed price goes on its own line under the photo. */
+  let _saleSize = '';
+  try { const _cs = custSize.get(sub); if (_cs && _cs.size && (Date.now() - (_cs.ts || 0)) < 12 * 3600 * 1000) _saleSize = String(_cs.size); } catch (_) {}
+  const _saleOf = (s) => {
+    try {
+      if (!s || isStaff) return 0;
+      const card = parseFloat(s.price) || 0;
+      let p = adPrice(s, storeOfSub(sub), sub);
+      if (_saleSize) { const sp = specialPrice(s.id, _saleSize); if (sp && sp < p) p = sp; }
+      return (p && card && p < card) ? p : 0;
+    } catch (_) { return 0; }
+  };
+  const _saleLine = (s) => { const p = _saleOf(s); return p ? ('🔥 Sale price $' + p) : ''; };
+  const photoMsg = (s) => {
+    const sale = _saleLine(s);
+    const txt = [showSizes ? sizesLabel + sizesOf(s) : '', sale].filter(Boolean).join('\n');
+    return txt ? [{ type: 'image', url: _cardFor(s) }, { type: 'text', text: txt }] : [{ type: 'image', url: _cardFor(s) }];
+  };
 
   if (Array.isArray(groups) && groups.length) {
     // Grouped by size: a size header, then that size's photos (each labelled when small).
@@ -4137,6 +4155,8 @@ function sizeFromCustomerWords(text) {
     .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ')
   // "size 7:5" / "7,5" is a 7.5 typed fast (Tami 10-14 got a 7 album's worth of guesswork from it).
   .replace(/\b(\d{1,2})[:,]5\b/g, '$1.5')
+  // "9,1/2" / "9, 1/2" / "9-1/2" / "9 ½" is 9.5 (Rodney 11-15, Shoe Lacky Smith 824-5538: "9,1/2" was read as "the 9 and the 12").
+  .replace(/\b(\d{1,2})\s*[,\-]?\s*(?:1\s*\/\s*2|½)/g, '$1.5')
   // "8/2 to 9" is 8 and a half typed short (Rodney 11-04, TK Care Less Lees 636-5616: asked his size three more times after it).
   .replace(/\b([4-9]|1[0-5])\/2\b/g, '$1.5')
   // 🗣️ A SPOKEN SIZE IS STILL A SIZE. (Rodney 2026-09-23: a customer sent a voice note -
@@ -6466,7 +6486,7 @@ function adsBlock(store) {
           let _sz = '';
           try { const _lm = liveShoeMap(); const _l = sh.id ? _lm[sh.id] : null;
                 _sz = _l ? (' (in stock: ' + ([...new Set((_l.sizes || []).map(String))].sort((x, y) => parseFloat(x) - parseFloat(y)).join(', ') || 'SOLD OUT') + ')') : ' (sizes: search first)'; } catch (_) {}
-          return sh.name + ' $' + sh.price + _sz;
+          return sh.name + (sh.id ? ' [id ' + sh.id + ']' : '') + ' $' + sh.price + _sz;
         }).join(', ')).join('\n');
     return `\n\n\u{1F4E2} THE ADS WE ARE RUNNING RIGHT NOW \u2014 THIS IS THE WHOLE LIST:\n${lines}\n`
       + `Facebook does not tell us which one a customer tapped, so when somebody opens with an `
@@ -6484,8 +6504,11 @@ function adsBlock(store) {
       + `unless 12 is in the brackets (Rodney 11-13: a fake Air Max 2021 size 12 order went to the drivers).\n`
       + `\u2022 If they give a SIZE with it, tell them which of those shoes you have in that size, `
       + `by name and price. Still do not send the whole size album.\n`
-      + `\u2022 Only send pictures once you know WHICH of them they mean, or if they ask to see `
-      + `them all.\n`
+      + `\u2022 SHOW THE AD AS PICTURES (Rodney 11-15: "set this up like some professional shit"): when they tap the ad, one short line `
+      + `("That's our car trunk ad \ud83d\udd25 here's every pair on it \ud83d\udc47"), then call send_photos with the in-stock shoes FROM THAT AD ONLY - `
+      + `the sizes and a "\ud83d\udd25 Sale price $X" line go under each picture automatically. Never type the ad as a text list of names and `
+      + `prices, and never add a shoe that is not on the ad. If they already gave a size, send only the ad shoes in their size.\n`
+      + `\u2022 A SHOE NAMED FROM THE AD IS THE AD'S SHOE (Rodney 11-15: NW 808-8074 said "nike air max 21" off the trunk ad and got a different white Air Max 21 we never advertised): when they name one of these shoes, send THAT ad shoe by its [id] - never a same-name lookalike from the shelf. Offer other colours only after, as extras.\n`
       + `\u2022 Never name a shoe that is not on that list as "the one from the ad".\n`
       + `\u{1F4B0} THE AD PRICE IS THE PRICE ON THIS LINE (Rodney 10-07; ported back 10-23 after the 10-12 reset lost it - FF 242-438-4764 asked `
       + `"The sale still $150 or stand at $180?" and was told "no sale right now"): whenever you name or price one of the shoes above - in `
@@ -9076,7 +9099,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
                   + (_shoe ? _shoe + '\n' : '') + (_money ? _money + '\n' : '') + '📍 ' + _pinUrl + ' (their pin from earlier today)\n💬 "' + _cw.slice(0, 60) + '"', 'Ready now (pin on file)');
               } catch (_) {}
             } else {
-            turnText = 'Please send me your location 📍 the driver can come right now 🚗\n\nTap 📎 (or ＋) → Location → Send your current location — then text me "sent" so I know it came through 👟';
+            turnText = 'Okay 👍 Can you send your location, or where do you want to meet? 📍';
             record(req, { endpoint: 'available-now-yes', sub });
             }
           }
