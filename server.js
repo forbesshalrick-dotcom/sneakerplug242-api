@@ -8810,7 +8810,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     try {
       if (turnText && !staffName && knownSize && !photosSentRun && !_picsLately && !image && !pinnedPickIds.size
           && /\b(?:which|what)\s+(?:shoe|shoes|one|style|model|kind)\b/i.test(String(turnText))
-          && sizeFromCustomerWords(customerWordsOnly(userText))) {
+          && sizeFromCustomerWords(customerWordsOnly(userText))
+          /* 🎯 THEY ASKED FOR A SHOE, NOT FOR PICTURES (Rodney 11-15, TK jamario 826-7910 clicked the black AF1 ad: "do you have theses in
+           * boys size 5" got ~30 pictures of everything in a 5 — "I don't want a cap. Burst pitches is for people who want pitches… She
+           * didn't even ask what he meant"). A size that comes with "these/that/them" or a named shoe keeps Kiki's question. */
+          && !/\b(?:these|theses|this|that|those|them|the ones?|air ?force|af ?1|jordans?|j\d{1,2}|dunks?|vomero|new balance|nb|9060|550|530|1906|asics|gel|yeezys?|air ?max|am ?\d{2}|tns?|vapor ?max|crocs|slides?|mules?|huaraches?|foams?|samba|campus|spezial|kobes?|lebrons?|travis|off.?white)\b/i.test(customerWordsOnly(userText))) {
         const _szs = String(knownSize).split('/').map(x => x.trim()).filter(Boolean);
         const _ids = searchInventory({ sizes: _szs, size_match: 'any' }).map(r => r.id);
         if (_ids.length) {
