@@ -2824,8 +2824,8 @@ async function identifyPhoto(imageSource, stockList, words) {
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       // The stock list is ~7k tokens and the same for every photo until stock changes, so it
       // sits in a cached system block: full price once, a tenth of it on every photo after.
-      // 11-15 Rodney (API bill): photo ID moved Opus -> Sonnet to cut cost; switch back if identification gets worse.
-      body: JSON.stringify({ model: process.env.PHOTO_ID_MODEL || 'claude-sonnet-5-5', max_tokens: 2000,
+      // 11-15: tried Sonnet to cut the API bill; reverted to Opus the same day - NW 636-4249 circled the 9060 Purple/Orange (5.5/6.5/9.5 $120) on our porch ad and Sonnet picked the 9060 Multicolor (Rodney: "if it fucks up the identification, change it back").
+      body: JSON.stringify({ model: process.env.PHOTO_ID_MODEL || 'claude-opus-5-5', max_tokens: 2000,
         system: [ { type: 'text', text: system },
                   { type: 'text', text: 'IN STOCK RIGHT NOW:\n' + String(stockList || '').slice(0, 12000), cache_control: { type: 'ephemeral' } } ],
         messages: [{ role: 'user', content: [
