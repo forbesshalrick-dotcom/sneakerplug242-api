@@ -6676,7 +6676,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
     const _said = String(customerWordsOnly(userText) || userText || '').trim();
     const NOSEE = /\b(?:(?:i\s+)?(?:don'?t|dont|do not|can'?t|cant|cannot|didn'?t|didnt|never|not)\s+(?:see|seen|seeing|get|got|getting|receive|recieve|received)\b|nothing\s+(?:is\s+)?(?:there|came|showing|show(?:ed|s)?\s+up|loaded|loading)|no\s+(?:pics?|pictures?|photos?|images?)\s+(?:came|there|showing|loaded)|(?:pics?|pictures?|photos?|images?)\s+(?:not|aint|ain'?t|didn'?t|never)\s+(?:showing|loading|coming|come|came|load|show)|where\s+(?:is\s+it|are\s+they|(?:the|da|di)\s+(?:pics?|pictures?|photos?))|(?:never|didn'?t|didnt|did not|not)\s+(?:sent?|send|sending)\s+(?:a\s+|the\s+|any\s+|me\s+)*(?:pics?|pictures?|photos?|images?|it|them)|it'?s\s+blank|blank)\b/i;
-    if (!image && _said && _said.split(/\s+/).length <= 14 && NOSEE.test(_said) && !/\b(in this|in the|on this|on the|that one|this one)\s+(?:pic|picture|photo)/i.test(_said)) {
+    if (!image && _said && _said.split(/\s+/).length <= 14 && NOSEE.test(_said) && !/\b(in this|in the|on this|on the|that one|this one)\s+(?:pic|picture|photo)/i.test(_said)
+        // 11-16 Rodney's Red Toro meet-up: "I do not see you can you give me a call" got "sending them again 👇" - a driver/meet-up line is never about pictures.
+        && !/\b(?:see|seen|seeing)\s+(?:you|u|yall|y'?all|him|her|them\s+(?:car|here|outside)|the\s+(?:car|driver|van|nissan)|your\s+car|no\s+car)\b|\b(?:call|outside|here|parking|gas station|arrived|where are you|where you)\b/i.test(_said)) {
       const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
       const _cut = Date.now() - 60 * 60 * 1000;
       const _imgs = [];
