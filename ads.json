@@ -200,6 +200,19 @@
      "price": 100
     }
    ]
+  },
+  {
+   "id": "tk-af1-black",
+   "shop": "Trendy Kicks",
+   "label": "Video ad: all black Nike Air Force 1, 'Free delivery!' (Rodney 11-16: TK 471-0224 tapped it and got 'which shoe you mean?')",
+   "caption": "Free delivery!",
+   "shoes": [
+    {
+     "id": "co574",
+     "name": "Nike Air Force 1 All Black",
+     "price": 100
+    }
+   ]
   }
  ]
 }
