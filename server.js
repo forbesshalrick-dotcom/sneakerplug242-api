@@ -7945,6 +7945,30 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     }
   } catch (_) {}
+  // 🤝 A PRICE THE OWNER TYPED IN THIS CHAT IS THE PRICE (11-15 OSC Q'uo, NB 9060 White 10.5: Rodney wrote "the 9060s are $100 on
+  // our deal", then Kiki said "$130" twice right under it and the customer walked: "On Facebook you telling me this for 100, now
+  // you telling me for 130?"). Every owner line with a $ amount in the last 7 days, on any line this customer uses, rides in the
+  // prompt and beats the catalog, the sale card and the counter-offer rule.
+  let ownerPriceAmts = [];
+  try {
+    if (!staffName) {
+      const _om = [];
+      for (const t of inboxThreads.values()) {
+        if (!t || String(t.sub) !== String(sub)) continue;
+        for (const m of (t.msgs || [])) if (m && m.dir === 'out' && m.sender === 'rodney' && m.text && Date.now() - (m.ts || 0) < 7 * 86400000 && /\$\s?\d{2,3}\b/.test(m.text)) _om.push(m);
+      }
+      _om.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      const _last = _om.slice(-4);
+      if (_last.length) {
+        for (const m of _last) for (const x of String(m.text).matchAll(/\$\s?(\d{2,3})\b/g)) ownerPriceAmts.push(parseInt(x[1], 10));
+        // The counter-offer rule above told her to open with "We can't do $100" — when that $100 is the owner's own price, drop it.
+        system = system.replace(/\n\n💵 THEY NAMED A PRICE: \$(\d{2,3})\.[^\n]*/g, (all, a) => ownerPriceAmts.includes(parseInt(a, 10)) ? '' : all);
+        system += '\n\n🤝 THE OWNER ALREADY SET THE PRICE IN THIS CHAT (newest last): ' + _last.map(m => new Date(m.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Nassau' }) + ': "' + String(m.text).replace(/\s+/g, ' ').slice(0, 220) + '"').join(' | ')
+          + '. That price is FINAL for those shoes for this customer: quote exactly that amount, never the catalog, card or ad price, never "we can\'t do" it, never correct or "clarify" it. Any shoe the owner\'s line did not cover keeps its normal price.';
+        record(req, { endpoint: 'owner-price-held', sub, amounts: ownerPriceAmts.join(',') });
+      }
+    }
+  } catch (_) {}
   // 🎯 A bare size answers the question about the shoe they already named — search THAT shoe in it (see lastModelNamed).
   let namedModel = '';
   try {
