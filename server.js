@@ -1490,12 +1490,49 @@ function noteComposeSub(sub) {
   composeSubs.set(String(sub), Date.now());
   if (composeSubs.size > 500) composeSubs.delete(composeSubs.keys().next().value);
 }
+/* 🏝 A FAMILY-ISLAND CUSTOMER NEVER HEARS ABOUT A DRIVER (Rodney 11-16: "make sure it doesn't happen again" - TK 242-533-3607
+ * sent a live location at Solomon's Lucaya and wrote "Im feom freeport"; Kiki looped "what size?", then said "We're 2 minutes
+ * away 🚗" and "I'm getting the driver to call you"). Once a customer names an island or drops a pin off New Providence, every
+ * Kiki line that promises a driver / minutes away / bringing it is cut and the shipping answer goes out instead. */
+const islandSubs = new Map();   // sub -> { island, at }
+const ISLAND_RE = /\b(free\s?port|grand bahama|g\.?b\.?i|lucaya|eight mile rock|west end|holmes rock|abaco|marsh harbou?r|treasure cay|exuma|george town|eleuthera|harbou?r island|governor'?s harbou?r|andros|bimini|long island|cat island|inagua|acklins|crooked island|ragged island|san salvador|berry islands|mayaguana|rock sound)\b/i;
+function noteIsland(sub, text) {
+  try {
+    const t = String(text || '');
+    const m = t.match(ISLAND_RE);
+    if (m && !/\b(not|nah|no)\s+(in|from)\s+/i.test(t.slice(Math.max(0, m.index - 12), m.index))) { islandSubs.set(String(sub), { island: m[1], at: Date.now() }); return; }
+    const c = t.match(/(-?\d{2}\.\d{3,})\s*,\s*(-?\d{2}\.\d{3,})/);
+    if (c) {
+      const lat = parseFloat(c[1]), lon = parseFloat(c[2]);
+      const inNP = lat > 24.95 && lat < 25.12 && lon > -77.60 && lon < -77.20;
+      if (lat > 20 && lat < 28 && lon < -72 && lon > -80) { if (inNP) islandSubs.delete(String(sub)); else islandSubs.set(String(sub), { island: lat > 26.4 && lon < -78.2 ? 'Grand Bahama' : 'your island', at: Date.now() }); }
+    }
+  } catch (_) {}
+}
+function islandOf(sub) { const r = islandSubs.get(String(sub)); return r && Date.now() - r.at < 14 * 86400000 ? r : null; }
+const islandShipSaidAt = new Map();
+function shipLine(isl) {
+  const where = /free\s?port|lucaya|grand bahama|g\.?b\.?i|eight mile|west end|holmes/i.test(isl) ? 'Freeport' : (isl === 'your island' ? 'your island' : isl.replace(/\b\w/g, c => c.toUpperCase()));
+  return `We ship to ${where} ✈️ plane $35 (goes out today if paid before 3 PM) or boat $10 on the weekly sail day. Payment first, then we ship 👟`;
+}
+const ISLAND_BAD_RE = /\b(driver|minutes? away|min away|on (?:the|his|our) way|we(?:'re| are) (?:here|outside|close|pulling up)|bring it (?:straight )?(?:to you|over)|we(?:'ll| will) bring|free delivery|meet you|see you (?:in a|soon|shortly)|pull(?:ing)? up)\b/i;
+function islandGuard(sub, text) {
+  const r = islandOf(sub); if (!r) return text;
+  const parts = String(text).split(/(?<=[.!?👟🚗🔥🙏])\s+|\n+/);
+  const keep = parts.filter(x => !ISLAND_BAD_RE.test(x));
+  if (keep.length === parts.length) return text;
+  let out = keep.join(' ').trim();
+  const last = islandShipSaidAt.get(String(sub)) || 0;
+  if (Date.now() - last > 20 * 60 * 1000 || !out) { out = (out ? out + '\n' : '') + shipLine(r.island); islandShipSaidAt.set(String(sub), Date.now()); }
+  return out;
+}
 async function sendChunk(subscriberId, messages, token, logOpts) {
   messages = splitLongText(messages);
   // 🗣 "dont say perfect say OK" (Rodney 11-16, New Wave 455-0540: "Perfect! Here's the black/white Nike Roshe" then
   // "Perfect! 🙌 Can you send your location"). Kiki's opener is "OK", never "Perfect". Only her lines, never a human's.
   if (!(logOpts && logOpts.sender === 'rodney')) {
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = fixShopNumbers(sayOkNotPerfect(mm.text));
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text)));
+    messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
   const _sink = composeSink.get(String(subscriberId));
   if (!_sink && isComposeSub(subscriberId)) {
@@ -8070,6 +8107,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // our deal", then Kiki said "$130" twice right under it and the customer walked: "On Facebook you telling me this for 100, now
   // you telling me for 130?"). Every owner line with a $ amount in the last 7 days, on any line this customer uses, rides in the
   // prompt and beats the catalog, the sale card and the counter-offer rule.
+  // 🏝 Island customer (see islandGuard): remember it from their words, and tell her before she writes.
+  try {
+    noteIsland(sub, customerWordsOnly(userText) || userText);
+    const _isl = islandOf(sub);
+    if (_isl && !staffName) system += '\n\n🏝 THIS CUSTOMER IS ON ' + String(_isl.island).toUpperCase() + ', NOT IN NASSAU. Never mention a driver, minutes away, meeting up, free delivery or bringing it to them. Shipping: plane $35 (out today if paid before 3 PM) or boat $10 on the weekly sail day, payment first (card link, transfer or SunCash), then we ship. Answer what they asked in one short line; never re-ask a size they already gave.';
+  } catch (_) {}
   let ownerPriceAmts = [];
   try {
     if (!staffName) {
