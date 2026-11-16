@@ -162,6 +162,44 @@
      "price": 120
     }
    ]
+  },
+  {
+   "id": "sb-sale-100-6",
+   "shop": "The Shoebox",
+   "label": "SALE poster, ANY PAIR $100, free delivery, 6 shoes on a pink/teal wall: Asics Gel-1130 Green/Silver, New Balance 1906R Grey/Black, Jordan 4 Grey/Black, Air Force 1 All Black, New Balance 9060 Black/White, New Balance 530 White/Navy, all $100",
+   "caption": "",
+   "shoes": [
+    {
+     "id": "c0380",
+     "name": "Asics green/silver (ad says Gel-1130 Green/Silver)",
+     "price": 100
+    },
+    {
+     "id": "co634",
+     "name": "New Balance 1906R Grey/Black",
+     "price": 100
+    },
+    {
+     "id": "jordan4military001",
+     "name": "Jordan 4 Grey/Black",
+     "price": 100
+    },
+    {
+     "id": "co574",
+     "name": "Air Force 1 All Black",
+     "price": 100
+    },
+    {
+     "id": "c0403",
+     "name": "New Balance 9060 Black/White",
+     "price": 100
+    },
+    {
+     "id": "c0382",
+     "name": "New Balance 530 White/Navy",
+     "price": 100
+    }
+   ]
   }
  ]
 }

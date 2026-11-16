@@ -14854,7 +14854,7 @@ function accountTag(account) {
 app.get('/inbox/threads', (req, res) => {
   if (!consoleAuth(req, res)) return;
   const list = [...inboxThreads.values()]
-    .filter(t => SHOW_SHOE_BOX || accountTag(t.account) !== 'SB') // hide Shoe Box until it's verified
+    .filter(t => SHOW_SHOE_BOX || accountTag(t.account) !== 'SB' || /^The Shoebox$/.test(String(t.account || ''))) // hide the old ManyChat Shoe Box; The Shoebox (YCloud, 815-783-2764) is live since 11-15 and must show (Rodney 11-16: its chats were invisible)
     .map(t => {
     const last = t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
     // TWO-LINE PREVIEW (max 2 messages): the customer's last message + the last reply
