@@ -3492,8 +3492,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   const showSizes = !sizeKnown && !isStaff && (!photosOnly || sizeKnown === false);   // a batched album (photosOnly) still gets its sizes
   let sizesLabel = '📏 Sizes: ';   // in the customer's language (big four by table, the rest by say())
   if (showSizes) { try { sizesLabel = await say(L(SIZES_LABEL_T, sub), sub) || sizesLabel; } catch (_) {} }
-  const _sbCard = (s) => { try { return !!(s && s.image && /-card\.jpg$/.test(s.image) && storeOfSub(sub) === 'The Shoebox' && SB_CARD_IDS.has(String(s.id))); } catch (_) { return false; } };
-  const _cardFor = (s) => { if (_sbCard(s)) return s.image.replace(/-card\.jpg$/, '-card-sb.jpg'); const _ls = s && lineSale(sub, s.id); return _ls && s.image ? s.image.replace(/[^/]+$/, _ls.card) : (s && s.image); };
+  const _storeCard = (s) => { try { if (!(s && s.image && /-card\.jpg$/.test(s.image))) return ''; const st = storeOfSub(sub); if (st === 'The Shoebox' && SB_CARD_IDS.has(String(s.id))) return '-card-sb.jpg'; if (st === 'New Wave' && NW_CARD_IDS.has(String(s.id))) return '-card-nw.jpg'; return ''; } catch (_) { return ''; } };
+  const _sbCard = (s) => !!_storeCard(s);
+  const _cardFor = (s) => { const _sc = _storeCard(s); if (_sc) return s.image.replace(/-card\.jpg$/, _sc); const _ls = s && lineSale(sub, s.id); return _ls && s.image ? s.image.replace(/[^/]+$/, _ls.card) : (s && s.image); };
   /* 🔥 SALE PRICE UNDER THE PICTURE (Rodney 11-15: "even though it has the 120 price in the picture, you could put underneath
    * sale price 80, sale price 50, sale price 70 ... set this up like some professional shit"). An ad price or today's special
    * that is LOWER than the card's printed price goes on its own line under the photo. */
@@ -6547,6 +6548,8 @@ function adShoeIds(store) {
  * The card still prints the shelf price, so a "🔥 Sale price $100" line goes under each picture (see _saleOf). */
 // Shoebox-only cards (<id>-card-sb.jpg): the pink/teal wall photos (Rodney 11-16 "shoe box has new pics generated") plus the 9060s + SALE ad shoes, each with a big SALE sticker.
 const SB_CARD_IDS = new Set('airmax90bkyel001 airmax90brn001 airmax90grn001 airmax90whtpnk001 airmax95bkbl001 airmax95bkwht001 airmax95bkyel001 airmax95yel001 airmax97bkrbow001 airmax97cheet001 airmax97crm001 airmax97white001 airmaxplus3001 airmaxplusbkbr001 airmaxplusgrb001 airmaxpluspkwht001 airmaxplusptn001 airmaxpluspurp001 airmaxpluswpkbk001 airmaxpluswpur001 airtrainer001 c0338 c0340 c0341 c0343 c0344 c0347 c0354 c0358 c0361 c0363 c0364 c0377 c0380 c0382 c0383 c0384 c0385 c0388 c0389 c0390 c0391 c0392 c0393 c0394 c0395 c0396 c0397 c0399 c0400 c0401 c0402 c0403 c0404 c0405 c0406 c0407 c0408 c0410 c0411 c0412 c0414 c0415 c0416 c0422 c0423 c0424 c0425 c0426 c0427 c0429 c0431 c0436 c0440 c0445 co556 co557 co558 co559 co560 co562 co563 co565 co567 co569 co571 co574 co578 co634 jordan4military001 nb9060white001 newbalance001'.split(' '));
+// New Wave-only cards (<id>-card-nw.jpg) printing the trunk/wall/porch AD price (Rodney 11-16 "ensure that new wave store has these prices for these shoes").
+const NW_CARD_IDS = new Set('c0455 co584 c0425 co548 co581 vapormaxutil001 airmaxpluswpur001 c0453 airmax97cheet001 c0449 c0429'.split(' '));
 const STORE_MODEL_PRICES = {
   'The Shoebox': [{ re: /\b9060\b/i, price: 100 }],
 };
