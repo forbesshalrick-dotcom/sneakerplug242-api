@@ -6628,6 +6628,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       return;
     }
   } catch (_) {}
+  // 📸 "DON'T SEE ANYTHING" = SEND THE PICTURES AGAIN (Rodney 11-16: "if customer said I dont see anything send again bro wtf",
+  // "if they say not seen send again" — New Wave 455-0540 said "Don't see anything" and Kiki answered "All those pictures above 👆").
+  // Never point at pictures they just told us aren't there: resend the last pictures we sent in this chat (up to 8, last hour).
+  try {
+    const _said = String(customerWordsOnly(userText) || userText || '').trim();
+    const NOSEE = /\b(?:(?:i\s+)?(?:don'?t|dont|do not|can'?t|cant|cannot|didn'?t|didnt|never|not)\s+(?:see|seen|seeing|get|got|getting|receive|recieve|received)\b|nothing\s+(?:is\s+)?(?:there|came|showing|show(?:ed|s)?\s+up|loaded|loading)|no\s+(?:pics?|pictures?|photos?|images?)\s+(?:came|there|showing|loaded)|(?:pics?|pictures?|photos?|images?)\s+(?:not|aint|ain'?t|didn'?t|never)\s+(?:showing|loading|coming|come|came|load|show)|where\s+(?:is\s+it|are\s+they|(?:the|da|di)\s+(?:pics?|pictures?|photos?))|(?:never|didn'?t|didnt|did not|not)\s+(?:sent?|send|sending)\s+(?:a\s+|the\s+|any\s+|me\s+)*(?:pics?|pictures?|photos?|images?|it|them)|it'?s\s+blank|blank)\b/i;
+    if (!image && _said && _said.split(/\s+/).length <= 14 && NOSEE.test(_said) && !/\b(in this|in the|on this|on the|that one|this one)\s+(?:pic|picture|photo)/i.test(_said)) {
+      const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _cut = Date.now() - 60 * 60 * 1000;
+      const _imgs = [];
+      for (const m of ((_th && _th.msgs) || [])) if (m && m.dir === 'out' && m.img && (m.ts || 0) > _cut) { if (!_imgs.includes(m.img)) _imgs.push(m.img); }
+      const _last = _imgs.slice(-8);
+      if (_last.length) {
+        try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _said, name: ctx.name }); } catch (_) {}
+        try { clearFollowUp(sub); } catch (_) {}
+        await sendChunk(sub, [{ type: 'text', text: "Sorry about that 🙏 sending them again 👇" }].concat(_last.map(u => ({ type: 'image', url: framesUrl(u) }))), token, { account: ctx.store }).catch(() => {});
+        await sendChunk(sub, [{ type: 'text', text: "Which one you like? 👟" }], token, { account: ctx.store }).catch(() => {});
+        record(req, { endpoint: 'nosee-resent', sub, n: _last.length, q: _said.slice(0, 60) });
+        return;
+      }
+    }
+  } catch (_) {}
   // 🙏 "I PURCHASED YESTERDAY" = THANK YOU (Rodney 2026-10-14: "If the guy purchased yesterday, why do you need to know
   // which shoe? It's already gone. Just say thank you for the purchase / thank you for your business." Kiki had
   // asked "what shoe did you grab yesterday, and what size?").
