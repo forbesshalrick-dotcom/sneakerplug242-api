@@ -6545,8 +6545,8 @@ function adShoeIds(store) {
 /* 🏷️ A WHOLE MODEL ON SALE ON ONE LINE (Rodney 11-16: the New Balance 9060 is $100 "only shoe box"; every other line stays $130).
  * Unlike LINE_SALES this needs no "sale" word: The Shoebox runs on the ANY PAIR $100 sale ad, so every customer there gets it.
  * The card still prints the shelf price, so a "🔥 Sale price $100" line goes under each picture (see _saleOf). */
-// Shoebox-only cards with $100 printed (<id>-card-sb.jpg on the frames CDN, Rodney 11-16 "shoebox need new pics"): the 9060s + the SALE ad shoes.
-const SB_CARD_IDS = new Set('nb9060white001 newbalance001 c0406 c0412 c0411 c0384 c0403 c0388 c0391 c0402 c0395 c0400 c0399 c0397 c0396 c0405 c0408 c0404 c0410 c0383 c0389 c0392 c0338 c0344 c0416 co557 co560 co562 co565 co567 co571 co569 co578 co556 co558 co559 co563 c0380 co634 jordan4military001 co574 c0382'.split(' '));
+// Shoebox-only cards (<id>-card-sb.jpg): the pink/teal wall photos (Rodney 11-16 "shoe box has new pics generated") plus the 9060s + SALE ad shoes, each with a big SALE sticker.
+const SB_CARD_IDS = new Set('airmax90bkyel001 airmax90brn001 airmax90grn001 airmax90whtpnk001 airmax95bkbl001 airmax95bkwht001 airmax95bkyel001 airmax95yel001 airmax97bkrbow001 airmax97cheet001 airmax97crm001 airmax97white001 airmaxplus3001 airmaxplusbkbr001 airmaxplusgrb001 airmaxpluspkwht001 airmaxplusptn001 airmaxpluspurp001 airmaxpluswpkbk001 airmaxpluswpur001 airtrainer001 c0338 c0340 c0341 c0343 c0344 c0347 c0354 c0358 c0361 c0363 c0364 c0377 c0380 c0382 c0383 c0384 c0385 c0388 c0389 c0390 c0391 c0392 c0393 c0394 c0395 c0396 c0397 c0399 c0400 c0401 c0402 c0403 c0404 c0405 c0406 c0407 c0408 c0410 c0411 c0412 c0414 c0415 c0416 c0422 c0423 c0424 c0425 c0426 c0427 c0429 c0431 c0436 c0440 c0445 co556 co557 co558 co559 co560 co562 co563 co565 co567 co569 co571 co574 co578 co634 jordan4military001 nb9060white001 newbalance001'.split(' '));
 const STORE_MODEL_PRICES = {
   'The Shoebox': [{ re: /\b9060\b/i, price: 100 }],
 };
