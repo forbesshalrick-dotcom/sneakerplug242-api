@@ -128,18 +128,18 @@
   {
    "id": "nw-porch-6",
    "shop": "New Wave",
-   "label": "Porch with palm trees, 6 shoes: NB 9060 multicolour $120, NB 9060 cream/blue $120, Air Max Plus 3 blue $80, Dunk pink/white $80, NB 740 pink/silver $120, Air Max Plus blue $120",
+   "label": "Porch with palm trees, 6 shoes: NB 9060 multicolour $100, NB 9060 cream/blue $100, Air Max Plus 3 blue $80, Dunk pink/white $80, NB 740 pink/silver $120, Air Max Plus blue $120",
    "caption": "",
    "shoes": [
     {
      "id": "c0395",
      "name": "New Balance 9060 multicolour purple/orange (sizes 5.5, 6.5, 9.5)",
-     "price": 120
+     "price": 100
     },
     {
      "id": "c0411",
      "name": "New Balance 9060 cream/blue (sizes 5.5, 6.5, 11, 12.5)",
-     "price": 120
+     "price": 100
     },
     {
      "id": "c0429",
