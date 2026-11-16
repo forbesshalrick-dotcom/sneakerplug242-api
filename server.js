@@ -3921,6 +3921,21 @@ function tableLearn(sub, text) {
     }
   } catch (_) {}
 }
+/* 👠 A MEN'S SIZE CALLED "HER WOMEN'S" (Rodney 11-16, New Wave 455-0540): she searched a MEN'S 7, found the black/white Roshe
+ * (men's 7 only = about a women's 8.5) and told the customer twice "$50 in your women's 7". Whenever the size in her words is
+ * labelled women's but the search was a men's search for that same number, say the truth: men's N, about a women's N+1.5. */
+function fixWomensMislabel(text, last, record, req, sub) {
+  try {
+    if (!text || !last || last.womens || !last.size) return text;
+    const n = parseFloat(last.size); if (!isFinite(n)) return text;
+    const num = String(n).replace('.', '\\.');
+    const re = new RegExp("\\b(?:(your|her)\\s+)?(?:wom[ae]n'?s|ladies)\\s+(?:size\\s+)?" + num + "(?![\\d.])", 'gi');
+    if (!re.test(text)) return text;
+    const out = String(text).replace(re, (m, who) => (who ? 'a ' : '') + "men's " + n + " (about a women's " + (n + 1.5) + ")");
+    try { record(req, { endpoint: 'womens-mislabel-fixed', sub, size: n, was: String(text).slice(0, 100) }); } catch (_) {}
+    return out;
+  } catch (_) { return text; }
+}
 function undoWomensDoubleConvert(sub, p, record, req) {
   try {
     const w = womensSaid.get(String(sub));
@@ -7602,6 +7617,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let sizeReAsks = 0;          // how many times this turn her reply asked for a size we already have
   let forcePhotosNext = false; // set when she described a shoe (with a price) in WORDS but never sent the pic → force the photo
   let forcedPhotosOnce = false; // guard so the force above can only fire once per turn (never loops)
+  let lastSearchSize = null;     // { size, womens } of this turn's last search_inventory, for fixWomensMislabel
   // 🎯 SIZE-ALBUM COMPLETENESS tracking (Rodney 2026-07-19: "what you got in 10.5 11" showed
   // only Jordan 4s + New Balance — all 19 Nikes in an 11 were missing). If she sends a GENERIC
   // size batch (lead-in names only a size, no brand/model/colour) but leaves brands out, we
@@ -9304,6 +9320,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (turnText) lastText = turnText;
     /* \u{1F447} A WORDS-ONLY REPLY POINTING AT PICTURES (Rodney 10-24, TK Pablo Esco 814-8430) is held: the safety net below sends
      * the pictures under it, or cuts the arrow. */
+    if (turnText) turnText = fixWomensMislabel(turnText, lastSearchSize, record, req, sub);
     const _pointsAtNothing = !!(turnText && !staffName && !photosSentRun && !toolUses.length && /\u{1F447}/u.test(turnText));
     if (_pointsAtNothing) record(req, { endpoint: 'pointing-text-held', sub, text: String(turnText).slice(0, 100) });
     if (!searchingOnly && !sendPhotosTU && turnText && !willForceStockSearch && !_pointsAtNothing) {
@@ -9486,6 +9503,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         askP = p;
         lastSearchCount = found.length;
         lastSearchIds = found.map(x => x && x.id).filter(x => x != null);
+        lastSearchSize = { size: p.size != null ? String(p.size) : '', womens: p.womens === true };
         result = { shoes: found };
         /* 👠 HER SIZE, SPELLED OUT ON EVERY SHOE (drill 10-16 01:54: the women's 10.5 search found 3, the list showed men's sizes
          * "9, 9.5, …", she saw no "10.5" and told the customer we don't have it). Each shoe says whether it comes in her size. */
@@ -9983,6 +10001,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
+        leadIn = fixWomensMislabel(leadIn, lastSearchSize, record, req, sub);
         /* 🌾 THE PICTURE READER SAID WE DON'T HAVE IT — THE WORDS MAY NOT SAY WE DO (Rodney 10-22, TK 559-8608: a Wheat
          * Air Force 1 in a 10. The reader called it Flax/Wheat, NOT IN STOCK, three times; her first draft said so. The
          * never-ask guard threw that draft away, she searched the white AF1, looked at our picture beside theirs and sent
