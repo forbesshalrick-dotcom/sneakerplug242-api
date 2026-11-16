@@ -3407,6 +3407,16 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
       }
       if (delivered) {
         sent += 1; lastShoeSent = s; consecFail = 0;
+        /* 🧠 EVERY DELIVERED PICTURE IS REMEMBERED, WHOEVER SENT IT (Rodney 11-16: a black/orange Air Max Plus went out from the
+         * inbox, the customer said "This gold and black ones", and Kiki searched all stock, found nothing and asked her to describe
+         * it). Only Kiki's own send_photos wrote recentlySent, so a hand-sent picture was invisible to her. Newest goes last. */
+        try {
+          const _nm = displayName(s); const _prev = recentlySent.get(sub);
+          const _keep = _prev && Date.now() - (_prev.ts || 0) < 2 * 3600000;
+          const _names = (_keep ? (_prev.names || []).filter(n => n !== _nm) : []).concat(_nm).slice(-25);
+          const _ord = (_keep ? (_prev.order || []).filter(x => x !== String(s.id)) : []).concat(String(s.id)).slice(-80);
+          recentlySent.set(sub, { ts: Date.now(), names: _names, order: _ord }); saveRecentlySent();
+        } catch (_) {}
         // 🔬 PROOF OF WHAT ManyChat ACTUALLY SAID (Rodney 2026-08-05). An album reported 34
         // pairs delivered and the customer received ZERO — with not one line in the log,
         // because only FAILURES were ever recorded and every one of these came back
@@ -7000,6 +7010,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         userText = '(SYSTEM: they pointed at a picture ("' + _plain + '") but the tag does not reach us' + (fresh ? ' and you sent several shoes' : '') + '. Reply with exactly this and nothing else: "Which one? Send me that picture again 🙏". Never say you are not seeing a picture or having trouble on your end.)\n' + _plain;
       }
       record(req, { endpoint: 'bare-pointer', sub, q: _plain.slice(0, 40), resolved: !!(fresh && rs.names.length === 1) });
+    }
+    /* 🔎 "THIS ONE IS AWESOME" / "THIS GOLD AND BLACK ONES" (Rodney 11-16, "looking for a shoes you already sent and yo ass just
+     * cant find it and give up?"): a black/orange Air Max Plus went out at 10:20, then a Jordan 1; "Wow this one is awesome" got
+     * "Which one is that?", and "This gold and black ones" got a stock search, "not finding a gold and black pair in a 10" and
+     * "describe it more". Whatever they describe right after pictures is matched against THOSE pictures first. */
+    else if (!image && _plain && !/^\(SYSTEM/.test(_plain) && _plain.split(/\s+/).length <= 14) {
+      const rs = recentlySent.get(sub);
+      const fresh = rs && Array.isArray(rs.names) && rs.names.length && (Date.now() - rs.ts) < 2 * 3600000;
+      const _cw = customerWordsOnly(_plain).toLowerCase();
+      const _points = /\b(this|that|these|those|dis|dat|dem|the one|ones?|it)\b/.test(_cw);
+      const _colour = /\b(black|white|red|blue|navy|green|olive|gold|golden|orange|yellow|purple|pink|grey|gray|silver|brown|tan|cream|beige|wheat|teal|mint)\b/.test(_cw);
+      if (fresh && (_points || _colour) && !/\b(more|other|others|else|different|another|next|rest|any)\b/.test(_cw)) {
+        const _last = rs.names[rs.names.length - 1];
+        userText = '(SYSTEM: you just sent this customer pictures of: ' + rs.names.slice(-12).join('; ') + ' (the LAST one sent was the ' + _last + '). '
+          + 'If their words fit one of THOSE, it IS that shoe from our stock: name it, give its price and their size, and carry on. Colour words are loose — gold = orange / yellow / amber / wheat, cream = tan / beige / sail, grey = silver / cement. '
+          + '"This one" or praise with no colour right after a picture means the LAST one sent. Only search the stock if none of those fits, and never ask them to describe a shoe you just sent.)\n' + _plain;
+        record(req, { endpoint: 'words-matched-to-sent', sub, q: _plain.slice(0, 40), n: rs.names.length });
+      }
     }
   } catch (_) {}
   // 🎂 AN AGE IS NOT A SIZE (FF +1 242 468-4370 10-21): Kiki asked "How old is your child?", the parent answered "12", and she sent
@@ -14086,6 +14114,30 @@ app.post('/ycloud/webhook', async (req, res) => {
         record(req, { endpoint: String(_wm.status || '') === 'failed' ? 'ycloud-send-failed' : 'ycloud-audio-status', status: String(_wm.status || ''), msgType: _wm.type || '',
           to: String(_wm.to || '').slice(-7), errorCode: _wm.errorCode || '', errorMessage: String(_wm.errorMessage || '').slice(0, 160),
           apiError: JSON.stringify(_wm.whatsappApiError || '').slice(0, 200) });
+      }
+      // 📸 A PICTURE YCLOUD ACCEPTED AND THEN FAILED (Rodney 11-16: Kiki said "Here it is 👇" and "Here's the black/white
+      // Roshe 👇", the customer saw "Nothing is there" — "if I didnt check those they would go un noticed"). "Sent" was only
+      // "accepted"; the failure came later and nobody acted on it. Send the picture once more; if that fails too, give the
+      // customer the name and price in words and tell Rodney, so a lead-in never points at nothing again.
+      if (_wm && !/echo/i.test(kind) && String(_wm.status || '') === 'failed') {
+        const _rec = ycloudSentMedia.get(String(_wm.id || '')) || ycloudSentMedia.get(String(_wm.wamid || ''));
+        if (_rec && _rec.link && _rec.sub && !_rec.fromCustomer && !_rec.byHand) {
+          const _cust = String(_rec.sub);
+          if (!_rec.retried) {
+            const _again = Object.assign({}, _rec, { retried: true, at: Date.now() });
+            const _r = await ycloudSendMessages(_cust, [{ type: 'image', url: _rec.link }].concat(_rec.caption ? [{ type: 'text', text: _rec.caption }] : []));
+            for (const [k, v] of ycloudSentMedia) if (v && v.sub === _cust && v.link === _rec.link && Date.now() - (v.at || 0) < 60000 && !v.retried) ycloudSentMedia.set(k, _again);
+            record(req, { endpoint: 'ycloud-image-failed-resent', to: _cust.slice(-7), ok: !!(_r && _r.ok), errorCode: _wm.errorCode || '' });
+            if (!(_r && _r.ok)) _rec.retried = true;
+            else return;
+          }
+          if (_rec.retried) {
+            const _name = String(_rec.caption || '').trim();
+            await ycloudSendMessages(_cust, [{ type: 'text', text: _name ? `Sorry, that picture didn't come through 🙏 ${_name}` : "Sorry, that picture didn't come through 🙏 sending it again in a sec" }]).catch(() => {});
+            try { require('./shop').addAlert(`⚠️ A photo FAILED twice to WhatsApp ${_cust} (${_wm.errorCode || 'no code'} ${String(_wm.errorMessage || '').slice(0, 80)}). Kiki said it was sent — check that chat.`, 'Kiki 🤖'); } catch (_) {}
+            record(req, { endpoint: 'ycloud-image-failed-twice', to: _cust.slice(-7), errorCode: _wm.errorCode || '' });
+          }
+        }
       }
     } catch (_) {}
     if (/status|sent|delivered|read|failed/i.test(kind) && !/inbound|received/i.test(kind)) return;
