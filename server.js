@@ -1495,7 +1495,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // 🗣 "dont say perfect say OK" (Rodney 11-16, New Wave 455-0540: "Perfect! Here's the black/white Nike Roshe" then
   // "Perfect! 🙌 Can you send your location"). Kiki's opener is "OK", never "Perfect". Only her lines, never a human's.
   if (!(logOpts && logOpts.sender === 'rodney')) {
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = sayOkNotPerfect(mm.text);
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = fixShopNumbers(sayOkNotPerfect(mm.text));
   }
   const _sink = composeSink.get(String(subscriberId));
   if (!_sink && isComposeSub(subscriberId)) {
@@ -3970,6 +3970,20 @@ const EMPTY_ASK_T = {
 // because ManyChat has silently dropped audio before. VOICE_REPLY=0 turns the whole thing off.
 const voiceInAt = new Map();   // sub -> ts of the last voice note the customer sent
 const PUBLIC_BASE = (process.env.PUBLIC_BASE || 'https://sneakerplug242-api-production.up.railway.app').replace(/\/+$/, '');
+/* ☎️ A SHOP NUMBER WITH A MADE-UP AREA CODE (Rodney 11-16 "wring number", Shoe Lacky 829-8442): asked "4031330 is that the number",
+ * Kiki answered "+1 242-403-1330" - Shoe Lacky is +1 845-403-1330. Any of our own lines written with the wrong area code (or none)
+ * is rewritten to the real full number. */
+function fixShopNumbers(t) {
+  try {
+    let out = String(t);
+    for (const full of SHOP_LINE_TAILS) {
+      const area = full.slice(0, 3), a = full.slice(3, 6), b = full.slice(6);
+      const re = new RegExp('(?<![\\d$])(?:\\+?1[\\s.-]*)?(?:\\(?(\\d{3})\\)?[\\s.-]*)?' + a + '[\\s.-]?' + b + '(?!\\d)', 'g');
+      out = out.replace(re, (m, ac) => ac === area ? m : '+1 ' + area + '-' + a + '-' + b);
+    }
+    return out;
+  } catch (_) { return t; }
+}
 // "dont say perfect say OK" (Rodney 11-16). A sentence-opening "Perfect" becomes "OK"; "a perfect fit" mid-sentence stays.
 function sayOkNotPerfect(t) {
   return String(t).replace(/(^|[.!?\n]\s*)Perfect\b/gi, '$1OK');
