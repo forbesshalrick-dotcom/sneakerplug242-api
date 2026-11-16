@@ -3427,7 +3427,8 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   const showSizes = !sizeKnown && !isStaff && (!photosOnly || sizeKnown === false);   // a batched album (photosOnly) still gets its sizes
   let sizesLabel = '📏 Sizes: ';   // in the customer's language (big four by table, the rest by say())
   if (showSizes) { try { sizesLabel = await say(L(SIZES_LABEL_T, sub), sub) || sizesLabel; } catch (_) {} }
-  const _cardFor = (s) => { const _ls = s && lineSale(sub, s.id); return _ls && s.image ? s.image.replace(/[^/]+$/, _ls.card) : (s && s.image); };
+  const _sbCard = (s) => { try { return !!(s && s.image && /-card\.jpg$/.test(s.image) && storeOfSub(sub) === 'The Shoebox' && SB_CARD_IDS.has(String(s.id))); } catch (_) { return false; } };
+  const _cardFor = (s) => { if (_sbCard(s)) return s.image.replace(/-card\.jpg$/, '-card-sb.jpg'); const _ls = s && lineSale(sub, s.id); return _ls && s.image ? s.image.replace(/[^/]+$/, _ls.card) : (s && s.image); };
   /* 🔥 SALE PRICE UNDER THE PICTURE (Rodney 11-15: "even though it has the 120 price in the picture, you could put underneath
    * sale price 80, sale price 50, sale price 70 ... set this up like some professional shit"). An ad price or today's special
    * that is LOWER than the card's printed price goes on its own line under the photo. */
@@ -3436,6 +3437,7 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   const _saleOf = (s) => {
     try {
       if (!s || isStaff) return 0;
+      if (_sbCard(s)) return 0;   // the Shoebox card already prints $100
       const card = parseFloat(s.price) || 0;
       let p = adPrice(s, storeOfSub(sub), sub);
       if (_saleSize) { const sp = specialPrice(s.id, _saleSize); if (sp && sp < p) p = sp; }
@@ -6445,6 +6447,8 @@ function adShoeIds(store) {
 /* 🏷️ A WHOLE MODEL ON SALE ON ONE LINE (Rodney 11-16: the New Balance 9060 is $100 "only shoe box"; every other line stays $130).
  * Unlike LINE_SALES this needs no "sale" word: The Shoebox runs on the ANY PAIR $100 sale ad, so every customer there gets it.
  * The card still prints the shelf price, so a "🔥 Sale price $100" line goes under each picture (see _saleOf). */
+// Shoebox-only cards with $100 printed (<id>-card-sb.jpg on the frames CDN, Rodney 11-16 "shoebox need new pics"): the 9060s + the SALE ad shoes.
+const SB_CARD_IDS = new Set('nb9060white001 newbalance001 c0406 c0412 c0411 c0384 c0403 c0388 c0391 c0402 c0395 c0400 c0399 c0397 c0396 c0405 c0408 c0404 c0410 c0383 c0389 c0392 c0338 c0344 c0416 co557 co560 co562 co565 co567 co571 co569 co578 co556 co558 co559 co563 c0380 co634 jordan4military001 co574 c0382'.split(' '));
 const STORE_MODEL_PRICES = {
   'The Shoebox': [{ re: /\b9060\b/i, price: 100 }],
 };
