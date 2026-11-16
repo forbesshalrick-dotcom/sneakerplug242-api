@@ -8924,8 +8924,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _q = _list
         ? _list + ' — got you 👟 What size you wear? I\'ll send you everything we got in ' + (_brands.length > 1 ? 'both' : 'it') + ' 🔥'
         : (((voiceOf(ctx.store) || {}).size) || 'What size you looking for? 👟') + ' I\'ll send you pics and prices!';
-      record(req, { endpoint: 'which-shoe-q-replaced', sub, store: ctx.store || '', was: turnText.slice(0, 120), now: _q });
-      turnText = _q;
+      /* 🏝 ONLY THE QUESTION IS SWAPPED, NOT HER ANSWER (Rodney 11-16, 242-53…8404 in Freeport: "You are in nassau?" and "Im feom
+       * freeport" both got only "What size you wear? I'll send you pics and prices!" - three times - because this guard threw away the
+       * WHOLE reply, her island/shipping answer with it). An island / location / shipping message keeps her reply untouched; otherwise
+       * just the which-shoe sentence is replaced and everything else she said stays. */
+      const _islandTalk = /\b(nassau|freeport|grand bahama|lucaya|abaco|eleuthera|exuma|andros|bimini|long island|cat island|inagua|island|ship|shipping|mail|boat|plane|where (?:are|r) (?:you|u)|you (?:are|r) in|location|deliver)\b/i.test(_cw);
+      if (_islandTalk) {
+        record(req, { endpoint: 'which-shoe-q-kept-island', sub, q: _cw.slice(0, 60) });
+      } else {
+        const _sents = String(turnText).split(/(?<=[.!?\n])\s+/);
+        const _WQ = /\b(what|which)\s+(?:shoe|shoes|brand|brands|model|one|kicks|style|sneaker)s?\b|name and (?:the )?size|give me the name|two different brands/i;
+        const _rest = _sents.filter(x => !_WQ.test(x)).join(' ').trim();
+        const _now = (_rest && _rest.length > 8 ? _rest + ' ' : '') + _q;
+        record(req, { endpoint: 'which-shoe-q-replaced', sub, store: ctx.store || '', was: turnText.slice(0, 120), now: _now.slice(0, 120) });
+        turnText = _now;
+      }
     }
     /* 📸 THEY JUST GAVE THEIR SIZE = SEND THE ALBUM, NOT "WHICH SHOE?" (Rodney 11-04, TK Care Less Lees 636-5616: "Price" -> "8/2 to 9"
      * -> voice "eight and a half, ten, nine" got "Which shoe you want in those sizes — the 9060 or the Air Force 1?" and no pictures;
