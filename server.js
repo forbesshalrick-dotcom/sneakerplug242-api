@@ -2434,7 +2434,7 @@ THEN — exactly like a local delivery — you MUST CALL notify_manager (the too
 LOCATION: If they ask where you're located or where to pick up: we're mobile (no shop to come in to — and never say "no shop" to them) — we bring it to you with FREE delivery OR meet up wherever's convenient for them (Rodney 11-07: "We also meet up" — never say delivery only). Ask for their location pin. 📍
 NEVER INVENT (Rodney 10-23, audit of a night of chats - each of these went to a real customer):
 - An ADDRESS or place: only repeat a location the customer actually sent (a pin or their own words). "I'll be back at 4:30" got "Got you 📍 Wendy Wulf Rd & East St, 4:30 PM" - he never said where. No location yet = ask for their pin.
-- A PRICE RANGE for one shoe: a model has ONE price. "How much is the black New Balance 9060?" is "$100", never "from $120 to $180" (that was a whole album's range). Quote the price search_inventory gave you for that shoe.
+- A PRICE RANGE for one shoe: a model has ONE price. "How much is the black New Balance?" is "$130", never "from $120 to $180" (that was a whole album's range). Quote the price search_inventory gave you for that shoe.
 - A SIZE: say "we got it in your N" only when search_inventory showed size N for THAT shoe. If they then say a size it doesn't come in ("10" for a shoe with 9.5 and 10.5), say so and give the sizes it does come in - never "Got it!".
 - Things you can't do: you cannot check the bank or see where an order is. Never "payment confirmed". (For "how long / where's the driver" on a confirmed order, Rodney's line stays: "Let me call the driver now to see how far he is! 🚗 He'll be right with you 👟".)
 - Island orders ship by boat or plane - never "the driver will call you when he's close" to someone in Abaco, Eleuthera, Exuma, Grand Bahama or any Family Island.
@@ -2479,7 +2479,7 @@ SPECIAL CONTACTS:
 FOLLOW-UPS: If you earlier sent "Did you see anything you liked, or did you get sorted?" and they reply: if they say NO / nothing caught their eye → reply "Okay, no worries! Maybe next time. Have a good day! 👟". If they say YES / they liked something → ask them for the CODE on the photo, e.g. "Nice! 😍 What's the code on the one you liked? It's the *A1* right under the photo 👟" — then look it up and help them order.
 
 Our brands: ${BRANDS.join(', ')}. Sizes in stock: roughly ${SIZE_RANGE}. Currency is USD.
-⛔ ONE NAMED SHOE = ONE PRICE. NEVER THE WHOLE LIST (Rodney 2026-08-22). If the customer NAMES a shoe — "how much for the new balance", "price on the Air Max 95", "how much are the Jordans" — answer with THAT shoe's price and nothing else: "The 9060 is $100 👟 — what size you need?". Do NOT send the price list as well. He watched it happen: a customer asked one question about New Balance and got the entire ten-line price sheet, then the answer at the bottom. It reads like a robot, it buries the answer he asked for, and it hands your whole price sheet to somebody who asked about one pair. The list is ONLY for a genuinely general question with no shoe named anywhere.
+⛔ ONE NAMED SHOE = ONE PRICE. NEVER THE WHOLE LIST (Rodney 2026-08-22). If the customer NAMES a shoe — "how much for the new balance", "price on the Air Max 95", "how much are the Jordans" — answer with THAT shoe's price and nothing else: "New Balance is $130 👟 — what size you need?". Do NOT send the price list as well. He watched it happen: a customer asked one question about New Balance and got the entire ten-line price sheet, then the answer at the bottom. It reads like a robot, it buries the answer he asked for, and it hands your whole price sheet to somebody who asked about one pair. The list is ONLY for a genuinely general question with no shoe named anywhere.
 PRICE LIST — when a customer asks about prices in GENERAL ("how much are your sneakers", "how much y'all charge", "price list", "how much for a pair", "what's the prices", "prices?"), do NOT give a vague range like "$70 to $250". Send this EXACT list (keep the emojis and the *bold* stars — WhatsApp shows them bold), then ask their size:
 ⚠️ A BARE "How much?" / "How much is it?" / "price?" WITH NO SHOE NAMED ANYWHERE IN THE CHAT COUNTS AS GENERAL TOO (Rodney 2026-08-02): this includes when it follows an ad-click opener like "can I get more info on this?" that YOU never resolved to a specific shoe (no photo id, no name anywhere in the conversation) — you don't know what "this" is any more than a cold "how much?" would tell you, so it's the same situation. Do NOT stall with "What shoe are you after? Tell me the name and I'll get you the price!" — that leaves them with zero information and an extra question to answer. Send the price list instead; it answers them immediately AND the closing "tell me your size" line naturally narrows things down next. Only ask "which shoe?" instead of sending the list when they've already named or shown one specific shoe and you just need to confirm which.
 👟 *${storeName.toUpperCase()} — PRICE LIST* 👟
@@ -2488,8 +2488,7 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 🐐 Air Jordans — *SALE $180* 🔥
 💨 Air Max / VaporMax — *$120*
 🌀 Air Max 95 — *$130*
-⚡ New Balance 9060 — *$100* 🔥
-⚡ Other New Balance / ASICS — *$130*
+${storeName === 'The Shoebox' ? '⚡ New Balance 9060 — *SALE $100* 🔥\n⚡ Other New Balance / ASICS — *$130*' : '⚡ New Balance / ASICS — *$130*'}
 👟 Nike Dunk / Air Jordan 1 — *$120*
 🐊 Crocs / Yeezy Foam — *$65*
 🏃 Nike Roshe — *$50*
@@ -3299,7 +3298,7 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
         // the old line survives only as the fallback when the call fails.
         let line = null;
         try {
-          const sys = 'You are Kiki, the WhatsApp assistant for a Nassau (Bahamas) sneaker shop. A photo album is MID-SEND; the customer just asked a quick question between pictures. Answer it in ONE short, warm WhatsApp line (max ~25 words, 1 emoji ok), in the customer\'s language, then let them know the pics are still coming (e.g. "📸 more pics coming 👇"). FACTS: FREE delivery to your door in Nassau, 8am–10pm, pay on arrival (cash, Scotiabank/CIBC transfer, SunCash) or by card with our pay link. We are MOBILE ONLY — say we\'re now strictly mobile only, we come to you with free delivery (never say "no shop"). Family Islands: boat $10 (weekly sail day) or plane $35 daily — pay first + send receipt; before 3 PM ships same day, after 3 PM next flight. PRICES: Jordan 1 / AF1 / Dunk / Air Max / VaporMax $120 · all other Jordans $180 · New Balance 9060 $100 · Air Max 95 / other New Balance / ASICS $130 · Crocs & Yeezy Foam $65 · Roshe $50 · Dunk High $60 · Scorpion $70. If the question needs live stock lookup or order details you cannot see, say you\'ll sort that the second the pics finish. Reply with ONLY the line, nothing else.';
+          const sys = 'You are Kiki, the WhatsApp assistant for a Nassau (Bahamas) sneaker shop. A photo album is MID-SEND; the customer just asked a quick question between pictures. Answer it in ONE short, warm WhatsApp line (max ~25 words, 1 emoji ok), in the customer\'s language, then let them know the pics are still coming (e.g. "📸 more pics coming 👇"). FACTS: FREE delivery to your door in Nassau, 8am–10pm, pay on arrival (cash, Scotiabank/CIBC transfer, SunCash) or by card with our pay link. We are MOBILE ONLY — say we\'re now strictly mobile only, we come to you with free delivery (never say "no shop"). Family Islands: boat $10 (weekly sail day) or plane $35 daily — pay first + send receipt; before 3 PM ships same day, after 3 PM next flight. PRICES: Jordan 1 / AF1 / Dunk / Air Max / VaporMax $120 · all other Jordans $180 · Air Max 95 / New Balance / ASICS $130 · Crocs & Yeezy Foam $65 · Roshe $50 · Dunk High $60 · Scorpion $70. If the question needs live stock lookup or order details you cannot see, say you\'ll sort that the second the pics finish. Reply with ONLY the line, nothing else.';
           const ctx2 = (lastShoeSent ? 'The photo that JUST went out: ' + displayName(lastShoeSent) + ' ($' + lastShoeSent.price + ').\n' : '') + 'Customer question: "' + q.slice(0, 300) + '"';
           const resp = await Promise.race([
             callClaude([{ role: 'user', content: ctx2 }], sys, undefined, []),
@@ -6443,7 +6442,23 @@ function adShoeIds(store) {
   } catch (_) { return []; }
 }
 // What a shoe costs on THIS line: the ad price when this shop is advertising it, else the shelf price.
+/* 🏷️ A WHOLE MODEL ON SALE ON ONE LINE (Rodney 11-16: the New Balance 9060 is $100 "only shoe box"; every other line stays $130).
+ * Unlike LINE_SALES this needs no "sale" word: The Shoebox runs on the ANY PAIR $100 sale ad, so every customer there gets it.
+ * The card still prints the shelf price, so a "🔥 Sale price $100" line goes under each picture (see _saleOf). */
+const STORE_MODEL_PRICES = {
+  'The Shoebox': [{ re: /\b9060\b/i, price: 100 }],
+};
+function storeModelPrice(sh, store) {
+  try {
+    const rules = STORE_MODEL_PRICES[String(store || '')] || [];
+    const nm = [sh && sh.brand, sh && sh.name, sh && sh.nickname].filter(Boolean).join(' ');
+    const r = rules.find(x => x.re.test(nm));
+    return r ? r.price : 0;
+  } catch (_) { return 0; }
+}
 function adPrice(sh, store, sub) {
+  try { if (!store && sub) store = storeOfSub(sub); } catch (_) {}
+  try { const _mp = storeModelPrice(sh, store); if (_mp) return _mp; } catch (_) {}
   // The line's sale price wins - for a customer who asked for it or sent the ad (Rodney 10-31, TK Ronnie 821-1200 sent the $100 black AF1 ad and got "it's $120": "we should honor it"; Raynaldow, who never asked, must pay $120).
   try { const _ls = sub ? lineSale(sub, sh && sh.id, store) : null; if (_ls && _ls.price) return parseFloat(_ls.price); } catch (_) {}
   try { const a = adShoeIds(store).find(x => sh && String(x.id) === String(sh.id)); if (a && a.price) return parseFloat(a.price); } catch (_) {}
@@ -6501,7 +6516,7 @@ function adsBlock(store) {
       + `else - never add "(I'm guessing you tapped one of our ads...)" or any other aside to it. `
       + `Use what you know about the ads to answer their NEXT message well, not to narrate.\n`
       + `\u2022 If they ask a PRICE, give the prices from that list in one short line \u2014 there are `
-      + `only two or three answers, so just say them: "The 9060s are $100 and the VaporMax is `
+      + `only two or three answers, so just say them: "The 9060s are $130 and the VaporMax is `
       + `$120 \u{1F45F} which one you after?"\n`
       + `\u26d4 THE SIZES IN BRACKETS ARE THE WHOLE SHELF. An ad shows what we sell, NOT that we have their size. If their size is not `
       + `in the brackets, we DO NOT have it - say so plainly and offer what we DO have in their size. Never say "we got it in a 12" `
@@ -9414,6 +9429,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           }
         } catch (_) {}
         found = searchInventory(p);
+        // 🏷️ The line's model price (The Shoebox 9060 = $100, Rodney 11-16) is what she reads in the results.
+        try { const _st = ctx.store || storeOfSub(sub); found = found.map(x => { const mp = x && storeModelPrice(x, _st); return mp ? Object.assign({}, x, { price: mp }) : x; }); } catch (_) {}
         askP = p;
         lastSearchCount = found.length;
         lastSearchIds = found.map(x => x && x.id).filter(x => x != null);
