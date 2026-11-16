@@ -108,16 +108,25 @@ for (const s of catalog) {
 // repo's current commit so each card push mints brand-new URLs that nothing can
 // have cached. Re-checks every 5 minutes, so newly pushed cards go live on their
 // own — no bot restart needed. Until the first pin lands, @master URLs still work.
-let framesPin = '@master';
+/* 🚨 jsDELIVR REFUSES THE FRAMES REPO (11-16: data.jsdelivr.com says "Package size exceeded the configured limit of 50 MB";
+ * cards came back 404/503, YCloud logged "Downloading media from weblink failed with http code 404" and the customer saw
+ * "Nothing is there" under Kiki's "Here it is 👇"). Every frames picture now goes out from raw.githubusercontent.com,
+ * pinned to the commit (raw serves any commit path), so the cache-busting still works. */
+const FRAMES_JSD_RE = /https:\/\/cdn\.jsdelivr\.net\/gh\/forbesshalrick-dotcom\/Sp242-frames@([^/]+)\//;
+function framesUrl(u) {
+  try { return String(u || '').replace(FRAMES_JSD_RE, (all, ref) => 'https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/' + ref + '/'); } catch (_) { return u; }
+}
+for (const s of catalog) if (s.image) s.image = framesUrl(s.image);
+let framesPin = 'master';
 async function repinCardUrls() {
   try {
     const r = await fetch('https://api.github.com/repos/forbesshalrick-dotcom/Sp242-frames/commits/master',
       { headers: { 'User-Agent': 'sp242-api', 'Accept': 'application/vnd.github+json' } });
     const sha = (await r.json()).sha;
     if (!sha) throw new Error('no sha in response');
-    const pin = `@${sha.slice(0, 10)}`;
+    const pin = sha;
     if (pin === framesPin) return;
-    for (const s of catalog) if (s.image) s.image = s.image.replace(`/Sp242-frames${framesPin}/`, `/Sp242-frames${pin}/`);
+    for (const s of catalog) if (s.image) s.image = framesUrl(s.image).replace(`/Sp242-frames/${framesPin}/`, `/Sp242-frames/${pin}/`);
     framesPin = pin;
     console.log('[cards] image URLs pinned to frames commit', pin);
   } catch (e) { console.log('[cards] commit pin check failed (keeping ' + framesPin + '):', e.message); }
@@ -1207,6 +1216,7 @@ function rememberYcloudSent(keys, rec) {
   } catch (_) {}
 }
 async function ycloudSendMessages(phoneDigits, messages) {
+  try { messages = (messages || []).map(m => (m && m.url && /Sp242-frames@/.test(String(m.url))) ? Object.assign({}, m, { url: framesUrl(m.url) }) : m); } catch (_) {}
   try {
     let key = process.env.YCLOUD_API_KEY;
     // The customer->business-number map is memory only, so after every restart a Shoe Lacky customer fell back to
@@ -1311,6 +1321,7 @@ function ycloudOutOfMoney(why) {
 setTimeout(checkYcloudBalance, 60000);
 { const _ycT = setInterval(checkYcloudBalance, 30 * 60000); if (_ycT.unref) _ycT.unref(); }
 async function sendChunkRaw(subscriberId, messages, token) {
+  try { messages = (messages || []).map(m => (m && (m.url || m.image_url) && /Sp242-frames@/.test(String(m.url || m.image_url))) ? Object.assign({}, m, m.url ? { url: framesUrl(m.url) } : {}, m.image_url ? { image_url: framesUrl(m.image_url) } : {}) : m); } catch (_) {}
   // A phone-shaped id that came in through YCloud never goes to ManyChat (which has no such subscriber).
   try {
     const _phoneSub = isYcloudSub(subscriberId);
