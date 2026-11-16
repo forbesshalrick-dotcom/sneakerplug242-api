@@ -9596,7 +9596,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         } catch (_) {}
         found = searchInventory(p);
         // 🏷️ The line's model price (The Shoebox 9060 = $100, Rodney 11-16) is what she reads in the results.
-        try { const _st = ctx.store || storeOfSub(sub); found = found.map(x => { const mp = x && storeModelPrice(x, _st); return mp ? Object.assign({}, x, { price: mp }) : x; }); } catch (_) {}
+        try { const _st = ctx.store || storeOfSub(sub); const _ads = adShoeIds(_st); found = found.map(x => { const mp = x && storeModelPrice(x, _st); if (mp) return Object.assign({}, x, { price: mp }); const _a = x && _ads.find(a => String(a.id) === String(x.id)); return (_a && _a.price && parseFloat(_a.price) < parseFloat(x.price || 0)) ? Object.assign({}, x, { price: parseFloat(_a.price) }) : x; }); } catch (_) {}
         askP = p;
         lastSearchCount = found.length;
         lastSearchIds = found.map(x => x && x.id).filter(x => x != null);
