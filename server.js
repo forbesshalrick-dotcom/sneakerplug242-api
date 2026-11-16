@@ -1492,6 +1492,11 @@ function noteComposeSub(sub) {
 }
 async function sendChunk(subscriberId, messages, token, logOpts) {
   messages = splitLongText(messages);
+  // 🗣 "dont say perfect say OK" (Rodney 11-16, New Wave 455-0540: "Perfect! Here's the black/white Nike Roshe" then
+  // "Perfect! 🙌 Can you send your location"). Kiki's opener is "OK", never "Perfect". Only her lines, never a human's.
+  if (!(logOpts && logOpts.sender === 'rodney')) {
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = sayOkNotPerfect(mm.text);
+  }
   const _sink = composeSink.get(String(subscriberId));
   if (!_sink && isComposeSub(subscriberId)) {
     try {
@@ -3950,9 +3955,13 @@ const EMPTY_ASK_T = {
 // because ManyChat has silently dropped audio before. VOICE_REPLY=0 turns the whole thing off.
 const voiceInAt = new Map();   // sub -> ts of the last voice note the customer sent
 const PUBLIC_BASE = (process.env.PUBLIC_BASE || 'https://sneakerplug242-api-production.up.railway.app').replace(/\/+$/, '');
+// "dont say perfect say OK" (Rodney 11-16). A sentence-opening "Perfect" becomes "OK"; "a perfect fit" mid-sentence stays.
+function sayOkNotPerfect(t) {
+  return String(t).replace(/(^|[.!?\n]\s*)Perfect\b/gi, '$1OK');
+}
 async function speakToVoiceNote(text, opt = {}) {
   if (!process.env.OPENAI_API_KEY) return null;
-  const words = String(text || '')
+  const words = sayOkNotPerfect(String(text || ''))
     // Spoken, not read off a card (Rodney 10-17 on the first one: "Damn, that sounds like a robot").
     .replace(/\b(?:rite|right) now\s*👇?\s*Ready to Order!?/gi, 'right now')
     .replace(/Ready to Order!?/gi, '').replace(/\brite\b/gi, 'right')
