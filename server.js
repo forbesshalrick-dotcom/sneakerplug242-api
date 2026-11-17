@@ -3263,7 +3263,8 @@ function clusterShoesByModel(arr, store, askedJordan = true) {
   const _browse = (arr || []).length >= 4 && _jCount * 2 < (arr || []).length;
   // 11-16 Rodney "jordans send last" (TK 713293445 said only "13" and got nine Jordan 4s first): a Jordan leads ONLY when the
   // customer's own words asked for a Jordan; otherwise every Jordan goes to the back, however many there are.
-  const leadModel = (arr && arr.length && !((_browse || !askedJordan) && brandRank(arr[0]) === 9)) ? modelKey(arr[0]) : null;
+  // 11-17 Rodney (3rd time, "for all accounts, send the Jordans last"): a Jordan leads only an ALL-Jordan album.
+  const leadModel = (arr && arr.length && !(brandRank(arr[0]) === 9 && _jCount < arr.length)) ? modelKey(arr[0]) : null;
   return (arr || []).map((s, i) => ({ s, i }))
     .sort((a, b) => {
       const la = (leadModel && modelKey(a.s) === leadModel) ? 0 : 1;
@@ -3590,7 +3591,7 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
     // Grouped by size: a size header, then that size's photos (each labelled when small).
     const seenAcrossGroups = new Set(); // a shoe shown in an earlier size group is skipped later
     outer: for (const g of groups) {
-      const chosen = dedupe(g.ids, seenAcrossGroups);
+      const chosen = clusterShoesByModel(dedupe(g.ids, seenAcrossGroups), storeOfSub(sub));   // Jordans last inside each size too (11-17)
       requested += (g.ids || []).length;
       if (!chosen.length) continue;
       // A group label is a text bubble sitting BETWEEN batches of photos, which is exactly
@@ -15929,7 +15930,9 @@ app.post('/inbox/send-shoe', async (req, res) => {
   }
   inboxAlbumSentAt.set(albumKey, Date.now());
   setHumanPause(sub); clearFollowUp(sub);
-  const allIds = results.map(x => x.id);
+  // 🏀 JORDANS LAST across the whole album, not per batch (Rodney 11-17, 3rd time: Shoebox 455-2569's 63-pair 8.5 album opened on ten Jordans).
+  const _isJ = x => /jordan|retro|\baj ?\d/i.test(String((x.brand || '') + ' ' + (x.name || '')));
+  const allIds = results.filter(x => !_isJ(x)).concat(results.filter(_isJ)).map(x => x.id);
   const batches = [];
   for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
     batches.push(allIds.slice(i, i + BATCH_SIZE));
