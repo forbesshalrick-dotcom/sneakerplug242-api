@@ -6826,6 +6826,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       return;
     }
   } catch (_) {}
+  // 11-17 NW 509-3349-6749: "Let me see pictures please" got "Take your time" - asking for pics is never browsing.
   // 👀 "JUST LOOKING" GETS RODNEY'S LINE, WORD FOR WORD (2026-10-14: "I just looking at the shoes atm" got
   // "👍 Take your time! Let me know when something catches your eye 👟" — "the message should have read, take
   // your time. Just let me know when you're ready."). Fixed text, no model, and the follow-up nudge is cancelled.
@@ -6838,7 +6839,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _offeredToShow = /\b(want to see|wanna see|like to see|show you|send you|see (some |the )?(pics|pictures|more)|which one)\b/i.test(_lastA.slice(-200))
       || (() => { try { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); const _lo = _th && (_th.msgs || []).slice().reverse().find(m => m && m.dir === 'out' && m.text);
              return !!(_lo && Date.now() - (_lo.ts || 0) < 15 * 60 * 1000 && /\b(want to see|wanna see|like to see|show you|which one)\b/i.test(_lo.text)); } catch (_) { return false; } })();
-    if (!image && _b && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !(_offeredToShow && /^\W*(let me|lemme) see\b/i.test(_b)) && !/\b(size|how much|price|deliver|\d)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
+    if (!image && _b && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !(_offeredToShow && /^\W*(let me|lemme) see\b/i.test(_b)) && !/\b(size|how much|price|deliver|\d|pics?|pix|pictures?|photos?|show|send|catalog|what you got|what you have)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
       try { clearFollowUp(sub); } catch (_) {}
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _b, name: ctx.name }); } catch (_) {}
       const line = await say("Take your time. Just let me know when you're ready.", sub).catch(() => "Take your time. Just let me know when you're ready.");
