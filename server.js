@@ -4343,6 +4343,12 @@ function sizeFromCustomerWords(text) {
     .replace(/\b\d+\s*(?:colou?rs?|colorways?|colourways?|shades?|styles?|kinds?|of (?:them|those|these|dem))\b/g, ' ')
     .replace(/\b\d[\d\s().-]{6,}\b/g, ' ')
     .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ')
+    // A DATE IS NOT A SIZE (Rodney 11-17, New Wave 451-6649: "10 for dec 17" / "Dec17" made him a size 17 and he was asked his size three
+    // more times). "dec 17", "dec17", "december 17th", "17 dec", "the 17th", "12/17".
+    .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s*\d{1,2}(?:st|nd|rd|th)?\b/g, ' ')
+    .replace(/\b\d{1,2}(?:st|nd|rd|th)?\s*(?:of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\b/g, ' ')
+    .replace(/\b\d{1,2}(?:st|nd|rd|th)\b/g, ' ')
+    .replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b|\b(?:1[0-2]|0?[1-9])\/(?:1[3-9]|2\d|3[01])\b/g, ' ')
   // "size 7:5" / "7,5" is a 7.5 typed fast (Tami 10-14 got a 7 album's worth of guesswork from it).
   .replace(/\b(\d{1,2})[:,]5\b/g, '$1.5')
   // "9,1/2" / "9, 1/2" / "9-1/2" / "9 ½" is 9.5 (Rodney 11-15, Shoe Lacky Smith 824-5538: "9,1/2" was read as "the 9 and the 12").
@@ -7878,6 +7884,51 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   const turnSentIds = new Set();        // shoe ids actually sent this turn
   let orderRefusedAfterText = false;   // a size-only "order" was refused after her reply already went: end the turn there
   const pinnedPickIds = new Set();      // the shoe(s) the customer already PICKED this turn (a forwarded card): nothing else may be sent
+  /* ✅ THEY TYPED (OR FORWARDED) THE SHOE'S EXACT NAME = THAT IS THE PICK (Rodney 11-17 "the guy already picked which one he want":
+   * New Wave 451-6649 sent back our caption "ASICS Gel-1130 Pink/White/Silver, size 10, SALE $100" + "Dis what i want in 10", and Kiki
+   * answered with the Black/Pink/Silver, booked the order on the Black/Pink and asked his size three more times). Brand+model+colour
+   * written out in full matches ONE shoe; it is pinned like a forwarded card and wins over the photo eye. */
+  let captionPick = null;
+  try {
+    if (!staffName && userText) {
+      const _nz = x => String(x || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const _cwc = _nz(customerWordsOnly(String(userText)).replace(/\(SYSTEM[\s\S]*?\)/g, ''));
+      if (_cwc.length >= 14) {
+        const _hits = [];
+        // Only a shoe whose picture THIS chat was sent in the last 3 days - our caption coming back, not a loose name ("Air Max Plus
+        // Pink/Black" fits three pairs on the shelf).
+        const _sentIds = new Set();
+        try {
+          const _th = inboxThreadOf(sub, ctx.store);
+          for (const m of ((_th && _th.msgs) || [])) {
+            if (m && m.img && Date.now() - (m.ts || 0) < 3 * 86400000) { const mm = String(m.img).match(/\/([A-Za-z0-9]+)-(?:card|thumb)/); if (mm) _sentIds.add(mm[1]); }
+          }
+        } catch (_) {}
+        for (const sh of Object.values(liveShoeMap())) {
+          if (!sh || sh.sold || !_sentIds.has(String(sh.id))) continue;
+          const keys = [[sh.brand, sh.name, sh.color], [sh.name, sh.color]].map(k => _nz(k.filter(Boolean).join(' '))).filter(k => k.length >= 14);
+          const k = keys.find(k => _cwc.includes(k));
+          if (k) _hits.push({ sh, len: k.length });
+        }
+        _hits.sort((a, b) => b.len - a.len);
+        if (_hits.length && (_hits.length === 1 || _hits[0].len > _hits[1].len)) captionPick = _hits[0].sh;
+      }
+    }
+    if (captionPick) {
+      pinnedPickIds.add(String(captionPick.id));
+      lastPickBySub.set(String(sub), { id: String(captionPick.id), at: Date.now() });
+      try { tableAdd(sub, { name: displayName(captionPick), id: captionPick.id, size: knownSize || '', price: captionPick.price }); } catch (_) {}
+      const _sz = [...new Set((captionPick.sizesRaw || captionPick.sizes || []).map(String))].join(', ');
+      const _has = knownSize && (captionPick.sizesRaw || captionPick.sizes || []).some(z => parseFloat(z) === parseFloat(knownSize));
+      const _note = '(SYSTEM: THE CUSTOMER PICKED THIS EXACT SHOE BY NAME: ' + displayName(captionPick) + ' (shoe id ' + captionPick.id + '), $'
+        + adPrice(captionPick, ctx.store, sub) + ', comes in ' + _sz + '.' + (knownSize ? ' Their size is ' + knownSize + (_has ? ' - we have it.' : ' - we do NOT have it.') : '')
+        + ' This is THEIR pick: use exactly this shoe and colour in every line and in notify_manager - never a different colour of the same model, never ask which one again, never ask their size again if it is known.)\n';
+      const _lu = history[history.length - 1];
+      if (_lu && typeof _lu.content === 'string') _lu.content = _note + _lu.content;
+      else if (_lu && Array.isArray(_lu.content) && _lu.content[0] && _lu.content[0].type === 'text') _lu.content[0].text = _note + _lu.content[0].text;
+      record(req, { endpoint: 'caption-pick-pinned', sub, store: ctx.store || '', shoe: String(captionPick.id) });
+    }
+  } catch (_) {}
   /* 🎯 THE SHOE THE PHOTO NAMED GOES OUT FIRST, FROM THE SERVER (ported 2026-10-13 from the Oct 10
    * brain). The identifier said "New Balance 9060 Black/White" every time and the chat model
    * still sent a different 9060, or a 1000, depending on the run: the recognition was right,
@@ -7885,7 +7936,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
    * sends THAT card itself and tells Kiki to answer in words (name, price, ask size). Our own
    * cards coming back at us (KIND: CARD) are left to the normal flow - that is the echo case. */
   try {
-    if (_idVerdict && !staffName && !burstHeld.length) {   // a burst is answered as one, below
+    if (_idVerdict && !staffName && !burstHeld.length && !captionPick) {   // a burst is answered as one, below; a typed pick wins
       const _mo = _idVerdict.match(/OURS:\s*([^\n]+)/i);
       const _ours = _mo ? _mo[1].trim() : '';
       let _isCard = /KIND:\s*CARD/i.test(_idVerdict);
