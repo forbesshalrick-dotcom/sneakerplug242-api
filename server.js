@@ -2288,9 +2288,8 @@ function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
 
 ${(voiceOf(storeName) || {}).hello || 'Hello! 👋'}
 
-Are you looking for something specific?
-*OR*
-Do you want some pictures? 👟
+Right now we got a SALE 🔥 most pairs $100
+Would you like to see? What size you wear? 👟
 
 (That is the WHOLE greeting — nothing before or after it. The word *OR* sits on its OWN line between the two questions and stays BOLD. Keep the 👟 on the SAME line as "pictures?". If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them. ⛔ Add NOTHING else to it — no website line, and never a note about not being able to see pictures, ads or photos.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, keep the 👟 on the pictures line, and keep the *asterisks* bold.`
     : `- ⚠️ DO NOT GREET — YOU ALREADY WELCOMED THIS CUSTOMER. You are ALREADY mid-conversation with them. NEVER send the "Hi! Welcome to ${storeName}" greeting again, and NEVER repeat the website line — not even if they now say "hi", "hello", "hey", "yo", "sup", "you open?", or anything that looks like a fresh start. Just answer their newest message directly, briefly and naturally (e.g. "hey! 👟 what you looking for?" or, if they asked if we're open, "yep we're open! what can I get you? 👟"). If you would be repeating something you already told them this chat (that we're open, the website, a shoe's info), do NOT say it again — just move them forward.`;
@@ -2592,7 +2591,7 @@ Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". 
 🚫 NEVER CLAIM "AUTHENTIC" / "REAL" / "ORIGINAL" / "LEGIT" (Rodney 11-16: a Shoe Lacky buyer asked "they real right? no reps" and was told "Yes bro, 100% authentic"). If they ask whether the shoes are real or reps, never answer yes or no about it: say "You can check them out in person before you pay 👟" and carry on with the sale.
 🔄 NEVER CALL ONE PHOTO "THE FRONT" (Rodney 11-16): our cards are side views. If they ask to see the front, back, sole or another angle, never say the picture they have is that view.
 🚫 NO PICTURE OF A SIZE WE DON'T HAVE (Rodney 11-16 "why send a picture of something you dont have?"): once you've said a shoe isn't in their size, do NOT send its picture in another size. Offer the same model in other colours in their size instead, or other shoes in their size.
-🔥 THE SALE (Rodney 11-16: "100 sale for others", "jordan 150 sale", "kiki not mentioning the sale"): WE ARE HAVING A SALE. Tell every customer: on the FIRST reply in a chat add one short line like "🔥 Big sale on now — most pairs $100, Jordans $150", and every time you price a shoe at $100 (or a Jordan at $150) say "SALE $100" / "SALE $150". If they ask how long the sale lasts: "Until sold out — all must go 🔥". Shoes under $100 and the newest-drop Jordans just say their price.
+🔥 THE SALE (Rodney 11-16: "100 sale for others", "jordan 150 sale", "kiki not mentioning the sale"): WE ARE HAVING A SALE. Tell every customer: the welcome already says "Right now we got a SALE 🔥" (Rodney 11-16) — if your first reply is NOT the welcome, add one short line like "🔥 Big sale on now — most pairs $100, Jordans $150" (never twice), and every time you price a shoe at $100 (or a Jordan at $150) say "SALE $100" / "SALE $150". If they ask how long the sale lasts: "Until sold out — all must go 🔥". Shoes under $100 and the newest-drop Jordans just say their price.
 ⚠️ JORDAN PRICING (know this cold): Air Jordan **1s are $100** — every Jordan 1 colourway and style (Jordan 1 High, Low, Retro — all of them). Every OTHER Air Jordan (Jordan 3, 4, 5, 11, 13, Tatum, etc.) is **SALE $150** (Rodney 11-16) — except the newest drop, which keeps its price from search_inventory, any colour or style. So if a customer asks the price of a Jordan — INCLUDING one you can't find in stock or a colour you're not sure we carry (e.g. "how much for the blue and white Jordan?") — quote it from this rule: a Jordan 1 = SALE $100, any other Jordan = SALE $150 (the newest drop: the price search_inventory gives). Never tell a customer a Jordan "isn't showing up" or that you can't price it.
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything (the Jordan pricing rule above is the one known exception, so you can always quote a Jordan: $120 for a Jordan 1, $180 for any other).
 💬 "CAN I GET A DEAL / DISCOUNT / IF I BUY 2, 3, 4 PAIRS?" — ⚠️ ONLY WHEN THEY ASK (Rodney 10-19: "We only give deal for people who ask for deal. He never asked for a deal… Is she the owner?" — never offer, mention or hint at a discount to someone who has not asked; a 2-pair order with no ask is the plain total). WHEN THEY ASK: YES, WE DO DEALS ON MORE THAN ONE PAIR (Rodney 2026-10-19, replacing the old 07-20 "that's already our best price" line, which lost a 4-pair buyer: "I told you before that we give deals. You just have to find out which shoes they want exactly and let them know that you're gonna put the price together and then give them a discount from the total, because all the shoes are different price"). So: (1) say YES warmly; (2) if you do not yet know EXACTLY which shoes, ask them to send back the pictures (or name them) of the exact pairs — every shoe has its own price, so the total depends on which ones; e.g. "Yes, we do deals when you take more than one 🔥 Send me back the pictures of the exact pairs you want and I'll put the total together and take a discount off it for you 👟"; (3) once you know the pairs, list each with its price, give the total, then the deal — SMALL (Rodney 10-19: "I don't just take $10 off each shoe. That's normally when people buy in five… if people just buy two, I might just move one $10 and say $230"): 2 to 4 pairs = $10 off the TOTAL (2 at $120 = $240 → $230); 5 or more pairs = $10 off EACH pair (5 at $180 = $900 → $850). Never say "that's already our best price", never "no discounts". A single pair is its listed price — be warm about it, never cold.
@@ -4538,7 +4537,7 @@ const chatMuted = new Map();
 // When a customer sends a bare photo/voice-note we can't read, Kiki replies with ONLY our
 // welcome greeting (this makes the greeting come FROM Kiki so the "agent" owner-mute silences
 // it). Kept in one place so it always matches the welcome wording.
-const MEDIA_GREET_NOTE = "(The customer just sent a photo or voice note that you cannot open. Do NOT ask them to resend it or to type the shoe's name. Reply with ONLY this exact welcome and nothing else — keep the line breaks and the *asterisks*:\nAre you looking for something specific?\n*OR*\nDo you want some pictures? 👟)";
+const MEDIA_GREET_NOTE = "(The customer just sent a photo or voice note that you cannot open. Do NOT ask them to resend it or to type the shoe's name. Reply with ONLY this exact welcome and nothing else — keep the line breaks:\nHello! 👋\nRight now we got a SALE 🔥 most pairs $100\nWould you like to see? What size you wear? 👟)";
 
 const MUTE_MS = 20 * 1000; // 20s ROLLING window (Rodney's call 2026-07-12) — refreshes on each
                            // message while staff are active, so Kiki resumes ~20s after the last
@@ -6742,6 +6741,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'nosee-resent', sub, n: _last.length, q: _said.slice(0, 60) });
         return;
       }
+    }
+  } catch (_) {}
+  // 🔥 AD OPENER = "WE GOT A SALE, WOULD YOU LIKE TO SEE?" (Rodney 11-16, NW 817-4558 tapped the trunk video ad and Kiki answered
+  // "Can I get more info on this?" with a text price list - Air Max 2021 $50, J1 Low $80, Drift $80 - Rodney: "rite now we got a sale,
+  // would you like to see?"). A bare ad opener on a fresh chat gets exactly that, then the normal size -> album flow.
+  try {
+    const _o = String(customerWordsOnly(userText) || userText || '').trim();
+    const _hist = (convos.get(sub) || []).filter(m => m && m.role === 'assistant');
+    if (/^(?:hello!?|hi!?|hey!?)?\s*can i get more info(?:rmation)? on this\??$/i.test(_o) && _hist.length === 0) {
+      try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _o, name: ctx.name }); } catch (_) {}
+      const _line = 'Hello! 👋 Right now we got a SALE 🔥 most pairs $100. Would you like to see? What size you wear? 👟';
+      await sendChunk(sub, [{ type: 'text', text: _line }], token, { account: ctx.store }).catch(() => {});
+      try { const h = convos.get(sub) || []; h.push({ role: 'user', content: _o }, { role: 'assistant', content: _line }); convos.set(sub, h); } catch (_) {}
+      record(req, { endpoint: 'ad-opener-sale', sub, store: ctx.store });
+      return;
     }
   } catch (_) {}
   // 🔄 "CAN I SEE THE FRONT / BACK / SIDE / BOTTOM?" = THE REAL ANGLES (Rodney 11-16, TK 825-3043 asked to see the front of the Jordan 4
@@ -9340,7 +9354,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _lastK = (convos.get(sub) || []).filter(m => m && m.role === 'assistant').slice(-1).map(m => typeof m.content === 'string' ? m.content
           : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')).join(' ');
         const _cw2 = customerWordsOnly(String(userText || '')).trim();
-        if (/want some pictures\?/i.test(_lastK) && /^(?:(?:yes|yeah|ya|yh|ok|okay|sure)[\s,!.]*)?(?:the\s+)?(?:pics?|pix|pictures?|photos?|send (?:me )?(?:some |the )?(?:pics?|pictures?|photos?)|(?:pics?|pictures?|photos?) (?:please|pls|plz))[\s!.👀🙏]*$/i.test(_cw2)) {
+        if (/want some pictures\?|would you like to see\?/i.test(_lastK) && /^(?:(?:yes|yeah|ya|yh|ok|okay|sure)[\s,!.]*)?(?:the\s+)?(?:pics?|pix|pictures?|photos?|send (?:me )?(?:some |the )?(?:pics?|pictures?|photos?)|(?:pics?|pictures?|photos?) (?:please|pls|plz))[\s!.👀🙏]*$/i.test(_cw2)) {
           turnText = ((voiceOf(ctx.store) || {}).size) || 'What size you looking for? 👟';
           record(req, { endpoint: 'pic-means-pictures-option', sub });
         }
