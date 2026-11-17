@@ -1866,6 +1866,9 @@ const INTERNAL_LEAK_RE = new RegExp([
   "(?:don\\'t|do not|can\\'t|cannot) see the customer",
   "the customer'?s (?:actual )?(?:message|question|picture)",
   'please share their (?:question|message)',
+  // 11-17 Shoebox Słime 551-6785 got "Got it! Ready to answer about the Air Jordan 4 SB ... they tagged. Please..." and "I appreciate the
+  // detailed setup, but I'm not seeing the customer’s actual question" (curly apostrophe slipped past the line above).
+  'ready to (?:answer|reply|respond) (?:about|to)', 'detailed setup', "\\bthey tagged\\b", "i'?m not seeing the customer",
   'not replying to the repeated',
   'standing by for what they send',
   "i'?ll reply with one (?:warm )?line",
@@ -5672,6 +5675,7 @@ const DAY_ARRIVED_T = {
   ht: "Bonjou! 👋 Ou te gen yon livrezon pou jodi a — èske ou toujou vle l? Di m wi epi m ap fè l bouje 👟",
   fr: "Bonjour ! 👋 Tu avais une livraison prévue pour aujourd'hui — tu la veux toujours ? Dis-moi oui et je lance ça 👟",
 };
+const keepWarmSentAt = new Map();
 const reminderTick = setInterval(async () => {
   const now = Date.now();
   const due = reminders.filter(r => r.at <= now);
@@ -5754,6 +5758,10 @@ const reminderTick = setInterval(async () => {
       } catch (_) {}
       let ok = false;
       try {
+        // 11-17 NW Ej 551-7188 got three of these between 09:08 and 09:09 - the chat-based check above can lag the sends, so a hard
+        // in-memory gate decides at the moment of sending: one keep-warm per customer per 20 h, whatever else is queued.
+        if (Date.now() - (keepWarmSentAt.get(String(r.sub)) || 0) < 20 * 3600 * 1000) { recent.unshift({ at: new Date().toISOString(), endpoint: 'keep-warm-dup-blocked', sub: r.sub }); continue; }
+        keepWarmSentAt.set(String(r.sub), Date.now());
         const res = await sendChunk(r.sub, [{ type: 'text', text: keepWarmLine(r.sub, r.dayLabel || 'your day', r.n || 0) }], tk);
         ok = !!(res && res.ok);
       } catch (_) { ok = false; }
@@ -8385,7 +8393,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // note has been replied to in public (2026-08-02, the "store location" search). Fixing each
     // trigger one at a time has not worked, so this catches the SHAPE of the mistake instead:
     // any reply that names her tools, her prompt, or her role gets held back and re-asked.
-    if (turnText && INTERNAL_LEAK_RE.test(turnText)) {
+    if (turnText && INTERNAL_LEAK_RE.test(String(turnText).replace(/[\u2018\u2019\u02bc]/g, "'"))) {
       internalLeaks++;
       record(req, { endpoint: 'internal-leak-blocked', sub, store: ctx.store || '', attempt: internalLeaks, text: turnText.slice(0, 200) });
       if (internalLeaks === 1) {
@@ -15282,7 +15290,7 @@ function cleanTranslation(out, src) {
   s = s.replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
   if (!s || /^same$/i.test(s)) return '';
   // The model talking about ITSELF is never a translation (Rodney 2026-08-19).
-  if (INTERNAL_LEAK_RE.test(s)) return '';
+  if (INTERNAL_LEAK_RE.test(String(s).replace(/[\u2018\u2019\u02bc]/g, "'"))) return '';
   if (/\b(?:i(?:'m| am) (?:set up|designed|here) to|stay focused on my role|i only translate|please share it and i'll)\b/i.test(s)) return '';
   return s.slice(0, 1200);
 }
