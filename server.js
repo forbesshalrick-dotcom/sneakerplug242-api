@@ -7476,6 +7476,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // A lone adverb / filler word is not a place (Rodney 11-10, Shoe Lacky 'the boss' 827-3479: a voice note transcribed as
           // "Subsequently" got "the driver will meet you at Subsequently 🚗", a DELIVERY READY card, and "Subsequently is the location we got for you").
           && !/^[a-z']+ly[\s!.,?]*$/i.test(_ans)
+          // 11-17: "Morning sorry yes I want them" (NW Alfonzo 817-4558) and "Nothing else" (Shoebox Virgo 815-0363) both became
+          // "the driver will meet you at ..." - a place never carries these words.
+          && !/\b(?:want|wanted|else|sorry|yes|yea|need|only|just|please|pls|them|thank|thanks|morning|evening|night|today|tonight|tomorrow|nothing|anything|asked|ask|ordered|order|human|real person|agent)\b/i.test(_ans)
           && !/^(?:also|then|after|afterwards?|maybe|perhaps|anyway|so|and|but|well|hmm+|um+|uh+|alright then|ok then|same|same thing|same place|same location|that|this|there|over there|nothing|anything|whatever|either|both|true|facts|copy|noted|understood|got it|i see|i hear)[\s!.,?]*$/i.test(_ans)
           && !/^(?:year|yeh|yh|yah|yuh|ye+a+h*|brother|bro|bredda|hey+|hi+|hello+|helo|yo+|sup|wassup|wa ?gwan|good ?(?:morning|afternoon|evening|night|day)|morning|gm|gn|thanks?|thank you|ty|cool|cool cool|alright|ight|aight|nice|lol|ok cool)[\s!.,🙏👋]*$/i.test(_ans)
           && !/\b(?:size|sz|\d{1,2}(?:\.5)?\s*(?:\b|$)|jordans?|forces?|af1|air ?max|nike|new balance|nb|asics|dunks?|vapor|tn|shoes?|sneakers?|kicks|price|how much|\$)/i.test(_ans)) {
