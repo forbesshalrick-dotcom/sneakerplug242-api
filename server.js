@@ -4111,7 +4111,8 @@ function fixShopNumbers(t) {
 }
 // "dont say perfect say OK" (Rodney 11-16). A sentence-opening "Perfect" becomes "OK"; "a perfect fit" mid-sentence stays.
 function sayOkNotPerfect(t) {
-  return String(t).replace(/(^|[.!?\n]\s*)Perfect\b/gi, '$1OK');
+  // 11-17 New Wave 451-6649 got "🙌 Perfect!" - an emoji in front hid it from the old start-of-sentence check.
+  return String(t).replace(/(^|[.!?\n]\s*)((?:\p{Extended_Pictographic}|\uFE0F|\u200D|\s)*)Perfect\b/giu, '$1$2OK');
 }
 async function speakToVoiceNote(text, opt = {}) {
   if (!process.env.OPENAI_API_KEY) return null;
@@ -9319,6 +9320,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       turnText = turnText.replace(/(?:^|\n)[^\n]*send (?:me )?your location[^\n]*/gi, '').trim() || 'What size you need? \u{1f45f}';
       record(req, { endpoint: 'photo-not-a-yes', sub });
     }
+    /* 📍 "WE ALL LOCATED" IS "WHERE Y'ALL LOCATED?" (Rodney 11-17, New Wave 451-6649: "We all located" got "🙌 Perfect! What size you
+     * looking for?" - typed fast or by voice, the "where" falls off, and she heard a statement). A location question that her reply
+     * does not answer gets the answer put first. */
+    try {
+      const _cw = customerWordsOnly(String(userText || '').split('(SYSTEM')[0]).trim();
+      if (turnText && !staffName && /^\W*(?:where|wea|wer|we|whe)?\s*(?:y'?all|yall|y all|all|u|you|ya|una)\s+(?:located|location|based)\W*\??\s*$/i.test(_cw)
+          && !/\b(?:nassau|carmichael|located|island|we'?re in|deliver)\b/i.test(turnText)) {
+        turnText = 'We\'re in Nassau, on Carmichael Rd, and we deliver free anywhere in Nassau \u{1f697} Other islands go by plane ($35) or boat ($10) \u{1f45f}\n\n' + turnText.replace(/^\W*(?:OK|Perfect)!?\s*/i, '');
+        record(req, { endpoint: 'location-q-answered', sub, store: ctx.store || '', q: _cw.slice(0, 40) });
+      }
+    } catch (_) {}
     if (turnText && !staffName && LATER_WORDS.test(String(userText || '').split('(SYSTEM')[0].trim())) {
       turnText = LATER_REPLY;
       record(req, { endpoint: 'later-words-reply', sub });
