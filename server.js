@@ -1564,6 +1564,16 @@ function adPriceInText(sub, t) {
         const esc = String(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
         out = out.replace(new RegExp('(' + esc + '[^$\\n]{0,40}?\\$)(\\d{2,3})\\b', 'gi'), (all, pre, num) => parseFloat(num) === ap ? all : pre + ap);
       }
+      /* 11-17 New Wave Nisha 472-3463: "the Air Jordan 4 Hyper Violet in a 7 going out on the boat next Monday 👟 That's $150 + $10 shipping
+       * = $160" - the price sat 60 characters past the name, so the line above missed it twice in one chat. When the message names ONE ad
+       * shoe and no other shoe price is in it, its shelf price anywhere in the message is the ad price, and a "+ $X = $Y" total is redone. */
+      const shelf = parseFloat(sh.price);
+      const _models = (out.match(/\b(?:jordan|aj ?\d|air ?max|dunk|9060|1906|530|2002r|force|af1|vapou?r ?max|asics|kayano|yeezy|vomero|tn)\b/gi) || []).length;
+      if (shelf && shelf !== ap && _models <= 1 && names.some(n => new RegExp(String(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'i').test(out))) {
+        const before = out;
+        out = out.replace(new RegExp('\\$' + shelf + '(?!\\d)', 'g'), '$' + ap);
+        if (out !== before) out = out.replace(/\$(\d{2,4})\s*\+\s*\$(\d{1,3})([^=\n]{0,25}=\s*\$)(\d{2,4})/g, (all, a, b, mid) => '$' + a + ' + $' + b + mid + (parseFloat(a) + parseFloat(b)));
+      }
     }
     return out;
   } catch (_) { return t; }
