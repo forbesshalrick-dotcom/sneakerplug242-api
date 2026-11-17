@@ -3224,7 +3224,7 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
 // all the Jordans grouped like it used to be. Stable WITHIN a model so Kiki's order is kept.
 // The Shoebox's wall-photo shoes (Rodney 11-16 'old pics not new'): on that line they lead the album until every shoe has a wall photo.
 const SB_WALL_IDS = new Set('airmax90bkyel001 airmax90brn001 airmax90grn001 airmax90whtpnk001 airmax95bkbl001 airmax95bkwht001 airmax95bkyel001 airmax95yel001 airmax97bkrbow001 airmax97cheet001 airmax97crm001 airmax97white001 airmaxplus3001 airmaxplusbkbr001 airmaxplusgrb001 airmaxpluspkwht001 airmaxplusptn001 airmaxpluspurp001 airmaxpluswpkbk001 airmaxpluswpur001 airtrainer001 c0338 c0340 c0341 c0343 c0344 c0347 c0354 c0358 c0361 c0363 c0364 c0377 c0382 c0383 c0385 c0388 c0389 c0390 c0391 c0392 c0393 c0394 c0395 c0396 c0399 c0400 c0401 c0402 c0404 c0405 c0407 c0408 c0410 c0414 c0415 c0416 c0422 c0423 c0424 c0425 c0426 c0427 c0429 c0431 c0436 c0440 c0445 c0446 c0447 c0448 c0449 c0452 c0453 c0454 c0456 c0457 c0458 c0459 c0460 c0462 c0463 c0464 c0466 c0467 co479 co556 co558 co590 co604 co618 nb1000fgreen001 nb1906black001 nb550white001 nb740pinksilv001 p41 p44 p46 p49 p50 p54 p55 p72'.split(' '));
-function clusterShoesByModel(arr, store) {
+function clusterShoesByModel(arr, store, askedJordan = true) {
   const brandRank = (s) => {
     const t = ((s.brand || '') + ' ' + (s.name || '') + ' ' + (s.model || '') + ' ' + (s.nickname || '')).toLowerCase();
     // 11-16 Rodney ("lets start to show the jordans last not first", TK 825-7… size-8 album opened on three $150 Jordan 4s):
@@ -3244,7 +3244,9 @@ function clusterShoesByModel(arr, store) {
   // Jordan Kiki happened to list first goes to the back with the others.
   const _jCount = (arr || []).filter(s => brandRank(s) === 9).length;
   const _browse = (arr || []).length >= 4 && _jCount * 2 < (arr || []).length;
-  const leadModel = (arr && arr.length && !(_browse && brandRank(arr[0]) === 9)) ? modelKey(arr[0]) : null;
+  // 11-16 Rodney "jordans send last" (TK 713293445 said only "13" and got nine Jordan 4s first): a Jordan leads ONLY when the
+  // customer's own words asked for a Jordan; otherwise every Jordan goes to the back, however many there are.
+  const leadModel = (arr && arr.length && !((_browse || !askedJordan) && brandRank(arr[0]) === 9)) ? modelKey(arr[0]) : null;
   return (arr || []).map((s, i) => ({ s, i }))
     .sort((a, b) => {
       const la = (leadModel && modelKey(a.s) === leadModel) ? 0 : 1;
@@ -3596,7 +3598,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
     // Flat list (single size, range, or matching). Cluster by model so all the Jordans go
     // out together, then Air Max, then New Balance… instead of a mixed-up jumble (Rodney
     // 2026-07-19). Also clusters the size-album completeness top-up, which uses this path.
-    const chosen = clusterShoesByModel(dedupe(ids), storeOfSub(sub));
+    const _askJ = (() => { try { const u = (convos.get(sub) || []).filter(m => m && m.role === 'user').slice(-3).map(m => typeof m.content === 'string' ? m.content : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')).join(' ');
+      return /jordan|\bj ?\d{1,2}\b|\baj ?\d|retro|black cat|bred|thunder|military|cement|cdg|concord|toro|tagged|quoted|ad picture/i.test(customerWordsOnly(u) || u); } catch (_) { return true; } })();
+    const chosen = clusterShoesByModel(dedupe(ids), storeOfSub(sub), _askJ);
     requested = (ids || []).length;
     for (const s of chosen) {
       await answerMidAlbum();
