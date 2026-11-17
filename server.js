@@ -5761,6 +5761,7 @@ const reminderTick = setInterval(async () => {
       try {
         // 11-17 NW Ej 551-7188 got three of these between 09:08 and 09:09 - the chat-based check above can lag the sends, so a hard
         // in-memory gate decides at the moment of sending: one keep-warm per customer per 20 h, whatever else is queued.
+        if (isHumanPaused(r.sub)) { recent.unshift({ at: new Date().toISOString(), endpoint: 'keep-warm-paused-skip', sub: r.sub }); continue; }
         if (Date.now() - (keepWarmSentAt.get(String(r.sub)) || 0) < 20 * 3600 * 1000) { recent.unshift({ at: new Date().toISOString(), endpoint: 'keep-warm-dup-blocked', sub: r.sub }); continue; }
         keepWarmSentAt.set(String(r.sub), Date.now());
         const res = await sendChunk(r.sub, [{ type: 'text', text: keepWarmLine(r.sub, r.dayLabel || 'your day', r.n || 0) }], tk);
@@ -7490,7 +7491,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           && !/^[a-z']+ly[\s!.,?]*$/i.test(_ans)
           // 11-17: "Morning sorry yes I want them" (NW Alfonzo 817-4558) and "Nothing else" (Shoebox Virgo 815-0363) both became
           // "the driver will meet you at ..." - a place never carries these words.
-          && !/\b(?:want|wanted|else|sorry|yes|yea|need|only|just|please|pls|them|thank|thanks|morning|evening|night|today|tonight|tomorrow|nothing|anything|asked|ask|ordered|order|human|real person|agent)\b/i.test(_ans)
+          && !/\b(?:want|wanted|else|sorry|yes|yea|need|only|just|please|pls|them|thank|thanks|morning|evening|night|today|tonight|tomorrow|nothing|anything|asked|ask|ordered|order|human|real person|agent|weekend|week|pre ?-?orde?r?a?|ready|following|next|later|cool)\b/i.test(_ans)
           && !/^(?:also|then|after|afterwards?|maybe|perhaps|anyway|so|and|but|well|hmm+|um+|uh+|alright then|ok then|same|same thing|same place|same location|that|this|there|over there|nothing|anything|whatever|either|both|true|facts|copy|noted|understood|got it|i see|i hear)[\s!.,?]*$/i.test(_ans)
           && !/^(?:year|yeh|yh|yah|yuh|ye+a+h*|brother|bro|bredda|hey+|hi+|hello+|helo|yo+|sup|wassup|wa ?gwan|good ?(?:morning|afternoon|evening|night|day)|morning|gm|gn|thanks?|thank you|ty|cool|cool cool|alright|ight|aight|nice|lol|ok cool)[\s!.,🙏👋]*$/i.test(_ans)
           && !/\b(?:size|sz|\d{1,2}(?:\.5)?\s*(?:\b|$)|jordans?|forces?|af1|air ?max|nike|new balance|nb|asics|dunks?|vapor|tn|shoes?|sneakers?|kicks|price|how much|\$)/i.test(_ans)) {
