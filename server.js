@@ -5066,6 +5066,9 @@ function armOrderCheckin(sub) {
     cur.checkedIn = true; saveOrderCheckins();
     try {
       if (isHumanPaused(sub) || isComposeSub(sub)) return;
+      // 11-17: Alfonzo ("4 PM, Silver Gates") and Shoebox 395-4277 ("will send it when I get off") had already set a time and still got
+      // "Still want it? Say yes" at 9 AM. Anyone who wrote to us after ordering has answered already - never chase them.
+      try { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); if (((_th && _th.msgs) || []).some(m => m && m.dir === 'in' && (m.ts || 0) > (cur.at || 0) + 60000)) return; } catch (_) {}
       const size = cur.size ? ' in a ' + cur.size : '';
       let text = L(ORDER_CHECKIN_T, sub).replace('{shoe}', cur.shoe || 'pair you picked').replace('{size}', size);
       try { text = await say(text, sub) || text; } catch (_) {}
