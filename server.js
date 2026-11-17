@@ -1526,12 +1526,23 @@ function islandGuard(sub, text) {
   if (Date.now() - last > 20 * 60 * 1000 || !out) { out = (out ? out + '\n' : '') + shipLine(r.island); islandShipSaidAt.set(String(sub), Date.now()); }
   return out;
 }
+// 🚫 Kiki never claims the shoes are authentic/real/original (Rodney 11-16, Shoe Lacky "Yes bro, 100% authentic"). Any such
+// sentence is replaced with the check-before-you-pay line.
+function noAuthClaim(t) {
+  try {
+    const parts = String(t).split(/(?<=[.!?👟🔥🙏])\s+/);
+    const bad = /\b(100\s*%\s*(?:authentic|real|legit|original|genuine)|(?:they'?re|they are|it'?s|it is|these are|all|definitely|yes,?|yeah,?)\s+(?:bro,?\s+)?(?:authentic|real|legit|original|genuine|not reps?|no reps?)|authentic|not (?:a )?reps?\b|no reps\b)/i;
+    if (!parts.some(x => bad.test(x))) return t;
+    const keep = parts.filter(x => !bad.test(x));
+    return ['You can check them out in person before you pay 👟'].concat(keep).join(' ').trim();
+  } catch (_) { return t; }
+}
 async function sendChunk(subscriberId, messages, token, logOpts) {
   messages = splitLongText(messages);
   // 🗣 "dont say perfect say OK" (Rodney 11-16, New Wave 455-0540: "Perfect! Here's the black/white Nike Roshe" then
   // "Perfect! 🙌 Can you send your location"). Kiki's opener is "OK", never "Perfect". Only her lines, never a human's.
   if (!(logOpts && logOpts.sender === 'rodney')) {
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text)));
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text))));
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
   const _sink = composeSink.get(String(subscriberId));
@@ -2551,6 +2562,8 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 
 Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". IMPORTANT: if they ask the price of ONE SPECIFIC shoe, give THAT shoe's exact price from search_inventory instead of the whole list.
 🎯 NOT IN THEIR SIZE = SAME SHOE, OTHER COLOURS, EVERY SIZE THEY GAVE (Rodney 11-16, NW 829-0741 asked for the trunk-ad red/black Air Max Plus Drift "size 11, or 12" and got "not in an 11" plus a Jordan pitch): when the shoe they asked for is not in their size, search the SAME model (Air Max Plus, 9060, Dunk...) in EVERY size they named ("11 or 12" = both) and send the other colours we have — never mention only one of their sizes. Someone who came from a cheap ad or asks for a cheaper shoe is NOT shopping for Jordans: never pitch Jordans to them unless they ask. Say "we don't have that one in an 11 or 12, but we have it in other colours 👇" and send the pictures.
+🚫 NEVER CLAIM "AUTHENTIC" / "REAL" / "ORIGINAL" / "LEGIT" (Rodney 11-16: a Shoe Lacky buyer asked "they real right? no reps" and was told "Yes bro, 100% authentic"). If they ask whether the shoes are real or reps, never answer yes or no about it: say "You can check them out in person before you pay 👟" and carry on with the sale.
+🚫 NO PICTURE OF A SIZE WE DON'T HAVE (Rodney 11-16 "why send a picture of something you dont have?"): once you've said a shoe isn't in their size, do NOT send its picture in another size. Offer the same model in other colours in their size instead, or other shoes in their size.
 🔥 THE SALE (Rodney 11-16: "100 sale for others", "jordan 150 sale", "kiki not mentioning the sale"): WE ARE HAVING A SALE. Tell every customer: on the FIRST reply in a chat add one short line like "🔥 Big sale on now — most pairs $100, Jordans $150", and every time you price a shoe at $100 (or a Jordan at $150) say "SALE $100" / "SALE $150". If they ask how long the sale lasts: "Until sold out — all must go 🔥". Shoes under $100 and the newest-drop Jordans just say their price.
 ⚠️ JORDAN PRICING (know this cold): Air Jordan **1s are $100** — every Jordan 1 colourway and style (Jordan 1 High, Low, Retro — all of them). Every OTHER Air Jordan (Jordan 3, 4, 5, 11, 13, Tatum, etc.) is **SALE $150** (Rodney 11-16) — except the newest drop, which keeps its price from search_inventory, any colour or style. So if a customer asks the price of a Jordan — INCLUDING one you can't find in stock or a colour you're not sure we carry (e.g. "how much for the blue and white Jordan?") — quote it from this rule: a Jordan 1 = SALE $100, any other Jordan = SALE $150 (the newest drop: the price search_inventory gives). Never tell a customer a Jordan "isn't showing up" or that you can't price it.
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything (the Jordan pricing rule above is the one known exception, so you can always quote a Jordan: $120 for a Jordan 1, $180 for any other).
@@ -14283,7 +14296,13 @@ app.post('/ycloud/webhook', async (req, res) => {
       // Roshe 👇", the customer saw "Nothing is there" — "if I didnt check those they would go un noticed"). "Sent" was only
       // "accepted"; the failure came later and nobody acted on it. Send the picture once more; if that fails too, give the
       // customer the name and price in words and tell Rodney, so a lead-in never points at nothing again.
+      // 11-16: YCloud reported 'failed' and then 'delivered' for the same picture a moment later; resending at once doubled
+      // the customer's messages (New Wave 455-0540 got the same correction three times). Wait, and only resend if no later
+      // delivered/read status arrived for that message.
+      try { if (_wm && /^(delivered|read)$/.test(String(_wm.status || ''))) { global.__ycDelivered = global.__ycDelivered || new Set(); global.__ycDelivered.add(String(_wm.id || '')); global.__ycDelivered.add(String(_wm.wamid || '')); if (global.__ycDelivered.size > 5000) global.__ycDelivered.clear(); } } catch (_) {}
       if (_wm && !/echo/i.test(kind) && String(_wm.status || '') === 'failed') {
+        await new Promise(r => setTimeout(r, 45000));
+        if (global.__ycDelivered && (global.__ycDelivered.has(String(_wm.id || '')) || global.__ycDelivered.has(String(_wm.wamid || '')))) { record(req, { endpoint: 'ycloud-failed-then-delivered', to: String(_wm.to || '').slice(-7) }); return; }
         const _rec = ycloudSentMedia.get(String(_wm.id || '')) || ycloudSentMedia.get(String(_wm.wamid || ''));
         if (_rec && _rec.link && _rec.sub && !_rec.fromCustomer && !_rec.byHand) {
           const _cust = String(_rec.sub);
