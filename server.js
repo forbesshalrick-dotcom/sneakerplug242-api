@@ -7780,7 +7780,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _has = _sz && (_pickSh.sizesRaw || []).some(x => _want.some(w => parseFloat(x) === parseFloat(w)));
           const _sizes = _wom ? 'other sizes (never name the men\'s numbers to her)' : (sizesOf(_pickSh) || 'none right now');
           if (_wom) _sz = "women's " + _sz;
-          record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has, womens: _wom });
+          /* 🗣 THEIR WORDS WITH THE CARD COME FIRST (Rodney 11-16, 242-814-3201: quoted the Air Max Plus card with "I already said I want
+           * this" and got "Yeah we got the 8.5 in that 🔥 That's the Air Max Plus (Hyper Jade), $100. Are you available now?" again; quoted a
+           * Jordan 4 card with "These onli come in straight sizes no half" and got the same canned line). The example line below is only
+           * for a bare card; whatever they wrote with it is answered first, and a shoe they already picked is never pitched again. */
+          const _cw = (() => { try { return customerWordsOnly(String(userText || '')).replace(/\(SYSTEM:[\s\S]*?\)\s*/g, '').trim(); } catch (_) { return ''; } })();
+          const _prevPick = lastPickBySub.get(String(sub));
+          const _pickedBefore = !!(_prevPick && String(_prevPick.id) === String(_pickSh.id) && Date.now() - (_prevPick.at || 0) < 6 * 3600 * 1000);
+          const _wantsIt = /\b(?:i\s+(?:already\s+)?(?:said|told\s+you)|i\s*(?:'ll|will)?\s*take|i\s+want|want\s+(?:this|it|that|dem|them|these)|i(?:'m|\s+am|\s+a)\s+(?:taking|getting)|gimme|give\s+me\s+(?:this|that|it|these)|i\s+need\s+(?:this|it|that|these))\b/i.test(_cw);
+          const _hasWords = _cw.length >= 2 && !/^(?:[\s?!.👀🤔]+|how\s*much|price|\$+|hm+)$/i.test(_cw);
+          record(req, { endpoint: 'card-forwarded-pinned', sub, shoe: String(_pickSh.id), theirSize: _sz, has: !!_has, womens: _wom, words: _cw.slice(0, 80), wantsIt: _wantsIt, pickedBefore: _pickedBefore });
           lastPickBySub.set(String(sub), { id: String(_pickSh.id), at: Date.now() });
           try { tableAdd(sub, { name: displayName(_pickSh), id: _pickSh.id, size: _sz, price: _pickSh.price }); } catch (_) {}
           const _lu = history[history.length - 1];
@@ -7794,7 +7803,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               // Rodney 10-19 (stitch, Darnell): a card sent back IS the pick - never "Want the 13?". Rodney 10-22 (FF 814-7995): not "What time you
               // available for the delivery?" and never the name twice ("Yep! That's the ..." under the picture) - "let me know when you're ready".
               + (_sz && _has ? 'Never "Want the ' + _sz + '?" and never "you\'re good in your ' + _sz + '". When they give a time: "Bet 🔥 Send me your location 📍". ' : '')
-              + 'If it comes in their size you may send its picture again - but then that ONE line is the picture\'s lead-in; never a second message repeating the name or price ("Yep! That\'s the ..."). NEVER send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.)\n\n' + _lu.content[0].text;
+              + 'If it comes in their size you may send its picture again - but then that ONE line is the picture\'s lead-in; never a second message repeating the name or price ("Yep! That\'s the ..."). NEVER send or name a different shoe in its place, never give fit advice ("runs big/small"). If they sent several cards, answer each the same way.'
+              + ((_wantsIt || (_pickedBefore && _has))
+                ? ' ⚠️ THEY ALREADY PICKED THIS SHOE' + (_cw ? ' (their words: "' + _cw.slice(0, 120) + '")' : '') + ': the example line above is NOT for this turn. Do NOT say "Yeah we got the ' + (_sz || '') + ' in that", do NOT name the shoe, its price or the size again, and do NOT re-send its picture. Move the sale on in one short line: if "Are you available now?" is already in the chat, "Bet 🔥 Please send me your location 📍 the driver can come right now 🚗"; otherwise "Bet 🔥 Are you available now? 👟".'
+                : _hasWords
+                  ? ' ⚠️ THEY WROTE SOMETHING WITH IT: "' + _cw.slice(0, 160) + '". Answer THOSE words first, straight, using the real sizes above (e.g. a question or remark about half sizes / straight sizes, price, colour, fit to their size) - the example line above is only for a card sent with no words, never paste it over what they said.'
+                  : '')
+              + ')\n\n' + _lu.content[0].text;
           }
         }
       }
