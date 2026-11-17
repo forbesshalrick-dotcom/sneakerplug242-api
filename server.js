@@ -10132,6 +10132,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         undoWomensDoubleConvert(sub, inp, record, req);
+        /* 📸 AN AD CLICK GETS A SHORT LOOK, NOT THE SHELF (Rodney 11-17 "Sending them too much pictures": New Wave 451-6649 tapped the
+         * Pink Drop ad, said "10", and got 22 pictures of everything in a 10). In a chat that opened on the ad-click line, a size album is
+         * cut to 10 - this shop's ad shoes first - unless they asked to see everything. */
+        try {
+          const _firstU = history.find(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\(SYSTEM/.test(m.content));
+          const _adClick = _firstU && /can i get more info on this|is this available|i want this|more info/i.test(_firstU.content);
+          const _all = /\b(?:all|everything|every|whole|wat (?:u|you) got|what (?:u|you|yall|y'all) (?:got|have))\b/i.test(customerWordsOnly(String(userText || '')));
+          if (!staffName && _adClick && !_all && Array.isArray(inp.ids) && inp.ids.length > 10) {
+            const _adSet = new Set(adShoeIds(ctx.store).map(a => String(a.id)));
+            const _ord = inp.ids.filter(x => _adSet.has(String(x))).concat(inp.ids.filter(x => !_adSet.has(String(x))));
+            record(req, { endpoint: 'ad-click-album-capped', sub, store: ctx.store || '', from: inp.ids.length, to: 10 });
+            inp.ids = _ord.slice(0, 10);
+          }
+        } catch (_) {}
         // 🔁 A PICTURE THEY JUST GOT IS NOT SENT AGAIN (Rodney 10-15: "Kiki sent pictures over again, like she was making another
         // order"; drill 10-16: "I bay 2" re-sent the three cards from the message before). Only when they ask to see it again.
         try {
