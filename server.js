@@ -1702,7 +1702,9 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     }
     last = r;
     // Only rotate tokens on the wrong-account signatures; other errors are real.
-    if (!/not active|Something went wrong/i.test(r.body)) break;
+    // 11-17: "Subscriber does not exist" is ALSO the wrong-account signature - Sly Porks (822-9573) and Socktakular (395-2289) wrote to
+    // OSC but were answered with the TK token, and nothing reached them (Rodney's own phone showed no reply). Try the other accounts.
+    if (!/not active|Something went wrong|Subscriber does not exist|does not exist/i.test(r.body)) break;
   }
   const body = (last && last.body) || '';
   // ⏱️ A TIMEOUT IS "DON'T KNOW", NOT "FAILED" (Rodney 2026-08-01). ManyChat often takes
