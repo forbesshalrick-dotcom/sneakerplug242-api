@@ -9622,7 +9622,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // Suppressing the forced CALL was never enough; the note itself had to stop being sent.
       // A forwarded card is excluded: they already hold its picture, and the forced send came out as a second line
       // ("Yep, that's the Nike Shox All Black! Here it is 👇") under her answer (Van Roberts, TK, 2026-10-14).
-      if (!wholesale && !staffName && !(image && image.isAd) && !photosSentRun && !pinnedPickIds.size && !resendDroppedNames.length && lastSearchCount > 0 && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
+      if (!wholesale && !staffName && !(image && image.isAd) && !photosSentRun && !pinnedPickIds.size && !resendDroppedNames.length && (lastSearchCount > 0 || /\b(?:that'?s|it'?s|here'?s) the\b[^?!]{3,90}\$\s?\d/i.test(turnText || '')) && !forcedPhotosOnce && /\$\s?\d/.test(turnText || '')) {
+        // 11-17 TK 445-5291: "Black and gray" after an album got "That's the New Balance 9060 Grey/Black Gloss in a 9.5 - $100. Want it?" with
+        // no picture - she picked from the album without searching, so the search-only guard never fired. A named pick always goes with its photo.
         record(req, { endpoint: 'force-photo-after-text', sub, q: (turnText || '').slice(0, 60) });
         history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you just described a specific shoe with its price/sizes in WORDS but never sent its picture, so the customer is left having to ask for a pic. Call send_photos NOW for that exact shoe you just found (a short lead_in like "Here it is 👇"). The photo, with its name/price/sizes label, IS the answer — never make them ask to see it.)' });
         forcePhotosNext = true; forcedPhotosOnce = true;
