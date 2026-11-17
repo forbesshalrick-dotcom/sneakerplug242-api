@@ -1,251 +1,252 @@
 {
- "_why": "The ads each shop is running RIGHT NOW. Rodney 2026-09-29: 'Kiki never understands when a customer asks for a certain advertisement... the guy asks for the price in size nine and Kiki starts sending them all type of pictures.' Facebook does not tell us which ad was tapped (and neither ManyChat nor YCloud passes it), so a customer arriving off an ad is invisible to us. This list is what they could possibly be asking about. Keep it in step with what is actually live - anything listed here is what Kiki will name and price. EACH ENTRY CARRIES ITS OWN `shop` (2026-10-07): Foot Fetish runs different ads from Trendy Kicks, and before this every line was told TK's ads and FF's were invisible - a customer tapped FF's six-Jordan $150 ad, said '11', and got the whole shelf. No `shop` = every line. The `price` here is the AD price and it is what Kiki quotes - that is how a shop runs a sale without cutting the price on the other two lines.",
- "updated": "2026-11-12",
- "ads": [
-  {
-   "id": "j4-150-trio",
-   "label": "Jordan 4 — Taupe (grey), Lightning (yellow), SB Navy (white/blue gum) — $150 EACH, free delivery",
-   "caption": "$150 EACH · FREE DELIVERY",
-   "shoes": [
+  "_why": "The ads each shop is running RIGHT NOW. Rodney 2026-09-29: 'Kiki never understands when a customer asks for a certain advertisement... the guy asks for the price in size nine and Kiki starts sending them all type of pictures.' Facebook does not tell us which ad was tapped (and neither ManyChat nor YCloud passes it), so a customer arriving off an ad is invisible to us. This list is what they could possibly be asking about. Keep it in step with what is actually live - anything listed here is what Kiki will name and price. EACH ENTRY CARRIES ITS OWN `shop` (2026-10-07): Foot Fetish runs different ads from Trendy Kicks, and before this every line was told TK's ads and FF's were invisible - a customer tapped FF's six-Jordan $150 ad, said '11', and got the whole shelf. No `shop` = every line. The `price` here is the AD price and it is what Kiki quotes - that is how a shop runs a sale without cutting the price on the other two lines.",
+  "updated": "2026-11-12",
+  "ads": [
     {
-     "id": "jordan4taupe001",
-     "name": "Air Jordan 4 Taupe (grey)",
-     "price": 150
+      "id": "j4-150-trio",
+      "label": "Jordan 4 — Taupe (grey), Lightning (yellow), SB Navy (white/blue gum) — $150 EACH, free delivery",
+      "caption": "$150 EACH · FREE DELIVERY",
+      "shoes": [
+        {
+          "id": "jordan4taupe001",
+          "name": "Air Jordan 4 Taupe (grey)",
+          "price": 150
+        },
+        {
+          "id": "jordan4yellow001",
+          "name": "Air Jordan 4 Lightning (yellow)",
+          "price": 150
+        },
+        {
+          "id": "jordan4sbnavy001",
+          "name": "Air Jordan 4 SB Navy (white/blue, gum sole)",
+          "price": 150
+        }
+      ]
     },
     {
-     "id": "jordan4yellow001",
-     "name": "Air Jordan 4 Lightning (yellow)",
-     "price": 150
+      "id": "nb-asics-4",
+      "label": "New Balance 1906 + ASICS — ASICS white/black, NB 1906 black/grey/red, NB 1906 grey/silver, NB 1906 black/green — free delivery",
+      "caption": "FREE DELIVERY",
+      "shoes": [
+        {
+          "id": "asicswhtblk001",
+          "name": "ASICS White/Black",
+          "price": 100
+        },
+        {
+          "id": "co612",
+          "name": "New Balance 1906 Black/Grey/Red",
+          "price": 100
+        },
+        {
+          "id": "co634",
+          "name": "New Balance 1906 Grey/Silver (bottom left of the ad)",
+          "price": 100
+        },
+        {
+          "id": "co617",
+          "name": "New Balance 1906 Black/Green",
+          "price": 100
+        }
+      ]
     },
     {
-     "id": "jordan4sbnavy001",
-     "name": "Air Jordan 4 SB Navy (white/blue, gum sole)",
-     "price": 150
+      "id": "nw-wall-6",
+      "shop": "New Wave",
+      "label": "White wall, 6 shoes: VaporMax Utility $60, VaporMax Plus Black $60, TN White/Purple $80, TN Black/Blue $80, Air Max 97 Red Leopard $70, Air Force 1 Low Kid $70",
+      "caption": "Free delivery",
+      "shoes": [
+        {
+          "id": "vapormaxutil001",
+          "name": "VaporMax Utility (sizes 7, 8, 8.5)",
+          "price": 60
+        },
+        {
+          "name": "VaporMax Plus Black (sizes 7, 8)",
+          "price": 60
+        },
+        {
+          "id": "airmaxpluswpur001",
+          "name": "Air Max Plus TN White/Purple (sizes 7, 8)",
+          "price": 80
+        },
+        {
+          "id": "c0453",
+          "name": "Air Max Plus TN Black/Blue (size 7)",
+          "price": 80
+        },
+        {
+          "id": "airmax97cheet001",
+          "name": "Air Max 97 Red Leopard (size 5.5)",
+          "price": 70
+        },
+        {
+          "id": "c0449",
+          "name": "Air Force 1 Low Kid green/white (size 8)",
+          "price": 70
+        }
+      ]
+    },
+    {
+      "id": "nw-trunk-6",
+      "shop": "New Wave",
+      "label": "Car trunk (Cube), 6 shoes: Air Max 2021 $50, Air Max Plus Drift $80, Air Max Plus Terrascape $80, Jordan 1 Low Triple Black $80, Air Max Plus Pink/Blue/Black $80, Air Max Plus Drift Black/Red/Purple $70",
+      "caption": "Free delivery",
+      "shoes": [
+        {
+          "id": "c0455",
+          "name": "Nike Air Max 2021 (sizes 5.5, 8)",
+          "price": 50
+        },
+        {
+          "id": "co584",
+          "name": "Air Max Plus Drift black (sizes 8, 8.5)",
+          "price": 80
+        },
+        {
+          "id": "c0425",
+          "name": "Air Max Plus Terrascape (sizes 7, 8)",
+          "price": 80
+        },
+        {
+          "id": "co548",
+          "name": "Air Jordan 1 Low Triple Black (sizes 7, 9)",
+          "price": 80
+        },
+        {
+          "id": "co581",
+          "name": "Air Max Plus Pink/Blue/Black (sizes 8, 8.5)",
+          "price": 80
+        },
+        {
+          "name": "Air Max Plus Drift Black/Red/Purple (looks dark orange; sizes 5.5, 6.5)",
+          "price": 70,
+          "id": "c0413"
+        }
+      ]
+    },
+    {
+      "id": "nw-porch-6",
+      "shop": "New Wave",
+      "label": "Porch with palm trees, 6 shoes: NB 9060 multicolour $100, NB 9060 cream/blue $100, Air Max Plus 3 blue $80, Dunk pink/white $80, NB 740 pink/silver $100, Air Max Plus blue $100",
+      "caption": "",
+      "shoes": [
+        {
+          "id": "c0395",
+          "name": "New Balance 9060 multicolour purple/orange (sizes 5.5, 6.5, 9.5)",
+          "price": 100
+        },
+        {
+          "id": "c0411",
+          "name": "New Balance 9060 cream/blue (sizes 5.5, 6.5, 11, 12.5)",
+          "price": 100
+        },
+        {
+          "id": "c0429",
+          "name": "Air Max Plus 3 blue/purple (sizes 7, 8, 10)",
+          "price": 80
+        },
+        {
+          "id": "c0434",
+          "name": "Nike Dunk Low pink/white (sizes 11, 12, 13)",
+          "price": 80
+        },
+        {
+          "id": "nb740pinksilv001",
+          "name": "New Balance 740 pink/silver (sizes 5.5, 7, 7.5, 9, 9.5)",
+          "price": 100
+        },
+        {
+          "id": "c0456",
+          "name": "Air Max Plus blue/black (sizes 7, 8, 8.5)",
+          "price": 100
+        }
+      ]
+    },
+    {
+      "id": "sb-sale-100-6",
+      "shop": "The Shoebox",
+      "label": "SALE poster, ANY PAIR $100, free delivery, 6 shoes on a pink/teal wall: Asics Gel-1130 Green/Silver, New Balance 1906R Grey/Black, Jordan 4 Grey/Black, Air Force 1 All Black, New Balance 9060 Black/White, New Balance 530 White/Navy, all $100",
+      "caption": "",
+      "shoes": [
+        {
+          "id": "c0380",
+          "name": "Asics green/silver (ad says Gel-1130 Green/Silver)",
+          "price": 100
+        },
+        {
+          "id": "co634",
+          "name": "New Balance 1906R Grey/Black",
+          "price": 100
+        },
+        {
+          "id": "jordan4military001",
+          "name": "Jordan 4 Grey/Black",
+          "price": 100
+        },
+        {
+          "id": "co574",
+          "name": "Air Force 1 All Black",
+          "price": 100
+        },
+        {
+          "id": "c0403",
+          "name": "New Balance 9060 Black/White",
+          "price": 100
+        },
+        {
+          "id": "c0382",
+          "name": "New Balance 530 White/Navy",
+          "price": 100
+        }
+      ]
+    },
+    {
+      "id": "tk-af1-black",
+      "shop": "Trendy Kicks",
+      "label": "Video ad: all black Nike Air Force 1, 'Free delivery!' (Rodney 11-16: TK 471-0224 tapped it and got 'which shoe you mean?')",
+      "caption": "Free delivery!",
+      "shoes": [
+        {
+          "id": "co574",
+          "name": "Nike Air Force 1 All Black",
+          "price": 100
+        }
+      ]
+    },
+    {
+      "id": "nw-pink-drop",
+      "shop": "New Wave",
+      "label": "PINK DROP poster, $100 EACH, delivery available: Jordan 4 white/purple-pink, New Balance 2002R pink, New Balance 530 white/pink, ASICS Gel-1130 black/pink, ASICS Gel-Kayano 14 pink/silver (Rodney 11-16: 445-0250 tapped it and got a Dunk that is not on it)",
+      "caption": "DM to order - delivery available",
+      "shoes": [
+        {
+          "id": "jordan4purple002",
+          "name": "Jordan 4 White/Pink-Purple",
+          "price": 100
+        },
+        {
+          "id": "c0393",
+          "name": "New Balance 2002R Pink",
+          "price": 100
+        },
+        {
+          "id": "co618",
+          "name": "New Balance 530 White/Pink/Silver",
+          "price": 100
+        },
+        {
+          "id": "asicsblkpnksil001",
+          "name": "ASICS Gel-1130 Black/Pink/Silver",
+          "price": 100
+        },
+        {
+          "id": "co633",
+          "name": "ASICS Kayano 14 Pink/Silver",
+          "price": 100
+        }
+      ]
     }
-   ]
-  },
-  {
-   "id": "nb-asics-4",
-   "label": "New Balance 1906 + ASICS — ASICS white/black, NB 1906 black/grey/red, NB 1906 grey/silver, NB 1906 black/green — free delivery",
-   "caption": "FREE DELIVERY",
-   "shoes": [
-    {
-     "id": "asicswhtblk001",
-     "name": "ASICS White/Black",
-     "price": 100
-    },
-    {
-     "id": "co612",
-     "name": "New Balance 1906 Black/Grey/Red",
-     "price": 100
-    },
-    {
-     "id": "co634",
-     "name": "New Balance 1906 Grey/Silver (bottom left of the ad)",
-     "price": 100
-    },
-    {
-     "id": "co617",
-     "name": "New Balance 1906 Black/Green",
-     "price": 100
-    }
-   ]
-  },
-  {
-   "id": "nw-wall-6",
-   "shop": "New Wave",
-   "label": "White wall, 6 shoes: VaporMax Utility $60, VaporMax Plus Black $60, TN White/Purple $80, TN Black/Blue $80, Air Max 97 Red Leopard $70, Air Force 1 Low Kid $70",
-   "caption": "Free delivery",
-   "shoes": [
-    {
-     "id": "vapormaxutil001",
-     "name": "VaporMax Utility (sizes 7, 8, 8.5)",
-     "price": 60
-    },
-    {
-     "name": "VaporMax Plus Black (sizes 7, 8)",
-     "price": 60
-    },
-    {
-     "id": "airmaxpluswpur001",
-     "name": "Air Max Plus TN White/Purple (sizes 7, 8)",
-     "price": 80
-    },
-    {
-     "id": "c0453",
-     "name": "Air Max Plus TN Black/Blue (size 7)",
-     "price": 80
-    },
-    {
-     "id": "airmax97cheet001",
-     "name": "Air Max 97 Red Leopard (size 5.5)",
-     "price": 70
-    },
-    {
-     "id": "c0449",
-     "name": "Air Force 1 Low Kid green/white (size 8)",
-     "price": 70
-    }
-   ]
-  },
-  {
-   "id": "nw-trunk-6",
-   "shop": "New Wave",
-   "label": "Car trunk (Cube), 6 shoes: Air Max 2021 $50, Air Max Plus Drift $80, Air Max Plus Terrascape $80, Jordan 1 Low Triple Black $80, Air Max Plus Pink/Blue/Black $80, Air Max Plus Drift Black/Red/Purple $70",
-   "caption": "Free delivery",
-   "shoes": [
-    {
-     "id": "c0455",
-     "name": "Nike Air Max 2021 (sizes 5.5, 8)",
-     "price": 50
-    },
-    {
-     "id": "co584",
-     "name": "Air Max Plus Drift black (sizes 8, 8.5)",
-     "price": 80
-    },
-    {
-     "id": "c0425",
-     "name": "Air Max Plus Terrascape (sizes 7, 8)",
-     "price": 80
-    },
-    {
-     "id": "co548",
-     "name": "Air Jordan 1 Low Triple Black (sizes 7, 9)",
-     "price": 80
-    },
-    {
-     "id": "co581",
-     "name": "Air Max Plus Pink/Blue/Black (sizes 8, 8.5)",
-     "price": 80
-    },
-    {
-     "name": "Air Max Plus Drift Black/Red/Purple (sizes 5.5, 6.5)",
-     "price": 70
-    }
-   ]
-  },
-  {
-   "id": "nw-porch-6",
-   "shop": "New Wave",
-   "label": "Porch with palm trees, 6 shoes: NB 9060 multicolour $100, NB 9060 cream/blue $100, Air Max Plus 3 blue $80, Dunk pink/white $80, NB 740 pink/silver $100, Air Max Plus blue $100",
-   "caption": "",
-   "shoes": [
-    {
-     "id": "c0395",
-     "name": "New Balance 9060 multicolour purple/orange (sizes 5.5, 6.5, 9.5)",
-     "price": 100
-    },
-    {
-     "id": "c0411",
-     "name": "New Balance 9060 cream/blue (sizes 5.5, 6.5, 11, 12.5)",
-     "price": 100
-    },
-    {
-     "id": "c0429",
-     "name": "Air Max Plus 3 blue/purple (sizes 7, 8, 10)",
-     "price": 80
-    },
-    {
-     "id": "c0434",
-     "name": "Nike Dunk Low pink/white (sizes 11, 12, 13)",
-     "price": 80
-    },
-    {
-     "id": "nb740pinksilv001",
-     "name": "New Balance 740 pink/silver (sizes 5.5, 7, 7.5, 9, 9.5)",
-     "price": 100
-    },
-    {
-     "id": "c0456",
-     "name": "Air Max Plus blue/black (sizes 7, 8, 8.5)",
-     "price": 100
-    }
-   ]
-  },
-  {
-   "id": "sb-sale-100-6",
-   "shop": "The Shoebox",
-   "label": "SALE poster, ANY PAIR $100, free delivery, 6 shoes on a pink/teal wall: Asics Gel-1130 Green/Silver, New Balance 1906R Grey/Black, Jordan 4 Grey/Black, Air Force 1 All Black, New Balance 9060 Black/White, New Balance 530 White/Navy, all $100",
-   "caption": "",
-   "shoes": [
-    {
-     "id": "c0380",
-     "name": "Asics green/silver (ad says Gel-1130 Green/Silver)",
-     "price": 100
-    },
-    {
-     "id": "co634",
-     "name": "New Balance 1906R Grey/Black",
-     "price": 100
-    },
-    {
-     "id": "jordan4military001",
-     "name": "Jordan 4 Grey/Black",
-     "price": 100
-    },
-    {
-     "id": "co574",
-     "name": "Air Force 1 All Black",
-     "price": 100
-    },
-    {
-     "id": "c0403",
-     "name": "New Balance 9060 Black/White",
-     "price": 100
-    },
-    {
-     "id": "c0382",
-     "name": "New Balance 530 White/Navy",
-     "price": 100
-    }
-   ]
-  },
-  {
-   "id": "tk-af1-black",
-   "shop": "Trendy Kicks",
-   "label": "Video ad: all black Nike Air Force 1, 'Free delivery!' (Rodney 11-16: TK 471-0224 tapped it and got 'which shoe you mean?')",
-   "caption": "Free delivery!",
-   "shoes": [
-    {
-     "id": "co574",
-     "name": "Nike Air Force 1 All Black",
-     "price": 100
-    }
-   ]
-  },
-  {
-   "id": "nw-pink-drop",
-   "shop": "New Wave",
-   "label": "PINK DROP poster, $100 EACH, delivery available: Jordan 4 white/purple-pink, New Balance 2002R pink, New Balance 530 white/pink, ASICS Gel-1130 black/pink, ASICS Gel-Kayano 14 pink/silver (Rodney 11-16: 445-0250 tapped it and got a Dunk that is not on it)",
-   "caption": "DM to order - delivery available",
-   "shoes": [
-    {
-     "id": "jordan4purple002",
-     "name": "Jordan 4 White/Pink-Purple",
-     "price": 100
-    },
-    {
-     "id": "c0393",
-     "name": "New Balance 2002R Pink",
-     "price": 100
-    },
-    {
-     "id": "co618",
-     "name": "New Balance 530 White/Pink/Silver",
-     "price": 100
-    },
-    {
-     "id": "asicsblkpnksil001",
-     "name": "ASICS Gel-1130 Black/Pink/Silver",
-     "price": 100
-    },
-    {
-     "id": "co633",
-     "name": "ASICS Kayano 14 Pink/Silver",
-     "price": 100
-    }
-   ]
-  }
- ]
+  ]
 }
