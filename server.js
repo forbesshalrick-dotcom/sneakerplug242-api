@@ -15235,8 +15235,15 @@ app.get('/inbox/threads', (req, res) => {
       pinned: !!t.pinned, label: t.label || '',
     };
     // pinned chats float to the top no matter how old, then newest-first
-  }).sort((a, b) => (b.pinned - a.pinned) || ((b.lastTs || 0) - (a.lastTs || 0))).slice(0, 100);
-  res.json({ rev: inboxRev, threads: list });
+  }).sort((a, b) => (b.pinned - a.pinned) || ((b.lastTs || 0) - (a.lastTs || 0)));
+  // EVERY ACCOUNT KEEPS ITS TAB (Rodney 11-17: "make sure every single one of my chats are in this custom chat group... from Facebook
+  // to WhatsApp, don't miss any accounts"). A flat newest-100 let busy lines (New Wave 44, Shoebox 24) push Tami and Claudia (Facebook)
+  // out completely, so their tabs vanished. Now: the newest 150 overall PLUS the newest 40 of every account, newest-first.
+  const _keep = new Set(list.slice(0, 150));
+  const _perAcct = {};
+  for (const t of list) { const k = t.account || ''; _perAcct[k] = (_perAcct[k] || 0) + 1; if (_perAcct[k] <= 40) _keep.add(t); }
+  const out = list.filter(t => _keep.has(t));
+  res.json({ rev: inboxRev, threads: out, accounts: Object.keys(_perAcct) });
 });
 
 // 🌐 INBOX TRANSLATION (Rodney 2026-07-28). Kiki answers customers in whatever language
