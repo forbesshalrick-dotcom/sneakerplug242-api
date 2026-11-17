@@ -1537,12 +1537,31 @@ function noAuthClaim(t) {
     return ['You can check them out in person before you pay 👟'].concat(keep).join(' ').trim();
   } catch (_) { return t; }
 }
+// 🏷 A shoe from THIS line's ad is always quoted at the ad price (Rodney 11-16, New Wave 825-3043: the Pink Drop Jordan 4 card said
+// $100 and Kiki's text said "Jordan 4 Hyper Violet — $150"). Any $ amount within a few words after an ad shoe's name is set to the ad price.
+function adPriceInText(sub, t) {
+  try {
+    const st = storeOfSub(sub); if (!st) return t;
+    const ads = adShoeIds(st); if (!ads.length) return t;
+    const lm = liveShoeMap();
+    let out = String(t);
+    for (const a of ads) {
+      const sh = lm[a.id]; const ap = parseFloat(a.price); if (!sh || !ap) continue;
+      const names = [sh.nickname, displayName(sh), [sh.name, sh.color].filter(Boolean).join(' ')].filter(x => x && String(x).trim().length > 4);
+      for (const n of names) {
+        const esc = String(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+        out = out.replace(new RegExp('(' + esc + '[^$\\n]{0,40}?\\$)(\\d{2,3})\\b', 'gi'), (all, pre, num) => parseFloat(num) === ap ? all : pre + ap);
+      }
+    }
+    return out;
+  } catch (_) { return t; }
+}
 async function sendChunk(subscriberId, messages, token, logOpts) {
   messages = splitLongText(messages);
   // 🗣 "dont say perfect say OK" (Rodney 11-16, New Wave 455-0540: "Perfect! Here's the black/white Nike Roshe" then
   // "Perfect! 🙌 Can you send your location"). Kiki's opener is "OK", never "Perfect". Only her lines, never a human's.
   if (!(logOpts && logOpts.sender === 'rodney')) {
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text))));
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text)))));
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
   const _sink = composeSink.get(String(subscriberId));
