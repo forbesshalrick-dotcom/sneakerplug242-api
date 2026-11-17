@@ -3179,13 +3179,15 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
 }
 
 // Cluster an album so every shoe of the SAME model sits together, in a sensible brand
-// order (Jordans → Nike/Air Max → New Balance → Yeezy/Adidas → ASICS → the rest) — Rodney
+// order (Nike/Air Max → New Balance → Yeezy/Adidas → ASICS → the rest → Jordans LAST, 11-16) — Rodney
 // 2026-07-19: a "what you got in a 10" browse showed "2 Jordans then mixed brands", he wants
 // all the Jordans grouped like it used to be. Stable WITHIN a model so Kiki's order is kept.
 function clusterShoesByModel(arr) {
   const brandRank = (s) => {
     const t = ((s.brand || '') + ' ' + (s.name || '') + ' ' + (s.model || '') + ' ' + (s.nickname || '')).toLowerCase();
-    if (/jordan|retro|\baj ?\d/.test(t)) return 0;
+    // 11-16 Rodney ("lets start to show the jordans last not first", TK 825-7… size-8 album opened on three $150 Jordan 4s):
+    // the $100 sale pairs lead, Jordans close the album.
+    if (/jordan|retro|\baj ?\d/.test(t)) return 9;
     if (/air ?max|vapor|\bnike\b|air ?force|af1|dunk|shox|huarache|scorpion/.test(t)) return 1;
     if (/new ?balance|\bnb\b|9060|1906|990|550/.test(t)) return 2;
     if (/yeezy|adidas/.test(t)) return 3;
@@ -3196,7 +3198,11 @@ function clusterShoesByModel(arr) {
   // The FIRST shoe is Kiki's exact/named match (e.g. the customer asked for the "Black Cat") — keep
   // it and its same-model colours LEADING the album, so the named pair is never buried below a
   // generic look-alike the alphabetical sort would otherwise float up (Rodney 2026-07-19).
-  const leadModel = (arr && arr.length) ? modelKey(arr[0]) : null;
+  // A Jordan only leads when the album is mostly Jordans (they asked for Jordans / named one); in a mixed size browse the
+  // Jordan Kiki happened to list first goes to the back with the others.
+  const _jCount = (arr || []).filter(s => brandRank(s) === 9).length;
+  const _browse = (arr || []).length >= 4 && _jCount * 2 < (arr || []).length;
+  const leadModel = (arr && arr.length && !(_browse && brandRank(arr[0]) === 9)) ? modelKey(arr[0]) : null;
   return (arr || []).map((s, i) => ({ s, i }))
     .sort((a, b) => {
       const la = (leadModel && modelKey(a.s) === leadModel) ? 0 : 1;
