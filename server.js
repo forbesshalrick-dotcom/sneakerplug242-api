@@ -129,9 +129,15 @@ async function repinCardUrls() {
     for (const s of catalog) if (s.image) s.image = framesUrl(s.image).replace(`/Sp242-frames/${framesPin}/`, `/Sp242-frames/${pin}/`);
     framesPin = pin;
     console.log('[cards] image URLs pinned to frames commit', pin);
+    // Shoebox wall cards made after this build (Rodney 11-16 'pics are old'; M5fb2 makes ~1/min): sb-wall.txt in the frames repo
+    // lists every id with a -card-sb.jpg, so a new batch goes live on the next repin with no deploy.
+    try {
+      const w = await fetch(`https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/${pin}/sb-wall.txt`);
+      if (w.ok) { const ids = (await w.text()).split(/\s+/).filter(Boolean); for (const i of ids) { SB_CARD_IDS.add(i); SB_WALL_IDS.add(i); } console.log('[cards] shoebox wall ids', ids.length); }
+    } catch (_) {}
   } catch (e) { console.log('[cards] commit pin check failed (keeping ' + framesPin + '):', e.message); }
 }
-repinCardUrls();
+setTimeout(repinCardUrls, 0);
 const repinTick = setInterval(repinCardUrls, 5 * 60 * 1000);
 if (repinTick.unref) repinTick.unref();
 
