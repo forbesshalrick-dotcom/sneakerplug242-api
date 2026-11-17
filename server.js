@@ -7317,6 +7317,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (_tagLbl) while (/^\(SYSTEM[^\n]*\)\s*(?:\n|$)/.test(inTxt)) inTxt = inTxt.replace(/^\(SYSTEM[^\n]*\)\s*(?:\n|$)/, '').trim();
         if (_tagLbl) inTxt = _tagLbl + (inTxt && !/^\(/.test(inTxt) ? ': ' + inTxt : '');
       } catch (_) {}
+      // 11-16 (NW Singagramm 451-6930): a quote-reply to one of our TEXT messages ("You in nassau", "Okay") and the ad-opener
+      // note were blanked with the system line, so the inbox showed Kiki asking "what size?" four times to nobody. Keep their words.
+      if (!_tagLbl && /^\(SYSTEM/.test(inTxt)) {
+        const _quotedTxt = /^\(SYSTEM: the customer quote-replied to one of OUR TEXT/.test(inTxt);
+        let _w = inTxt; while (/^\(SYSTEM[^\n]*\)\s*(?:\n|$)/.test(_w)) _w = _w.replace(/^\(SYSTEM[^\n]*\)\s*(?:\n|$)/, '').trim();
+        if (_w && !/^\(/.test(_w)) inTxt = (_quotedTxt ? '↩️ ' : '') + _w;
+      }
       if (!_tagLbl && /^\(/.test(inTxt) && /\bsystem\b|customer (just )?sent|can'?t open|re-?delivery/i.test(inTxt)) inTxt = '';
       const inImg = ctx.inPhotoUrl || (image && typeof image === 'string' ? image : '');
       if (!inTxt && !inImg && image) inTxt = '📷 photo';
