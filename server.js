@@ -6753,8 +6753,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
     // The ad tap arrives with a long (SYSTEM: ...ad headline (with brackets)...) note in front - only the LAST line is their words.
     const _o = String(userText || '').split(/\n|\)\s+/).map(x => x.trim()).filter(Boolean).pop() || '';
-    const _hist = (convos.get(sub) || []).filter(m => m && m.role === 'assistant');
-    if (/^(?:hello!?|hi!?|hey!?)?\s*can i get more info(?:rmation)? on this\??$/i.test(_o) && _hist.length === 0) {
+    // "fresh" = we haven't written to them in the last 12h (a returning customer's old Kiki history no longer blocks it - NW 827-0989 11-17)
+    let _hist = [];
+    try { const _th0 = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); _hist = ((_th0 && _th0.msgs) || []).filter(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 12 * 3600 * 1000); } catch (_) {}
+    const _isOpener = /^(?:hello!?|hi!?|hey!?)?\s*can i get more info(?:rmation)? on this\??$/i.test(_o);
+    if (_isOpener) record(req, { endpoint: 'ad-opener-check', sub, fresh: _hist.length === 0 });
+    if (_isOpener && _hist.length === 0) {
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _o, name: ctx.name }); } catch (_) {}
       const _line = 'Hello! 👋 Right now we got a SALE 🔥 most pairs $100. Would you like to see? What size you wear? 👟';
       await sendChunk(sub, [{ type: 'text', text: _line }], token, { account: ctx.store }).catch(() => {});
