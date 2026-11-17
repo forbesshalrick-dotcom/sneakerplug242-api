@@ -7733,6 +7733,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     : { type: 'url', url: image };
   // 🔎 The stronger look goes first, and Kiki is told to trust it over her own read.
   let _idVerdict = null;
+  const adTwinSwap = new Map();   // lookalike id -> the ad's id, this turn only (see 📢 below)
   // An AD picture shows several shoes - never 'identify' one of them (11-12 New Wave: six-shoe ad -> 'That's the Lightning!').
   if (image && !image.isAd) {
     try {
@@ -7741,6 +7742,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (_seen) {
         _idVerdict = _seen;
         photoVerdicts.set(String(sub), { v: _seen, at: Date.now() });
+        /* 📢 A SCREENSHOT OF OUR AD = THE AD'S PAIR, NOT A SAME-NAME LOOKALIKE (Rodney 11-15 + 11-17 "2nd time": NW 808-8074 and NW
+         * +509 3349-6749 circled the trunk ad's Air Max 2021 [c0455, $50] and both got p73 "Air Max 21", a $100 pair we never posted.
+         * The prompt rule alone lost twice.) When the eye names a shoe whose model matches exactly one shoe on this shop's live ads,
+         * the ad's id wins: Kiki is told so, and send_photos swaps the lookalike for it this turn. */
+        try {
+          const _v = shoeFromVerdict(_seen); const _lm = liveShoeMap();
+          const _key = id => { const x = _lm[id]; return x ? String(x.name || '').toLowerCase().replace(/\b(?:nike|air)\b/g, ' ').replace(/\b20(\d\d)\b/g, '$1').replace(/[^a-z0-9]/g, '') : ''; };
+          const _st = String(ctx.store || '').toLowerCase().trim();
+          const _byKey = {};
+          (liveAds().ads || []).filter(ad => !ad.shop || String(ad.shop).toLowerCase().trim() === _st)
+            .forEach(ad => (ad.shoes || []).forEach(a => { if (a && a.id && _lm[a.id]) { const k = _key(a.id); if (k) _byKey[k] = (_byKey[k] && _byKey[k].id !== a.id) ? { id: '' } : { id: a.id, price: a.price }; } }));
+          const _fromId = _v.sh ? String(_v.sh.id) : '';
+          const _tw = _fromId ? _byKey[_key(_fromId)] : null;
+          if (_tw && _tw.id && _tw.id !== _fromId) {
+            adTwinSwap.set(_fromId, _tw.id);
+            const _a = _lm[_tw.id];
+            record(req, { endpoint: 'ad-twin-swap', sub, store: ctx.store || '', from: _fromId, to: _tw.id });
+            photoNote = '(📢 THIS IS OUR AD\'S SHOE: ' + displayName(_a) + ' [id ' + _tw.id + '] $' + _tw.price + ', in stock: '
+              + ([...new Set((_a.sizes || _a.sizesRaw || []).map(String))].join(', ') || 'SOLD OUT') + '. Send THAT id with its ad price - never id '
+              + _fromId + ' (' + displayName(_v.sh) + '), a lookalike we did not advertise.)\n\n' + photoNote;
+          }
+        } catch (_) {}
         photoNote = '(🔎 A careful second look at this photo, by a stronger eye than yours, says:\n' + _seen + '\n'
           + 'TRUST THAT over your own read of the picture. If it names one of OUR shoes under OURS, search that exact name '
           + 'now and send it, and SAY it is the one ("that\'s our Air Force 1 Teal/Green 👟"). If it says NOT IN STOCK, tell '
@@ -7861,7 +7884,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       } catch (_) {}
       if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !_isCard) {
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
-        const _pickSh = pickTwin(_cands, sub);
+        let _pickSh = pickTwin(_cands, sub);
+        // 📢 the ad's own pair beats a same-name lookalike (see ad-twin-swap above)
+        try { if (_pickSh && adTwinSwap.has(String(_pickSh.id))) { const _tw = liveShoeMap()[adTwinSwap.get(String(_pickSh.id))]; if (_tw) _pickSh = _tw; } } catch (_) {}
         if (_pickSh && _pickSh.id != null) {
           const _csz0 = custSize.get(sub);
           const _szKnown = !!(_csz0 && _csz0.size && (Date.now() - (_csz0.ts || 0)) < 12 * 60 * 60 * 1000);
@@ -7899,7 +7924,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
          * big"). The card already IS the shoe: the server pins it, with its real sizes, and she answers about
          * that shoe only. No re-send of the card they already have, no substitute, no fit advice. */
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
-        const _pickSh = pickTwin(_cands, sub);
+        let _pickSh = pickTwin(_cands, sub);
+        // 📢 the ad's own pair beats a same-name lookalike (see ad-twin-swap above)
+        try { if (_pickSh && adTwinSwap.has(String(_pickSh.id))) { const _tw = liveShoeMap()[adTwinSwap.get(String(_pickSh.id))]; if (_tw) _pickSh = _tw; } } catch (_) {}
         if (_pickSh && _pickSh.id != null) {
           pinnedPickIds.add(String(_pickSh.id));   // the size-claim guard checks this shoe; nothing else may be sent this turn
           const _csz0 = custSize.get(sub);
@@ -8679,9 +8706,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // listing note) must never stop her asking a man who has not said one (Ricky 10-14: blocked "What size you need?").
     if (turnText && knownSize && SIZE_REASK_RE.test(turnText)
         && !/\bwhich\s+(?:size|one)\s+(?:works|you want|do you want|you need|you prefer|is better|you like|fits)/i.test(turnText)
-        && history.some(m => m && m.role === 'user' && !/^\(SYSTEM NOTE/.test(typeof m.content === 'string' ? m.content : '')
+        && (sizeFromCustomerWords(customerWordsOnly(String(userText || ''))) === knownSize   // they said it THIS turn ("One size eleven" by voice, NW 812-6490 11-17)
+          || history.some(m => m && m.role === 'user' && !/^\(SYSTEM NOTE/.test(typeof m.content === 'string' ? m.content : '')
              && sizeFromCustomerWords(customerWordsOnly(typeof m.content === 'string' ? m.content
-                  : (Array.isArray(m.content) ? m.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))) === knownSize)) {
+                  : (Array.isArray(m.content) ? m.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : ''))) === knownSize))) {
       sizeReAsks++;
       record(req, { endpoint: 'size-reask-blocked', sub, store: ctx.store || '', size: knownSize, attempt: sizeReAsks, text: turnText.slice(0, 200) });
       if (sizeReAsks === 1) {
@@ -9650,6 +9678,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const toolResults = [];
     for (const tu of toolUses) {
       let result;
+      if (tu.name === 'send_photos' && adTwinSwap.size && tu.input) {
+        const _sw = a => Array.isArray(a) ? [...new Set(a.map(x => adTwinSwap.get(String(x)) || x))] : a;
+        tu.input.ids = _sw(tu.input.ids);
+        if (Array.isArray(tu.input.groups)) tu.input.groups.forEach(g => { if (g) g.ids = _sw(g.ids); });
+      }
       if (tu.name === 'search_inventory') {
         const p = tu.input || {};
         undoWomensDoubleConvert(sub, p, record, req);
