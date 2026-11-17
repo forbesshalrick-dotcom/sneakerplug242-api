@@ -15979,6 +15979,10 @@ app.post('/inbox/send-shoe', async (req, res) => {
       try { recent.unshift({ at: new Date().toISOString(), endpoint: 'inbox-send-shoe-error', sub, error: String(e).slice(0, 160) }); } catch (_) {}
     } finally {
       inboxAlbumInFlight.delete(sub);
+      // 🔓 THE ALBUM IS DONE = KIKI IS BACK (Rodney 11-17 "why wasn't the card ever sent?": Shoebox 455-2569 got the 8.5 album from
+      // the inbox, then sent his picks - the J13 Bred - and "I am here" while the send's 45-min pause was still on: no answer, no
+      // order card). The pause only keeps her quiet while the pictures go out; it ends with the last batch.
+      try { clearHumanPause(sub); checkResumedUnanswered(sub); } catch (_) {}
       record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: allIds.length, sent: totalSent, batches: batches.length, stopped });
     }
   })();
