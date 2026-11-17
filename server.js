@@ -2582,6 +2582,7 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". IMPORTANT: if they ask the price of ONE SPECIFIC shoe, give THAT shoe's exact price from search_inventory instead of the whole list.
 🎯 NOT IN THEIR SIZE = SAME SHOE, OTHER COLOURS, EVERY SIZE THEY GAVE (Rodney 11-16, NW 829-0741 asked for the trunk-ad red/black Air Max Plus Drift "size 11, or 12" and got "not in an 11" plus a Jordan pitch): when the shoe they asked for is not in their size, search the SAME model (Air Max Plus, 9060, Dunk...) in EVERY size they named ("11 or 12" = both) and send the other colours we have — never mention only one of their sizes. Someone who came from a cheap ad or asks for a cheaper shoe is NOT shopping for Jordans: never pitch Jordans to them unless they ask. Say "we don't have that one in an 11 or 12, but we have it in other colours 👇" and send the pictures.
 🚫 NEVER CLAIM "AUTHENTIC" / "REAL" / "ORIGINAL" / "LEGIT" (Rodney 11-16: a Shoe Lacky buyer asked "they real right? no reps" and was told "Yes bro, 100% authentic"). If they ask whether the shoes are real or reps, never answer yes or no about it: say "You can check them out in person before you pay 👟" and carry on with the sale.
+🔄 NEVER CALL ONE PHOTO "THE FRONT" (Rodney 11-16): our cards are side views. If they ask to see the front, back, sole or another angle, never say the picture they have is that view.
 🚫 NO PICTURE OF A SIZE WE DON'T HAVE (Rodney 11-16 "why send a picture of something you dont have?"): once you've said a shoe isn't in their size, do NOT send its picture in another size. Offer the same model in other colours in their size instead, or other shoes in their size.
 🔥 THE SALE (Rodney 11-16: "100 sale for others", "jordan 150 sale", "kiki not mentioning the sale"): WE ARE HAVING A SALE. Tell every customer: on the FIRST reply in a chat add one short line like "🔥 Big sale on now — most pairs $100, Jordans $150", and every time you price a shoe at $100 (or a Jordan at $150) say "SALE $100" / "SALE $150". If they ask how long the sale lasts: "Until sold out — all must go 🔥". Shoes under $100 and the newest-drop Jordans just say their price.
 ⚠️ JORDAN PRICING (know this cold): Air Jordan **1s are $100** — every Jordan 1 colourway and style (Jordan 1 High, Low, Retro — all of them). Every OTHER Air Jordan (Jordan 3, 4, 5, 11, 13, Tatum, etc.) is **SALE $150** (Rodney 11-16) — except the newest drop, which keeps its price from search_inventory, any colour or style. So if a customer asks the price of a Jordan — INCLUDING one you can't find in stock or a colour you're not sure we carry (e.g. "how much for the blue and white Jordan?") — quote it from this rule: a Jordan 1 = SALE $100, any other Jordan = SALE $150 (the newest drop: the price search_inventory gives). Never tell a customer a Jordan "isn't showing up" or that you can't price it.
@@ -6728,6 +6729,29 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         await sendChunk(sub, [{ type: 'text', text: "Sorry about that 🙏 sending them again 👇" }].concat(_last.map(u => ({ type: 'image', url: framesUrl(u) }))), token, { account: ctx.store }).catch(() => {});
         await sendChunk(sub, [{ type: 'text', text: "Which one you like? 👟" }], token, { account: ctx.store }).catch(() => {});
         record(req, { endpoint: 'nosee-resent', sub, n: _last.length, q: _said.slice(0, 60) });
+        return;
+      }
+    }
+  } catch (_) {}
+  // 🔄 "CAN I SEE THE FRONT / BACK / SIDE / BOTTOM?" = THE REAL ANGLES (Rodney 11-16, TK 825-3043 asked to see the front of the Jordan 4
+  // Black Cat and Kiki said "the picture you just saw is the front view" - it was the side; "send all frames and make sure it never happens
+  // again"). Every shoe has a 36-frame turntable (<id>-0..35.jpg) next to its card: send the front, three-quarter, other side and back.
+  try {
+    const _said = String(customerWordsOnly(userText) || userText || '').trim();
+    const ANGLE = /\b(?:front|back|heel|sole|bottom|other side|side view|top view|toe|angles?|all (?:the )?(?:sides|views|pics|pictures)|close ?up|more (?:pics|pictures|photos) of (?:it|that|this|them|the shoe)|(?:another|different) (?:angle|view|pic|picture))\b/i;
+    if (!image && _said && _said.split(/\s+/).length <= 16 && ANGLE.test(_said) && /\b(?:see|show|send|have|got|pic|picture|photo|view|look)\b|\?/i.test(_said) && !/\b(?:house|home|yard|door|gate|road|street|lane|corner|location|deliver|delivery|drop|pick ?up|meet|car|work|office|store|shop)\b/i.test(_said)) {
+      const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _imgs = ((_th && _th.msgs) || []).filter(m => m && m.dir === 'out' && m.img && /-card(?:-[a-z]+)?\.jpg$/.test(m.img) && Date.now() - (m.ts || 0) < 3 * 3600 * 1000);
+      const _last = _imgs.length ? _imgs[_imgs.length - 1].img : '';
+      const _m = _last.match(/\/([A-Za-z0-9]+)-card(?:-[a-z]+)?\.jpg$/);
+      const _sh = _m ? liveShoeMap()[_m[1]] : null;
+      if (_sh && _sh.image) {
+        const _base = framesUrl(_sh.image).replace(/-(?:card|thumb|\d+)\.(?:jpe?g|png|webp)$/i, '');
+        const _frames = [6, 9, 15, 24, 27, 33].map(n => ({ type: 'image', url: _base + '-' + n + '.jpg' }));
+        try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _said, name: ctx.name }); } catch (_) {}
+        await sendChunk(sub, [{ type: 'text', text: 'Here it is from every angle 👇 ' + displayName(_sh) }].concat(_frames), token, { account: ctx.store }).catch(() => {});
+        await sendChunk(sub, [{ type: 'text', text: 'Want it? 👟' }], token, { account: ctx.store }).catch(() => {});
+        record(req, { endpoint: 'angles-sent', sub, shoe: String(_m[1]), q: _said.slice(0, 60) });
         return;
       }
     }
