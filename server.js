@@ -15829,7 +15829,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
   if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
   const t = inboxThreads.get(inboxSubIndex.get(sub) || '') || null;
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
-  const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
+  const token = (account && storeTokens.get(account)) || (t && storeTokens.get(t.account))
     || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store)) || lastToken || process.env.MANYCHAT_TOKEN || null;
   if (!token && !waChannel.get(sub)) return res.json({ ok: false, error: 'No account token for this customer yet.' });
   // Multi-size: the picker can send `sizes` (array) + `size_match` ("any" range, or "all"
