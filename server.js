@@ -6751,7 +6751,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // "Can I get more info on this?" with a text price list - Air Max 2021 $50, J1 Low $80, Drift $80 - Rodney: "rite now we got a sale,
   // would you like to see?"). A bare ad opener on a fresh chat gets exactly that, then the normal size -> album flow.
   try {
-    const _o = String(customerWordsOnly(userText) || userText || '').trim();
+    // The ad tap arrives with a long (SYSTEM: ...ad headline (with brackets)...) note in front - only the LAST line is their words.
+    const _o = String(userText || '').split(/\n|\)\s+/).map(x => x.trim()).filter(Boolean).pop() || '';
     const _hist = (convos.get(sub) || []).filter(m => m && m.role === 'assistant');
     if (/^(?:hello!?|hi!?|hey!?)?\s*can i get more info(?:rmation)? on this\??$/i.test(_o) && _hist.length === 0) {
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _o, name: ctx.name }); } catch (_) {}
