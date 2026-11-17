@@ -135,6 +135,12 @@ async function repinCardUrls() {
       const w = await fetch(`https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/${pin}/sb-wall.txt`);
       if (w.ok) { const ids = (await w.text()).split(/\s+/).filter(Boolean); for (const i of ids) { SB_CARD_IDS.add(i); SB_WALL_IDS.add(i); } console.log('[cards] shoebox wall ids', ids.length); }
     } catch (_) {}
+    // New Wave's wood-table + string-lights cards (Rodney 11-17: that look is NEW WAVE's, not OSC's) - nw-table.txt lists every id
+    // with a table -card-nw.jpg; they join the ad-price NW cards so New Wave sends them for every shoe that has one.
+    try {
+      const nw = await fetch(`https://raw.githubusercontent.com/forbesshalrick-dotcom/Sp242-frames/${pin}/nw-table.txt`);
+      if (nw.ok) { const ids = (await nw.text()).split(/\s+/).filter(Boolean); for (const i of ids) NW_CARD_IDS.add(i); console.log('[cards] new wave table ids', ids.length); }
+    } catch (_) {}
   } catch (e) { console.log('[cards] commit pin check failed (keeping ' + framesPin + '):', e.message); }
 }
 setTimeout(repinCardUrls, 0);
