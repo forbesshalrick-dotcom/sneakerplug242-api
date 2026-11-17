@@ -1868,7 +1868,10 @@ const INTERNAL_LEAK_RE = new RegExp([
   'please share their (?:question|message)',
   // 11-17 Shoebox Słime 551-6785 got "Got it! Ready to answer about the Air Jordan 4 SB ... they tagged. Please..." and "I appreciate the
   // detailed setup, but I'm not seeing the customer’s actual question" (curly apostrophe slipped past the line above).
-  'ready to (?:answer|reply|respond) (?:about|to)', 'detailed setup', 'one-?liner', 'in the right tone', 'response in the right', "\\bthey tagged\\b", "i'?m not seeing the customer",
+  'ready to (?:answer|reply|respond) (?:about|to)', 'detailed setup', 'one-?liner', 'in the right tone', 'response in the right',
+  // 11-17 NW 423-0241: "The customer said \"Yhh\" (yeah) in response to my album offer. They're looking at the pictures... I should acknowledge"
+  '\\bthe customer (?:said|says|just|is|asked|wants|sent|replied|responded|tagged|wrote)\\b', '\\bI should (?:acknowledge|wait|respond|keep|let|give|confirm|check|offer|not)\\b',
+  'in response to my', "\\bthey'?re (?:looking at|browsing|just browsing)\\b", 'no new (?:shoe )?request', "\\bthey tagged\\b", "i'?m not seeing the customer",
   'not replying to the repeated',
   'standing by for what they send',
   "i'?ll reply with one (?:warm )?line",
