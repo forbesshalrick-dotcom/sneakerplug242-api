@@ -15541,7 +15541,7 @@ app.post('/inbox/send', async (req, res) => {
   const account = b.account || (t && t.account) || (recentCustomers.get(sub) && recentCustomers.get(sub).store) || '';
   // Right account token: the customer's own account first, then env fallbacks. Direct-API
   // customers (waChannel) route to the Graph API inside sendChunk no matter the token.
-  const token = (t && storeTokens.get(t.account)) || (account && storeTokens.get(account))
+  const token = (account && storeTokens.get(account)) || (t && storeTokens.get(t.account))   // 11-17: the account the inbox asked for first - Socktakular's OSC sends went out on TK (thread filed there) and failed silently
     || (recentCustomers.get(sub) && storeTokens.get(recentCustomers.get(sub).store))
     || lastToken || process.env.MANYCHAT_TOKEN || null;
   if (!token && !waChannel.get(sub) && !isYcloudSub(sub)) return res.json({ ok: false, error: 'No account token learned for this customer yet — have them message the bot once, then reply.' });
