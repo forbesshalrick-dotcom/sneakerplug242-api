@@ -8627,7 +8627,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             // ManyChat drops the pin itself: a delivery card that says the pin was dropped IS the pin (Rodney 11-08, TK Busy 436-2224:
             // "Got your pin!" then "Just need your location pin" twice, the second time to "U know how far" while the driver drove there).
             || (m.sender === 'system' && /DELIVERY READY[\s\S]*dropped a WhatsApp location pin/i.test(m.text || ''))));
-        if (!_hasPin) {
+        /* 🚫📍 NOTHING FITS = NO PIN ASK (11-18, FB Samentha Nec: "No 8.5 in that one - only a size 10 ... Just need your location pin" -
+         * the pin line was this guard's default, put over a reply that had just said his size isn't there). When the reply denies
+         * their size, only the driver sentences go and the offer in their size takes their place. */
+        const _noFit = /\b(?:no |don'?t have (?:the |a |an )?|do not have (?:the |a |an )?|out of (?:the |a |an )?)(?:size |men'?s |women'?s )?\d{1,2}(?:\.5)?\b|\b(?:size )?\d{1,2}(?:\.5)? (?:is |are )?(?:sold out|gone|not (?:there|available|in stock))/i.test(turnText);
+        if (!_hasPin && _noFit) {
+          const _kept = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !/driver|on (?:the|his|our|my) way|location|pin\b|be there|bring it|team/i.test(x)).join(' ').trim();
+          record(req, { endpoint: 'no-fit-pin-ask-cut', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
+          turnText = ((_kept ? _kept + ' ' : '') + 'Want me to send you what we got in your size? 👟').trim();
+        } else if (!_hasPin) {
           record(req, { endpoint: 'no-pin-driver-talk-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
           turnText = 'Just need your location pin so the driver knows exactly where to bring it 📍 Tap 📎 (or ＋) → Location → Send your current location';
         }
