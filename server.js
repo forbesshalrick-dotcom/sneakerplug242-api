@@ -8827,7 +8827,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 🔗 NO "[TOTAL]" LINK (Rodney 2026-10-14: "How can I do a online payment…" got pay?amount=[TOTAL] and "just replace
      * [TOTAL] with the shoe price"; the pay page refuses a link with no amount). No shoe picked yet = no link: ask which
      * shoe and size, and the exact link follows. */
-    if (turnText && !staffName && feeBlocks < 1 && /\[\s*(TOTAL|AMOUNT|PRICE)\s*\]|amount=(?!\d)/i.test(turnText)) {
+    // 11-18 Shoe Lacky 829-8442 (Exuma, no shoe picked): "Card — pay?amount=180 (I'll update the total once you pick your shoe)" - a made-up
+    // total is a placeholder too.
+    if (turnText && !staffName && feeBlocks < 1 && (/\[\s*(TOTAL|AMOUNT|PRICE)\s*\]|amount=(?!\d)/i.test(turnText) || (/amount=\d/i.test(turnText) && /\b(?:update|adjust|change)\b[^.\n]{0,30}\btotal\b|\b(?:once|when|after)\s+you\s+(?:pick|choose|decide|select)\b/i.test(turnText)))) {
       feeBlocks++;
       record(req, { endpoint: 'pay-placeholder-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
