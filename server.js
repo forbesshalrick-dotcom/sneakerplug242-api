@@ -5786,6 +5786,19 @@ const reminderTick = setInterval(async () => {
         const _done = _th && (_th.msgs || []).some(m => m && (m.ts || 0) > _since && (
           (m.sender === 'system' && /DELIVERY READY|DELIVERED|SOLD/i.test(m.text || ''))
           || (m.dir === 'out' && /payment (?:confirmed|received)|got your receipt|driver'?s? (?:here|outside)/i.test(m.text || ''))));
+        // 11-18 NW Ej 551-7188: "Ok I'll just wait till December" on 11-17 and a staff "message us whenever you are ready" - and the
+        // chain still sent "Your next week order is ready" the next morning (its 4th in 4 days). A later date, a cancel, or a person
+        // stepping in since the booking ends it.
+        const _deferred = _th && (_th.msgs || []).some(m => m && (m.ts || 0) > _since && (
+          (m.dir === 'in' && m.sender !== 'system' && /\b(?:wait|hold off|later)\b[^.!?]{0,20}\b(?:till|until|til|to)\b|\b(?:next|in)\s+(?:month|year)\b|\b(?:december|january|february|christmas)\b|\bcancel|\bnever ?mind\b|\bnot (?:interested|anymore|no more)\b|\bdon'?t (?:want|need) (?:it|them|those)\b/i.test(m.text || ''))
+          || m.sender === 'rodney'));
+        if (_deferred) {
+          reminders = reminders.filter(x => String(x.sub || '') !== String(r.sub));
+          saveReminders();
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'reminder-skipped', sub: r.sub, kind: r.kind || 'day', why: 'customer-deferred-or-staff-stepped-in' });
+          if (recent.length > 120) recent.length = 120;
+          continue;
+        }
         const _ds = (() => { try { return driverNow(r.sub); } catch (_) { return null; } })();
         const _twice = Date.now() - (reminderSentAt.get(String(r.sub)) || 0) < 20 * 3600 * 1000;
         if (_done || (_ds && _ds.step === 'done') || _twice) {
