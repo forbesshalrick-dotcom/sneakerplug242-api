@@ -4169,7 +4169,7 @@ async function speakToVoiceNote(text, opt = {}) {
 }
 // then feed the text into the normal chat. Needs OPENAI_API_KEY in the env.
 const WHISPER_API = 'https://api.openai.com/v1/audio/transcriptions';
-const VOICE_HINT = 'Nassau, Bahamas sneaker shop. Places: Baha Mar, Cable Beach, Carmichael Road, Blue Hill Road, Prince Charles Drive, Fox Hill, Paradise Island, Coral Harbour, Golden Gates, Pinewood Gardens, Nassau Village, South Beach, Bay Street, Gladstone Road, Yamacraw, Eastern Road, Soldier Road, Mackey Street, Shirley Street, Robinson Road, Marathon Mall, Sea Breeze, Elizabeth Estates, Lyford Cay, Sandyport, Adelaide, Gambier, Wulff Road, Farrington Road, Bernard Road, Kemp Road, Palmdale, Oakes Field, Sunrise Highway, JFK Drive, Tonique Williams Highway, Harold Road, Cowpen Road, Faith Avenue, Millers Heights, Baillou Hill Road, East Street, Chippingham, Town Centre Mall, Fusion Superplex. Shoes: Air Force 1, Air Max 95, Air Max 97, Air Max Plus TN, VaporMax, Jordan 1, Jordan 4, Jordan 5, Jordan 11, Dunk, New Balance 9060, New Balance 1906, New Balance 2000, Nike Shox, Asics Gel-Kayano, Yeezy Foam Runner, Crocs. Sizes: 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13, ten and a half, thirteen.';
+const VOICE_HINT = 'Nassau, Bahamas sneaker shop. Places: Baha Mar, Cable Beach, Carmichael Road, Blue Hill Road, Prince Charles Drive, Fox Hill, Paradise Island, Coral Harbour, Golden Gates, Pinewood Gardens, Nassau Village, South Beach, Bay Street, Gladstone Road, Yamacraw, Eastern Road, Soldier Road, Mackey Street, Shirley Street, Robinson Road, Marathon Mall, Sea Breeze, Elizabeth Estates, Lyford Cay, Sandyport, Adelaide, Gambier, Wulff Road, Farrington Road, Bernard Road, Kemp Road, Palmdale, Oakes Field, Sunrise Highway, JFK Drive, Tonique Williams Highway, Harold Road, Cowpen Road, Faith Avenue, Millers Heights, Baillou Hill Road, East Street, Chippingham, Town Centre Mall, Fusion Superplex. Shoes: Air Force 1, Air Max 95, Air Max 97, Air Max Plus TN, VaporMax, Jordan 1, Jordan 4, Jordan 5, Jordan 11, Dunk, New Balance 9060, New Balance 1906, New Balance 2000, Nike Shox, Asics Gel-Kayano, Yeezy Foam Runner, Crocs. Islands: Freeport, Grand Bahama, Abaco, Marsh Harbour, Eleuthera, Harbour Island, Exuma, George Town, Andros, Long Island, Bimini, Inagua, Cat Island, San Salvador. Things customers say: do you ship to Freeport, do you all deliver, how much for shipping, the mail boat, what you got in my size. Sizes: 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5, 12, 13, ten and a half, thirteen.';
 async function transcribeAudio(url, mediaAuth, extraHeaders) {
   if (!process.env.OPENAI_API_KEY) return null;
   // mediaAuth: WhatsApp Cloud API media URLs need a Bearer token to download.
@@ -4194,7 +4194,11 @@ async function transcribeAudio(url, mediaAuth, extraHeaders) {
     });
     if (!r.ok) return null;
     const data = await r.json().catch(() => null);
-    return data && data.text ? String(data.text).trim() : null;
+    // 11-18 New Wave 813-3335: a 2-second "good morning, do you ship to Freeport?" came back as "are you trying to reach
+    // Dr. Fribourg?" and Kiki told a customer from our own ad she had the wrong number.
+    return data && data.text ? String(data.text).trim()
+      .replace(/\b(?:are you trying to|trying to|can you|do you)\s+reach\s+(?:dr\.?|doctor)\s+(?:fr[ei]+b(?:o?u)?rg|freeport|free\s*port)\b/gi, 'do you ship to Freeport')
+      .replace(/\b(?:fr[ei]+bo?urg|freiburg|free\s+port)\b/gi, 'Freeport') : null;
   };
   // gpt-4o-transcribe (Rodney 2026-07-24: noticed his phone's own dictation sounded more
   // accurate than Kiki's) is OpenAI's newer, more accurate model — better with accents than
@@ -8892,6 +8896,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       feeBlocks++;
       record(req, { endpoint: 'pay-placeholder-blocked', sub, store: ctx.store || '', text: turnText.slice(0, 140) });
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
+      continue;
+    }
+    /* ☎️ A CUSTOMER NEVER HAS "THE WRONG NUMBER" (Rodney 11-18, New Wave 813-3335: she tapped our ad, asked by voice note "do you
+     * ship to Freeport?", the transcriber heard "are you trying to reach Dr. Fribourg?" and Kiki answered "I think you might have the
+     * wrong number... did you mean to call someone else?" in text AND in a voice note). Whatever the words look like, they wrote
+     * to OUR shop: the draft is thrown away and rewritten. */
+    if (turnText && !staffName && feeBlocks < 2 && /\bwrong number\b|\b(?:mean|meant|trying|looking)\s+to\s+(?:call|reach|text|message|contact)\s+(?:someone|somebody)\s+else\b|\bwrong\s+(?:business|place|shop|person)\b/i.test(turnText)) {
+      feeBlocks++;
+      const _wasVoice = Date.now() - (voiceInAt.get(String(sub)) || 0) < 3 * 60 * 1000;
+      record(req, { endpoint: 'wrong-number-blocked', sub, store: ctx.store || '', voice: _wasVoice, text: turnText.slice(0, 140) });
+      history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: NEVER tell a customer they have the wrong number or ask if they meant to reach someone else. They messaged OUR sneaker shop on purpose'
+        + (_wasVoice ? ', and what you are reading is a VOICE NOTE that the transcriber often mishears - names of people, doctors or companies in it are almost always shop words heard wrong ("ship to Freeport" has come out as "reach Dr. Fribourg")' : '')
+        + '. Work out the closest thing a sneaker customer would ask - shipping to an island (Freeport, Abaco, Eleuthera, Exuma), delivery, a shoe, a size, the price, where we are - and answer THAT. If you truly cannot tell, say only: "Sorry, I didn\'t catch that 🙏 can you say it again or type it for me? 👟". The customer never saw your first draft, so do not apologise for it.)' });
       continue;
     }
     /* 🧾 KIKI NEVER CONFIRMS MONEY (Rodney 10-23 audit, TK Zion 803608823: a forwarded CIBC "has transferred 215.00 BSD … shared this
