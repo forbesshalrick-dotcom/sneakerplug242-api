@@ -10152,7 +10152,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _own = custSize.get(sub);
         const _ownWins = !!(_own && _own.fromCustomer && Date.now() - (_own.ts || 0) < 12 * 3600 * 1000 && parseFloat(_own.size) !== parseFloat(p.size));
         if (!_ownWins && p.size != null && String(p.size).trim() !== '' && !/all/i.test(String(p.size)))
-          try { custSize.set(sub, { size: String(p.size).trim(), ts: Date.now() }); saveConvos(); } catch (_) {}
+          // Their own size stays marked as theirs when her search repeats it (11-18 Alex Smith: "9half" at 07:55, her search rewrote the
+          // record without the flag, and at 11:33 every search in 9.5 was dropped as "a size he never gave").
+          try { custSize.set(sub, Object.assign({ size: String(p.size).trim(), ts: Date.now() }, (_own && _own.fromCustomer && parseFloat(_own.size) === parseFloat(p.size)) ? { fromCustomer: true, ts: _own.ts || Date.now() } : {})); saveConvos(); } catch (_) {}
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
         record(req, { endpoint: 'search', sub, params: p, found: found.length });
@@ -10269,6 +10271,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (!/\b(?:these|this|that|those|them|dem|dese|dis|dat|it)\b/.test(_cw)) return false;
         if (/\b(?:jordans?|aj\d*|j\d{1,2}|retro|force|forces|af1|af-1|dunks?|air ?max|95s?|97s?|90s?|plus|tns?|vapou?r ?max|nb|new balance|9060|550|2000|1000|asics|kayano|gel|yeezy|yeezys|foam|slides?|crocs?|vomero|shox|scorpion|mind|huarache|blazers?|cortez|sb|adidas|puma|samba|campus|ugg)\b/.test(_cw)) return false;
         if (/\(SYSTEM: they quote-replied OUR picture/.test(String(userText || ''))) return false;
+        // 11-18 New Wave Alex Smith 436-7086: he TAPPED our porch ad ("Hello! Can I get more info on this?" + the ad picture), she found
+        // the six ad shoes, and this hold threw the album away because of the word "this" - then she asked him to "send a pic of the ad".
+        // An ad tap carries the ad itself; "this" is the ad she was just handed.
+        if (/\(SYSTEM: this customer opened the chat by tapping one of OUR/.test(String(userText || ''))) return false;
         const _ids = [].concat((tu.input || {}).ids || [], ...(Array.isArray((tu.input || {}).groups) ? tu.input.groups.map(g => (g && g.ids) || []) : []));
         return _ids.length > 2;
       })()) {
