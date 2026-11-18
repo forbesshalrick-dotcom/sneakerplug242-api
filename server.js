@@ -7941,6 +7941,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
         _hits.sort((a, b) => b.len - a.len);
         if (_hits.length && (_hits.length === 1 || _hits[0].len > _hits[1].len)) captionPick = _hits[0].sh;
+        // 11-18 NW F 470-0503: "I want black for woman, right?" pinned the Kayano Grey/Silver/White and Kiki said "that's the one you
+        // picked". A colour they name that the pinned shoe doesn't have means they want a different pair - no pin.
+        if (captionPick) {
+          const _COL = ['black','white','grey','gray','red','blue','green','pink','purple','yellow','orange','brown','cream','beige','navy','teal','gold','silver','tan','olive','mint','coral'];
+          const _said = (String(customerWordsOnly(String(userText))).replace(/\(SYSTEM[\s\S]*?\)/g, '').toLowerCase().match(/[a-z]+/g) || []).filter(w => _COL.includes(w));
+          const _pc = String(captionPick.color || '').toLowerCase().replace(/gray/g, 'grey');
+          if (_said.some(w => !_pc.includes(w.replace('gray', 'grey')))) { record(req, { endpoint: 'caption-pick-colour-differs', sub, shoe: String(captionPick.id) }); captionPick = null; }
+        }
       }
     }
     if (captionPick) {
