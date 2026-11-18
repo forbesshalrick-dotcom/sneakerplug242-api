@@ -4349,6 +4349,18 @@ function sizeFromCustomerWords(text) {
     .replace(/\b\d+\s*(?:colou?rs?|colorways?|colourways?|shades?|styles?|kinds?|of (?:them|those|these|dem))\b/g, ' ')
     .replace(/\b\d[\d\s().-]{6,}\b/g, ' ')
     .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ')
+    // 🇪🇺 AN EU SIZE IS A US SIZE IN DISGUISE (11-18 04:02 New Wave +51 918-079082: "37 para mujer", "talla 40 para hombre" got "we stop at
+    // size 14" - we stock both). With a size word next to it, EU 35-48 becomes the US men's size (Nike chart; women's EU = US women's,
+    // which is US men's + 1.5).
+    .replace(/\b(?:talla|tallas|size|eu|euro|t\.?)\s*(3[5-9]|4[0-8])(?:[.,](5))?\b(?:\s*(?:para\s+|de\s+|for\s+)?(mujer|dama|damas|women|womens|woman|ladies|hombre|caballero|men|mens|man))?|\b(3[5-9]|4[0-8])(?:[.,](5))?\s*(?:eu\b|euro\b)?\s*(?:para\s+|de\s+|for\s+)(mujer|dama|damas|women|womens|woman|ladies|hombre|caballero|men|mens|man)\b/gi,
+      (all, a, ah, ag, b, bh, bg) => {
+        const eu = parseFloat((a || b) + ((ah || bh) ? '.5' : ''));
+        const women = /mujer|dama|wom|lad/i.test(ag || bg || '');
+        const MEN = { 35.5: 3.5, 36: 4, 36.5: 4.5, 37.5: 5, 38: 5.5, 38.5: 6, 39: 6.5, 40: 7, 40.5: 7.5, 41: 8, 42: 8.5, 42.5: 9, 43: 9.5, 44: 10, 44.5: 10.5, 45: 11, 45.5: 11.5, 46: 12, 47: 12.5, 47.5: 13, 48: 13.5 };
+        const near = k => { let best = null; for (const e of Object.keys(MEN).map(Number)) if (best === null || Math.abs(e - k) < Math.abs(best - k)) best = e; return MEN[best]; };
+        const us = near(eu);
+        return ' size ' + (women ? Math.max(us, 3.5) : us) + ' ';
+      })
     // A DATE IS NOT A SIZE (Rodney 11-17, New Wave 451-6649: "10 for dec 17" / "Dec17" made him a size 17 and he was asked his size three
     // more times). "dec 17", "dec17", "december 17th", "17 dec", "the 17th", "12/17".
     .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s*\d{1,2}(?:st|nd|rd|th)?\b/g, ' ')
