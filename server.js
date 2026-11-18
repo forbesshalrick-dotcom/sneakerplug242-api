@@ -8630,6 +8630,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'thief-got-scotia-not-cibc', sub });
       }
     } catch (_) {}
+    /* 🚨 THE THIEF NUMBERS PAY FIRST - IN EVERY REPLY THAT TALKS DELIVERY (Rodney: "nothing leaves without money"; 11-18 Shoe Lacky, Make It
+     * Happen 478-2955 picked two Jordans and got "Are you available now?" four times, then "Send me your location 📍 and we'll bring it
+     * straight to you" six seconds after the shop had told them payment comes first). For these two numbers any sentence about
+     * availability, location, the driver, bringing or paying on delivery is cut and the payment-first line takes its place. */
+    try {
+      const _thP = String(getPhone(req) || '').replace(/\D/g, '') + '|' + String(sub || '');
+      if (turnText && !staffName && ['2424782955', '2424666095'].some(n => _thP.includes(n))) {
+        const _delRe = /are you available|available now|send (?:me |us )?(?:your |the )?(?:location|pin)|location pin|where should (?:we|the driver|i)|where (?:do )?you want (?:it|them|to meet)|driver|on (?:the|our|his) way|bring (?:it|them|both)|deliver|drop (?:it|them) off|meet (?:you|up)|pay (?:when|on) (?:we|delivery|arrival)|cash on delivery|pay the driver/i;
+        if (_delRe.test(turnText)) {
+          const _keep = turnText.split(/(?<=[.!?👟🚗🔥🙏📍])\s+|\n+/).filter(x => x && !_delRe.test(x));
+          turnText = (_keep.join(' ').trim() + ' Payment comes first on this order 🙏 by bank transfer. Once it lands in our account we bring your order straight to you.').trim();
+          record(req, { endpoint: 'thief-payment-first', sub });
+        }
+      }
+    } catch (_) {}
     /* 📍 NO PIN = NO DRIVER TALK (Rodney 10-28: nothing about the team, the driver or a call until they shared a pin. Broken again
      * 11-03, FF Pengouin 429-2588: no pin, only "Podoleo Street", and he was told "Your location is already sent to the team" and
      * "Driver's close — he'll be there before 3" - both made up; he waited for 3 PM work). The line is replaced, not re-asked. */
