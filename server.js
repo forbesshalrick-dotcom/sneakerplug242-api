@@ -11330,7 +11330,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (process.env.VOICE_REPLY !== '0' && !staffName && sentToCustomer && lastText && Date.now() - _vin < 3 * 60 * 1000 && _native) {
       voiceInAt.delete(String(sub));
       // The owner's translation line is never SPOKEN (FF Kris 10-20 15:38: the voice note read out "🔎 Customer said: ..." to him).
-      const _spoken = String(lastText).replace(/^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim, '').trim();
+      // 11-18 New Wave Sabrina 472-5267 ("I hope this ain't no scam"): the TEXT went out guarded ("You can check them out in person
+      // before you pay") but the voice note read her raw draft aloud: "All legit". The spoken words go through the same guards as the
+      // written ones.
+      let _guarded = String(lastText);
+      try { _guarded = adPriceInText(sub, noAuthClaim(islandGuard(sub, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(_guarded)))), sub)); } catch (_) {}
+      const _spoken = String(_guarded).replace(/^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim, '').trim();
       const _url = _spoken ? await speakToVoiceNote(_spoken) : null;
       if (_url) {
         const _r = await sendChunk(sub, [{ type: 'audio', url: _url }], token).catch(() => null);
