@@ -9485,7 +9485,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (theirShoeTheirSize.length) {
             try {
               model = model.split(' ').filter((w, i, a) => a.indexOf(w) === i).join(' ');   // "air force 1 air force 1" → once
-              const _lead = 'Here go the ' + (model || 'ones') + ' I got in your '
+              // Only words that are in the names of the shoes going out (11-18 Shoebox 803-8623: "What y'all have in air max" + "a block
+              // on Gray" became "Here go the what air max block I got in your 10").
+              const _nmW = new Set(theirShoeTheirSize.map(r => String(r.name || '').toLowerCase()).join(' ').split(/[^a-z0-9]+/).filter(Boolean));
+              const _leadModel = model.split(' ').filter(w => _nmW.has(String(w).toLowerCase())).join(' ');
+              const _lead = 'Here go the ' + (_leadModel || 'ones') + ' I got in your '
                 + (theirSize || 'size') + ' 👟';
               const _r = await sendShoePhotos(sub, theirShoeTheirSize.map(r => r.id), token, null, _lead, false, false, ctx.turnAt || 0, true);
               _sentHere = (_r && _r.sent) || 0;
@@ -9701,8 +9705,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     /* 📸 A PICTURE IS NOT A YES (Luxury Boutique's first ad customer 10-21 16:20: three screenshots of the 9060, no size given, and the
      * third one got "Bet 🔥 Send me your location"). A turn with no words never asks for the location. */
-    if (turnText && !staffName && image && !String(userText || '').split('(SYSTEM')[0].trim() && /send (?:me )?your location/i.test(turnText)) {
-      turnText = turnText.replace(/(?:^|\n)[^\n]*send (?:me )?your location[^\n]*/gi, '').trim() || 'What size you need? \u{1f45f}';
+    // 11-18 Shoebox carltonadderley10 803-8623: he TAGGED our Air Max Plus card and wrote "This one", size 10 already given - twice. The
+    // tag note sits in front of his words, so the turn read as wordless and he got "What size you need?" both times. His own words are
+    // what follows the tag note; and when the size is known the fallback never asks for it again.
+    const _ownWords = (() => { const u = String(userText || ''); const m = /^\(SYSTEM: the customer TAGGED[\s\S]*?\.\)\n([\s\S]*)$/.exec(u); return (m ? m[1] : u.split('(SYSTEM')[0]).trim(); })();
+    if (turnText && !staffName && image && !_ownWords && /send (?:me )?your location/i.test(turnText)) {
+      const _pz = (() => { try { const z = custSize.get(sub); return (z && z.size) ? String(z.size) : ''; } catch (_) { return ''; } })();
+      turnText = turnText.replace(/(?:^|\n)[^\n]*send (?:me )?your location[^\n]*/gi, '').trim() || (_pz ? 'Want this one in your ' + _pz + '? \u{1f45f}' : 'What size you need? \u{1f45f}');
       record(req, { endpoint: 'photo-not-a-yes', sub });
     }
     /* 📍 "WE ALL LOCATED" IS "WHERE Y'ALL LOCATED?" (Rodney 11-17, New Wave 451-6649: "We all located" got "🙌 Perfect! What size you
