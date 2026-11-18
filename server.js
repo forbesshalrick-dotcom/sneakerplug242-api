@@ -15816,6 +15816,9 @@ app.post('/inbox/send', async (req, res) => {
   const b = (req.body && typeof req.body === 'object') ? req.body : {};
   const sub = String(b.sub || '').replace(/[^0-9]/g, '');
   let text = String(b.text || '').trim();
+  // 🏦 "send cibc" (Rodney 11-18, standing with a customer who pays by transfer): bank:'cibc'|'scotia'|'suncash' adds OUR bank block,
+  // built here from OUR_BANKS - the one copy - so nobody ever retypes an account number into a message.
+  try { const _bk = String(b.bank || '').toLowerCase().trim(); if (_bk && OUR_BANKS.some(x => x.key === _bk)) text = (text ? text + '\n\n' : '') + bankBlock(_bk); } catch (_) {}
   const imageUrl = String(b.imageUrl || '').trim();
   const audioUrl = String(b.audioUrl || '').trim();
   const quote = String(b.quote || '').trim();
