@@ -10204,6 +10204,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _rs = recentlySent.get(sub);
         if (!_rs || !_rs.ts || Date.now() - _rs.ts > 15 * 60000 || !Array.isArray(_rs.names) || _rs.names.length < 3) return false;
         const _cw = customerWordsOnly(String(userText || '')).toLowerCase();
+        // 11-18 NW +51 918-079082 asked "Air max", then "new balance talla 40": both albums were held as repeats and Kiki said
+        // "they're up there" - she had never seen one Air Max or NB. Only hold when most of these shoes already went out.
+        const _seen = new Set((_rs.order || []).map(String));
+        if (_seen.size && _ids.filter(x => _seen.has(String(x))).length * 2 < _ids.length) return false;
+        if (/\b(?:no (?:me )?(?:lleg[oó]|ha llegado)|nada|didn'?t (?:get|come|see)|did not (?:get|come)|not (?:there|showing)|can'?t see|nothing came|no veo|no me (?:as|has) enviado)\b/.test(_cw)) return false;
         return !/\b(?:more|other|others|else|different|another|next|rest|show me|send (?:me )?(?:more|all|the rest)|all (?:the )?(?:jordans?|nikes?|shoes|of them))\b/.test(_cw);
       })()) {
         record(req, { endpoint: 'repeat-album-held', sub });
