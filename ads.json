@@ -218,13 +218,13 @@
     {
       "id": "nw-pink-drop",
       "shop": "New Wave",
-      "label": "PINK DROP poster, $100 EACH, delivery available: Jordan 4 white/purple-pink, New Balance 2002R pink, New Balance 530 white/pink, ASICS Gel-1130 black/pink, ASICS Gel-Kayano 14 pink/silver (Rodney 11-16: 445-0250 tapped it and got a Dunk that is not on it)",
+      "label": "PINK DROP poster, $100 EACH EXCEPT the Jordan 4 which is $150 (Rodney 11-18: \"150\"), delivery available: Jordan 4 white/purple-pink, New Balance 2002R pink, New Balance 530 white/pink, ASICS Gel-1130 black/pink, ASICS Gel-Kayano 14 pink/silver (Rodney 11-16: 445-0250 tapped it and got a Dunk that is not on it)",
       "caption": "DM to order - delivery available",
       "shoes": [
         {
           "id": "jordan4purple002",
           "name": "Jordan 4 White/Pink-Purple",
-          "price": 100
+          "price": 150
         },
         {
           "id": "c0393",
