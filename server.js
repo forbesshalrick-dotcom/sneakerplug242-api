@@ -3445,6 +3445,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
           const t2 = resp && resp.ok && resp.data && Array.isArray(resp.data.content) && resp.data.content.find(c => c.type === 'text');
           if (t2 && t2.text && t2.text.trim()) line = t2.text.trim().slice(0, 400);
         } catch (e) { /* fall through to the stock line */ }
+        // Never ask their size in the middle of their own size album (Rodney 11-17, New Wave 825-7561: said "7", the 7 album started,
+        // and this quick answer - which never sees the size - said "Got you! What size you need?"). A size question here is dropped.
+        if (line && SIZE_REASK_RE.test(line)) { recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-size-ask-dropped', sub, line: line.slice(0, 80) }); return; }
         await sendChunk(sub, [{ type: 'text', text: line || `Good question! One sec — let me finish sending these and I'll answer you right after 👟` }], token);
       }
     } catch (e) { /* non-fatal */ }
