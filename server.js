@@ -1664,6 +1664,26 @@ function namedSizeWrong(turnText, shoes) {
   }
   return null;
 }
+/* 🙅 "THAT ONE DOESN'T COME IN AN 8" MUST BE TRUE (11-18 TK Casper 819-6850: he asked for black and white Jordan 4s in an 8, she offered the
+ * Pure Platinum at $120, then wrote "Hold up — that Pure Platinum actually doesn't come in an 8. My bad!" - it does). A sentence that
+ * denies a size on a shoe it names by nickname, or by name and colour, is checked against that shoe; returns the shoe when it HAS the size. */
+function namedSizeDeniedWrongly(turnText, shoes) {
+  const all = (shoes || []).filter(x => x && !x.sold && x.name);
+  for (const sen of String(turnText || '').split(/(?<=[.!?\n])\s+|\n+|(?<=\p{Extended_Pictographic})\s+/u)) {
+    const sl = sen.toLowerCase();
+    const m = /(?:doesn'?t|don'?t|does not|do not|isn'?t|not) (?:actually |really |even )?(?:come|have|got|carry|available|in stock|there)[^.!?\n]{0,30}?\b(?:in (?:a |an |your |the )?(?:size )?|size )(\d{1,2}(?:\.5)?)\b|\bno (\d{1,2}(?:\.5)?) in (?:that|the|this)\b/.exec(sl);
+    if (!m) continue;
+    const n = parseFloat(m[1] || m[2]); if (!(n >= 3 && n <= 16)) continue;
+    if (/\b(women'?s|womens|ladies|kids?)\b/.test(sl)) continue;
+    const byNick = all.filter(x => x.nickname && String(x.nickname).length >= 5 && sl.includes(String(x.nickname).toLowerCase()));
+    const byNameCol = all.filter(x => String(x.name).length >= 6 && sl.includes(String(x.name).toLowerCase()) && x.color && String(x.color).length >= 4 && sl.includes(String(x.color).toLowerCase()));
+    const hit = byNick.length ? byNick : byNameCol;
+    if (!hit.length || hit.length > 2) continue;
+    const has = hit.filter(x => (x.sizesRaw || []).some(z => parseFloat(z) === n));
+    if (has.length === hit.length) return { shoe: has[0], size: n };
+  }
+  return null;
+}
 function adPriceInText(sub, t) {
   try {
     const st = storeOfSub(sub); if (!st) return t;
@@ -8838,6 +8858,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     if (turnText && !staffName && namedSizeBlocks < 1) {
       try {
+        const _nsd = namedSizeDeniedWrongly(turnText, Object.values(liveShoeMap()));
+        if (_nsd) {
+          namedSizeBlocks++;
+          record(req, { endpoint: 'named-size-denied-wrongly', sub, store: ctx.store || '', shoe: String(_nsd.shoe.id), size: _nsd.size, text: turnText.slice(0, 120) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply said the ' + displayName(_nsd.shoe) + ' does not come in a ' + _nsd.size + '. It DOES - it is on the shelf in: ' + (sizesOf(_nsd.shoe) || '') + ', $' + adPrice(_nsd.shoe, ctx.store, sub) + '. Rewrite your reply: confirm that shoe in their ' + _nsd.size + ' with its price and ask if they want it. Do not apologise for a mistake you did not make and do not switch them to another shoe.)' });
+          continue;
+        }
         const _nsw = namedSizeWrong(turnText, Object.values(liveShoeMap()));
         if (_nsw) {
           namedSizeBlocks++;
