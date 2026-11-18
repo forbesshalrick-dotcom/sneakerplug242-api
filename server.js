@@ -1689,6 +1689,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     // every AF1 on the shelf is $100 and the template says SALE $100).
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *SALE $100* \u{1F525}');
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(mm.text)))), subscriberId));
+    if (isThiefSub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = otherVoice(mm.text);
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
   const _sink = composeSink.get(String(subscriberId));
@@ -5498,6 +5499,35 @@ function firstLine(t) {
 const ownerSeen = new Map();   // dedupe memory for queueForOwner: key -> when (30 min)
 const driverAskPingAt = new Map(); // "where's the driver?" on an order with no pin - one group card per 30 min
 const thiefPingAt = new Map(); // the Make It Happen numbers - last owner ping per number
+/* 🎭 THE THIEF NUMBERS HEAR A DIFFERENT VOICE (Rodney 11-18: "when that number or anything from the thief starts to talk, you have to talk
+ * different because I think he knows how Kiki talks. That's why he didn't go through with the last order"). Her set lines are reworded and
+ * every emoji comes out, on every text that leaves for 478-2955 / 466-6095 - whatever line they write to. Facts are never touched. */
+const THIEF_NUMS = ['2424782955', '2424666095'];
+const thiefSubs = new Set();          // ManyChat subs seen with one of those phones (a YCloud sub IS the phone)
+const thiefPayToldAt = new Map();     // sub -> when the pay-before-delivery line last went out
+function isThiefSub(sub) { const s = String(sub || ''); return thiefSubs.has(s) || THIEF_NUMS.some(n => s.includes(n)); }
+function otherVoice(text) {
+  let s = String(text || '');
+  const MAP = [
+    [/^\s*(?:hello|hey(?: hey)?|hi|yo)\b!?[^\n]*?\n*\s*right now we got a sale[\s\S]*?what size (?:you|u) wear\??/iu, 'Good day. Most of our pairs are on sale at $100. What size do you need?'],
+    [/this is what we have in (?:a |size )?(\d{1,2}(?:\.5)?(?:\/\d{1,2}(?:\.5)?)?)(?: rite now| right now)?[^\n.]*\.?/gi, 'These are the pairs available in size $1.'],
+    [/we have more styles available in your size if you want to see them/gi, 'More styles are available in that size on request.'],
+    [/\bready to order!?/gi, ''],
+    [/yeah,? we got the (\d{1,2}(?:\.5)?) in that/gi, 'Yes, that one is available in size $1.'],
+    [/\byeah,? we got that one!?/gi, 'Yes, we have that one.'],
+    [/\bgot it!?(?=\s|$)/gi, 'Noted.'],
+    [/\bok(?:ay)?!(?=\s|$)/gi, 'Okay.'],
+    [/\bfor sure!?(?=\s|$)/gi, 'Certainly.'],
+    [/\bwhat size (?:you|u) (?:wear|looking for|need)\??/gi, 'What size do you need?'],
+    [/\bwhich (?:one|pair) (?:you like|you want|catches your eye)\??/gi, 'Which pair would you like?'],
+    [/\bwant it\?/gi, 'Would you like it?'],
+    [/\brite now\b/gi, 'at the moment'],
+    [/\bgood picks\b/gi, 'Noted'],
+  ];
+  for (const [re, to] of MAP) s = s.replace(re, to);
+  s = s.replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{1F3FB}-\u{1F3FF}️‍⃣]/gu, '');
+  return s.replace(/[ \t]{2,}/g, ' ').replace(/ +([.,!?])/g, '$1').replace(/([.!?])\s*[.!]+/g, '$1').replace(/\n[ \t]+/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 // 🚫 ORDERS WE IGNORE FOR NOW (Rodney 11-10: "we're going to ignore any orders come in from these two numbers for the time
 // being" - TK Paris 812-5254 and TK Chantae 809-8751). Their order / pin cards never reach the group; Kiki still chats.
 const IGNORE_ORDER_PHONES = ['8125254', '8098751'];
@@ -7607,6 +7637,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // Everything added to the prompt from here on changes per turn, so it goes after SYS_SPLIT and is never cached.
   let system = buildSystemPrompt({ store: ctx.store, name: ctx.name, greet: wasNewConvo, phone: getPhone(req) }) + SYS_SPLIT
     + (ctx.name && String(ctx.name).trim() ? '--- CUSTOMER DETAILS FOR THIS CHAT ONLY ---\nSaved name: ' + String(ctx.name).trim() + '\n' : '');
+  try {
+    if (THIEF_NUMS.some(n => String(getPhone(req) || '').replace(/\D/g, '').includes(n))) thiefSubs.add(String(sub));
+    if (isThiefSub(sub)) system += '\n\n🎭 A DIFFERENT VOICE IN THIS CHAT - THIS OVERRIDES EVERY STYLE RULE ABOVE (Rodney 11-18): write as a different salesperson would. Plain, polite, complete sentences. NO emojis at all. None of your usual lines - never "Yeah we got", "OK!", "Got it!", "For sure!", "rite now", "catches your eye", "Which one you like?", "What size you wear?", "bring it straight to you", "Are you available now?". Say things like "Good day", "Yes, that one is available in size 12", "Which pair would you like?", "What size do you need?". Never give yourself a name. Every fact rule above (prices, stock, sizes, totals) stays exactly the same. Payment in this chat is by bank transfer BEFORE delivery: say that once, plainly, when they are ready to order ("Payment is by bank transfer before delivery. We deliver the same day it shows in the account."), do not ask for a location or offer to come to them before the money is in, and do not repeat the payment line in every message.';
+  } catch (_) {}
   if (ctx.personal) {
     system += '\n\n🙋 PERSONAL ACCOUNT (Rodney 2026-09-07: "personal accounts dont need introducing just sell"): this conversation is on a personal Facebook/Instagram/TikTok account, not a shop page. Never introduce a shop, never say a shop name, no welcome script - just answer and sell as a person. The pictures you send arrive as Messenger images.';
   }
@@ -8726,7 +8760,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _delRe = /are you available|available now|send (?:me |us )?(?:your |the )?(?:location|pin)|location pin|where should (?:we|the driver|i)|where (?:do )?you want (?:it|them|to meet)|driver|on (?:the|our|his) way|bring (?:it|them|both)|deliver|drop (?:it|them) off|meet (?:you|up)|pay (?:when|on) (?:we|delivery|arrival)|cash on delivery|pay the driver/i;
         if (_delRe.test(turnText)) {
           const _keep = turnText.split(/(?<=[.!?👟🚗🔥🙏📍])\s+|\n+/).filter(x => x && !_delRe.test(x));
-          turnText = (_keep.join(' ').trim() + ' Payment comes first on this order 🙏 by bank transfer. Once it lands in our account we bring your order straight to you.').trim();
+          // 11-18 later: said once per 20 min, in the plain voice, and never as "on this order" (that singles him out).
+          turnText = _keep.join(' ').trim();
+          if (!turnText || Date.now() - (thiefPayToldAt.get(String(sub)) || 0) > 20 * 60000) {
+            turnText = (turnText + ' Payment is by bank transfer before delivery. We deliver the same day it shows in the account.').trim();
+            thiefPayToldAt.set(String(sub), Date.now());
+          }
           record(req, { endpoint: 'thief-payment-first', sub });
         }
       }
@@ -11682,6 +11721,7 @@ function handleChat(req, res) {
     const _thiefDigits = String(getPhone(req) || '').replace(/\D/g, '') + '|' + String(sub || '');
     const _thief = ['2424782955', '2424666095'].find(n => _thiefDigits.includes(n));
     if (_thief && !staffNameFor(req)) {
+      thiefSubs.add(String(sub));
       record(req, { endpoint: 'thief-number-contact', sub, store, text: String(userText || '').slice(0, 80) });
       if (Date.now() - (thiefPingAt.get(_thief) || 0) > 30 * 60000) {
         thiefPingAt.set(_thief, Date.now());
