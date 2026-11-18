@@ -8952,6 +8952,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       } catch (_) {}
     }
+    /* 🎨 "NO PINK IN A 9" WHILE PINK SITS ON THE SHELF IN A 9 (Rodney 11-18 "did you check that if Kiki said it's not available, that it's
+     * actually not available?" - New Wave Matoo 432-2098: "I need pink" got "No pink in a 9 right now 🙏" one second after her own search
+     * returned 7 pink pairs in a 9; she then offered two of the five). A colour denied for a size is checked against live stock: if pairs
+     * in that colour and size exist, the draft goes back with every one of them listed. */
+    if (turnText && !staffName && feeBlocks < 2) {
+      try {
+        const _cm = /\bno (black|white|red|blue|pink|grey|gray|green|purple|yellow|orange|brown|cream|navy|silver|gold|teal)\b(?: (?:ones?|pairs?|shoes?|colou?r))? (?:in|for) (?:a |an |your |the |size )*(\d{1,2}(?:\.5)?)\b|(?:don'?t|do not) have (?:any |no )?(black|white|red|blue|pink|grey|gray|green|purple|yellow|orange|brown|cream|navy|silver|gold|teal)\b(?: (?:ones?|pairs?|shoes?))? (?:in|for) (?:a |an |your |the |size )*(\d{1,2}(?:\.5)?)\b/i.exec(turnText);
+        if (_cm) {
+          const _col = String(_cm[1] || _cm[3]).toLowerCase().replace('gray', 'grey'); const _csz = parseFloat(_cm[2] || _cm[4]);
+          const _hit = Object.values(liveShoeMap()).filter(x => x && !x.sold && new RegExp('\\b' + _col + '\\b', 'i').test(String(x.color || '').replace(/gray/gi, 'grey')) && (x.sizesRaw || x.sizes || []).some(v => parseFloat(v) === _csz));
+          if (_hit.length) {
+            feeBlocks++;
+            const _show = _hit.slice(0, 8);
+            record(req, { endpoint: 'colour-denial-false', sub, store: ctx.store || '', colour: _col, size: _csz, n: _hit.length });
+            history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you wrote that there is no ' + _col + ' in a ' + _csz + '. That is FALSE - live stock has ' + _hit.length + ' ' + _col + ' pair' + (_hit.length === 1 ? '' : 's') + ' in a ' + _csz + ': '
+              + _show.map(x => displayName(x) + ' (id ' + x.id + ', $' + adPrice(x, ctx.store, sub) + ')').join('; ')
+              + '. Rewrite without the denial: one short line ("Here is the ' + _col + ' we have in your ' + _csz + ' 👇") and send their pictures with send_photos using exactly ids ' + JSON.stringify(_show.map(x => String(x.id))) + ', Jordans last, then ask which one they like. The customer never saw your first draft.)' });
+            continue;
+          }
+        }
+      } catch (_) {}
+    }
     /* ☎️ A CUSTOMER NEVER HAS "THE WRONG NUMBER" (Rodney 11-18, New Wave 813-3335: she tapped our ad, asked by voice note "do you
      * ship to Freeport?", the transcriber heard "are you trying to reach Dr. Fribourg?" and Kiki answered "I think you might have the
      * wrong number... did you mean to call someone else?" in text AND in a voice note). Whatever the words look like, they wrote
