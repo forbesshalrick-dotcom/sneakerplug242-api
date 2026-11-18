@@ -10581,6 +10581,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // No shoe to send = no "in your 5.5 👇" either (Dicienzo drill 10-15: she called send_photos with no ids after a
           // size bounce, and the lead-in went out pointing at nothing).
           : await sendShoePhotos(sub, inp.ids, token, inp.groups, ((inp.ids || []).length || (Array.isArray(inp.groups) && inp.groups.some(g => g && g.ids && g.ids.length))) ? leadIn : '', _picsOnly, !!staffName, ctx.turnAt || 0, _sizeKnown);
+        /* 📏 THE SIZE THEY ASKED FOR ISN'T ON THE CARD = SAY SO (11-18 Shoebox Alex Smith 436-7086: "Black air force u have in 9half" got
+         * "Here it is 👇" and the AF1 All Black card - it comes in 9 and 10, no 9.5). One to three shoes sent, none in the exact size
+         * they just typed: the shop says it straight away, with the nearest sizes, from code. */
+        try {
+          const _askSz = sizeFromCustomerWords(customerWordsOnly(String(userText || '')));
+          const _ids3 = [].concat(inp.ids || [], ...(Array.isArray(inp.groups) ? inp.groups.map(g => (g && g.ids) || []) : []));
+          if (!staffName && _askSz && result && result.sent > 0 && _ids3.length >= 1 && _ids3.length <= 3) {
+            const _lmZ = liveShoeMap(); const _shs = _ids3.map(i => _lmZ[i]).filter(Boolean);
+            const _want = parseFloat(_askSz);
+            if (_shs.length && !_shs.some(x => (x.sizesRaw || x.sizes || []).some(z => parseFloat(z) === _want))) {
+              const _all = [...new Set(_shs.flatMap(x => (x.sizesRaw || x.sizes || []).map(z => parseFloat(z))).filter(z => !isNaN(z)))].sort((a, b) => Math.abs(a - _want) - Math.abs(b - _want) || a - b);
+              const _near = _all.slice(0, 2).sort((a, b) => a - b);
+              if (_near.length) {
+                const _nm = _shs.length === 1 ? 'That one' : 'Those';
+                const _line = _nm + " doesn't come in a " + _askSz + ' 🙏 closest we have is ' + _near.join(' and ') + '. Want ' + (_near.length > 1 ? 'one of those' : 'the ' + _near[0]) + '? 👟';
+                await sendChunk(sub, [{ type: 'text', text: _line }], token, { account: ctx.store }).catch(() => {});
+                result.note = (result.note ? result.note + ' ' : '') + 'ALREADY TOLD THEM: "' + _line + '" - do not repeat it and never say it comes in ' + _askSz + '.';
+                record(req, { endpoint: 'asked-size-missing-told', sub, size: _askSz, near: _near.join('/') });
+              }
+            }
+          }
+        } catch (_) {}
         // 👠 Tell her the truth about the women's album she just sent, so her words match
         // the labels the customer is reading (Rodney 2026-08-04).
         if (womensExactCount != null && womensTotalCount > 0) {
