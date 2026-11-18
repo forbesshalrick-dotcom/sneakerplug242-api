@@ -15384,6 +15384,10 @@ app.post('/inbox/driver', (req, res) => {
   // dispatched flag meant, so keep it in step for everything already reading it.
   if (step === 'taken' || step === 'done' || step === 'gotloc') driverDispatchedAt.delete(sub);
   if (step === 'done') { try { const _n = reminders.length; reminders = reminders.filter(r => String(r.sub || '') !== String(sub)); if (reminders.length !== _n) saveReminders(); } catch (_) {} }
+  // ✅ DONE PRESSED = THE "DID THIS ONE GO THROUGH?" CHASE IS ANSWERED TOO (11-18: Virgo Princess's ASICS was delivered, rung up and marked
+  // done at 12:33, and Rodney's phone still got "2 DELIVERIES STILL NEED AN ANSWER" at 12:57, 13:22 and 13:42). The stock write already
+  // happened through the Done button or the register, so the open delivery record for this customer is only closed, never re-booked.
+  if (step === 'done') { try { const _day = nassauNow().toISOString().slice(0, 10); let _c = 0; for (const d of deliveriesToday) if (d && String(d.sub || '') === String(sub) && d.day === _day && d.confirmed === null) { d.confirmed = true; d.closedBy = 'inbox-done'; _c++; } if (_c) { saveDeliveries(); record(req, { endpoint: 'delivery-chase-closed-by-done', sub, n: _c }); } } catch (_) {} }
   else driverDispatchedAt.set(sub, Date.now());
   record(req, { endpoint: 'driver-step', sub, step });
   // ✅ Delivered — ring it up so the pair cannot be sold twice. See deliveredPair above.
