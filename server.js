@@ -1634,6 +1634,36 @@ function fixOrderTotal(text, askedDeal) {
   }
   return { text: fixed ? lines.join('\n') : src, fixed };
 }
+/* 📏 A NAMED SHOE "IN A <size>" MUST COME IN THAT SIZE (11-18 TK Moe 558-5281: "The Nike Mind 001 in an 11 is $120" - it stops at 10 and is
+ * $100 - then "the New Balance 9060 — Black/White in both 11 and 12" - it stops at 11; both were promised for delivery). The older
+ * size-claim guard only reads sentences with got/have/available in them. This one reads any sentence that names a live shoe and gives a
+ * size for it, narrows by the colour or nickname in the same sentence, and returns the sizes that shoe does not have. */
+function namedSizeWrong(turnText, shoes) {
+  const all = (shoes || []).filter(x => x && !x.sold && x.name);
+  const names = [...new Set(all.map(x => String(x.name).toLowerCase()))].filter(n => n.length >= 6).sort((a, b) => b.length - a.length);
+  const pieces = String(turnText || '').split(/(?<=[.!?\n])\s+|\n+|(?<=\p{Extended_Pictographic})\s+/u)
+    .flatMap(s => s.split(/,\s+and\s+(?=the\b)|;\s+|\s+and\s+(?=the\s)/i));
+  for (const sen of pieces) {
+    const sl = sen.toLowerCase();
+    if (/\b(no|not|don'?t|doesn'?t|out|sold|isn'?t|aren'?t|only|closest|nearest|instead|stops?|biggest|smallest|up to|which|what|women'?s|womens|ladies|kids?)\b|\?/.test(sl)) continue;
+    const nm = names.find(n => sl.includes(n)); if (!nm) continue;
+    if (names.some(n => n !== nm && !nm.includes(n) && sl.includes(n))) continue;      // two different shoes in one clause - cannot tell whose size it is
+    const rest = sl.split(nm).join(' ').replace(/\$\s*\d+(?:\.\d+)?/g, ' ');
+    const sizes = [];
+    for (const m of rest.matchAll(/\b(?:in (?:a |an |your |the |my )?(?:size )?|size )(\d{1,2}(?:\.5)?)\b(?!\s*(?:pairs?|pics?|photos?|%|am|pm|mins?|minutes?|hours?|days?|colou?rs?|styles?))/g)) sizes.push(parseFloat(m[1]));
+    for (const m of rest.matchAll(/\bin both (?:a |an |the )?(\d{1,2}(?:\.5)?) and (?:a |an |the )?(\d{1,2}(?:\.5)?)\b/g)) { sizes.push(parseFloat(m[1])); sizes.push(parseFloat(m[2])); }
+    const want = [...new Set(sizes)].filter(n => n >= 3 && n <= 16);
+    if (!want.length) continue;
+    let pool = all.filter(x => String(x.name).toLowerCase() === nm);
+    const byNick = pool.filter(x => x.nickname && String(x.nickname).length >= 4 && sl.includes(String(x.nickname).toLowerCase()));
+    const byCol = pool.filter(x => x.color && String(x.color).length >= 4 && sl.includes(String(x.color).toLowerCase()));
+    if (byNick.length) pool = byNick; else if (byCol.length) pool = byCol;
+    const has = n => pool.some(x => (x.sizesRaw || []).some(z => parseFloat(z) === n));
+    const bad = want.filter(n => !has(n));
+    if (bad.length) return { name: nm, bad, pool: pool.slice(0, 5) };
+  }
+  return null;
+}
 function adPriceInText(sub, t) {
   try {
     const st = storeOfSub(sub); if (!st) return t;
@@ -8060,6 +8090,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let lastSimilarIds = [];  // same-family pairs in their size when the model they named stops short of it (10-23 Air Max 97 in 13)
   let lastSearchIds = [];    // the ids that search matched — our pictures go to Kiki beside the customer's photo
   let sizeClaimBlocks = 0;   // the size-claim guard may bounce one reply per turn
+  let namedSizeBlocks = 0;   // a named shoe offered in a size it does not come in is bounced once per turn
   let deadEnds = 0;            // saying "we're out" and stopping, with stock we could have offered
   let askedPermission = 0;     // "want me to send those?" instead of just sending
   let resendDroppedNames = [];  // pictures not re-sent this turn because the chat already has them
@@ -8801,6 +8832,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         } else if (!_hasPin) {
           record(req, { endpoint: 'no-pin-driver-talk-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
           turnText = 'Just need your location pin so the driver knows exactly where to bring it 📍 Tap 📎 (or ＋) → Location → Send your current location';
+        }
+      } catch (_) {}
+    }
+    if (turnText && !staffName && namedSizeBlocks < 1) {
+      try {
+        const _nsw = namedSizeWrong(turnText, Object.values(liveShoeMap()));
+        if (_nsw) {
+          namedSizeBlocks++;
+          const _realNS = _nsw.pool.map(x => displayName(x) + ': ' + (sizesOf(x) || 'none')).join('; ');
+          record(req, { endpoint: 'named-size-blocked', sub, store: ctx.store || '', shoe: _nsw.name, wrong: _nsw.bad, text: turnText.slice(0, 120), real: _realNS.slice(0, 160) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply gave the ' + _nsw.name + ' in size ' + _nsw.bad.join(' and ') + '. It does NOT come in that size. The only sizes on the shelf: ' + _realNS + '. Rewrite your reply: say plainly it does not come in ' + _nsw.bad.join(' or ') + ', name the closest real size, and never offer to bring a size we do not have. Prices come from search_inventory, never from memory. Keep everything else the same and send no pictures unless they asked.)' });
+          continue;
         }
       } catch (_) {}
     }
