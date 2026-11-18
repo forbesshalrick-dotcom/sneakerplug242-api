@@ -10760,6 +10760,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             }
           }
         } catch (_) {}
+        /* 🎯 THE READER'S CLOSEST PAIR LEADS THE ALBUM (11-18 Shoebox Shea 821-9980: her picture was a black/royal blue Jordan 4 we do not
+         * carry; the reader said CLOSEST: Rare Air (Black/Blue/Red), and she was sent the Military Blue card she had been sent ten seconds
+         * before). When the picture is not ours and the reader named the closest pair we hold, that pair goes first in what is sent. */
+        try {
+          if (!staffName && _idVerdict && /OURS:[^\n]*NOT IN STOCK/i.test(_idVerdict)) {
+            const _cl = (String(_idVerdict).match(/CLOSEST:\s*([^\n]+)/i) || [])[1] || '';
+            const _clSh = _cl ? (stockLineIds.get(normStockLine(_cl.trim().replace(/^[\-*•\s]+/, ''))) || [])[0] : null;
+            const _cid = (_clSh && _clSh.id != null) ? String(_clSh.id) : '';
+            if (_cid && liveShoeMap()[_cid]) {
+              if (Array.isArray(inp.groups) && inp.groups.length) {
+                if (!inp.groups.some(g => (g.ids || []).map(String).includes(_cid))) { inp.groups[0].ids = [_cid].concat(inp.groups[0].ids || []); record(req, { endpoint: 'closest-pair-added', sub, store: ctx.store || '', shoe: _cid }); }
+              } else {
+                const _ids0 = (inp.ids || []).map(String);
+                if (!_ids0.includes(_cid)) { inp.ids = [_cid].concat(_ids0); record(req, { endpoint: 'closest-pair-added', sub, store: ctx.store || '', shoe: _cid }); }
+              }
+            }
+          }
+        } catch (_) {}
         // Completeness tracking: record which ids actually went out, and whether THIS album's
         // lead-in is a GENERIC size batch (mentions no brand, model or colour) — the case where
         // it must show every brand in the size. A lead-in naming a brand/model/colour (e.g.
