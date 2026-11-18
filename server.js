@@ -8760,7 +8760,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * a total that differs from the prices listed beside it goes back to her once, and is written by code if it comes back wrong. */
     try {
       if (turnText && !staffName) {
-        const _dq = /\b(deal|discount|cheaper|best price|lower|knock)\b/i;
+        // "If I buy 2 of them how much will I pay?" is asking for the deal too (11-18 New Wave 433-2982) - the rule itself names "IF I BUY 2, 3, 4 PAIRS?".
+        const _dq = /\b(deal|discount|cheaper|best price|lower|knock)\b|\bif i (?:buy|take|get|purchase|pick)\b|\b(?:buy|buying|take|taking|get|getting|purchase) (?:2|two|3|three|4|four|5|five|both|a couple|more than (?:one|1))\b|\bfor (?:2|two|both|3|three|4|four) (?:pairs?|of (?:them|these|those))\b|\b(?:2|two|3|three) pairs? for\b/i;
         const _hTxt = h => typeof h.content === 'string' ? h.content : (Array.isArray(h.content) ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : '');
         const _askedD = _dq.test(customerWordsOnly(String(userText || ''))) || history.slice(-14).some(h => h && h.role === 'user' && _dq.test(customerWordsOnly(_hTxt(h))));
         if (!_askedD) {
