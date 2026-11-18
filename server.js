@@ -8906,6 +8906,36 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your reply had a pay link without a real amount ("[TOTAL]"). That link does not work. If they have picked a shoe, write the link with its real total, e.g. https://242plug.com/pay?amount=120. If not, send NO link: say they can pay online by card once they pick, and ask which shoe and size so you can send the exact link. One short message. The customer never saw your first draft, so do not apologise or say "my bad" — just give the right answer.)' });
       continue;
     }
+    /* 🛍 "NOT IN YOUR SIZE" COMES WITH THE SAME MODEL THAT IS (Rodney 11-18: "did she send some options... a true salesman"; OSC Daniel
+     * Thompson, size 12: "We don't have the 12 in that one - New Balance 2000 Grey/White/Black/Red... Want me to bring the 11?" while the
+     * New Balance 2000 Grey/White/Black sat on the shelf in a 12). When her reply denies a size on a shoe it names and the same model
+     * comes in that size in other colours, the draft is thrown back with those pairs named, closest colour first. */
+    if (turnText && !staffName && feeBlocks < 2) {
+      try {
+        const _dm = /(?:don'?t|do not) have (?:the |it |that one |this one |them )?(?:in )?(?:a |an |the |your )?(?:size )?(\d{1,2}(?:\.5)?)\b|doesn'?t come in (?:a |an |your )?(?:size )?(\d{1,2}(?:\.5)?)\b|\bno (\d{1,2}(?:\.5)?) in that/i.exec(turnText);
+        const _dsz = _dm ? parseFloat(_dm[1] || _dm[2] || _dm[3]) : NaN;
+        if (_dsz >= 3 && _dsz <= 16) {
+          const _lmD = liveShoeMap(); const _low = turnText.toLowerCase();
+          const _mkey = x => String(x.name || '').toLowerCase().replace(/\b(?:nike|new balance|asics|adidas|air jordan|retro|low|high|mid|og)\b/g, ' ').replace(/[^a-z0-9]/g, '');
+          const _has = (x, z) => (x.sizesRaw || x.sizes || []).some(v => parseFloat(v) === z);
+          const _named = Object.values(_lmD).filter(x => x && !x.sold && x.name && x.color && String(x.name).length >= 5 && _low.includes(String(x.name).toLowerCase()) && _low.includes(String(x.color).toLowerCase()))
+            .sort((a, b) => (String(b.name) + b.color).length - (String(a.name) + a.color).length)[0];
+          if (_named && !_has(_named, _dsz) && _mkey(_named)) {
+            const _cw = new Set(String(_named.color).toLowerCase().split(/[^a-z]+/).filter(Boolean));
+            const _alts = Object.values(_lmD).filter(x => x && !x.sold && String(x.id) !== String(_named.id) && _mkey(x) === _mkey(_named) && _has(x, _dsz))
+              .map(x => ({ x, n: String(x.color || '').toLowerCase().split(/[^a-z]+/).filter(w => _cw.has(w)).length })).sort((a, b) => b.n - a.n).slice(0, 3).map(o => o.x);
+            if (_alts.length && !_alts.some(x => _low.includes(String(x.color || '~').toLowerCase()) && String(x.color).toLowerCase() !== String(_named.color).toLowerCase())) {
+              feeBlocks++;
+              record(req, { endpoint: 'denied-size-same-model-offered', sub, store: ctx.store || '', shoe: String(_named.id), size: _dsz, alts: _alts.map(x => String(x.id)).join(',') });
+              history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: you said the ' + displayName(_named) + ' is not there in a ' + _dsz + '. True - but the SAME MODEL comes in a ' + _dsz + ' in: '
+                + _alts.map(x => displayName(x) + ' (id ' + x.id + ', $' + adPrice(x, ctx.store, sub) + ')').join('; ')
+                + '. A good salesperson offers those before a different size. Rewrite: one short line that the ' + String(_named.color) + ' one is not in a ' + _dsz + ' but these are, then send their pictures with send_photos using exactly ids ' + JSON.stringify(_alts.map(x => String(x.id))) + ' and ask which one they like. Do not offer another size first. The customer never saw your first draft.)' });
+              continue;
+            }
+          }
+        }
+      } catch (_) {}
+    }
     /* ☎️ A CUSTOMER NEVER HAS "THE WRONG NUMBER" (Rodney 11-18, New Wave 813-3335: she tapped our ad, asked by voice note "do you
      * ship to Freeport?", the transcriber heard "are you trying to reach Dr. Fribourg?" and Kiki answered "I think you might have the
      * wrong number... did you mean to call someone else?" in text AND in a voice note). Whatever the words look like, they wrote
