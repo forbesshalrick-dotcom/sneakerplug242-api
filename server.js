@@ -1580,6 +1580,22 @@ function adPriceInText(sub, t) {
     const ads = adShoeIds(st); if (!ads.length) return t;
     const lm = liveShoeMap();
     let out = String(t);
+    /* "ALL $100 EACH" WITH A $150 SHOE IN THE LIST (11-18 New Wave Chargie 818-3753, an hour after Rodney's "150" on the Pink Drop Jordan 4:
+     * "We got the Jordan 4 White/Pink-Purple, New Balance 2002R Pink... all $100 each"). A list price that one of the named ad shoes does
+     * not share gets that shoe's own price added right after it. */
+    try {
+      const _allEach = /\ball\s+\$(\d{2,3})\s+each\b/i.exec(out);
+      if (_allEach) {
+        const _lp = parseFloat(_allEach[1]); const _odd = [];
+        for (const a of ads) {
+          const ap = parseFloat(a.price); if (!ap || ap === _lp) continue;
+          const sh = lm[a.id]; const _nm = String(a.name || (sh && sh.name) || '');
+          const _short = _nm.split(/\s+/).slice(0, 2).join(' ');   // "Jordan 4"
+          if (_short.length > 4 && new RegExp('\\b' + _short.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'i').test(out) && !_odd.some(o => o.s === _short)) _odd.push({ s: _short, p: ap });
+        }
+        if (_odd.length) out = out.replace(_allEach[0], '$' + _lp + ' each, except the ' + _odd.map(o => o.s + ' at $' + o.p).join(' and the '));
+      }
+    } catch (_) {}
     for (const a of ads) {
       const sh = lm[a.id]; const ap = parseFloat(a.price); if (!sh || !ap) continue;
       const names = [sh.nickname, displayName(sh), [sh.name, sh.color].filter(Boolean).join(' ')].filter(x => x && String(x).trim().length > 4);
