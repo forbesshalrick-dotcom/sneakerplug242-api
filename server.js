@@ -1545,6 +1545,18 @@ function islandGuard(sub, text) {
 // customer never gets the see-before-you-pay line.
 const AUTH_ES_RE = /(?:\bs[ií],?\s+(?:es|son|todas?|todos)|\btodas?|\btodos|\bson|100\s*%)\s+(?:\S+\s+)?(?:originale?s?|aut[eé]ntic[oa]s?|reales?|genuin[oa]s?)\b|\bno\s+(?:son\s+)?r[eé]plicas?\b/i;
 const SEE_FIRST_RE = /\b(?:in person before (?:you )?pay|en persona antes de pagar|verlas? antes de pagar)\b/i;
+// ⏰ BEFORE 8 AM NOTHING IS "NOW" (Rodney 11-18: "you need to tell the customers we start at 8 o'clock... she couldn't been waiting on
+// me from 6" - Shoebox Yellow 820-4775 got "Are you available now?" at 06:40 and "wait for the driver to call you" at 06:46).
+// Between midnight and 8 AM Nassau time, "available now" becomes a time question and any driver/when line carries the 8 AM start.
+function earlyHoursGuard(t) {
+  try {
+    const h = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10) % 24;
+    if (!(h >= 0 && h < 8)) return t;
+    let out = String(t).replace(/\b(?:are|r)\s+(?:you|u)\s+(?:available|free|home|around|ready)\s+(?:right\s+)?now\s*\??/gi, 'What time works for you after 8 AM?');
+    if (/\b(?:driver|on (?:the|his|our) way|pull(?:ing)? up|bring it|deliver|delivery|be there|minutes? away|call you when)\b/i.test(out) && !/\b8\s*(?:AM|a\.m\.|o'?clock)\b/i.test(out)) out = out.replace(/\s*$/, '') + ' Our deliveries start at 8 AM 🙏';
+    return out;
+  } catch (_) { return t; }
+}
 function noAuthClaim(t, sub) {
   try {
     const isl = sub != null && islandOf(sub);
@@ -1600,7 +1612,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     // A PRICE LIST always carries the sale AF1 line (11-18 03:01 TK Deno 558-0391 got "Air Force 1 — *$120* (all black) | *$120* (white)";
     // every AF1 on the shelf is $100 and the template says SALE $100).
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *SALE $100* \u{1F525}');
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text))), subscriberId));
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(mm.text)))), subscriberId));
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
   const _sink = composeSink.get(String(subscriberId));
