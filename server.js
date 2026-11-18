@@ -1586,6 +1586,9 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // 🗣 "dont say perfect say OK" (Rodney 11-16, New Wave 455-0540: "Perfect! Here's the black/white Nike Roshe" then
   // "Perfect! 🙌 Can you send your location"). Kiki's opener is "OK", never "Perfect". Only her lines, never a human's.
   if (!(logOpts && logOpts.sender === 'rodney')) {
+    // A PRICE LIST always carries the sale AF1 line (11-18 03:01 TK Deno 558-0391 got "Air Force 1 — *$120* (all black) | *$120* (white)";
+    // every AF1 on the shelf is $100 and the template says SALE $100).
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *SALE $100* \u{1F525}');
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text)))));
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
