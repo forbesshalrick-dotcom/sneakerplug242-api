@@ -5208,6 +5208,21 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
     // If this subscriber's sends have been ghosting/timing out, their silence is just as
     // likely to be ManyChat swallowing their replies (proven 2026-08-13: three "A3" replies
     // never arrived, and the closer went out anyway). Kill the chain and put a HUMAN on it.
+    // 11-18 Shoebox Alex Smith 436-7086: he'd picked the AF1 All Black (9 and 10) and said "when I get the money I will send
+    // location" - the closer still asked "just tell me which pair you want". Someone who already picked or ordered gets no closer.
+    if (isCloser) {
+      try {
+        const _lp = lastPickBySub.get(String(sub));
+        const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _card = _th && (_th.msgs || []).some(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 24 * 3600 * 1000);
+        const _said = /\b(?:money|paid|pay ?day|get paid|when i get|send (?:the )?locat|loctions?)\b/i.test(lastIncomingText.get(sub) || '');
+        if ((_lp && Date.now() - (_lp.at || 0) < 24 * 3600 * 1000) || _card || _said) {
+          clearFollowUp(sub);
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'closer-skipped-already-picked', sub }); if (recent.length > 120) recent.length = 120;
+          return;
+        }
+      } catch (_) {}
+    }
     if (isCloser && deliveryWasShaky(sub)) {
       clearFollowUp(sub);
       const info = shakyDelivery.get(String(sub)) || { n: 0 };
