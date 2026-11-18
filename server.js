@@ -9586,7 +9586,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 🌐 SHE NEVER MAKES UP A WEBSITE (Rodney 10-31, TK Abm V 448-2902 typed "Website" and got "trendy-kicks.com" - a domain we do not
      * own, invented from the shop's name). Any web address that is not ours or a maps/WhatsApp/pay link becomes 242plug.com. */
     if (turnText && !staffName) {
-      const _okHost = /(?:^|\.)(?:242plug\.com|google\.com|goo\.gl|wa\.me|whatsapp\.com|paypal\.com|manychat\.com|jsdelivr\.net|cloudinary\.com)$/i;
+      // 11-18 Shoe Lacky 813-4874 ("This is for my store. Sizes 8 - 13"): the wholesale line she is TOLD to send names sneakerinventory.com,
+      // and this guard turned it into 242plug.com - a site where code W242 opens nothing. Our wholesale site is ours too.
+      const _okHost = /(?:^|\.)(?:242plug\.com|sneakerinventory\.com|google\.com|goo\.gl|wa\.me|whatsapp\.com|paypal\.com|manychat\.com|jsdelivr\.net|cloudinary\.com)$/i;
       let _faked = '';
       turnText = turnText.replace(/\b(?:https?:\/\/)?(?:www\.)?((?:[a-z0-9-]+\.)+(?:com|net|org|co|shop|store|bs|io|biz))\b(\/[^\s)]*)?/gi, (m, host) => {
         if (_okHost.test(host)) return m;
