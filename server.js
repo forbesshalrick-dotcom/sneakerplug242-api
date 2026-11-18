@@ -10198,6 +10198,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const _ord = inp.ids.filter(x => _adSet.has(String(x))).concat(inp.ids.filter(x => !_adSet.has(String(x))));
             record(req, { endpoint: 'ad-click-album-capped', sub, store: ctx.store || '', from: inp.ids.length, to: 10 });
             inp.ids = _ord.slice(0, 10);
+            inp._adCapped = true;   // the size top-up below must not refill it (NW 475-2119 11-17: capped to 10, topped back up to 51)
           }
         } catch (_) {}
         // 🔁 A PICTURE THEY JUST GOT IS NOT SENT AGAIN (Rodney 10-15: "Kiki sent pictures over again, like she was making another
@@ -10456,7 +10457,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             record(req, { endpoint: 'size-topup-not-merged', sub, why: { staff: !!staffName, generic: !!turnGenericSizeAlbum, restrictive: !!turnHadRestrictiveSearch,
               matching: !!turnMatchingPair, namedModel: namedModel || '', sizes: turnSizeSearchSizes.slice(0, 4), brandWord: ((_cust.match(BRAND_WORD_RE) || [])[0] || ''), brands: _brandKeys } });
           }
-          if (!staffName && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
+          if (!staffName && !inp._adCapped && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
               && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1) {
             const _onlyBrand = _brandKeys[0] ? _brandKeys[0].split('+') : null;
             // The size table decides the set (a 9 ask is the 9s AND the 9.5s, TK 10-15 got 43 nines and none of the 37
