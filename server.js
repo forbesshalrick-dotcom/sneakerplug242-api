@@ -1574,6 +1574,66 @@ function noAuthClaim(t, sub) {
 }
 // 🏷 A shoe from THIS line's ad is always quoted at the ad price (Rodney 11-16, New Wave 825-3043: the Pink Drop Jordan 4 card said
 // $100 and Kiki's text said "Jordan 4 Hyper Violet — $150"). Any $ amount within a few words after an ad shoe's name is set to the ad price.
+/* 🧮 HER TOTALS ARE ADDED BY CODE, AND A DEAL IS ONLY FOR WHO ASKS (11-18 Shoe Lacky, Make It Happen: "$280 for the Jordan 5 and 8, plus $70
+ * for the Yeezy Foam — $550 total with the deal", then "$150 … $150 … $150 … $100 … plus $70 — $720 total with the deal" (it is $620), and
+ * "$280 with the deal for 2 pairs" to someone who never asked for one. Rodney 10-19: "We only give deal for people who ask for deal";
+ * 2-4 pairs = $10 off the total, 5+ = $10 off each). stripUnaskedDeal cuts deal talk the customer did not ask for; fixOrderTotal
+ * re-adds the prices listed in the reply and writes the right total. Both leave the text alone when they cannot be sure. */
+function stripUnaskedDeal(text) {
+  let s = String(text || '');
+  if (!/\b(?:deals?|discounts?)\b/i.test(s)) return s;
+  s = s.replace(/\s*\((?:[^()]*\b(?:deals?|discounts?)\b[^()]*)\)/gi, '');
+  s = s.replace(/\s+with (?:the|a|our|that) (?:deal|discount)\b/gi, '');
+  s = s.split('\n').map(line => line.split(/(?<=[.!?\u{1F525}\u{1F45F}\u{1F64F}])\s+/u)
+    .filter(x => !/\b(?:deals?|discounts?)\b/i.test(x) || /\bdone deal\b/i.test(x)).join(' ')).join('\n');
+  return s.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+function fixOrderTotal(text, askedDeal) {
+  const src = String(text || '');
+  const AMT = /\$\s?(\d{2,4})(?!\d|\.\d)/g;
+  const TOTG = /\$\s?(\d{2,4})(?!\d|\.\d)(?=\s*(?:total|in total|all ?together|altogether|for (?:both|all|everything|the (?:two|three|four|five|six|\d+))\b))|(?:\btotal(?:\s+(?:is|of|comes to))?\s*[:=—-]?\s*|\bcomes to\s+|\badds up to\s+|\b(?:i['\u2019]?ll|i can|we can|we['\u2019]?ll|can) do\s+)\$\s?(\d{2,4})(?!\d|\.\d)/gi;
+  const SKIP = /\beach\b|\bper\b|\bapiece\b|\ba pair\b|\b\d\s?x\b|\bx\s?\d\b|\bdeposit\b|\bbalance\b|\bhalf\b|\boff\b|\bwas\b|\binstead of\b|\bsave\b|\bchange\b|\bowe\b|\bpaid\b|\bsent\b|\breceived\b/i;
+  const COUNT = { both: 2, two: 2, three: 3, four: 4, five: 5, six: 6 };
+  const lines = src.split('\n'); let fixed = null;
+  const amounts = (s) => { const out = []; let m; AMT.lastIndex = 0; while ((m = AMT.exec(s))) out.push({ v: parseInt(m[1], 10), i: m.index }); return out; };
+  for (let li = 0; li < lines.length && !fixed; li++) {
+    const sents = lines[li].split(/(?<=[.!?])\s+/);
+    for (let si = 0; si < sents.length && !fixed; si++) {
+      const s = sents[si]; const tots = []; let tm; TOTG.lastIndex = 0;
+      while ((tm = TOTG.exec(s))) tots.push({ v: parseInt(tm[1] || tm[2], 10), i: tm.index + tm[0].lastIndexOf('$') });
+      if (!tots.length) continue;
+      const tIdx = new Set(tots.map(t => t.i));
+      let span = s; let items = amounts(s).filter(a => !tIdx.has(a.i)).map(a => a.v);
+      if (items.length < 2) {
+        // The prices sit just above: bullet lines (any total), or the sentences before when the total names how many ("for both", "for the two").
+        const before = sents.slice(0, si).join(' '); let extra = [];
+        const cm = /for (?:the )?(both|two|three|four|five|six|\d+)\b/i.exec(s.slice(tots[0].i));
+        const want = cm ? (COUNT[cm[1].toLowerCase()] || parseInt(cm[1], 10)) : 0;
+        if (before.trim()) { if (want) { extra = amounts(before).map(a => a.v); span = before + ' ' + s; if (extra.length + items.length !== want) extra = []; } }
+        else {
+          for (let k = li - 1; k >= 0 && k >= li - 8; k--) {
+            const L = lines[k]; if (!L.trim()) { if (extra.length) break; continue; }
+            if (!/^\s*[•\-*\d]/.test(L)) break;
+            const a = amounts(L); if (a.length) { extra = a.map(x => x.v).concat(extra); span = L + ' ' + span; }
+          }
+        }
+        items = extra.concat(items);
+      }
+      if (items.length < 2 || SKIP.test(span)) continue;
+      const sum = items.reduce((n, v) => n + v, 0), n = items.length;
+      const deal = n >= 5 ? sum - 10 * n : sum - 10;
+      let ns = s, off = 0, was = null, now = null;
+      tots.forEach((t, k) => {
+        if (t.v === sum || (askedDeal && t.v === deal)) return;
+        const right = (k > 0 && askedDeal) ? deal : sum; const at = t.i + off; const m2 = /\$\s?\d{2,4}/.exec(ns.slice(at)); if (!m2) return;
+        ns = ns.slice(0, at) + '$' + right + ns.slice(at + m2[0].length); off += ('$' + right).length - m2[0].length;
+        if (was == null) { was = t.v; now = right; }
+      });
+      if (was != null) { sents[si] = ns; lines[li] = sents.join(' '); fixed = { was, now, items }; }
+    }
+  }
+  return { text: fixed ? lines.join('\n') : src, fixed };
+}
 function adPriceInText(sub, t) {
   try {
     const st = storeOfSub(sub); if (!st) return t;
@@ -7138,7 +7198,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         && _pt.split(/\s+/).length <= 8 && /\b(this|these|that|those|dis|dem|dat|it|them|one|1)\b|^\W*$/i.test(_pt)
         // Only a pointing message. Any short question used to count, so "Where you located ?" and "Do you have a store
         // front?" brought the Foam Runner card back and it was sent again (2026-10-14, TK).
-        && !/\b(where|located|location|store ?front|shop|open|close|deliver|delivery|bring|pick ?up|pay|payment|cash|card|call)\b/i.test(_pt)) {
+        && !/\b(where|located|location|store ?front|shop|open|close|deliver|delivery|bring|pick ?up|pay|payment|cash|card|call)\b/i.test(_pt)
+        // A place or a phone number is not a shoe (11-18, Andrew Seymour: "This is my home" after his pin brought his earlier shoe photo
+        // back, it matched the twin entry with no 12, and he was told "We don't have the 12 in that one" on a pair he had just ordered).
+        && !/\b(home|house|yard|address|apartment|apt|crib|gate|road|street|drive|avenue|corner|number|my (?:work|job|office|place|spot|area|name)|i (?:live|stay|work))\b/i.test(_pt)) {
       image = _lp.img;
       userText = '(SYSTEM: this message is about the picture the customer sent a moment ago — it is attached again here. Answer about that shoe.)\n' + _pt;
       record(req, { endpoint: 'pointer-photo-reattached', sub, q: _pt.slice(0, 40), agoS: Math.round((Date.now() - _lp.at) / 1000) });
@@ -7962,6 +8025,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   let resendDroppedShoes = [];  // the same, as shoes (the safety net names the first one instead of re-asking the size)
   let whichShoeAsks = 0;       // "which one?" after they said "I'll take 2" and two are on the table
   let feeBlocks = 0;         // the invented-fee guard may bounce one reply per turn
+  let totalBlocks = 0;       // a total that does not add up is sent back once, then corrected by code
   let blindBlocks = 0;       // the "I can't see your picture" guard may bounce one reply per turn
   let photoCompareSent = false; // have we shown her OUR pictures to compare against theirs?
   let didSearch = false;     // did she actually run a search this turn? (a receipt photo → no search)
@@ -8619,6 +8683,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       turnText = '';                    // it did it twice — say nothing rather than leak
     }
+    /* 🧮 THE TOTAL MUST ADD UP, AND NO DEAL TALK UNLESS THEY ASKED (11-18 Shoe Lacky, Make It Happen: "$720 total with the deal" for pairs
+     * that add to $620, "$550" for $350, and "$280 with the deal for 2 pairs" unasked). Deal words the customer never asked for are cut;
+     * a total that differs from the prices listed beside it goes back to her once, and is written by code if it comes back wrong. */
+    try {
+      if (turnText && !staffName) {
+        const _dq = /\b(deal|discount|cheaper|best price|lower|knock)\b/i;
+        const _hTxt = h => typeof h.content === 'string' ? h.content : (Array.isArray(h.content) ? h.content.filter(c => c && c.type === 'text').map(c => c.text).join(' ') : '');
+        const _askedD = _dq.test(customerWordsOnly(String(userText || ''))) || history.slice(-14).some(h => h && h.role === 'user' && _dq.test(customerWordsOnly(_hTxt(h))));
+        if (!_askedD) {
+          const _nd = stripUnaskedDeal(turnText);
+          if (_nd && _nd !== turnText) { record(req, { endpoint: 'unasked-deal-cut', sub, store: ctx.store || '', was: turnText.slice(0, 160) }); turnText = _nd; }
+        }
+        const _ft = fixOrderTotal(turnText, _askedD);
+        if (_ft.fixed && totalBlocks < 1) {
+          totalBlocks++;
+          record(req, { endpoint: 'total-wrong-sent-back', sub, store: ctx.store || '', was: _ft.fixed.was, sum: _ft.fixed.now, items: _ft.fixed.items.join('+') });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: the total in your reply does not add up. The prices you listed are $' + _ft.fixed.items.join(' + $') + ' = $' + _ft.fixed.now + ', but you wrote $' + _ft.fixed.was + '. Rewrite the same reply: name EVERY pair in their order with its own price, then the plain sum as the total. If a pair is missing from your list, add it with its price. Change nothing else and send no pictures.)' });
+          continue;
+        }
+        if (_ft.fixed) { record(req, { endpoint: 'total-corrected', sub, store: ctx.store || '', was: _ft.fixed.was, now: _ft.fixed.now, items: _ft.fixed.items.join('+') }); turnText = _ft.text; }
+      }
+    } catch (_) {}
     /* 🚨 THE THIEF NUMBERS GET SCOTIABANK, NEVER CIBC (Rodney 11-05: "send Scotiabank, not cibc because that he already has" - "if he
      * ask for the bank info"). 478-2955 / 466-6095 took $930 on 10-20 with CIBC receipts that never landed. Only when they ask: any CIBC
      * block in a reply to them becomes the Scotiabank block. */
@@ -8947,14 +9033,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _dsz = _dm ? parseFloat(_dm[1] || _dm[2] || _dm[3]) : NaN;
         if (_dsz >= 3 && _dsz <= 16) {
           const _lmD = liveShoeMap(); const _low = turnText.toLowerCase();
-          const _mkey = x => String(x.name || '').toLowerCase().replace(/\b(?:nike|new balance|asics|adidas|air jordan|retro|low|high|mid|og)\b/g, ' ').replace(/[^a-z0-9]/g, '');
+          const _mkey = x => String(x.name || '').toLowerCase().replace(/\b(?:nike|new balance|asics|adidas|air jordan|retro|low|high|mid|og|sb)\b/g, ' ').replace(/[^a-z0-9]/g, '');
           const _has = (x, z) => (x.sizesRaw || x.sizes || []).some(v => parseFloat(v) === z);
-          const _named = Object.values(_lmD).filter(x => x && !x.sold && x.name && x.color && String(x.name).length >= 5 && _low.includes(String(x.name).toLowerCase()) && _low.includes(String(x.color).toLowerCase()))
-            .sort((a, b) => (String(b.name) + b.color).length - (String(a.name) + a.color).length)[0];
+          // The shoe is named by its colour OR its nickname (11-18 Andrew Seymour: "the Air Jordan 4 Retro (SB Navy)" carried no colour, so the
+          // guard never saw it while the twin entry "Air Jordan 4 SB Navy/White" sat there in his 12).
+          const _nkOf = x => String(x.nickname || '').toLowerCase();
+          const _hit = x => _low.includes(String(x.color).toLowerCase()) ? String(x.color).length : (_nkOf(x).length >= 3 && _low.includes(_nkOf(x)) ? _nkOf(x).length : 0);
+          const _named = Object.values(_lmD).filter(x => x && !x.sold && x.name && x.color && String(x.name).length >= 5 && _low.includes(String(x.name).toLowerCase()) && _hit(x))
+            .sort((a, b) => (String(b.name).length + _hit(b)) - (String(a.name).length + _hit(a)))[0];
           if (_named && !_has(_named, _dsz) && _mkey(_named)) {
-            const _cw = new Set(String(_named.color).toLowerCase().split(/[^a-z]+/).filter(Boolean));
+            const _cw = new Set((String(_named.color) + ' ' + String(_named.nickname || '')).toLowerCase().split(/[^a-z]+/).filter(Boolean));
             const _alts = Object.values(_lmD).filter(x => x && !x.sold && String(x.id) !== String(_named.id) && _mkey(x) === _mkey(_named) && _has(x, _dsz))
-              .map(x => ({ x, n: String(x.color || '').toLowerCase().split(/[^a-z]+/).filter(w => _cw.has(w)).length })).sort((a, b) => b.n - a.n).slice(0, 3).map(o => o.x);
+              .map(x => ({ x, n: (String(x.color || '') + ' ' + String(x.name || '') + ' ' + String(x.nickname || '')).toLowerCase().split(/[^a-z]+/).filter(w => _cw.has(w)).length })).sort((a, b) => b.n - a.n).slice(0, 3).map(o => o.x);
             if (_alts.length && !_alts.some(x => _low.includes(String(x.color || '~').toLowerCase()) && String(x.color).toLowerCase() !== String(_named.color).toLowerCase())) {
               feeBlocks++;
               record(req, { endpoint: 'denied-size-same-model-offered', sub, store: ctx.store || '', shoe: String(_named.id), size: _dsz, alts: _alts.map(x => String(x.id)).join(',') });
