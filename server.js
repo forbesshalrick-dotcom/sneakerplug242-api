@@ -10195,7 +10195,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _all = /\b(?:all|everything|every|whole|wat (?:u|you) got|what (?:u|you|yall|y'all) (?:got|have))\b/i.test(customerWordsOnly(String(userText || '')));
           if (!staffName && _adClick && !_all && Array.isArray(inp.ids) && inp.ids.length > 10) {
             const _adSet = new Set(adShoeIds(ctx.store).map(a => String(a.id)));
-            const _ord = inp.ids.filter(x => _adSet.has(String(x))).concat(inp.ids.filter(x => !_adSet.has(String(x))));
+            // Ad shoes first, then the rest with every Jordan LAST (Rodney's rule, 3x) - the cut must not keep 10 Jordans
+            // (Shoebox 436-7086 11-17: $100 sale-poster ad, "9", got ten $150 Jordan 4s).
+            const _lmC = liveShoeMap(); const _isJ = x => /jordan|retro|\baj ?\d/i.test(String(((_lmC[x] || {}).brand || '') + ' ' + ((_lmC[x] || {}).name || '')));
+            const _rest = inp.ids.filter(x => !_adSet.has(String(x)));
+            const _ord = inp.ids.filter(x => _adSet.has(String(x))).concat(_rest.filter(x => !_isJ(x)), _rest.filter(_isJ));
             record(req, { endpoint: 'ad-click-album-capped', sub, store: ctx.store || '', from: inp.ids.length, to: 10 });
             inp.ids = _ord.slice(0, 10);
             inp._adCapped = true;   // the size top-up below must not refill it (NW 475-2119 11-17: capped to 10, topped back up to 51)
