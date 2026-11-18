@@ -11717,7 +11717,19 @@ function handleChat(req, res) {
   }
   const sub = getContactId(req);
   const token = getToken(req);
-  const store = getStore(req);
+  let store = getStore(req);
+  /* 🔀 ONE CHAT, ONE SHOP LABEL (11-18, Andrew Seymour 454-7644 on the 803-3126 account: his typed messages arrived as "Trendy Kicks" - the
+   * flow names the shop - and his pin and photos as "Official Sneaker Crew" - no shop named, so it came from the account id. Two threads,
+   * two order cards, and "Just need your location pin" three times after the pin was in: it sat under the other label). A message that
+   * names no shop keeps the label this same contact had on their last message in the past 12 hours. */
+  try {
+    const _named = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}].some(src => src.store != null && !isJunk(src.store));
+    const _rc = sub ? recentCustomers.get(sub) : null;
+    if (!_named && store && _rc && _rc.store && _rc.store !== store && Date.now() - Date.parse(_rc.at || 0) < 12 * 3600 * 1000) {
+      record(req, { endpoint: 'store-label-kept', sub, from: store, to: _rc.store });
+      store = _rc.store;
+    }
+  } catch (_) {}
   const name = getName(req);
   record(req, { endpoint: 'chat', extractedQuery: userText, audioUrl, imageUrl, sub, store, name, hasToken: !!token, hasAI: !!process.env.ANTHROPIC_API_KEY, dbgPhone: getPhone(req), dbgStaff: staffNameFor(req) });
   rememberCustomer(sub, name, store, userText, token); // for the /console control panel
