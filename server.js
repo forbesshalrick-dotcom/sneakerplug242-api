@@ -8209,7 +8209,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _sh = _cands[0];
       if (_sh) {
         const _want = (sizesToSend(_newSz, false) || [parseFloat(_newSz)]).map(z => parseFloat(z));
-        const _has = (_sh.sizesRaw || _sh.sizes || []).some(z => _want.includes(parseFloat(z)));
+        const _has = (_sh.sizesRaw || _sh.sizes || []).some(z => parseFloat(z) === parseFloat(_newSz));
+        // 11-18 Shoebox Yellow 820-4775: "7.5" on an AM95 Black/Blue stocked only in 8 - the size table lets a 7.5 wear an 8, so this
+        // said "It DOES come in 7.5" and Kiki booked a 7.5 we don't have. Only the exact size counts; the near one is offered by name.
+        const _near = (_sh.sizesRaw || _sh.sizes || []).map(z => parseFloat(z)).filter(z => _want.includes(z) && z !== parseFloat(_newSz));
+        if (!_has && _near.length) { system += '\n\n(SYSTEM NOTE — the customer cannot see this: the ' + displayName(_sh) + ' does NOT come in ' + _newSz + '. The closest we have is a ' + _near[0] + '. Say it in one line: "We don\'t have it in ' + _newSz + ', the closest is a ' + _near[0] + ' - want the ' + _near[0] + '? 👟" Do NOT book a ' + _newSz + ', do NOT send an album.)'; pinnedPickIds.add(String(_sh.id)); record(req, { endpoint: 'order-size-change', sub, shoe: String(_sh.id), size: _newSz, has: false, near: _near[0] }); }
+        else
         system += '\n\n(SYSTEM NOTE — the customer cannot see this: they already ORDERED the ' + displayName(_sh) + ' ($' + (parseFloat(_sh.price) || '') + '). Their "' + _txt.slice(0, 60) + '" is about THAT shoe in a ' + _newSz + '. '
           + (_has ? 'It DOES come in ' + _newSz + ': confirm it in one line ("Yes! The ' + displayName(_sh) + ' comes in a ' + _newSz + ' too 👟 We\'ll bring the ' + _newSz + '") and update the order with notify_manager. ' : 'It does NOT come in ' + _newSz + ' (only ' + (sizesOf(_sh) || '') + '): say so in one line and offer the closest. ')
           + 'Do NOT send an album and do NOT show other shoes.)';
