@@ -3108,6 +3108,11 @@ function stockListForIdentify() {
   } catch (_) { return ''; }
 }
 
+/* 📦 NOT ON THE SHELF, WHATEVER THE APP SAYS (Rodney 11-18, OSC Andrew Seymour 454-7644: "I check the shoes, I don't see 12, I see 13" -
+ * the stock app listed a 12 on "Air Jordan 4 SB Navy/White", it was promised to him, and Kiki promised it again two minutes after he had
+ * been told there was none). A size listed here is dropped from live stock until the app itself is corrected; after that the entry does
+ * nothing. Only sizes Rodney or the count sheet said are not there. */
+const SHELF_MISSING = { jordan4sbnavy001: ['12'] };
 function liveShoeMap() {
   let overrides = {}, deleted = {};
   try {
@@ -3132,6 +3137,8 @@ function liveShoeMap() {
         });
       }
     }
+    const _miss = SHELF_MISSING[String(s.id)];
+    if (_miss && Array.isArray(sizesRaw)) sizesRaw = sizesRaw.filter(z => !_miss.some(m => parseFloat(m) === parseFloat(z)));
     // 🚫 NEVER OFFER A SHOE THE SHELF HAS NEVER CONFIRMED (Rodney 2026-08-19).
     // Without `ov`, sizesRaw is still catalog.json's factory list — a snapshot from whenever
     // the catalog was written. The website had exactly this bug: on the night it was found it
