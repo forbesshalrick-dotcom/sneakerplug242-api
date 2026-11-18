@@ -1540,13 +1540,24 @@ function islandGuard(sub, text) {
 }
 // 🚫 Kiki never claims the shoes are authentic/real/original (Rodney 11-16, Shoe Lacky "Yes bro, 100% authentic"). Any such
 // sentence is replaced with the check-before-you-pay line.
-function noAuthClaim(t) {
+// 11-18 New Wave +51 918-079082 (in Freeport): "Son originales?" got "Sí, todas originales" (Spanish slipped past) and then "Puedes verlas
+// en persona antes de pagar" - an island buyer pays first and never sees them. Spanish claims are caught too; an island
+// customer never gets the see-before-you-pay line.
+const AUTH_ES_RE = /(?:\bs[ií],?\s+(?:es|son|todas?|todos)|\btodas?|\btodos|\bson|100\s*%)\s+(?:\S+\s+)?(?:originale?s?|aut[eé]ntic[oa]s?|reales?|genuin[oa]s?)\b|\bno\s+(?:son\s+)?r[eé]plicas?\b/i;
+const SEE_FIRST_RE = /\b(?:in person before (?:you )?pay|en persona antes de pagar|verlas? antes de pagar)\b/i;
+function noAuthClaim(t, sub) {
   try {
-    const parts = String(t).split(/(?<=[.!?👟🔥🙏])\s+/);
+    const isl = sub != null && islandOf(sub);
+    if (isl) { const ps = String(t).split(/(?<=[.!?👟🔥🙏🙌])\s+|\n+/); if (ps.some(x => SEE_FIRST_RE.test(x))) t = ps.filter(x => !SEE_FIRST_RE.test(x)).join(' ').trim(); }
+    const parts = String(t).split(/(?<=[.!?👟🔥🙏🙌])\s+/);
     const bad = /\b(100\s*%\s*(?:authentic|real|legit|original|genuine)|(?:they'?re|they are|it'?s|it is|these are|all|definitely|yes,?|yeah,?)\s+(?:bro,?\s+)?(?:authentic|real|legit|original|genuine|not reps?|no reps?)|authentic|not (?:a )?reps?\b|no reps\b)/i;
-    if (!parts.some(x => bad.test(x))) return t;
-    const keep = parts.filter(x => !bad.test(x));
-    return ['You can check them out in person before you pay 👟'].concat(keep).join(' ').trim();
+    const isBad = x => bad.test(x) || AUTH_ES_RE.test(x);
+    if (!parts.some(isBad)) return t;
+    const keep = parts.filter(x => !isBad(x));
+    if (isl) return keep.join(' ').trim() || 'Payment first for the islands and we ship it out to you 👟';
+    const es = parts.some(x => AUTH_ES_RE.test(x));
+    if (keep.some(x => SEE_FIRST_RE.test(x))) return keep.join(' ').trim();
+    return [es ? 'Puedes verlas en persona antes de pagar 👟' : 'You can check them out in person before you pay 👟'].concat(keep).join(' ').trim();
   } catch (_) { return t; }
 }
 // 🏷 A shoe from THIS line's ad is always quoted at the ad price (Rodney 11-16, New Wave 825-3043: the Pink Drop Jordan 4 card said
@@ -1589,7 +1600,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     // A PRICE LIST always carries the sale AF1 line (11-18 03:01 TK Deno 558-0391 got "Air Force 1 — *$120* (all black) | *$120* (white)";
     // every AF1 on the shelf is $100 and the template says SALE $100).
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *SALE $100* \u{1F525}');
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text)))));
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(mm.text))), subscriberId));
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
   const _sink = composeSink.get(String(subscriberId));
