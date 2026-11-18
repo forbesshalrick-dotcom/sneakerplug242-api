@@ -5216,7 +5216,13 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
         const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
         const _card = _th && (_th.msgs || []).some(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 24 * 3600 * 1000);
         const _said = /\b(?:money|paid|pay ?day|get paid|when i get|send (?:the )?locat|loctions?)\b/i.test(lastIncomingText.get(sub) || '');
-        if ((_lp && Date.now() - (_lp.at || 0) < 24 * 3600 * 1000) || _card || _said) {
+        // 11-18 Shoebox 467-5886: "Yeah what I ask for 9.5" got the one AM97 card, then "just tell me which pair you want". After a
+        // single picture there is no "which pair" - and a yes after it is a pick.
+        const _msgs = (_th && _th.msgs) || [];
+        let _li = -1; for (let i = _msgs.length - 1; i >= 0; i--) if (_msgs[i] && _msgs[i].dir === 'in' && _msgs[i].sender !== 'system') { _li = i; break; }
+        const _imgsAfter = _msgs.slice(_li + 1).filter(m => m && m.img).length;
+        const _yes = _li >= 0 && /^\W*(?:yes|yeah|yea|yh|ya|yep|ok(?:ay)?|bet|sure|that one|this one)\b/i.test(String(_msgs[_li].text || ''));
+        if ((_lp && Date.now() - (_lp.at || 0) < 24 * 3600 * 1000) || _card || _said || (_li >= 0 && _imgsAfter <= 1) || _yes) {
           clearFollowUp(sub);
           recent.unshift({ at: new Date().toISOString(), endpoint: 'closer-skipped-already-picked', sub }); if (recent.length > 120) recent.length = 120;
           return;
