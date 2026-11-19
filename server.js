@@ -9587,7 +9587,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
            * the honest fix is to stop negotiating and send them, then tell her they are gone and
            * to write one line around them. Deterministic beats persuasive. */
           let _sentHere = 0;
-          if (theirShoeTheirSize.length) {
+          /* 🎨 THEY ASKED FOR A COLOUR OF A BRAND, NOT A MODEL (11-18 TK 441-7406: "Size 9.5", "Purple Nike" - no purple Nike in a 9.5, so
+           * she was sent all 17 Nikes in a 9.5, none purple, then "Here's the purple Nike we got in your 9.5" over two more that were black).
+           * When the only thing named besides the colour is a brand or "shoes", the album is the pairs in THAT COLOUR in their size, any
+           * brand, and the line says plainly there is none in the brand asked. */
+          const _brandOnly = /^(?:nike|nikes|jordan|jordans|adidas|new balance|nb|asics|puma|yeezy|sneakers?|shoes?|kicks|trainers|ones?)?$/.test(String(model || '').trim());
+          const _colourFirst = !!(colour && theirSize && _brandOnly && theirColourTheirSize.length);
+          if (_colourFirst) {
+            try {
+              const _cIds = theirColourTheirSize.slice(0, 12).map(r => r.id);
+              try { lastSearchIds = _cIds.slice(); } catch (_) {}
+              const _cLead = 'No ' + colour + (model ? ' ' + model.replace(/\b[a-z]/g, c => c.toUpperCase()) : '') + ' in your ' + theirSize + ' right now \u{1F64F} but these ' + colour + ' ones come in your ' + theirSize + ' \u{1F447}';
+              const _rc = await sendShoePhotos(sub, _cIds, token, null, _cLead, false, false, ctx.turnAt || 0, true);
+              _sentHere = (_rc && _rc.sent) || 0;
+              if (_sentHere > 0) photosSentRun = true;
+              record(req, { endpoint: 'colour-first-album', sub, store: ctx.store || '', colour, model, size: theirSize, n: _cIds.length });
+            } catch (_) {}
+          }
+          if (theirShoeTheirSize.length && !_colourFirst) {
             try {
               model = model.split(' ').filter((w, i, a) => a.indexOf(w) === i).join(' ');   // "air force 1 air force 1" → once
               // Only words that are in the names of the shoes going out (11-18 Shoebox 803-8623: "What y'all have in air max" + "a block
