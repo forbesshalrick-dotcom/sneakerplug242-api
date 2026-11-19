@@ -3198,7 +3198,7 @@ function stockListForIdentify() {
  * the stock app listed a 12 on "Air Jordan 4 SB Navy/White", it was promised to him, and Kiki promised it again two minutes after he had
  * been told there was none). A size listed here is dropped from live stock until the app itself is corrected; after that the entry does
  * nothing. Only sizes Rodney or the count sheet said are not there. */
-const SHELF_MISSING = { jordan4sbnavy001: ['12'] };
+const SHELF_MISSING = { jordan4sbnavy001: ['12'], co574: ['6.5'] };   // co574 black AF1: Rodney 11-19 "we don't have any more 6.5"
 function liveShoeMap() {
   let overrides = {}, deleted = {};
   try {
