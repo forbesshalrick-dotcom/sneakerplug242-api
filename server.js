@@ -5597,6 +5597,7 @@ const ownerSeen = new Map();   // dedupe memory for queueForOwner: key -> when (
 const driverAskPingAt = new Map(); // "where's the driver?" on an order with no pin - one group card per 30 min
 const thiefPingAt = new Map(); // the Make It Happen numbers - last owner ping per number
 const adCappedAt = new Map();   // sub -> when a size album was cut to 10 for an ad click (the closing line then offers more)
+const adCapRest = new Map();    // sub -> { ts, ids, sizes }: the pairs that cut left out, in the order they would have gone (a yes to "more styles" sends the next ten)
 /* 🎭 THE THIEF NUMBERS HEAR A DIFFERENT VOICE (Rodney 11-18: "when that number or anything from the thief starts to talk, you have to talk
  * different because I think he knows how Kiki talks. That's why he didn't go through with the last order"). Her set lines are reworded and
  * every emoji comes out, on every text that leaves for 478-2955 / 466-6095 - whatever line they write to. Facts are never touched. */
@@ -10675,6 +10676,37 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
         undoWomensDoubleConvert(sub, inp, record, req);
+        /* \u2795 A YES TO "MORE STYLES" IS THE NEXT TEN, NOT A NEW SEARCH (11-19 New Wave 820-6213: asked for "all pairs that are going for
+         * 100$", said 9.5, got ten $100 pairs and "We have more styles available in your size", answered "Yes I do" - and was sent ten
+         * $150 Jordans as "all our Jordans in a 9.5", with 29 more $100 pairs in a 9.5 never shown). When the last album was cut to 10
+         * and they name no brand, model, colour or other size, the album is the next ten that cut left out, in the same order
+         * (Jordans still last). "All"/"everything" is left alone - that is an ask for the whole shelf. */
+        try {
+          const _restN = adCapRest.get(String(sub));
+          const _cwN = customerWordsOnly(String(userText || ''));
+          const _allN = /\b(?:all|everything|every|whole|wat (?:u|you) got|what (?:u|you|yall|y'all) (?:got|have))\b/i.test(_cwN);
+          const _szNow = turnSizeSearchSizes.slice(0, 4).map(String);
+          const _sameSize = !_restN || !_szNow.length || !(_restN.sizes || []).length || _szNow.join(',') === (_restN.sizes || []).join(',');
+          if (_restN && (_allN || !_sameSize || Date.now() - _restN.ts > 20 * 60 * 1000)) adCapRest.delete(String(sub));
+          else if (!staffName && _restN && Array.isArray(_restN.ids) && _restN.ids.length && Array.isArray(inp.ids) && inp.ids.length >= 3
+              && !namedModel && !turnHadRestrictiveSearch && !BRAND_WORD_RE.test(_cwN)) {
+            const _lmN = liveShoeMap();
+            const _seenN = new Set((((recentlySent.get(sub) || {}).order) || []).map(String));
+            const _leftN = _restN.ids.filter(x => _lmN[x] && !_seenN.has(String(x)));
+            if (_leftN.length) {
+              const _wasN = inp.ids.length;
+              inp.ids = _leftN.slice(0, 10);
+              if (Array.isArray(inp.groups)) inp.groups = undefined;   // her own grouping named the shoes she picked, not these
+              const _moreN = _leftN.slice(10);
+              if (_moreN.length) { adCapRest.set(String(sub), { ts: Date.now(), ids: _moreN, sizes: _restN.sizes || [] }); adCappedAt.set(String(sub), Date.now()); }
+              else adCapRest.delete(String(sub));
+              inp._adCapped = true;
+              const _cszN = custSize.get(sub);
+              inp.lead_in = "Here's more we got" + (_cszN && _cszN.size ? ' in your ' + _cszN.size : '') + ' \u{1F447}';
+              record(req, { endpoint: 'capped-album-next-ten', sub, store: ctx.store || '', asked: _wasN, sent: inp.ids.length, left: _moreN.length });
+            } else adCapRest.delete(String(sub));
+          }
+        } catch (_) {}
         /* 📸 AN AD CLICK GETS A SHORT LOOK, NOT THE SHELF (Rodney 11-17 "Sending them too much pictures": New Wave 451-6649 tapped the
          * Pink Drop ad, said "10", and got 22 pictures of everything in a 10). In a chat that opened on the ad-click line, a size album is
          * cut to 10 - this shop's ad shoes first - unless they asked to see everything. */
@@ -10692,6 +10724,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             record(req, { endpoint: 'ad-click-album-capped', sub, store: ctx.store || '', from: inp.ids.length, to: 10 });
             inp.ids = _ord.slice(0, 10);
             try { adCappedAt.set(String(sub), Date.now()); } catch (_) {}
+            try { adCapRest.set(String(sub), { ts: Date.now(), ids: _ord.slice(10), sizes: turnSizeSearchSizes.slice(0, 4).map(String) }); } catch (_) {}
             inp._adCapped = true;   // the size top-up below must not refill it (NW 475-2119 11-17: capped to 10, topped back up to 51)
           }
         } catch (_) {}
