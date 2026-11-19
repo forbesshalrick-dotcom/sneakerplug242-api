@@ -10917,7 +10917,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
          * it as "That's the Nike Air Force 1 White! We've got it in these sizes 👇".) A lead-in that does not admit the
          * no is replaced: name their shoe, say we don't have it, and the pictures are the other pairs of that model. */
         try {
-          if (!staffName && leadIn && _idVerdict && /OURS:[^\n]*NOT IN STOCK/i.test(_idVerdict)
+          /* 🪞 THEY SENT OUR OWN CARD BACK (11-19 New Wave 803-7139: she sent back the Olive/Khaki VaporMax Plus card Kiki had just shown
+           * her. The reader read our banner off it ("AIR VAPORMAX PLUS OLIVE/KHAKI") but called the shoe not in stock; Kiki's own line
+           * was right - "Got it in your women's 8" - and this guard replaced it with "We don't have that one right now" over the same
+           * card.) When the banner the reader read names a pair that is in this very album, the pair is ours: her line stands. */
+          let _ownCard = false;
+          try {
+            const _bn = (String(_idVerdict).match(/banner (?:says|reads)\s*["“']([^"”'\n]{4,80})/i) || [])[1] || '';
+            const _bt = _bn.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1);
+            if (_bt.length >= 2) {
+              const _lmB = liveShoeMap();
+              const _allIds = [].concat(inp.ids || [], ...(Array.isArray(inp.groups) ? inp.groups.map(g => (g && g.ids) || []) : []));
+              _ownCard = _allIds.some(x => { const o = _lmB[x]; if (!o) return false;
+                const h = ' ' + String((o.brand || '') + ' ' + (o.name || '') + ' ' + (o.nickname || '') + ' ' + (o.color || '')).toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+                return _bt.every(w => h.includes(' ' + w + ' ')); });
+              if (_ownCard) record(req, { endpoint: 'photo-is-our-own-card', sub, store: ctx.store || '', banner: _bn.slice(0, 80) });
+            }
+          } catch (_) {}
+          if (!_ownCard && !staffName && leadIn && _idVerdict && /OURS:[^\n]*NOT IN STOCK/i.test(_idVerdict)
               && !/\b(don(?:'|’)?t|dont|do not|doesn(?:'|’)?t|ain(?:'|’)?t) (?:have|got|carry|stock)|not in stock|sold out|out of (?:that|it|stock)|none (?:left|in)/i.test(leadIn)) {
             const _seenName = verdictSeenName(_idVerdict);
             const _fam = lastModelNamed(_seenName);
