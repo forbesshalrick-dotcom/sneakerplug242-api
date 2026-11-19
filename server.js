@@ -5604,7 +5604,8 @@ const ownerSeen = new Map();   // dedupe memory for queueForOwner: key -> when (
 const driverAskPingAt = new Map(); // "where's the driver?" on an order with no pin - one group card per 30 min
 const thiefPingAt = new Map(); // the Make It Happen numbers - last owner ping per number
 const adCappedAt = new Map();   // sub -> when a size album was cut to 10 for an ad click (the closing line then offers more)
-const adCapRest = new Map();    // sub -> { ts, ids, sizes }: the pairs that cut left out, in the order they would have gone (a yes to "more styles" sends the next ten)
+const adCapRest = new Map();
+const photoReadByImage = new Map();   // sub|image -> the picture reader's first verdict (same picture, same answer)    // sub -> { ts, ids, sizes }: the pairs that cut left out, in the order they would have gone (a yes to "more styles" sends the next ten)
 /* 🎭 THE THIEF NUMBERS HEAR A DIFFERENT VOICE (Rodney 11-18: "when that number or anything from the thief starts to talk, you have to talk
  * different because I think he knows how Kiki talks. That's why he didn't go through with the last order"). Her set lines are reworded and
  * every emoji comes out, on every text that leaves for 478-2955 / 466-6095 - whatever line they write to. Facts are never touched. */
@@ -8066,8 +8067,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // An AD picture shows several shoes - never 'identify' one of them (11-12 New Wave: six-shoe ad -> 'That's the Lightning!').
   if (image && !image.isAd) {
     try {
-      const _seen = await identifyPhoto(imageSource, stockListForIdentify(), String(userText || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0].trim());
-      record(req, { endpoint: _seen ? 'photo-identified' : 'photo-identify-failed', sub, store: ctx.store || '', seen: _seen ? _seen.slice(0, 240) : null });
+      /* ONE PICTURE, ONE ANSWER (11-19 TK 426-2478: his photo of a Jordan 5 Black Metallic was read as ours - "comes in 9.5, 10" - and
+       * six minutes later, when he replied to that same photo, it was read again as a pair we do not carry: "We don't have that one
+       * right now" over the Black Metallic card. Rodney: "that's not a human did that".) The same picture from the same customer
+       * inside two hours keeps its first reading. */
+      const _imgKey = String(sub) + '|' + ((typeof image === 'string') ? image : (image && image.data ? String(image.data.length) + ':' + String(image.data).slice(0, 96) : ''));
+      const _prevRead = photoReadByImage.get(_imgKey);
+      const _reuse = !!(_prevRead && Date.now() - _prevRead.at < 2 * 3600 * 1000 && _imgKey.length > String(sub).length + 8);
+      const _seen = _reuse ? _prevRead.v : await identifyPhoto(imageSource, stockListForIdentify(), String(userText || '').split('(SYSTEM NOTE')[0].split('\n\n[')[0].trim());
+      if (_seen && !_reuse) { photoReadByImage.set(_imgKey, { v: _seen, at: Date.now() }); if (photoReadByImage.size > 3000) photoReadByImage.delete(photoReadByImage.keys().next().value); }
+      record(req, { endpoint: _reuse ? 'photo-same-picture-same-answer' : (_seen ? 'photo-identified' : 'photo-identify-failed'), sub, store: ctx.store || '', seen: _seen ? _seen.slice(0, 240) : null });
       if (_seen) {
         _idVerdict = _seen;
         photoVerdicts.set(String(sub), { v: _seen, at: Date.now() });
@@ -10992,7 +11001,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const _seenName = verdictSeenName(_idVerdict);
             const _fam = lastModelNamed(_seenName);
             const _cszL = custSize.get(sub);
-            const _szL = (inp.size && String(inp.size).trim()) || (_cszL && _cszL.size && (Date.now() - (_cszL.ts || 0)) < 12 * 3600 * 1000 ? String(_cszL.size) : '');
+            let _szL = (inp.size && String(inp.size).trim()) || (_cszL && _cszL.size && (Date.now() - (_cszL.ts || 0)) < 12 * 3600 * 1000 ? String(_cszL.size) : '');
+            /* "in your 9" is only written when every pair that follows is on the shelf in a 9 (same chat: the Black Metallic card, 9.5 and 10 only, went out under "here's the Jordan we got in your 9"). */
+            try {
+              if (_szL && !isNaN(parseFloat(_szL))) {
+                const _lmZ = liveShoeMap(); const _idsZ = [].concat(inp.ids || [], ...(Array.isArray(inp.groups) ? inp.groups.map(g => (g && g.ids) || []) : []));
+                if (!_idsZ.length || !_idsZ.every(x => { const o = _lmZ[x]; return !!o && (o.sizesRaw || []).some(z => parseFloat(z) === parseFloat(_szL)); })) _szL = '';
+              }
+            } catch (_) {}
             if (_seenName) {
               const _was = leadIn;
               leadIn = `That's the ${_seenName} 🔥 We don't have that one right now, but here's the ${_fam ? _fam.replace(/\b[a-z]/g, c => c.toUpperCase()) + ' ' : ''}we got${_szL ? ' in your ' + _szL : ''} 👇`;
