@@ -1638,6 +1638,13 @@ function fixOrderTotal(text, askedDeal) {
  * $100 - then "the New Balance 9060 — Black/White in both 11 and 12" - it stops at 11; both were promised for delivery). The older
  * size-claim guard only reads sentences with got/have/available in them. This one reads any sentence that names a live shoe and gives a
  * size for it, narrows by the colour or nickname in the same sentence, and returns the sizes that shoe does not have. */
+/* The same model is typed two ways in the stock app ("Air Max 90" and "Nike Air Max 90"). 11-19 Shoebox 525-3514: Kiki's correct line
+ * "We got the Air Max 90 - Green/Black/White in your size 8" was blocked because the pair with the 8 is filed as "Nike Air Max 90",
+ * then she told him it does not come in an 8 and he walked. A leading brand word does not make it a different shoe. */
+function _sameModelName(a, b) {
+  const n = v => String(v || '').toLowerCase().replace(/^\s*(?:nike|jordan brand|adidas|new balance|asics)\s+(?=air |dunk|shox|zoom|vomero|gel|samba)/, '').replace(/\s+/g, ' ').trim();
+  return n(a) === n(b);
+}
 function namedSizeWrong(turnText, shoes) {
   const all = (shoes || []).filter(x => x && !x.sold && x.name);
   const names = [...new Set(all.map(x => String(x.name).toLowerCase()))].filter(n => n.length >= 6).sort((a, b) => b.length - a.length);
@@ -1654,7 +1661,7 @@ function namedSizeWrong(turnText, shoes) {
     for (const m of rest.matchAll(/\bin both (?:a |an |the )?(\d{1,2}(?:\.5)?) and (?:a |an |the )?(\d{1,2}(?:\.5)?)\b/g)) { sizes.push(parseFloat(m[1])); sizes.push(parseFloat(m[2])); }
     const want = [...new Set(sizes)].filter(n => n >= 3 && n <= 16);
     if (!want.length) continue;
-    let pool = all.filter(x => String(x.name).toLowerCase() === nm);
+    let pool = all.filter(x => _sameModelName(x.name, nm));
     const byNick = pool.filter(x => x.nickname && String(x.nickname).length >= 4 && sl.includes(String(x.nickname).toLowerCase()));
     const byCol = pool.filter(x => x.color && String(x.color).length >= 4 && sl.includes(String(x.color).toLowerCase()));
     if (byNick.length) pool = byNick; else if (byCol.length) pool = byCol;
@@ -1702,7 +1709,7 @@ function namedQtyWrong(turnText, shoes) {
     const rest = sl.slice(sl.indexOf(nm) + nm.length).replace(/\$\s*\d+(?:\.\d+)?/g, ' ');
     const sm = /\b(?:in (?:a |an |your |the )?(?:size )?|size )(\d{1,2}(?:\.5)?)\b/.exec(rest); if (!sm) continue;
     const size = parseFloat(sm[1]);
-    let pool = all.filter(x => String(x.name).toLowerCase() === nm);
+    let pool = all.filter(x => _sameModelName(x.name, nm));
     const byNick = pool.filter(x => x.nickname && String(x.nickname).length >= 4 && sl.includes(String(x.nickname).toLowerCase()));
     const byCol = pool.filter(x => x.color && String(x.color).length >= 4 && sl.includes(String(x.color).toLowerCase()));
     if (byNick.length) pool = byNick; else if (byCol.length) pool = byCol; else continue;   // without a colour or nickname the pairs could be different shoes
