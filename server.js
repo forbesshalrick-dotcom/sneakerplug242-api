@@ -1721,7 +1721,9 @@ function adPriceInText(sub, t) {
      * "We got the Jordan 4 White/Pink-Purple, New Balance 2002R Pink... all $100 each"). A list price that one of the named ad shoes does
      * not share gets that shoe's own price added right after it. */
     try {
-      const _allEach = /\ball\s+\$(\d{2,3})\s+each\b/i.exec(out);
+      // 11-18 22:15 New Wave 428-0122, in French: "cinq paires à $100 chacune" with the $150 Jordan 4 first in the list - the English-only
+      // "all $100 each" missed it. Any "$X each" in English, French, Spanish or Creole is read now.
+      const _allEach = /(?:\ball\s+)?\$(\d{2,3})\s+(each|chacune|chacun|cada\s+un[oa]|chak)\b/i.exec(out);
       if (_allEach) {
         const _lp = parseFloat(_allEach[1]); const _odd = [];
         for (const a of ads) {
@@ -1730,7 +1732,14 @@ function adPriceInText(sub, t) {
           const _short = _nm.split(/\s+/).slice(0, 2).join(' ');   // "Jordan 4"
           if (_short.length > 4 && new RegExp('\\b' + _short.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'i').test(out) && !_odd.some(o => o.s === _short)) _odd.push({ s: _short, p: ap });
         }
-        if (_odd.length) out = out.replace(_allEach[0], '$' + _lp + ' each, except the ' + _odd.map(o => o.s + ' at $' + o.p).join(' and the '));
+        if (_odd.length) {
+          const _w = String(_allEach[2]).toLowerCase();
+          const _exc = /^chac/.test(_w) ? ', sauf le ' + _odd.map(o => o.s + ' \u00e0 $' + o.p).join(' et le ')
+            : /^cada/.test(_w) ? ', excepto el ' + _odd.map(o => o.s + ' a $' + o.p).join(' y el ')
+            : _w === 'chak' ? ', eksepte ' + _odd.map(o => o.s + ' ki $' + o.p).join(' ak ')
+            : ', except the ' + _odd.map(o => o.s + ' at $' + o.p).join(' and the ');
+          out = out.replace(_allEach[0], '$' + _lp + ' ' + _allEach[2] + _exc);
+        }
       }
     } catch (_) {}
     for (const a of ads) {
