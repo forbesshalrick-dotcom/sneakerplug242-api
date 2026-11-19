@@ -1684,6 +1684,33 @@ function namedSizeDeniedWrongly(turnText, shoes) {
   }
   return null;
 }
+/* 👯 "TWO OF THE <shoe> IN A <size>" NEEDS TWO PAIRS ON THE SHELF (11-18 New Wave 825-7561: two sons, both size 8, wanting the same shoe;
+ * she was told "That's two Air Max 95 Grey/Black in a 7 — $200 total" - one pair exists, and it is a 7). A sentence that puts a number of
+ * pairs in front of a named shoe and gives its size is checked against how many of that size the shoe really has. */
+function namedQtyWrong(turnText, shoes) {
+  const all = (shoes || []).filter(x => x && !x.sold && x.name);
+  const names = [...new Set(all.map(x => String(x.name).toLowerCase()))].filter(n => n.length >= 6).sort((a, b) => b.length - a.length);
+  const NUM = { two: 2, '2': 2, three: 3, '3': 3, four: 4, '4': 4 };
+  const pieces = String(turnText || '').split(/(?<=[.!?\n])\s+|\n+|(?<=\p{Extended_Pictographic})\s+/u).flatMap(s => s.split(/,\s+and\s+(?=the\b)|;\s+/i));
+  for (const sen of pieces) {
+    const sl = sen.toLowerCase();
+    if (/\b(no|not|don'?t|doesn'?t|only|closest|nearest|instead|which|what)\b|\?/.test(sl)) continue;
+    const nm = names.find(n => sl.includes(n)); if (!nm) continue;
+    const before = sl.slice(0, sl.indexOf(nm));
+    const q = /\b(two|2|three|3|four|4)\s+(?:pairs? of\s+)?(?:the\s+|of the\s+)?$/.exec(before); if (!q) continue;
+    const want = NUM[q[1]];
+    const rest = sl.slice(sl.indexOf(nm) + nm.length).replace(/\$\s*\d+(?:\.\d+)?/g, ' ');
+    const sm = /\b(?:in (?:a |an |your |the )?(?:size )?|size )(\d{1,2}(?:\.5)?)\b/.exec(rest); if (!sm) continue;
+    const size = parseFloat(sm[1]);
+    let pool = all.filter(x => String(x.name).toLowerCase() === nm);
+    const byNick = pool.filter(x => x.nickname && String(x.nickname).length >= 4 && sl.includes(String(x.nickname).toLowerCase()));
+    const byCol = pool.filter(x => x.color && String(x.color).length >= 4 && sl.includes(String(x.color).toLowerCase()));
+    if (byNick.length) pool = byNick; else if (byCol.length) pool = byCol; else continue;   // without a colour or nickname the pairs could be different shoes
+    const have = Math.max(0, ...pool.map(x => (x.sizesRaw || []).filter(z => parseFloat(z) === size).length));
+    if (have < want) return { shoe: pool[0], size, want, have };
+  }
+  return null;
+}
 function adPriceInText(sub, t) {
   try {
     const st = storeOfSub(sub); if (!st) return t;
@@ -8858,6 +8885,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     if (turnText && !staffName && namedSizeBlocks < 1) {
       try {
+        const _nqw = namedQtyWrong(turnText, Object.values(liveShoeMap()));
+        if (_nqw) {
+          namedSizeBlocks++;
+          record(req, { endpoint: 'named-qty-blocked', sub, store: ctx.store || '', shoe: String(_nqw.shoe.id), size: _nqw.size, want: _nqw.want, have: _nqw.have, text: turnText.slice(0, 120) });
+          history.push({ role: 'user', content: '(SYSTEM NOTE — the customer cannot see this: your last reply offered ' + _nqw.want + ' pairs of the ' + displayName(_nqw.shoe) + ' in a ' + _nqw.size + '. We have ' + (_nqw.have ? 'only ' + _nqw.have + ' pair' : 'NO pair') + ' of it in that size (its sizes: ' + (sizesOf(_nqw.shoe) || 'none') + '). Rewrite your reply: say so plainly, and if they want ' + _nqw.want + ' of the same shoe use search_inventory for their size and name only shoes that have that many pairs. Never promise pairs we do not hold.)' });
+          continue;
+        }
         const _nsd = namedSizeDeniedWrongly(turnText, Object.values(liveShoeMap()));
         if (_nsd) {
           namedSizeBlocks++;
