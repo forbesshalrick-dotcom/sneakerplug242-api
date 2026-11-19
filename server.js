@@ -4015,7 +4015,11 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
       } catch (_) {}
       // A SHORT ALBUM OFFERS MORE (Rodney 10-20: "because its not much you should say ... that we have more styles available if you
       // want to see them"). 2-5 pictures of one style get the offer on the closing line.
-      try { if (sent <= 5 && !/more styles/i.test(closing)) closing = closing.replace(/\s*👟$/, '').replace(/\s*Which one you like\?$/, '') + ' 👟 We have more styles available in your size if you want to see them 🔥'; } catch (_) {}
+      // 11-18: an album cut to 10 for an ad click is "not much" too - New Wave 826-3866 and TK 815-4631 got ten pictures and "This is what
+      // we have in a 7", with 146 more pairs in that size on the shelf. The capped album closes with the same offer.
+      const _capAt = adCappedAt.get(String(sub)); const _wasCapped = !!(_capAt && Date.now() - _capAt < 4 * 60 * 1000);
+      if (_wasCapped) adCappedAt.delete(String(sub));
+      try { if ((sent <= 5 || _wasCapped) && !/more styles/i.test(closing)) closing = closing.replace(/\s*👟$/, '').replace(/\s*Which one you like\?$/, '') + ' 👟 We have more styles available in your size if you want to see them 🔥'; } catch (_) {}
       try { await sendChunk(sub, [{ type: 'text', text: await say(closing, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
@@ -5583,6 +5587,7 @@ function firstLine(t) {
 const ownerSeen = new Map();   // dedupe memory for queueForOwner: key -> when (30 min)
 const driverAskPingAt = new Map(); // "where's the driver?" on an order with no pin - one group card per 30 min
 const thiefPingAt = new Map(); // the Make It Happen numbers - last owner ping per number
+const adCappedAt = new Map();   // sub -> when a size album was cut to 10 for an ad click (the closing line then offers more)
 /* 🎭 THE THIEF NUMBERS HEAR A DIFFERENT VOICE (Rodney 11-18: "when that number or anything from the thief starts to talk, you have to talk
  * different because I think he knows how Kiki talks. That's why he didn't go through with the last order"). Her set lines are reworded and
  * every emoji comes out, on every text that leaves for 478-2955 / 466-6095 - whatever line they write to. Facts are never touched. */
@@ -10677,6 +10682,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const _ord = inp.ids.filter(x => _adSet.has(String(x))).concat(_rest.filter(x => !_isJ(x)), _rest.filter(_isJ));
             record(req, { endpoint: 'ad-click-album-capped', sub, store: ctx.store || '', from: inp.ids.length, to: 10 });
             inp.ids = _ord.slice(0, 10);
+            try { adCappedAt.set(String(sub), Date.now()); } catch (_) {}
             inp._adCapped = true;   // the size top-up below must not refill it (NW 475-2119 11-17: capped to 10, topped back up to 51)
           }
         } catch (_) {}
