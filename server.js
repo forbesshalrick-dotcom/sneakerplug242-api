@@ -7151,7 +7151,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _offeredToShow = /\b(want to see|wanna see|like to see|show you|send you|send (it|them|that|those|one)|want me to send|see (some |the )?(pics|pictures|more)|which one)\b/i.test(_lastA.slice(-200))
       || (() => { try { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); const _lo = _th && (_th.msgs || []).slice().reverse().find(m => m && m.dir === 'out' && m.text);
              return !!(_lo && Date.now() - (_lo.ts || 0) < 15 * 60 * 1000 && /\b(want to see|wanna see|like to see|show you|send (it|them|that|those|one)|want me to send|which one)\b/i.test(_lo.text)); } catch (_) { return false; } })();
-    if (!image && _b && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !(_offeredToShow && /^\W*(let me|lemme) see\b/i.test(_b)) && !/\b(size|how much|price|deliver|\d|pics?|pix|pictures?|photos?|show|send|catalog|what you got|what you have)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
+    if (!image && _b && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !/^\W*(let me|lemme) see\b/i.test(_b) && !/\b(size|how much|price|deliver|\d|pics?|pix|pictures?|photos?|show|send|catalog|what you got|what you have)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
       try { clearFollowUp(sub); } catch (_) {}
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _b, name: ctx.name }); } catch (_) {}
       const line = await say("Take your time. Just let me know when you're ready.", sub).catch(() => "Take your time. Just let me know when you're ready.");
@@ -7159,6 +7159,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       try { const h = convos.get(sub) || []; h.push({ role: 'user', content: _b }); h.push({ role: 'assistant', content: line }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
       record(req, { endpoint: 'just-looking-line', sub, q: _b.slice(0, 40) });
       return;
+    }
+    /* "LET ME SEE" IS A REQUEST FOR PICTURES (Rodney 11-19, New Wave 803-7139: told "Yes, we have that one... $60", she said "Let me
+     * see" and got "Take your time. Just let me know when you're ready." - "Let me see is like the customer saying they want more
+     * pictures"). It is never browsing, whatever we said before it. */
+    if (!image && /^\W*(let me|lemme) see\W*$/i.test(_b)) {
+      userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
+      record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
     }
   } catch (_) {}
   /* ❌ "DON'T COME NO MORE" — HOLD THE SALE, THEN TELL THE TEAM ON THE NEXT MESSAGE (Rodney 10-17, TK +1 242 463-4181: she
