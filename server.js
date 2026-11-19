@@ -10944,6 +10944,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               if (_ownCard) record(req, { endpoint: 'photo-is-our-own-card', sub, store: ctx.store || '', banner: _bn.slice(0, 80) });
             }
           } catch (_) {}
+          /* SAME MISTAKE WITHOUT A BANNER (Rodney 11-19: "she's still sending the same picture she said she didn't have... that's not a
+           * human did that"). If the one or two pairs she is about to send were SHOWN to this customer in the last 30 minutes and the
+           * reader's own description shares a colour word with them, the customer is pointing at a pair we showed: her line stands
+           * and "We don't have that one" is not written over the very pair that follows it. */
+          try {
+            if (!_ownCard && _idVerdict && Array.isArray(inp.ids) && inp.ids.length >= 1 && inp.ids.length <= 2) {
+              const _rsO = recentlySent.get(sub); const _shown = new Set((((_rsO && Date.now() - (_rsO.ts || 0) < 30 * 60 * 1000) ? _rsO.order : []) || []).map(String));
+              const _lmO = liveShoeMap(); const _seenL = (String(_idVerdict).match(/SEEN:\s*([^\n]+)/i) || [])[1] || '';
+              const _sw = new Set(_seenL.toLowerCase().split(/[^a-z]+/).filter(w => w.length > 2));
+              const _hit = inp.ids.every(x => _shown.has(String(x))) && inp.ids.some(x => String(((_lmO[x] || {}).color) || '').toLowerCase().split(/[^a-z]+/).some(w => w.length > 2 && _sw.has(w)));
+              if (_hit) { _ownCard = true; record(req, { endpoint: 'photo-is-a-pair-we-showed', sub, store: ctx.store || '', ids: inp.ids.slice(0, 2), seen: _seenL.slice(0, 80) }); }
+            }
+          } catch (_) {}
           if (!_ownCard && !staffName && leadIn && _idVerdict && /OURS:[^\n]*NOT IN STOCK/i.test(_idVerdict)
               && !/\b(don(?:'|’)?t|dont|do not|doesn(?:'|’)?t|ain(?:'|’)?t) (?:have|got|carry|stock)|not in stock|sold out|out of (?:that|it|stock)|none (?:left|in)/i.test(leadIn)) {
             const _seenName = verdictSeenName(_idVerdict);
