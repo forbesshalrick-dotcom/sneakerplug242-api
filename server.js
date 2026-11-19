@@ -7330,7 +7330,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         && !/\b(where|located|location|store ?front|shop|open|close|deliver|delivery|bring|pick ?up|pay|payment|cash|card|call)\b/i.test(_pt)
         // A place or a phone number is not a shoe (11-18, Andrew Seymour: "This is my home" after his pin brought his earlier shoe photo
         // back, it matched the twin entry with no 12, and he was told "We don't have the 12 in that one" on a pair he had just ordered).
-        && !/\b(home|house|yard|address|apartment|apt|crib|gate|road|street|drive|avenue|corner|number|my (?:work|job|office|place|spot|area|name)|i (?:live|stay|work))\b/i.test(_pt)) {
+        && !/\b(home|house|yard|address|apartment|apt|crib|gate|road|street|drive|avenue|corner|number|my (?:work|job|office|place|spot|area|name)|i (?:live|stay|work))\b/i.test(_pt)
+        // "One sec" is not pointing at a shoe (11-19 Shoebox 466-3462, Exuma: she picked the Black Cat Jordan 4, said "One sec", the
+        // "one" brought an earlier picture back and she was told "Yep, we got the 8 in that - Air Max 97 All Black, you available now?").
+        && !/\b(?:one|a|1|just a|gimme a|give me a?)\s*(?:sec|second|secs|min|minute|mins|moment|bit)\b|\bhold (?:on|up)\b|\bwait\b|\bbrb\b|\bone time\b/i.test(_pt)) {
       image = _lp.img;
       userText = '(SYSTEM: this message is about the picture the customer sent a moment ago — it is attached again here. Answer about that shoe.)\n' + _pt;
       record(req, { endpoint: 'pointer-photo-reattached', sub, q: _pt.slice(0, 40), agoS: Math.round((Date.now() - _lp.at) / 1000) });
