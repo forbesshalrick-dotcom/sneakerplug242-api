@@ -8064,12 +8064,35 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (_seen) {
         _idVerdict = _seen;
         photoVerdicts.set(String(sub), { v: _seen, at: Date.now() });
+        /* THEIR PHOTO IS A PAIR WE JUST SHOWED THEM (Rodney 11-19, New Wave 803-7139: "she's still sending the same picture she said
+         * she didn't have... that's not a human did that"). She sent back our own photo of the Olive/Khaki VaporMax Plus twice; the
+         * reader called it "cream/beige... NOT IN STOCK" both times and named that very pair as CLOSEST, so Kiki said "Don't have that
+         * exact one" and sent it. When the reader says not in stock but its CLOSEST is a pair this customer was shown in the last
+         * 30 minutes, the photo IS that pair: the verdict is rewritten before Kiki reads it. */
+        try {
+          if (/OURS:[^\n]*NOT IN STOCK/i.test(_seen)) {
+            const _clT = ((String(_seen).match(/CLOSEST:\s*([^\n]+)/i) || [])[1] || '').trim().replace(/^[\-*•\s]+/, '');
+            const _clS = _clT ? (stockLineIds.get(normStockLine(_clT)) || [])[0] : null;
+            const _clId = (_clS && _clS.id != null) ? String(_clS.id) : '';
+            const _rsS = recentlySent.get(sub);
+            const _shownS = (_rsS && Date.now() - (_rsS.ts || 0) < 30 * 60 * 1000) ? (_rsS.order || []).map(String) : [];
+            let _handS = [];
+            try { const _thS = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+              _handS = ((_thS && _thS.msgs) || []).filter(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 30 * 60 * 1000).map(m => (JSON.stringify(m).match(/\/([A-Za-z0-9]+)-(?:card|\d+)[^"\/]*\.jpg/) || [])[1]).filter(Boolean); } catch (_) {}
+            if (_clId && liveShoeMap()[_clId] && (_shownS.includes(_clId) || _handS.includes(_clId))) {
+              const _fixed = String(_seen).replace(/OURS:[^\n]*/i, 'OURS: ' + _clT + '\nNOTE: this is the pair we just showed them - it IS ours and in stock. Never say we do not have it.').replace(/\n?CLOSEST:[^\n]*/i, '');
+              _idVerdict = _fixed;
+              photoVerdicts.set(String(sub), { v: _fixed, at: Date.now() });
+              record(req, { endpoint: 'photo-is-a-pair-we-showed', sub, store: ctx.store || '', shoe: _clId });
+            }
+          }
+        } catch (_) {}
         /* 📢 A SCREENSHOT OF OUR AD = THE AD'S PAIR, NOT A SAME-NAME LOOKALIKE (Rodney 11-15 + 11-17 "2nd time": NW 808-8074 and NW
          * +509 3349-6749 circled the trunk ad's Air Max 2021 [c0455, $50] and both got p73 "Air Max 21", a $100 pair we never posted.
          * The prompt rule alone lost twice.) When the eye names a shoe whose model matches exactly one shoe on this shop's live ads,
          * the ad's id wins: Kiki is told so, and send_photos swaps the lookalike for it this turn. */
         try {
-          const _v = shoeFromVerdict(_seen); const _lm = liveShoeMap();
+          const _v = shoeFromVerdict(_idVerdict); const _lm = liveShoeMap();
           const _key = id => { const x = _lm[id]; return x ? String(x.name || '').toLowerCase().replace(/\b(?:nike|air)\b/g, ' ').replace(/\b20(\d\d)\b/g, '$1').replace(/[^a-z0-9]/g, '') : ''; };
           const _st = String(ctx.store || '').toLowerCase().trim();
           const _byKey = {};
@@ -8086,7 +8109,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               + _fromId + ' (' + displayName(_v.sh) + '), a lookalike we did not advertise.)\n\n' + photoNote;
           }
         } catch (_) {}
-        photoNote = '(🔎 A careful second look at this photo, by a stronger eye than yours, says:\n' + _seen + '\n'
+        photoNote = '(🔎 A careful second look at this photo, by a stronger eye than yours, says:\n' + _idVerdict + '\n'
           + 'TRUST THAT over your own read of the picture. If it names one of OUR shoes under OURS, search that exact name '
           + 'now and send it, and SAY it is the one ("that\'s our Air Force 1 Teal/Green 👟"). If it says NOT IN STOCK, tell '
           + 'the customer what the shoe is and that we don\'t carry it, then offer the CLOSEST one with its picture - never '
