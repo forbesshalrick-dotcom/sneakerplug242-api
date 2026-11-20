@@ -3651,6 +3651,10 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
         // Never ask their size in the middle of their own size album (Rodney 11-17, New Wave 825-7561: said "7", the 7 album started,
         // and this quick answer - which never sees the size - said "Got you! What size you need?"). A size question here is dropped.
         if (line && SIZE_REASK_RE.test(line)) { recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-size-ask-dropped', sub, line: line.slice(0, 80) }); return; }
+        // 11-20 TK Nesha 801-1817 got "I don't have context of the previous conversation history to see what shoes or sizes were discussed.
+        // Could you share the customer's last real message..." - this no-history call talking about itself. A line about context, the
+        // conversation, "the customer" or what it can't see is never sent; the queued turn answers after the album.
+        if (line && /\b(?:context|conversation history|previous conversation|the customer(?:'s)?|as an ai|language model|i (?:don'?t|do not) have (?:access|context|enough|the)|could you (?:share|provide|clarify)|what (?:pictures|shoes) were (?:sent|discussed)|real message)\b/i.test(line)) { recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-meta-dropped', sub, line: line.slice(0, 80) }); return; }
         await sendChunk(sub, [{ type: 'text', text: line || `Good question! One sec — let me finish sending these and I'll answer you right after 👟` }], token);
       }
     } catch (e) { /* non-fatal */ }
