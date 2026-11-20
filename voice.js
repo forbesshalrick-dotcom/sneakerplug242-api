@@ -350,6 +350,8 @@ function addCall(rec) {
     caller: 'unknown', phone: '', seconds: 0, ended_because: '', summary: '', recording: '', transcript: '',
   };
   const entry = Object.assign({}, base, patch, { call_id: id });
+  // A call posted twice keeps the time it HAPPENED (11-19: the 7:03 PM TK call was re-posted at 7:24 and jumped to 7:24 in his app).
+  if (i > -1 && base.ts && patch.ts && Number(base.ts) < Number(patch.ts)) { entry.ts = base.ts; if (base.at) entry.at = base.at; }
   if (i > -1) callLog[i] = entry; else callLog.push(entry);
 
   callLog.sort((a, b) => (b.ts || 0) - (a.ts || 0));
