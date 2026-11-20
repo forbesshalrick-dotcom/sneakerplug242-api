@@ -3661,6 +3661,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
           const _nums = (String(line || '').match(/(?:size|sz|in (?:a |your )?)\s*(\d{1,2}(?:\.5)?)/gi) || []).map(x => parseFloat(x.replace(/[^\d.]/g, '')));
           if (line && _nums.some(n => !_mine.includes(n))) { recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-wrong-size-dropped', sub, line: line.slice(0, 80) }); return; }
         } catch (_) {}
+        // 11-20 TK 827-1413 (asked for a 6.5) got "Got you! We have all sizes 👟 let me confirm 6.5 stock once these pics finish" - this line
+        // cannot see stock, so it never claims sizes/stock or promises to "confirm" anything.
+        if (line && /\b(?:all (?:the )?sizes|every size|any size|all sizes|in stock|have (?:it|them|that|those) in|we (?:got|have) (?:your|the|a) (?:size|\d)|confirm|check(?:ing)? (?:the )?stock|let me (?:check|confirm|see))\b/i.test(line)) { recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-stock-claim-dropped', sub, line: line.slice(0, 80) }); return; }
         if (line && /\b(?:context|conversation history|previous conversation|the customer(?:'s)?|as an ai|language model|i (?:don'?t|do not) have (?:access|context|enough|the)|could you (?:share|provide|clarify)|what (?:pictures|shoes) were (?:sent|discussed)|real message)\b/i.test(line)) { recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-meta-dropped', sub, line: line.slice(0, 80) }); return; }
         await sendChunk(sub, [{ type: 'text', text: line || `Good question! One sec — let me finish sending these and I'll answer you right after 👟` }], token);
       }
