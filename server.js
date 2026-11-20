@@ -10386,7 +10386,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (!staffName && !_theirs && (p.size != null || (Array.isArray(p.sizes) && p.sizes.length))) {
             const _th0 = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
             const _cw0 = [customerWordsOnly(String(userText || '').split('(SYSTEM')[0])].concat(_th0 ? _th0.msgs.filter(m => m.dir === 'in' && m.sender === 'customer' && Date.now() - m.ts < 12 * 3600 * 1000).map(m => m.text || '') : []).join(' \n ');
-            const _said = (z) => new RegExp('(?<![\\d.])' + String(parseFloat(z)).replace('.', '\\.') + '(?![\\d])').test(_cw0) || !!sizeFromCustomerWords(_cw0);
+            // 11-20 Shoebox Kjay 463-4054 typed "8.9" then "both sizes" - the 8.5 & 9 search was thrown out as "invented" and she asked
+            // his size five more times. Any number he typed within half a size counts (8.9 -> 8.5 and 9; "8/9" -> 8 and 9).
+            const _nums = []; try { for (const t of (_cw0.match(/(?<![\d$.,:])\d{1,2}(?:\.\d)?(?![\d:]|\s*(?:dollars?|bucks|pairs?|am|pm|o'?clock|mins?|minutes?|hours?|hrs?)\b)/gi) || [])) { _nums.push(parseFloat(t)); for (const q of t.split('.')) _nums.push(parseFloat(q)); } } catch (_) {}
+            const _near = (z) => _nums.some(n => n >= 4 && n <= 16 && Math.abs(n - parseFloat(z)) <= 0.5);
+            const _said = (z) => new RegExp('(?<![\\d.])' + String(parseFloat(z)).replace('.', '\\.') + '(?![\\d])').test(_cw0) || !!sizeFromCustomerWords(_cw0) || _near(z);
             const _all = [].concat(p.size != null ? [p.size] : [], Array.isArray(p.sizes) ? p.sizes : []).filter(z => !/all/i.test(String(z)));
             if (_all.length && !_all.some(_said)) {
               record(req, { endpoint: 'search-size-invented-dropped', sub, size: p.size, sizes: p.sizes });
