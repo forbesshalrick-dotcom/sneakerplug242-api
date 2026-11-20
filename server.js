@@ -7175,6 +7175,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
       record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
     }
+    /* "YES SHOW ME" AFTER "WE HAVE MORE STYLES IN YOUR SIZE" = SEND THEM (11-19 Shoebox 801-3608: offered more styles in his 10, said
+     * "Yes show me" and got "Which one you like?"). */
+    try {
+      const _thY = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _loY = _thY && (_thY.msgs || []).slice().reverse().find(m => m && m.dir === 'out' && m.text);
+      if (!image && _loY && Date.now() - (_loY.ts || 0) < 30 * 60 * 1000 && /more styles available in your size|want to see (?:them|more)|wanna see more/i.test(_loY.text)
+          && /^\W*(?:(?:y+e+s+|yeah|ya+|yea|yep|yup|sure|ok(?:ay)?|pls|please)\W*)*(?:show me|send (?:them|it|more)|let me see|lemme see|more|see them|i would like to see)?\W*$/i.test(_b) && /\w/.test(_b)) {
+        const _cszY = custSize.get(sub);
+        userText = '(SYSTEM: they said YES to seeing more styles' + (_cszY && _cszY.size ? ' in their size ' + _cszY.size : '') + '. Search their size now and send_photos of the pairs they have NOT been shown yet. Do not ask "which one" first.)\n' + userText;
+        record(req, { endpoint: 'yes-to-more-styles', sub, store: ctx.store || '' });
+      }
+    } catch (_) {}
     /* "I NEED A $70 ONE... CAN I SEE THOSE FOR $70?" IS A SEARCH (11-19 Shoe Lacky 445-6667: a voice note naming her budget, money and
      * location ready, got "Which one you want?" and no pictures). A customer who names a price and wants to see gets that price, in
      * their size, now. */
