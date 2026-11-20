@@ -11414,7 +11414,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Two alert stages (2026-07-13): "order_confirmed" fires the moment a customer
         // commits (location may still be missing) so the owner NEVER misses a sale;
         // "delivery_ready" (default) fires once the location is in hand.
-        const earlyStage = inp.stage === 'order_confirmed';
+        let earlyStage = inp.stage === 'order_confirmed';
         // 📅 A FUTURE order must not SOUND like one going out now (Rodney 2026-08-16: "a lot
         // of them are false alarms… we think something's going out now"). He still wants the
         // alert — hearing it read out is how he knows the order exists — but the very first
@@ -11424,6 +11424,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Kiki filed both cards "SET FOR LATER", the second was swallowed as the same booking, and the drivers' group got nothing).
         const _pinIn = (() => { try { const _p = pinReceived.get(String(sub)); return !!(_p && Date.now() - (_p.at || 0) < 2 * 3600 * 1000)
           || /https?:\/\/maps\.google\.com\/\?q=-?[\d.]+,-?[\d.]+/.test(String(userText || '')); } catch (_) { return false; } })();
+        // 📍 "CUSTOMER DROPPED A PIN" ONLY WHEN ONE CAME IN (11-20 Shoebox Amos 804-8640: he said "Yes" then "I let you know" - no pin -
+        // and the group got DELIVERY READY "customer dropped a WhatsApp location pin in the chat"). No pin in the thread = the card says so.
+        try {
+          if (!earlyStage && /dropped a whatsapp location pin|location pin in the chat/i.test(String(inp.location || '')) && !_pinIn) {
+            const _thPn = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+            const _locMsg = _thPn && (_thPn.msgs || []).some(m => m && m.dir === 'in' && Date.now() - (m.ts || 0) < 6 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|Shared a location/i.test(m.text || '')));
+            if (!_locMsg) { inp.location = 'not sent yet'; inp.stage = 'order_confirmed'; earlyStage = true; record(req, { endpoint: 'pin-claim-without-pin', sub }); }
+          }
+        } catch (_) {}
         const forLater = Number(inp.remind_in_hours) > 0 && !(_pinIn && !earlyStage);
         // 🧾 Every receipt this customer sent in the last 12 h, checked against our accounts (waits for a read still running).
         let _rcptLines = []; try { _rcptLines = await receiptLinesSettled(sub); } catch (_) {}
