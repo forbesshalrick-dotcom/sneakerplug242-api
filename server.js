@@ -7111,7 +7111,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   // again"). Every shoe has a 36-frame turntable (<id>-0..35.jpg) next to its card: send the front, three-quarter, other side and back.
   try {
     const _said = String(customerWordsOnly(userText) || userText || '').trim();
-    const ANGLE = /\b(?:front|back|heel|sole|bottom|other side|side view|top view|toe|angles?|all (?:the )?(?:sides|views|pics|pictures)|close ?up|more (?:pics|pictures|photos) of (?:it|that|this|them|the shoe)|(?:another|different) (?:angle|view|pic|picture))\b/i;
+    const ANGLE = /\b(?:front|back|heel|sole|bottom|other side|side view|top view|toe|angles?|all (?:the )?(?:sides|views|pics|pictures)|close ?up|more (?:pics|pictures|photos) of (?:it|that|this|them|the shoe)|(?:another|different) (?:angle|view|pic|picture)|(?:better|clearer|clear|bigger|closer|real|actual) (?:pic|pics|picture|pictures|photo|photos|view))\b/i;   // 11-19 Shoebox 477-1621 "Lemme see a better picture off this" got the same card again
     if (!image && _said && _said.split(/\s+/).length <= 16 && ANGLE.test(_said) && /\b(?:see|show|send|have|got|pic|picture|photo|view|look)\b|\?/i.test(_said) && !/\b(?:house|home|yard|door|gate|road|street|lane|corner|location|deliver|delivery|drop|pick ?up|meet|car|work|office|store|shop)\b/i.test(_said)) {
       const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
       const _imgs = ((_th && _th.msgs) || []).filter(m => m && m.dir === 'out' && m.img && /-card(?:-[a-z]+)?\.jpg$/.test(m.img) && Date.now() - (m.ts || 0) < 3 * 3600 * 1000);
