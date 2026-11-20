@@ -10215,15 +10215,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * on the way as yet"; TK +1 242 463-4181 10-17 14:09: the customer wrote "don't come no more" and Kiki answered "Driver's on
      * the way now"). Only a dispatch/step button makes it true; otherwise the claim is cut for the team line. */
     if (turnText && !staffName) {
-      const _otw = /\b(?:driver(?:'s|’s| is)?\s+(?:on (?:the|his) way|heading (?:out|over|to you|your way)|leaving now|en route|almost there|pulling up|(?:right )?outside|will be (?:with you|there|by you) (?:shortly|soon|in a (?:bit|few))|be (?:with you|there) (?:shortly|soon))|(?:we(?:'re|’re| are)|i(?:'m|’m| am))\s+on (?:the|our|my) way|on (?:the|our|his) way (?:now|to you))\b/i;
+      const _otw = /\b(?:driver(?:'s|’s| is)?\s+(?:on (?:the|his) way|heading (?:out|over|to you|your way)|leaving now|en route|almost there|pulling up|(?:right )?outside|will be (?:with you|there|by you) (?:shortly|soon|in a (?:bit|few))|be (?:with you|there) (?:shortly|soon))|(?:we(?:'re|’re| are)|i(?:'m|’m| am))\s+on (?:the|our|my) way|on (?:the|our|his) way (?:now|to you)|(?:he|she|driver)(?:'s|’s| is)\s+coming(?: (?:right )?now| to you| over)?|coming (?:right )?now|you(?:'ll|’ll| will) have (?:them|it|your \w+)[^.!?]{0,30}\bbefore\b)\b/i;
       if (_otw.test(turnText)) {
         let _out = false;
         try { const _dt = driverDispatchedAt.get(String(sub)); _out = !!(_dt && Date.now() - _dt < 4 * 3600 * 1000); } catch (_) {}
         try { const _ds = driverNow(sub); if (_ds && /^(rolling|30|20|10|5|outside)$/.test(String(_ds.step))) _out = true; } catch (_) {}
         if (!_out) {
           const _keep = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !_otw.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
-          turnText = ((_keep ? _keep + ' ' : '') + "I've passed it to the team — they'll call you when the driver's close 👟").trim();
-          record(req, { endpoint: 'on-the-way-claim-cut', sub });
+          // 11-20 TK C.G 823-3673: no pin ever sent, and "He's coming right now — you'll have them before you head out". With no pin the
+          // line asks for one; nobody can drive to a customer whose location we do not have.
+          let _pinIn = false;
+          try { const _p = pinReceived.get(String(sub)); _pinIn = !!(_p && Date.now() - (_p.at || 0) < 24 * 3600 * 1000); } catch (_) {}
+          try { const _thP = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); if (_thP && (_thP.msgs || []).some(m => m && (m.ts || 0) > Date.now() - 24 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|Shared a location/i.test(m.text || '')))) _pinIn = true; } catch (_) {}
+          turnText = ((_keep ? _keep + ' ' : '') + (_pinIn ? "I've passed it to the team — they'll call you when the driver's close 👟" : "Send me your location pin 📍 so the team can get it to you 👟")).trim();
+          record(req, { endpoint: 'on-the-way-claim-cut', sub, pin: _pinIn });
         }
       }
     }
