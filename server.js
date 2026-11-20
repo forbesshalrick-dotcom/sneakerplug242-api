@@ -10159,6 +10159,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       } catch (_) {}
     }
+    /* ⏰ NO TIME BEFORE THE FIRST RUN (11-20 Shoebox 424-2469 at 5:58 AM: "I leave here at 8" / "730 would be great" -> "OK! 7:30 AM it is 👍"
+     * and "the driver gets there before then" - the first run is 8 AM). Kiki never agrees to a delivery time earlier than 8 AM. */
+    try {
+      const _em = (turnText || '').match(/\b([1-7])(?::(\d\d))?\s*(?:a\.?m\.?)\b/i);
+      if (turnText && !staffName && _em && /\b(?:it is|it's|works|set|booked|see you|we'?ll be|driver|bring|on the way|before then|got you|ok!?)\b/i.test(turnText)) {
+        record(req, { endpoint: 'early-time-refused', sub, was: turnText.slice(0, 100) });
+        turnText = "Our first delivery run is at 8 AM, so 8 AM is the earliest we can be there 🙏 Does 8 work for you?";
+      }
+    } catch (_) {}
     // "Let me search what we've got ... and get you the price" - narration, not an answer (Rodney 10-19). The sentence goes.
     if (turnText && !staffName && /\blet me (?:search|check|look|pull|see what|find)\b|\bget you the price\b/i.test(turnText)) {
       const _k = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !/\blet me (?:search|check|look|pull|see what|find)\b|\bget you the price\b/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
