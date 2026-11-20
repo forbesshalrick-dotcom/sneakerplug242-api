@@ -7195,6 +7195,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'yes-to-more-styles', sub, store: ctx.store || '' });
       }
     } catch (_) {}
+    /* "SAME THING" AFTER A NEW SIZE = THE SAME ALBUM IN THAT SIZE (11-20 TK Nario/Woo 801-1027: got the whole size-10 album, said "10 1/2",
+     * was asked "What shoe you looking for?", answered "same thing" and was told "I need you to tell me which shoe you want"). */
+    try {
+      if (!image && /^\W*(?:the\s+)?(?:same(?:\s+(?:thing|ting|shit|stuff|ones?|deal))?|everything|all of (?:them|it)|all|anything|whatever you got|what(?:ever)? you (?:have|got))\W*$/i.test(_b)) {
+        const _thS = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _recentAlbum = _thS && (_thS.msgs || []).some(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 30 * 60 * 1000 && /This is what we have in (?:a |size )?\d/i.test(m.text || ''));
+        const _cszS = custSize.get(sub);
+        if (_recentAlbum && _cszS && _cszS.size) {
+          userText = '(SYSTEM: "' + _b.slice(0, 30) + '" means the SAME as before - everything we have - now in their size ' + _cszS.size + '. Search ALL brands in size ' + _cszS.size + ' and send_photos the whole album. Do not ask which shoe.)\n' + userText;
+          record(req, { endpoint: 'same-thing-new-size', sub, store: ctx.store || '', size: _cszS.size });
+        }
+      }
+    } catch (_) {}
     /* "I NEED A $70 ONE... CAN I SEE THOSE FOR $70?" IS A SEARCH (11-19 Shoe Lacky 445-6667: a voice note naming her budget, money and
      * location ready, got "Which one you want?" and no pictures). A customer who names a price and wants to see gets that price, in
      * their size, now. */
