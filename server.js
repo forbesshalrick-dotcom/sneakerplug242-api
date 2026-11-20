@@ -6006,7 +6006,11 @@ const reminderTick = setInterval(async () => {
       if (r.sub) {
         const _th = inboxThreads.get(inboxSubIndex.get(String(r.sub)) || '');
         const _since = r.bookedAt || (r.kind === 'keep-warm' ? r.at - 24 * 3600 * 1000 * ((r.n || 0) + 1) : r.at - 7 * 24 * 3600 * 1000);
-        const _done = _th && (_th.msgs || []).some(m => m && (m.ts || 0) > _since && (
+        // 11-20 Shoebox Richa 801-4241 + Pressure 477-1621: DELIVERY READY card and pin in, "driver will call when close" - and
+        // the day-of reminder still asked "You had a delivery set for today — still want it?" because the reminder was booked a
+        // moment AFTER the card (card ts < bookedAt). Any card/payment in the 18h before the reminder fires counts as moved.
+        const _doneSince = Math.min(_since, Date.now() - 18 * 3600 * 1000);
+        const _done = _th && (_th.msgs || []).some(m => m && (m.ts || 0) > _doneSince && (
           (m.sender === 'system' && /DELIVERY READY|DELIVERED|SOLD/i.test(m.text || ''))
           || (m.dir === 'out' && /payment (?:confirmed|received)|got your receipt|driver'?s? (?:here|outside)/i.test(m.text || ''))));
         // 11-18 NW Ej 551-7188: "Ok I'll just wait till December" on 11-17 and a staff "message us whenever you are ready" - and the
