@@ -10633,6 +10633,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           for (const m of _h.matchAll(/\\?"id\\?":\s*(\d+)/g)) _known.add(m[1]);
           for (const m of _h.matchAll(/\\?"ids\\?":\s*\[([\d,\s]*)\]/g)) m[1].split(',').map(x => x.trim()).filter(Boolean).forEach(x => _known.add(x));
         } catch (_) { return false; }
+        /* A pair already SHOWN in this chat is no guess, even when the card went out by hand from the inbox (11-19 Shoebox 801-4241:
+         * she tagged the Air Max 95 Black/Blue card sent by hand, the id was dropped, nothing went and only "Let me search those for
+         * you:" was left in the chat). Every card or photo sent here in the last 3 hours counts. */
+        try {
+          const _thK = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+          for (const m of ((_thK && _thK.msgs) || [])) {
+            if (!m || m.dir !== 'out' || !m.img || Date.now() - (m.ts || 0) > 3 * 3600 * 1000) continue;
+            const _mm = String(m.img).match(/\/([A-Za-z0-9]+)-(?:card(?:-[a-z0-9]+)?|\d+)\.jpe?g/i);
+            if (_mm) _known.add(_mm[1]);
+          }
+        } catch (_) {}
         const _all = [].concat(inp.ids || [], ...(Array.isArray(inp.groups) ? inp.groups.map(g => (g && g.ids) || []) : []));
         const _guess = _all.filter(id => !_known.has(String(id)));
         if (!_guess.length) return false;
