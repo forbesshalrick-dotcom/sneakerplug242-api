@@ -9694,7 +9694,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               // 11-20 TK 441-7406: this album said "in your 9.5" and then closed "This is what we have in a 8.5" - the closer fell
               // back to a stale saved size. The size this album is for is the one the closer must name.
               try { const _cs0 = custSize.get(sub); if (!_cs0 || parseFloat(_cs0.size) !== parseFloat(theirSize)) custSize.set(sub, { size: String(theirSize), ts: Date.now() }); } catch (_) {}
-              const _cLead = 'No ' + colour + (model ? ' ' + model.replace(/\b[a-z]/g, c => c.toUpperCase()) : '') + ' in your ' + theirSize + ' right now \u{1F64F} but these ' + colour + ' ones come in your ' + theirSize + ' \u{1F447}';
+              const _cLead = 'No ' + colour + (model ? ' ' + model.replace(/\b[a-z]/g, c => c.toUpperCase()) : '') + ' in your ' + theirSize + ' right now \u{1F64F} But we have these ' + colour + ' ones in your ' + theirSize + ' if you still want them \u{1F447}';
               const _rc = await sendShoePhotos(sub, _cIds, token, null, _cLead, false, false, ctx.turnAt || 0, true);
               _sentHere = (_rc && _rc.sent) || 0;
               if (_sentHere > 0) photosSentRun = true;
@@ -11016,6 +11016,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         leadIn = fixWomensMislabel(leadIn, lastSearchSize, record, req, sub);
+        /* 🙅 SAY THE NO FIRST, THEN "BUT WE HAVE THESE" (Rodney 11-20, TK 823-5752 "Ain't no white af1": the line read "No all white Air
+         * Force 1 in a 10 right now 🙏 This is what we have in all black and all white in your 10" over one black AF1 - "before you send
+         * the picture, you gotta let them know we don't have that. We don't have any available, but we have these, if you still want
+         * them"). A lead-in that opens with a no keeps that no, and whatever it says about the pictures becomes that one plain line. */
+        try {
+          const _dn = leadIn.match(/^((?:no (?!worries|problem|stress|wahala)(?:[^.!?\u{1F64F}\u{1F447}]|\.(?=\d)){2,80}|(?:[^.!?]|\.(?=\d)){0,60}\b(?:don(?:'|’)?t|dont|do not|ain(?:'|’)?t) (?:have|got|carry)(?:[^.!?\u{1F64F}\u{1F447}]|\.(?=\d)){0,80}|(?:[^.!?]|\.(?=\d)){0,60}\b(?:sold out|not in stock|none left)(?:[^.!?\u{1F64F}\u{1F447}]|\.(?=\d)){0,60})[.!?]*\s*(?:\u{1F64F}\s*)?)(.*)$/isu);
+          if (_dn && !/if you (?:still )?want/i.test(_dn[2] || '')) {
+            const _was = leadIn;
+            leadIn = _dn[1].trim().replace(/[.!]+$/, '') + (/\u{1F64F}$/u.test(_dn[1].trim()) ? '' : ' \u{1F64F}') + ' But we have these if you still want them \u{1F447}';
+            if (_was !== leadIn) record(req, { endpoint: 'no-first-then-these', sub, store: ctx.store || '', was: _was.slice(0, 140), now: leadIn.slice(0, 140) });
+          }
+        } catch (_) {}
         /* 🌾 THE PICTURE READER SAID WE DON'T HAVE IT — THE WORDS MAY NOT SAY WE DO (Rodney 10-22, TK 559-8608: a Wheat
          * Air Force 1 in a 10. The reader called it Flax/Wheat, NOT IN STOCK, three times; her first draft said so. The
          * never-ask guard threw that draft away, she searched the white AF1, looked at our picture beside theirs and sent
