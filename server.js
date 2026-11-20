@@ -11071,6 +11071,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // Lead-in: prefer an explicit lead_in arg, else any text the model wrote this turn.
         let leadIn = (inp.lead_in && String(inp.lead_in).trim()) ? String(inp.lead_in).trim() : turnText;
         leadIn = fixWomensMislabel(leadIn, lastSearchSize, record, req, sub);
+        /* 11-20 Shoebox Laquania 471-7373 asked for the Air Max 95 Sketch in 10 (none left) and got only "But we got these in your 10 👇" -
+         * a "but" with no no in front of it. A lead-in that opens with "But" gets the no said first. */
+        try {
+          if (/^\W*but\b/i.test(leadIn) && !/\b(?:don(?:'|’)?t|dont|do not|no |not in stock|sold out|none)\b/i.test(leadIn)) {
+            const _wasB = leadIn;
+            leadIn = "We don't have that exact one in your size right now \u{1F64F} But we have these if you still want them \u{1F447}";
+            record(req, { endpoint: 'but-without-no-fixed', sub, store: ctx.store || '', was: _wasB.slice(0, 120) });
+          }
+        } catch (_) {}
         /* 🙅 SAY THE NO FIRST, THEN "BUT WE HAVE THESE" (Rodney 11-20, TK 823-5752 "Ain't no white af1": the line read "No all white Air
          * Force 1 in a 10 right now 🙏 This is what we have in all black and all white in your 10" over one black AF1 - "before you send
          * the picture, you gotta let them know we don't have that. We don't have any available, but we have these, if you still want
