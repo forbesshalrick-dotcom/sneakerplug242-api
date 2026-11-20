@@ -7175,6 +7175,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
       record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
     }
+    /* "I NEED A $70 ONE... CAN I SEE THOSE FOR $70?" IS A SEARCH (11-19 Shoe Lacky 445-6667: a voice note naming her budget, money and
+     * location ready, got "Which one you want?" and no pictures). A customer who names a price and wants to see gets that price, in
+     * their size, now. */
+    {
+      const _pm = String(_b || '').match(/\$\s?(\d{2,3})\b|\b(\d{2,3})\s?(?:dollars?|bucks)\b|\b(?:for|under|around|about|budget(?: is)?|got|have)\s+(\d{2,3})\b(?!\s*(?:\.\d|and a half|1\/2))/i);
+      const _amt = _pm ? parseInt(_pm[1] || _pm[2] || _pm[3], 10) : 0;
+      if (!image && _amt >= 40 && _amt <= 300 && (/\b(see|show|send|pics?|pictures?|photos?|what (?:u|you|yall|y'all) (?:got|have))\b/i.test(_b) || /\ban?\s+\$?\s?\d{2,3}\s*(?:dollars?\s+)?(?:one|pair|shoe|sneakers?|tennis)\b/i.test(_b)) && !/\b(paid|sent you|transfer(?:red)?|deposit|owe)\b|\b(?:the|that|this)\s+\$?\s?\d{2,3}\s+(?:one|pair)\b/i.test(_b)) {
+        const _csz = custSize.get(sub);
+        userText = '(SYSTEM: they named a price - $' + _amt + '. Search NOW with max_price ' + _amt + (_csz && _csz.size ? ' in their size ' + _csz.size : '') + ' and send_photos of what fits. Do not ask "which one" before they have seen them.)\n' + userText;
+        record(req, { endpoint: 'price-named-is-a-search', sub, store: ctx.store || '', amt: _amt });
+      }
+    }
   } catch (_) {}
   /* ❌ "DON'T COME NO MORE" — HOLD THE SALE, THEN TELL THE TEAM ON THE NEXT MESSAGE (Rodney 10-17, TK +1 242 463-4181: she
    * cancelled a Jordan 5 Wolf Grey and got "Respect ✊". His rule, his words: "you tell them we're 2 minutes away or 3 minutes
