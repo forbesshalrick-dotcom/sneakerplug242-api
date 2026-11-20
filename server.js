@@ -7847,6 +7847,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           && !/^[a-z']+ly[\s!.,?]*$/i.test(_ans)
           // 11-17: "Morning sorry yes I want them" (NW Alfonzo 817-4558) and "Nothing else" (Shoebox Virgo 815-0363) both became
           // "the driver will meet you at ..." - a place never carries these words.
+          // "Thru god" (TK C.G ENTERPRISE 823-3673, 11-19) is a yes said with faith, not an address - it became a DELIVERY READY card.
+          && !/\b(?:god|gods|lord|jesus|amen|blessed|bless|grace|thru|through|swear|word|deal|done deal|for sure|fo sho|definitely|certainly|absolutely)\b/i.test(_ans)
           && !/\b(?:want|wanted|else|sorry|yes|yea|need|only|just|please|pls|them|thank|thanks|morning|evening|night|today|tonight|tomorrow|nothing|anything|asked|ask|ordered|order|human|real person|agent|weekend|week|pre ?-?orde?r?a?|ready|following|next|later|cool)\b/i.test(_ans)
           && !/^(?:also|then|after|afterwards?|maybe|perhaps|anyway|so|and|but|well|hmm+|um+|uh+|alright then|ok then|same|same thing|same place|same location|that|this|there|over there|nothing|anything|whatever|either|both|true|facts|copy|noted|understood|got it|i see|i hear)[\s!.,?]*$/i.test(_ans)
           && !/^(?:year|yeh|yh|yah|yuh|ye+a+h*|brother|bro|bredda|hey+|hi+|hello+|helo|yo+|sup|wassup|wa ?gwan|good ?(?:morning|afternoon|evening|night|day)|morning|gm|gn|thanks?|thank you|ty|cool|cool cool|alright|ight|aight|nice|lol|ok cool)[\s!.,🙏👋]*$/i.test(_ans)
