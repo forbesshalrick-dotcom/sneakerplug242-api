@@ -7214,6 +7214,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           record(req, { endpoint: 'same-thing-new-size', sub, store: ctx.store || '', size: _cszS.size });
         }
       }
+      /* A BARE NEW SIZE RIGHT AFTER A FULL ALBUM = THE SAME ALBUM IN THAT SIZE (11-20 TK Brandon Carr 817-1941: got the 11 album, said
+       * "10/12" then "No 10 1/2", and was asked "What shoe or brand are you looking for?" twice). */
+      const _bs = String(_b || '').match(/^\W*(?:no+|nah|naw|sorry|actually|i mean|make (?:it|that))?\W*(\d{1,2})(?:\s*(?:1\/2|½|and a half|\.5))?\W*$/i);
+      if (!image && _bs) {
+        const _thB = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _albumB = _thB && (_thB.msgs || []).some(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 30 * 60 * 1000 && /This is what we have in (?:a |size )?\d/i.test(m.text || ''));
+        if (_albumB) {
+          const _szB = _bs[1] + (/(1\/2|½|and a half|\.5)/i.test(_b) ? '.5' : '');
+          userText = '(SYSTEM: they just got a full album and now gave a NEW size, ' + _szB + '. Search ALL brands in size ' + _szB + ' and send_photos the whole album. Do not ask which shoe or brand.)\n' + userText;
+          record(req, { endpoint: 'bare-new-size-after-album', sub, store: ctx.store || '', size: _szB });
+        }
+      }
     } catch (_) {}
     /* "I NEED A $70 ONE... CAN I SEE THOSE FOR $70?" IS A SEARCH (11-19 Shoe Lacky 445-6667: a voice note naming her budget, money and
      * location ready, got "Which one you want?" and no pictures). A customer who names a price and wants to see gets that price, in
