@@ -10763,7 +10763,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _firstU = history.find(m => m && m.role === 'user' && typeof m.content === 'string' && !/^\(SYSTEM/.test(m.content));
           const _adClick = _firstU && /can i get more info on this|is this available|i want this|more info/i.test(_firstU.content);
           const _all = /\b(?:all|everything|every|whole|wat (?:u|you) got|what (?:u|you|yall|y'all) (?:got|have))\b/i.test(customerWordsOnly(String(userText || '')));
-          if (!staffName && _adClick && !_all && Array.isArray(inp.ids) && inp.ids.length > 10) {
+          /* OFF since 11-19 (Rodney, TK 812-0158 "Ninja": said "Yes plz", "11", got 10 of 49 pairs - "Kiki said this would be having 11 and
+           * only sent 4 or 5 pictures... I never seen that shit happen"). An ad customer gets the whole album in their size again. */
+          const AD_CLICK_ALBUM_CAP = false;
+          if (AD_CLICK_ALBUM_CAP && !staffName && _adClick && !_all && Array.isArray(inp.ids) && inp.ids.length > 10) {
             const _adSet = new Set(adShoeIds(ctx.store).map(a => String(a.id)));
             // Ad shoes first, then the rest with every Jordan LAST (Rodney's rule, 3x) - the cut must not keep 10 Jordans
             // (Shoebox 436-7086 11-17: $100 sale-poster ad, "9", got ten $150 Jordan 4s).
