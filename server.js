@@ -9785,7 +9785,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
     } catch (_) {}
     const _picsLately = (() => { for (const [k, t] of photoConfirmSeen) if (k.startsWith(String(sub) + '|') && Date.now() - t < 45 * 60 * 1000) return true; return false; })();
-    if (turnText && !staffName && !knownSize && !photosSentRun && !_picsLately && !image && !ctx.listingTitle && !pinnedPickIds.size
+    /* 11-20 TK 395-2105 "You have dis in 11or12?" was told "What size you wear?" - the size was in THIS message, so knownSize was not
+     * set yet. A size in their own words this turn means the size question is never added. */
+    let _sizeSaidNow = false;
+    try { const _cw0 = customerWordsOnly(userText); _sizeSaidNow = !!sizeFromCustomerWords(_cw0) || /\b(?:size\s*)?\d{1,2}(?:\.5)?\s*(?:or|\/|&|and|-)\s*\d{1,2}(?:\.5)?\b|\bin (?:a |an )?(?:size )?\d{1,2}(?:\.5)?\b/i.test(_cw0); } catch (_) {}
+    if (turnText && !staffName && !knownSize && !_sizeSaidNow && !photosSentRun && !_picsLately && !image && !ctx.listingTitle && !pinnedPickIds.size
         && /\b(what|which)\s+(?:shoe|shoes|brand|brands|model|one|kicks|style|sneaker)s?\b|name and (?:the )?size|give me the name|(?:nike|adidas|jordans?|new balance|asics) or (?:nike|adidas|jordans?|new balance|asics)|two different brands/i.test(String(turnText).replace(/[*_]/g, ''))) {
       const _cw = customerWordsOnly(userText);
       const _brands = [...new Set((_cw.match(/\b(nike|adidas|jordans?|new balance|nb|asics|yeezys?|puma|crocs|air force|air max|dunks?|vapor ?max|tns?)\b/gi) || [])
