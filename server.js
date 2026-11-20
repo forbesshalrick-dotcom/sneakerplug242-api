@@ -3654,6 +3654,13 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
         // 11-20 TK Nesha 801-1817 got "I don't have context of the previous conversation history to see what shoes or sizes were discussed.
         // Could you share the customer's last real message..." - this no-history call talking about itself. A line about context, the
         // conversation, "the customer" or what it can't see is never sent; the queued turn answers after the album.
+        // 11-20 Shoebox Mannie 822-6694 asked for every $100 men's pair in 10.5 and this no-history line answered "Got you—size 10 Panda Dunks,
+        // $100!" - a size and a shoe he never named. A size number that is not the customer's size is never said here.
+        try {
+          const _csQ = custSize.get(sub); const _mine = _csQ && _csQ.size ? String(_csQ.size).split('/').map(parseFloat) : [];
+          const _nums = (String(line || '').match(/(?:size|sz|in (?:a |your )?)\s*(\d{1,2}(?:\.5)?)/gi) || []).map(x => parseFloat(x.replace(/[^\d.]/g, '')));
+          if (line && _nums.some(n => !_mine.includes(n))) { recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-wrong-size-dropped', sub, line: line.slice(0, 80) }); return; }
+        } catch (_) {}
         if (line && /\b(?:context|conversation history|previous conversation|the customer(?:'s)?|as an ai|language model|i (?:don'?t|do not) have (?:access|context|enough|the)|could you (?:share|provide|clarify)|what (?:pictures|shoes) were (?:sent|discussed)|real message)\b/i.test(line)) { recent.unshift({ at: new Date().toISOString(), endpoint: 'mid-album-meta-dropped', sub, line: line.slice(0, 80) }); return; }
         await sendChunk(sub, [{ type: 'text', text: line || `Good question! One sec — let me finish sending these and I'll answer you right after 👟` }], token);
       }
