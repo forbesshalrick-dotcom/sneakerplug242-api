@@ -9038,7 +9038,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 📍 NO PIN = NO DRIVER TALK (Rodney 10-28: nothing about the team, the driver or a call until they shared a pin. Broken again
      * 11-03, FF Pengouin 429-2588: no pin, only "Podoleo Street", and he was told "Your location is already sent to the team" and
      * "Driver's close — he'll be there before 3" - both made up; he waited for 3 PM work). The line is replaced, not re-asked. */
-    if (turnText && !staffName && /\b(location is already sent|already (got|have) your location|driver'?s close|driver is close|he'?ll be (there|right (there|with you))|on (the|his|our|my) way|passed (it|this) (on )?to the team|sent this (straight )?to the team|they'?ll (give you a )?call (you )?when|call the driver|see how far he is)/i.test(turnText)) {
+    if (turnText && !staffName && /\b(location is already sent|already (got|have) your location|driver'?s close|driver is close|he'?ll be (there|right (there|with you))|on (the|his|our|my) way|passed (it|this) (on )?to the team|sent this (straight )?to the team|they'?ll (give you a )?call (you )?when|call the driver|see how far he is|he'?s (?:right )?(?:there|outside|out front|pulling up|around the corner|calling you(?: now)?)|calling you now|look (?:out )?for the (?:burgundy|grey|gray|black|white|silver|blue|red)|\d+\s*min(?:ute)?s? away|almost there)/i.test(turnText)) {
       try {
         const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
         const _since = Date.now() - 24 * 3600 * 1000;
@@ -9062,6 +9062,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
            * customer insist"). Our meet-up spot goes out instead. */
           record(req, { endpoint: 'coming-to-us-spot-sent', sub, store: ctx.store || '' });
           turnText = "We're on Carmichael Rd 📍 by the car rental on the corner and the wash house https://maps.google.com/?q=25.006563,-77.414422\n\nText us when you're on the way so we have your order ready 🙏👟";
+        } else if (_hasPin && /\b(?:he'?s (?:right )?(?:there|outside|out front|pulling up|around the corner|close|calling you(?: now)?)|calling you now|look (?:out )?for the|(?:burgundy|grey|gray|black|white|silver|blue|red) (?:nissan|honda|toyota|car)|\d+\s*min(?:ute)?s? away|almost there|just around)\b/i.test(turnText)) {
+          /* 🚗 WITH A PIN SHE STILL DOESN'T KNOW WHERE THE DRIVER IS (Shoebox Saltlife Johnny 815-5684 11-21 15:24: "He's calling you now
+           * bro", then "He's right there — look out for the burgundy Nissan Dayz" - both made up; the driver hadn't called and nobody
+           * knew where he was. Rodney: driver questions go to him; never claim the driver's position). */
+          record(req, { endpoint: 'driver-position-claim-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
+          turnText = "I've passed your message to the driver 🙏 he'll call you when he's close, keep your phone near you 👟";
         } else if (!_hasPin) {
           record(req, { endpoint: 'no-pin-driver-talk-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
           turnText = 'Just need your location pin so the driver knows exactly where to bring it 📍 Tap 📎 (or ＋) → Location → Send your current location';
