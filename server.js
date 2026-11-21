@@ -2070,7 +2070,9 @@ const INTERNAL_LEAK_RE = new RegExp([
   'record_sale', 'record_restock', 'tool_use', 'tool_result',
   // Talking ABOUT the customer instead of TO them (Rodney 11-08 sweep, TK Moss Motors 812-6593: "Price" got "They just said \"Price\"
   // with no shoe named — they're asking about the shoes I just sent. Since there are multiple shoes with different prices, I should...").
-  '\\bthey just said\\b', "\\bthey'?re asking about the shoes? I\\b", '\\bI should (?:ask|send|show|reply|answer|list|tell)\\b',
+  '\\bthey just said\\b', "\\bthey'?re asking about the shoes? I\\b",
+  // TK Wicked 447-7574 11-21 17:53: "I understand — I won't tell the customer I can't see pictures. I'm ready to help them pick..."
+  "\\b(?:tell|told|show|ask|let) the customer\\b", "\\bI (?:won'?t|will not|understand)\\b[^.]{0,40}\\bthe customer\\b", "\\bhelp them pick\\b", '\\bI should (?:ask|send|show|reply|answer|list|tell)\\b',
   'system\\s*(?:note|prompt|message)',                                 // "SYSTEM NOTE", "your system prompt"
   '(?:function|tool)s?\\s+(?:available|i have|you have)',              // "function available to me"
   'the tools i (?:have|was given)',
