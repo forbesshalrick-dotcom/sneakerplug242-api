@@ -4066,6 +4066,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
       const _capAt = adCappedAt.get(String(sub)); const _wasCapped = !!(_capAt && Date.now() - _capAt < 4 * 60 * 1000);
       if (_wasCapped) adCappedAt.delete(String(sub));
       try { if ((sent <= 5 || _wasCapped) && !/more styles/i.test(closing)) closing = closing.replace(/\s*👟$/, '').replace(/\s*Which one you like\?$/, '') + ' 👟 We have more styles available in your size if you want to see them 🔥'; } catch (_) {}
+      /* ❓ EVERY CLOSING LINE ASKS FOR THE PICK (TK Mr. Beneby 807-6329 + ✞ 829-8485 11-21 12:43/12:59: 72-picture size-9 albums
+       * closed "This is what we have in a 9 👟" and nothing else - a dead line right when they're looking). */
+      try { if (!/\?/.test(closing)) closing = closing.replace(/\s*👟$/, '') + ' 👟 Which one you like? Send me the picture 🔥'; } catch (_) {}
       try { await sendChunk(sub, [{ type: 'text', text: await say(closing, sub) }], token); } catch (e) { /* non-fatal */ }
     }
   }
