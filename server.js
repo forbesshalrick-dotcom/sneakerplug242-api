@@ -10339,6 +10339,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       } catch (_) {}
     }
+    /* 🏝️ ISLAND = PAYMENT FIRST, EVEN WHEN THE ISLAND IS ONLY IN THE CHAT (TK Rj Moob 814-6685 11-21 18:23: "Y'all in Freeport" ... "how I know
+     * y'all real?" got "We ship to Freeport — you just pay when it arrives ... No risk bro"). The block above only knew the island from a
+     * SHIPMENT system note; this one also reads the customer's own words and her reply. */
+    try {
+      const _ISL = /\b(freeport|grand bahama|gb\b|abaco|marsh harbou?r|exuma|eleuthera|andros|long island|bimini|inagua|cat island|harbour island|ship(?:ping|ped)? to)\b/i;
+      if (turnText && !staffName && /\bpay(?:ment)?\s+(?:when (?:it|they|the (?:shoes?|pair|package)) (?:arrives?|lands?|gets? there|comes?)|on (?:arrival|delivery))|\bno risk\b/i.test(turnText)) {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _custIsl = _th && (_th.msgs || []).some(m => m && m.dir === 'in' && _ISL.test(m.text || '') && Date.now() - (m.ts || 0) < 3 * 24 * 3600 * 1000);
+        if (_custIsl || _ISL.test(turnText) || _ISL.test(String(userText || ''))) {
+          turnText = turnText
+            .replace(/[^.!?\n]*\bpay(?:ment)?\s+(?:when (?:it|they|the (?:shoes?|pair|package)) (?:arrives?|lands?|gets? there|comes?)|on (?:arrival|delivery))[^.!?\n]*[.!?]?/gi, ' For the islands it\'s payment first, then we ship (plane $35 or boat $10) 🙏')
+            .replace(/\bno risk(?: bro)?\b\s*/gi, '').replace(/\s{2,}/g, ' ').trim();
+          record(req, { endpoint: 'island-pay-first-fixed', sub });
+        }
+      }
+    } catch (_) {}
     /* 💬 NO "LOVE YOU" TO CUSTOMERS (Rodney 11-08: "dont say love you" - TK Angelo 448-8837 asked "everything alright and you?" and got
      * "All good bro 🙏 Love you! Take care"). Only the Mommy greeting keeps it. */
     if (turnText && !staffName && !/Is this Mommy|Hi Mo!/.test(turnText)) {
