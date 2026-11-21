@@ -12005,7 +12005,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
   try {
     const _vin = voiceInAt.get(String(sub)) || 0;
     const _native = isYcloudSub(sub) || !!waChannel.get(sub) || process.env.VOICE_REPLY_MANYCHAT === '1';
-    if (process.env.VOICE_REPLY !== '0' && !staffName && sentToCustomer && lastText && Date.now() - _vin < 3 * 60 * 1000 && _native) {
+    // Rodney 11-21 10:2x: "kiki has to stop sending voice notes" — OFF unless VOICE_REPLY=1 is set on purpose.
+    if (process.env.VOICE_REPLY === '1' && !staffName && sentToCustomer && lastText && Date.now() - _vin < 3 * 60 * 1000 && _native) {
       voiceInAt.delete(String(sub));
       // The owner's translation line is never SPOKEN (FF Kris 10-20 15:38: the voice note read out "🔎 Customer said: ..." to him).
       // 11-18 New Wave Sabrina 472-5267 ("I hope this ain't no scam"): the TEXT went out guarded ("You can check them out in person
