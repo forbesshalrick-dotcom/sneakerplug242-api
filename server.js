@@ -9039,6 +9039,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _kept = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !/driver|on (?:the|his|our|my) way|location|pin\b|be there|bring it|team/i.test(x)).join(' ').trim();
           record(req, { endpoint: 'no-fit-pin-ask-cut', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
           turnText = ((_kept ? _kept + ' ' : '') + 'Want me to send you what we got in your size? 👟').trim();
+        } else if (!_hasPin && /\b(?:(?:send|drop|share|give)\s+(?:me\s+)?(?:your|ur|yall?|y'?all'?s?)\s+(?:location|pin|address|spot)|where\s+(?:are\s+)?(?:you|u|yall?)\s+(?:at|located|by)|i\s*(?:'m|m|am)?\s*(?:will\s+|'ll\s+|ll\s+|gonna\s+|ima\s+)?(?:be\s+)?(?:com(?:e|ing)|pass(?:ing)?\s+(?:by|through)|pick(?:ing)?\s+(?:it\s+|them\s+)?up)\s+(?:to\s+(?:you|u)|fr?o?r?\s+(?:it|them)|by\s+(?:you|u)|there|now|later)|ima\s+(?:come|pass)|i(?:'ll|ll)?\s+come\s+(?:get|grab))\b/i.test(String(userText || '').split('(SYSTEM')[0].replace(/[’‘]/g, "'").replace(/\bi'?ll\s+pick\b/gi, 'i picking'))) {
+          /* 📍 THEY'RE COMING TO US (Shoebox Mjay 454-3274 11-21 11:06: picked the AM95 8.5, "Send me your location I coming fr it
+           * now" - this guard swapped the reply for "Just need your location pin". Rodney 11-17: "always send this location when
+           * customer insist"). Our meet-up spot goes out instead. */
+          record(req, { endpoint: 'coming-to-us-spot-sent', sub, store: ctx.store || '' });
+          turnText = "We're on Carmichael Rd 📍 by the car rental on the corner and the wash house https://maps.google.com/?q=25.006563,-77.414422\n\nText us when you're on the way so we have your order ready 🙏👟";
         } else if (!_hasPin) {
           record(req, { endpoint: 'no-pin-driver-talk-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
           turnText = 'Just need your location pin so the driver knows exactly where to bring it 📍 Tap 📎 (or ＋) → Location → Send your current location';
