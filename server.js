@@ -15361,7 +15361,18 @@ app.post('/ycloud/webhook', async (req, res) => {
           rememberYcloudSent([_wm.wamid], ycloudSentMedia.get(String(_wm.id)));
         }
       } catch (_) {}
-      if (/echo/i.test(kind)) { record(req, { endpoint: 'ycloud-echo', msgType: _wm.type || '', to: String(_wm.to || '').slice(-7) }); return; }
+      if (/echo/i.test(kind)) {
+        /* ✋ A message Rodney TYPED on the phone means he is talking to that person himself (11-21: "I'm trying to send out a few
+         * messages from the American number... pause it for people that's gonna reply back"). Kiki stays out of that chat: 24 h on
+         * the US line (845-403-1330, his own outreach), 45 min on the shop lines like any hand reply. */
+        let _hp = 0;
+        try {
+          const _to = String(_wm.to || '').replace(/\D/g, '');
+          if (_to && _to.length >= 10) { _hp = /8454031330$/.test(String(_wm.from || '').replace(/\D/g, '')) ? 24 * 60 : 45; setHumanPause(_to, _hp * 60 * 1000); }
+        } catch (_) {}
+        record(req, { endpoint: 'ycloud-echo', msgType: _wm.type || '', to: String(_wm.to || '').slice(-7), pausedMin: _hp });
+        return;
+      }
     }
     // 🎙 Was it DELIVERED? (Rodney 10-17: "I never heard a voice note from Kiki, and I never seen her send one on WhatsApp either").
     // YCloud's "sent" only means accepted; a failure arrives later as a status update, which used to be dropped unread.
