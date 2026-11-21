@@ -10088,6 +10088,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'wears-like-cut', sub, said: _m[0] });
       }
     }
+    /* 👟 "AIR FORCES RUN BIG, SO THE 10 WILL FIT YOU" TO A 9 (TK Pappie 805-0509 11-21 10:33: no black AF1 in a 9, offered the 10 with
+     * "Air Forces run a little big, so the 10 will fit you just right" - backwards; running big means the SMALLER size fits). A bigger
+     * AF1 sold with the run-big line gets the true rule instead. */
+    try {
+      if (turnText && !staffName) {
+        const _rb = turnText.match(/air\s*forces?\s+(?:1s?\s+)?runs?\s+(?:a\s+(?:little|touch|bit)\s+)?big,?\s+so\s+(?:the|a|an)\s+(\d{1,2}(?:\.5)?)\b[^.!?\n]*/i);
+        const _csz = (custSize.get(sub) || {}).size;
+        if (_rb && _csz && parseFloat(_rb[1]) > parseFloat(_csz)) {
+          turnText = turnText.replace(_rb[0], 'Air Forces run a little big, so your size or half a size down fits best 👟 the ' + _rb[1] + ' will be a little roomy').trim();
+          record(req, { endpoint: 'af1-runs-big-upsize-cut', sub, offered: _rb[1], theirs: _csz });
+        }
+      }
+    } catch (_) {}
     /* ✅ THEY SAID YES - DON'T ASK THE SIZE BACK (TK stitch +1 242 806-5647 10-19 08:41: asked for a black AF1 "size 11", got the
      * photo, said "yes", and Kiki asked "Want the 11?"). Rodney: once they pick, tell the price and ask when they're available. */
     if (turnText && !staffName) {
