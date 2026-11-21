@@ -10131,7 +10131,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _hNas = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10);
         if (_hNas >= 15 && /\btoday\b[^.!?\n]{0,40}\b(?:before|by)\s*3\s*(?:pm|p\.m\.)?|\bout today if\b|\btoday'?s (?:plane|flight)\b/i.test(turnText)) {
           turnText = turnText
-            .replace(/\(?\s*(?:plane\s+)?(?:goes\s+)?out today if (?:you )?pa(?:y|id) before 3\s*(?:pm|PM|p\.m\.)?\s*\)?/gi, 'goes on the next flight once paid')
+            .replace(/\b(?:goes\s+)?out today if (?:you )?pa(?:y|id) before 3\s*(?:pm|p\.m\.)?/gi, 'goes on the next flight once paid')
             .replace(/\bgoes out today if (?:you )?pay before 3\s*(?:pm)?/gi, 'goes on the next flight once paid')
             .replace(/\btoday'?s (plane|flight)\b/gi, "the next $1");
           record(req, { endpoint: 'plane-after-3pm-fixed', sub });
