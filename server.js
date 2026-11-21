@@ -4005,14 +4005,14 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
           let _carried = true; try { const _have = sizesWeStock(); _carried = !_have.size || String((_cs && _cs.size) || '').split('/').some(x => _have.has(parseFloat(x))); } catch (_) {}
           if (_cs && _cs.size && _carried) what = 'a ' + _cs.size;
           /* 11-20 TK 805-0509: "I don't wear 8" got a 72-pair album of 9s and 9.5s that closed "This is what we have in a 8" -
-           * the saved size was the stale 8 from the AF1 offer. The fallback size must be one most of the pictures come in;
+           * the saved size was the stale 8 from the AF1 offer. The fallback size must be one a fair share (30%+) of the pictures come in (11-21 Shoebox 451-5156 asked 9 and got "in a 9.5" over a 9s+9.5s album at 60%);
            * otherwise name the size the most pictures come in. */
           try {
             const _ws = went.map(sh => (sh.sizesRaw || sh.sizes || []).map(z => String(parseFloat(z))));
             if (_ws.length) {
               const _share = (z) => _ws.filter(a => a.includes(String(parseFloat(z)))).length / _ws.length;
               const _cur = (what.match(/^a (\d{1,2}(?:\.5)?)$/) || [])[1];
-              if (!_cur || _share(_cur) < 0.6) {
+              if (!_cur || _share(_cur) < 0.3) {
                 const _cnt = {}; _ws.forEach(a => [...new Set(a)].forEach(z => { _cnt[z] = (_cnt[z] || 0) + 1; }));
                 const _best = Object.keys(_cnt).sort((a, b) => _cnt[b] - _cnt[a] || parseFloat(a) - parseFloat(b))[0];
                 if (_best && _cnt[_best] / _ws.length >= 0.4) what = 'a ' + _best.replace(/\.0$/, '');
