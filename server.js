@@ -10124,6 +10124,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* ✈️ AFTER 3 PM TODAY'S PLANE IS GONE (Shoebox STXKS 807-1004 11-21 15:17, Freeport: "Plane goes out today if you pay before
+     * 3 PM" at 3:17 PM). Past the cut-off (Nassau time) the promise becomes the next flight. */
+    try {
+      if (turnText) {
+        const _hNas = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10);
+        if (_hNas >= 15 && /\btoday\b[^.!?\n]{0,40}\b(?:before|by)\s*3\s*(?:pm|p\.m\.)?|\bout today if\b|\btoday'?s (?:plane|flight)\b/i.test(turnText)) {
+          turnText = turnText
+            .replace(/\(?\s*(?:plane\s+)?(?:goes\s+)?out today if (?:you )?pa(?:y|id) before 3\s*(?:pm|PM|p\.m\.)?\s*\)?/gi, 'goes on the next flight once paid')
+            .replace(/\bgoes out today if (?:you )?pay before 3\s*(?:pm)?/gi, 'goes on the next flight once paid')
+            .replace(/\btoday'?s (plane|flight)\b/gi, "the next $1");
+          record(req, { endpoint: 'plane-after-3pm-fixed', sub });
+        }
+      }
+    } catch (_) {}
     /* ✅ THEY SAID YES - DON'T ASK THE SIZE BACK (TK stitch +1 242 806-5647 10-19 08:41: asked for a black AF1 "size 11", got the
      * photo, said "yes", and Kiki asked "Want the 11?"). Rodney: once they pick, tell the price and ask when they're available. */
     if (turnText && !staffName) {
