@@ -10444,7 +10444,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (_cs && _cs.fromCustomer && _cs.size && Date.now() - (_cs.ts || 0) < 12 * 3600 * 1000 && p.size != null && !p.womens
               && !(womensSaid.get(String(sub)) && Date.now() - (womensSaid.get(String(sub)).at || 0) < 12 * 3600 * 1000)
               && Math.abs(parseFloat(p.size) - parseFloat(_cs.size)) > 1
-              && parseFloat(p.size) !== parseFloat(_cs.size) && !new RegExp('(?<![\\d.])' + String(parseFloat(p.size)).replace('.', '\\.') + '(?![\\d])').test(_ut)) {
+              && parseFloat(p.size) !== parseFloat(_cs.size) && !new RegExp('(?<![\\d.])' + String(parseFloat(p.size)).replace('.', '\\.') + '(?![\\d])').test(_ut)
+              /* TK .🦍 437-6932 11-21 09:45: asked for the All Black in a 12, was shown 12s, then sent a delivery time — the
+               * search for his 12 was swapped to a stale 6.5 and he got navy 6.5s + Jordan 4s. A size the customer typed in the
+               * last 2 hours, or that Kiki already showed him, is current: keep it. */
+              && !(() => { try {
+                const _th2 = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+                if (!_th2) return false;
+                const _re2 = new RegExp('(?<![\\d.:])' + String(parseFloat(p.size)).replace('.', '\\.') + '(?![\\d:])');
+                return _th2.msgs.some(m => Date.now() - m.ts < 2 * 3600 * 1000 && _re2.test(String(m.text || '')) && (m.dir === 'in' || /\b(?:in (?:a|your)|size)\s*\d/i.test(String(m.text || ''))));
+              } catch (_) { return false; } })()) {
             record(req, { endpoint: 'search-size-restored', sub, searched: p.size, theirs: _cs.size });
             p.size = String(_cs.size);
           }
