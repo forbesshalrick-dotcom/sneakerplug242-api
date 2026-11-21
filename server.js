@@ -8631,8 +8631,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _w = customerWordsOnly(String(userText || ''));
     if (!staffName && /\b(how much|price|prices|cost|hmuch|how mch)\b/i.test(_w)) {
       const _lmP = liveShoeMap();
-      const _toks = _w.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).map(t => t.length > 3 ? t.replace(/s$/, '') : t).filter(t => t.length >= 3 && !/^(how|much|the|these|those|this|that|for|price|prices|cost|you|got|have|are|is|what|pair|pairs|shoe|shoes|sneakers?)$/.test(t));
-      const _hits = _toks.length ? Object.values(_lmP).filter(x => x && x.name && (x.sizesRaw || x.sizes || []).length && _toks.some(t => (String(x.name) + ' ' + String(x.nickname || '')).toLowerCase().includes(t))) : [];
+      let _toks = _w.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).map(t => t.length > 3 ? t.replace(/s$/, '') : t).filter(t => t.length >= 3 && !/^(how|much|the|these|those|this|that|for|price|prices|cost|you|got|have|are|is|what|pair|pairs|shoe|shoes|sneakers?)$/.test(t));
+      /* 11-20 TK 554-3100 "I need one how much I am In exuma" -> "The need one Exuma are $150", Shoe Lacky 803-7005 "Prices start at
+       * 100" -> "The start 100 are $100": every leftover word became the model name and loose substrings ("one" in "Phantom One",
+       * "100" in "1000") counted as hits. Only whole words that name a shoe count, a bare price like 100/150/200 never does, and the
+       * model said back is just those words. */
+      const _nameOf = (x) => (String(x.name) + ' ' + String(x.nickname || '')).toLowerCase();
+      const _wordHit = (x, t) => new RegExp('(^|[^a-z0-9])' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + 's?($|[^a-z0-9])').test(_nameOf(x));
+      _toks = _toks.filter(t => !/^(one|need|want|start|starts|i|am|in|im|at|me|my|do|does|get|give|send|any|all|exuma|abaco|eleuthera|freeport|andros|nassau)$/.test(t) && !/^\d{2,3}$/.test(t) && Object.values(_lmP).some(x => x && x.name && _wordHit(x, t)));
+      const _hits = _toks.length ? Object.values(_lmP).filter(x => x && x.name && (x.sizesRaw || x.sizes || []).length && _toks.some(t => _wordHit(x, t))) : [];
       // The line's sale price, not the list price (Rodney 10-31, TK 828-1607: the black AF1 is $100 on Trendy Kicks and she said "$120").
       const _pr = [...new Set(_hits.map(x => { const _ls = lineSale(sub, x.id, ctx.store); return _ls ? _ls.price : parseFloat(x.price); }).filter(n => n > 0))].sort((a, b) => a - b);
       if (_hits.length && _pr.length) {
