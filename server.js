@@ -8392,7 +8392,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           _isCard = true; record(req, { endpoint: 'photo-already-sent-not-resent', sub, shoe: String((_c0[0] || {}).id || '') });
         }
       } catch (_) {}
-      if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !_isCard) {
+      /* 🩹 A PHOTO OF A PROBLEM IS NOT A SHOPPING PHOTO (Shoebox A&F charter 809-4099 11-21 13:15: "These tennis I bought these
+       * dry rotted ... coming apart", then a photo of the sole - and the server sent our Hyper Jade sales card with sizes). A
+       * complaint in the last 30 min keeps the card back; Kiki answers about the problem in words. */
+      let _complaint = false;
+      try {
+        const _thC = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        _complaint = !!(_thC && _thC.msgs.some(m => m.dir === 'in' && Date.now() - m.ts < 30 * 60 * 1000
+          && /\b(dry\s*rot\w*|coming\s+(?:apart|off|undone)|fall(?:ing)?\s+apart|sole\s+(?:came|coming|is|peel\w*|split\w*|separat\w*|off)|peel\w*|split\w*|crack\w*|ripp?ed|torn|tear(?:ing)?|broke\w*|defect\w*|damag\w*|fake|refund|money\s+back|return\s+(?:it|them|these)|exchange\s+(?:it|them|these))\b/i.test(String(m.text || ''))));
+        if (_complaint) record(req, { endpoint: 'complaint-photo-no-card', sub, store: ctx.store || '' });
+      } catch (_) {}
+      if (_ours && !/NOT IN STOCK|NOT A SHOE/i.test(_ours) && !_isCard && !_complaint) {
         const _cands = stockLineIds.get(normStockLine(_ours.replace(/^[\-*•\s]+/, ''))) || [];
         let _pickSh = pickTwin(_cands, sub);
         // 📢 the ad's own pair beats a same-name lookalike (see ad-twin-swap above)
