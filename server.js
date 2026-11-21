@@ -10144,6 +10144,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* 👀 "I FOUND ONE" IS A PICK, NOT A QUESTION (TK Only GOD 812-6844 11-21 17:26: got the size-7 album, wrote "I find one", and
+     * Kiki answered "What shoe you looking for?" - Rodney: "she knows what she wants"). Ask for the picture of the one they chose. */
+    try {
+      const _utF = String(userText || '').split('(SYSTEM')[0].trim();
+      if (turnText && !staffName && _utF.length <= 40
+          && /\b(?:i\s+)?(?:find|found|fine|like|love|want|pick(?:ed)?|choose|chose|see|saw|got)\s+(?:one|1|it|dat one|that one|this one|a pair|my pair)\b/i.test(_utF)
+          && /\b(?:what|which)\s+(?:shoe|style|kind|one)s?\s+(?:you|u)\s+(?:looking|lookin|after|want)/i.test(turnText)) {
+        turnText = 'Nice 🔥 send me the picture of the one you like and I will check it in your size 👟';
+        record(req, { endpoint: 'found-one-ask-picture', sub });
+      }
+    } catch (_) {}
     /* ✅ THEY SAID YES - DON'T ASK THE SIZE BACK (TK stitch +1 242 806-5647 10-19 08:41: asked for a black AF1 "size 11", got the
      * photo, said "yes", and Kiki asked "Want the 11?"). Rodney: once they pick, tell the price and ask when they're available. */
     if (turnText && !staffName) {
