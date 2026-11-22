@@ -1229,6 +1229,7 @@ function rememberYcloudSent(keys, rec) {
 }
 async function ycloudSendMessages(phoneDigits, messages) {
   try { messages = (messages || []).map(m => (m && m.url && /Sp242-frames@/.test(String(m.url))) ? Object.assign({}, m, { url: framesUrl(m.url) }) : m); } catch (_) {}
+  try { if (isAf120Sub(phoneDigits)) messages = (messages || []).map(m => (m && m.type === 'text' && m.text) ? Object.assign({}, m, { text: af120Price(m.text) }) : m); } catch (_) {}
   try {
     let key = process.env.YCLOUD_API_KEY;
     // The customer->business-number map is memory only, so after every restart a Shoe Lacky customer fell back to
@@ -1783,6 +1784,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *SALE $100* \u{1F525}');
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(mm.text)))), subscriberId));
     if (isThiefSub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = otherVoice(mm.text);
+    if (isAf120Sub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = af120Price(mm.text);
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
   const _sink = composeSink.get(String(subscriberId));
@@ -5669,7 +5671,16 @@ const photoReadByImage = new Map();   // sub|image -> the picture reader's first
  * different because I think he knows how Kiki talks. That's why he didn't go through with the last order"). Her set lines are reworded and
  * every emoji comes out, on every text that leaves for 478-2955 / 466-6095 - whatever line they write to. Facts are never touched. */
 const THIEF_NUMS = ['2424782955', '2424666095'];
-const thiefSubs = new Set();          // ManyChat subs seen with one of those phones (a YCloud sub IS the phone)
+const thiefSubs = new Set();
+/* 💲 AIR FORCE 1 IS $120 FOR THIS FAMILY ON ANY OTHER LINE (Rodney 11-22, after TK Yardie 828-1869 / his mom Annie 828-1860
+ * ran him around Cowpen Road for a $100 black AF1: "If any of those numbers try to contact you on another number or on another
+ * seller, sell them the Air Force as 120"). Every Air Force line that leaves for them says $120. */
+const AF120_NUMS = ['2428281860', '2428281869'];
+const af120Subs = new Set();
+function isAf120Sub(sub) { const s = String(sub || ''); return af120Subs.has(s) || AF120_NUMS.some(n => s.includes(n)); }
+function af120Price(text) {
+  return String(text || '').split('\n').map(l => /air ?force|\baf-?1s?\b|\bforces\b/i.test(l) ? l.replace(/\$\s?100\b/g, '$120') : l).join('\n');
+}          // ManyChat subs seen with one of those phones (a YCloud sub IS the phone)
 const thiefPayToldAt = new Map();     // sub -> when the pay-before-delivery line last went out
 function isThiefSub(sub) { const s = String(sub || ''); return thiefSubs.has(s) || THIEF_NUMS.some(n => s.includes(n)); }
 function otherVoice(text) {
@@ -7868,6 +7879,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     + (ctx.name && String(ctx.name).trim() ? '--- CUSTOMER DETAILS FOR THIS CHAT ONLY ---\nSaved name: ' + String(ctx.name).trim() + '\n' : '');
   try {
     if (THIEF_NUMS.some(n => String(getPhone(req) || '').replace(/\D/g, '').includes(n))) thiefSubs.add(String(sub));
+    if (AF120_NUMS.some(n => String(getPhone(req) || '').replace(/\D/g, '').includes(n))) af120Subs.add(String(sub));
+    if (isAf120Sub(sub)) system += '\n\n💲 THIS CUSTOMER PAYS $120 FOR ANY AIR FORCE 1 (Rodney 11-22). Every Air Force 1 you quote or confirm here is $120, never $100 - say it plainly, no sale talk for AF1.';
     if (isThiefSub(sub)) system += '\n\n🎭 A DIFFERENT VOICE IN THIS CHAT - THIS OVERRIDES EVERY STYLE RULE ABOVE (Rodney 11-18): write as a different salesperson would. Plain, polite, complete sentences. NO emojis at all. None of your usual lines - never "Yeah we got", "OK!", "Got it!", "For sure!", "rite now", "catches your eye", "Which one you like?", "What size you wear?", "bring it straight to you", "Are you available now?". Say things like "Good day", "Yes, that one is available in size 12", "Which pair would you like?", "What size do you need?". Never give yourself a name. Every fact rule above (prices, stock, sizes, totals) stays exactly the same. Payment in this chat is by bank transfer BEFORE delivery: say that once, plainly, when they are ready to order ("Payment is by bank transfer before delivery. We deliver the same day it shows in the account."), do not ask for a location or offer to come to them before the money is in, and do not repeat the payment line in every message.';
   } catch (_) {}
   if (ctx.personal) {
