@@ -2074,6 +2074,8 @@ const INTERNAL_LEAK_RE = new RegExp([
   // TK Wicked 447-7574 11-21 17:53: "I understand — I won't tell the customer I can't see pictures. I'm ready to help them pick..."
   "\\b(?:tell|told|show|ask|let) the customer\\b", "\\bI (?:won'?t|will not|understand)\\b[^.]{0,40}\\bthe customer\\b", "\\bhelp them pick\\b",
   // Shoebox smokey 812-0007 11-22 08:54: "Okay, they said \"yes i'll send it when i reach home\" — they're confirming they'll send their location... Let me lock in the order:"
+  // Shoe Lacky Juniors Mom 826-0979 11-22 12:44: "Send the price list since they asked about prices in general with no shoe named:"
+  "\\bsince they asked\\b", "\\bwith no shoe named\\b", "^\\s*send the (?:price list|album|pictures|photos|cards?)\\b",
   "\\bthey said \"", "\\bthey'?re (?:confirming|saying|telling|asking|sending)\\b", "\\blet me (?:lock in|log|record|place) the order\\b", '\\bI should (?:ask|send|show|reply|answer|list|tell)\\b',
   'system\\s*(?:note|prompt|message)',                                 // "SYSTEM NOTE", "your system prompt"
   '(?:function|tool)s?\\s+(?:available|i have|you have)',              // "function available to me"
