@@ -2072,7 +2072,9 @@ const INTERNAL_LEAK_RE = new RegExp([
   // with no shoe named — they're asking about the shoes I just sent. Since there are multiple shoes with different prices, I should...").
   '\\bthey just said\\b', "\\bthey'?re asking about the shoes? I\\b",
   // TK Wicked 447-7574 11-21 17:53: "I understand — I won't tell the customer I can't see pictures. I'm ready to help them pick..."
-  "\\b(?:tell|told|show|ask|let) the customer\\b", "\\bI (?:won'?t|will not|understand)\\b[^.]{0,40}\\bthe customer\\b", "\\bhelp them pick\\b", '\\bI should (?:ask|send|show|reply|answer|list|tell)\\b',
+  "\\b(?:tell|told|show|ask|let) the customer\\b", "\\bI (?:won'?t|will not|understand)\\b[^.]{0,40}\\bthe customer\\b", "\\bhelp them pick\\b",
+  // Shoebox smokey 812-0007 11-22 08:54: "Okay, they said \"yes i'll send it when i reach home\" — they're confirming they'll send their location... Let me lock in the order:"
+  "\\bthey said \"", "\\bthey'?re (?:confirming|saying|telling|asking|sending)\\b", "\\blet me (?:lock in|log|record|place) the order\\b", '\\bI should (?:ask|send|show|reply|answer|list|tell)\\b',
   'system\\s*(?:note|prompt|message)',                                 // "SYSTEM NOTE", "your system prompt"
   '(?:function|tool)s?\\s+(?:available|i have|you have)',              // "function available to me"
   'the tools i (?:have|was given)',
