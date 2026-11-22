@@ -1229,6 +1229,7 @@ function rememberYcloudSent(keys, rec) {
 }
 async function ycloudSendMessages(phoneDigits, messages) {
   try { messages = (messages || []).map(m => (m && m.url && /Sp242-frames@/.test(String(m.url))) ? Object.assign({}, m, { url: framesUrl(m.url) }) : m); } catch (_) {}
+  try { messages = (messages || []).map(m => (m && m.type === 'text' && m.text) ? Object.assign({}, m, { text: custQuoteFix(phoneDigits, m.text) }) : m); } catch (_) {}
   try { if (isAf120Sub(phoneDigits)) messages = (messages || []).map(m => (m && m.type === 'text' && m.text) ? Object.assign({}, m, { text: af120Price(m.text) }) : m); } catch (_) {}
   try {
     let key = process.env.YCLOUD_API_KEY;
@@ -1785,6 +1786,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(mm.text)))), subscriberId));
     if (isThiefSub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = otherVoice(mm.text);
     if (isAf120Sub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = af120Price(mm.text);
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = custQuoteFix(subscriberId, mm.text);
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
   const _sink = composeSink.get(String(subscriberId));
@@ -5679,6 +5681,22 @@ const thiefSubs = new Set();
 /* 💲 AIR FORCE 1 IS $120 FOR THIS FAMILY ON ANY OTHER LINE (Rodney 11-22, after TK Yardie 828-1869 / his mom Annie 828-1860
  * ran him around Cowpen Road for a $100 black AF1: "If any of those numbers try to contact you on another number or on another
  * seller, sell them the Air Force as 120"). Every Air Force line that leaves for them says $120. */
+/* 🏷 THE PRICE THEY CAME WITH IS THE PRICE (Rodney 11-22, TK 827-1413: "i texted you on facebook about the air max 95 grey and black
+ * for $130 in size 7" got "it's $100" - "Kiki don't have to tell him about the $100 sale if they already come from somewhere with the
+ * price"). A price the customer names that is HIGHER than ours, for the model they named, is what every line to them says for 3 hours. */
+const custQuote = new Map();   // sub -> { amt, model, at }
+function custQuoteFix(sub, text) {
+  try {
+    const q = custQuote.get(String(sub || ''));
+    if (!q || Date.now() - q.at > 3 * 3600000 || !q.model) return text;
+    const words = String(q.model).toLowerCase().split(/\s+/).filter(Boolean);
+    return String(text || '').split('\n').map(l => {
+      const ll = l.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ');
+      if (!words.every(w => ll.includes(w))) return l;
+      return l.replace(/\$\s?(\d{2,3})\b/g, (all, n) => parseInt(n, 10) < q.amt ? '$' + q.amt : all).replace(/\s*\b(?:on sale|sale price|SALE)\b\s*(?:for\s*)?/gi, ' ').replace(/ {2,}/g, ' ');
+    }).join('\n');
+  } catch (_) { return text; }
+}
 const AF120_NUMS = ['2428281860', '2428281869'];
 const af120Subs = new Set();
 function isAf120Sub(sub) { const s = String(sub || ''); return af120Subs.has(s) || AF120_NUMS.some(n => s.includes(n)); }
@@ -8008,6 +8026,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (!staffNameFor(req) && _offer) {
         const _amt = parseInt(_offer[1] || _offer[2] || _offer[3], 10);
         if (_amt >= 20 && _amt < 400) {
+          try {
+            let _qm = lastModelNamed(customerWordsOnly(String(userText || '')));
+            if (!_qm) { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); const _ins = (_th && _th.msgs || []).filter(m => m && m.dir === 'in' && Date.now() - (m.ts || 0) < 30 * 60000).slice(-4).map(m => m.text || '').join(' '); _qm = lastModelNamed(_ins); }
+            if (_qm) custQuote.set(String(sub), { amt: _amt, model: _qm, at: Date.now() });
+          } catch (_) {}
+          system += '\n\n🏷 If $' + _amt + ' is HIGHER than our price for that shoe, it is the price they saw on our listing or ad: quote exactly $' + _amt + ' and NEVER mention the $100 sale or any lower price (Rodney 11-22).';
           system += '\n\n💵 THEY NAMED A PRICE: $' + _amt + '. If that is LOWER than our price for the shoe they want (sale prices only as allowed above), your reply STARTS with "We can\'t do $' + _amt + ' 🙏 it\'s $<our price>" and only then carries on. Never accept or ignore a lower price, never ask for the location as if it was agreed, and never invent a discount - only the owner can agree to one.';
           record(req, { endpoint: 'price-offer-seen', sub, amount: _amt });
         }
