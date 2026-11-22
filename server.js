@@ -7956,6 +7956,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // 11-21 Shoebox STXKS 807-1004: said "not right now", then "Alright" twice - the two lines arrived as "Alright\nAlright",
           // slipped the one-word check above, and became "the driver will meet you at Alright Alright" + a DELIVERY READY card.
           // A message made only of filler words is never a place, however many times it's repeated.
+          // 11-22 Shoebox Vøñ 816-2039: "And where are you located" became "the driver will meet you at And where are you located" -
+          // a QUESTION back to us (where/what/how/located/?) is never their address.
+          && !/\?|\b(?:where|wat|what|how|located|location of|y'?all at|you at|u at|your shop|ur shop)\b/i.test(_ans)
           && !String(_ans).split(/[\s!.,?🙏👋👍]+/).filter(Boolean).every(w => /^(?:alright|aight|ight|ok|okay|k|cool|bet|yes|yeah|yea|yh|ya|yup|yep|sure|thanks?|thank|you|ty|nice|lol|hey|hi|hello|np|noted|copy)$/i.test(w))) {
         system += '\n\n📍 THEY JUST TOLD YOU WHERE TO DELIVER. You asked "' + _lastQ.replace(/\s+/g, ' ').slice(-90) + '" and they answered "' + _ans + '" - that is a PLACE (a cafe, store, school, street, area or landmark), the spot to bring the shoes. Never joke about it, never say it is not a shoe, never ask what they mean. Confirm it back in one short line ("Bet 🔥 the driver will meet you at ' + _ans + ' 🚗"), and call notify_manager with that place as the location (exactly what they wrote) so the order card goes out. Do not ask them for a pin as well.';
         record(req, { endpoint: 'place-as-location', sub, place: _ans.slice(0, 60) });
