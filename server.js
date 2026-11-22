@@ -3109,7 +3109,9 @@ function compareReceipt(r) {
     else if (!(noLead(acct) === noLead(bank.account) || (acct.length >= 3 && acct.length < bank.account.length && bank.account.endsWith(acct))))
       problems.push('account …' + acct.slice(-4) + ' is not ours (…' + bank.account.slice(-4) + ')');
     if (bank.transit) {
-      if (!tr) problems.push('transit/branch number not shown');
+      // 11-22 TK Gippy: a real Scotia Caribbean App receipt (to Rodney D Munnings, Scotiabank (5367)) never prints the transit -
+      // it was flagged "DOES NOT MATCH". A hidden transit is not a mismatch; a different one is.
+      if (!tr) { /* app receipts hide the transit */ }
       else if (noLead(tr) !== noLead(bank.transit)) problems.push('transit ' + tr + ' is not ours (' + bank.transit + ')');
     }
   }
