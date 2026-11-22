@@ -3251,6 +3251,24 @@ function liveShoeMap() {
     const wasPrice = (ov && ov.wasPrice != null) ? ov.wasPrice : (onSale && s.price !== price ? s.price : null);
     map[id] = Object.assign({}, s, { sizesRaw, price, advertised: !!(ov && ov.advertised), sale: onSale, wasPrice }, nameOv);
   });
+  /* 🆕 SHOES ADDED IN THE APP BUT NOT IN catalog.json WERE INVISIBLE TO KIKI (Rodney 11-21 21:13, TK Olando 431-7139: the "NEW IN" post's
+   * Air Max 90 Brown/Black $120 in 9.5/10/11 is airmax90woodbrn001, app-only, so Kiki matched the OLD Brown/Black (13 only) and told him
+   * "we don't have the 9.5"). Add every app-only shoe with a name, live sizes and an image, keyed after the catalog. */
+  try {
+    const known = new Set(catalog.map(s => String(s.id)));
+    let k = 100000;
+    Object.values(overrides).forEach(o => {
+      k++;
+      if (!o || known.has(String(o.id)) || deleted[o.id] || o.sold) return;
+      const sz = Array.isArray(o.sizes) ? o.sizes : (Array.isArray(o.sizesRaw) ? o.sizesRaw : []);
+      if (!o.name || !o.image || !sz.length) return;
+      const _miss = SHELF_MISSING[String(o.id)];
+      const sizesRaw = _miss ? sz.filter(z => !_miss.some(m => parseFloat(m) === parseFloat(z))) : sz.slice();
+      if (!sizesRaw.length) return;
+      map[k] = { id: o.id, brand: o.brand || '', name: o.name, color: o.color || '', nickname: o.nickname || '', image: o.image,
+        price: o.price != null ? +o.price : 100, sizes: sizesRaw.slice(), sizesRaw, advertised: !!o.advertised, sale: !!o.sale, wasPrice: o.wasPrice != null ? o.wasPrice : null };
+    });
+  } catch (_) {}
   return map;
 }
 function liveCatalog() {
