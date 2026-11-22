@@ -10164,6 +10164,22 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* 🌙 "GOOD NIGHT" IS A BAHAMIAN EVENING HELLO, NOT A GOODBYE (Rodney 11-21: "a customer said good night and nobody answered";
+     * TK W Auto 551-6804 21:37 "Good night" got "Sleep well, holler when you're ready", Shoebox Kyra 20:16 got "Good night! Holla when
+     * you're ready"). A bare "good night" with no thanks/bye/tomorrow from them in the last 30 min gets the opener, not a send-off. */
+    try {
+      const _utG = String(userText || '').split('(SYSTEM')[0].trim();
+      if (turnText && !staffName && /^(?:hi+|hey+|hello+|ok+ay?)?[\s,!.]*g(?:oo)?d\s*n(?:i|ig)ght?[\s,!.🙏👋😊]*(?:to you)?[\s!.]*$|^gn[\s!.]*$/i.test(_utG)
+          && /sleep well|sweet dreams|rest up|have a (?:good|great|blessed) night|holl[ae]r? when you'?re ready|good night!? ?[🙏👋]/i.test(turnText)) {
+        const _thG = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _bye = _thG && (_thG.msgs || []).some(m => m && m.dir === 'in' && Date.now() - (m.ts || 0) < 30 * 60000
+          && /\b(thanks?|thank you|thx|bye|tomorrow|tmrw|later|ok(?:ay)?|alright|will (?:message|text|let you know))\b/i.test(m.text || ''));
+        if (!_bye) {
+          turnText = 'Good night! 👋 Right now we got a SALE 🔥 most pairs $100. What size you wear? 👟';
+          record(req, { endpoint: 'goodnight-is-hello', sub });
+        }
+      }
+    } catch (_) {}
     /* 👀 "I FOUND ONE" IS A PICK, NOT A QUESTION (TK Only GOD 812-6844 11-21 17:26: got the size-7 album, wrote "I find one", and
      * Kiki answered "What shoe you looking for?" - Rodney: "she knows what she wants"). Ask for the picture of the one they chose. */
     try {
