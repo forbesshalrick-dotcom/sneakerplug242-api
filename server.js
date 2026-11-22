@@ -5694,10 +5694,16 @@ const thiefSubs = new Set();
  * for $130 in size 7" got "it's $100" - "Kiki don't have to tell him about the $100 sale if they already come from somewhere with the
  * price"). A price the customer names that is HIGHER than ours, for the model they named, is what every line to them says for 3 hours. */
 const custQuote = new Map();   // sub -> { amt, model, at }
+const CUST_QUOTE_FILE = (() => { try { const fs = require('fs'); for (const d of [process.env.DATA_DIR, '/data'].filter(Boolean)) if (fs.existsSync(d)) return require('path').join(d, 'cust-quote.json'); } catch (_) {} return null; })();
+try { if (CUST_QUOTE_FILE && require('fs').existsSync(CUST_QUOTE_FILE)) for (const [k, v] of Object.entries(JSON.parse(require('fs').readFileSync(CUST_QUOTE_FILE, 'utf8')))) custQuote.set(k, v); } catch (_) {}
+// 11-22 TK "." 827-1413 came with "$130" for the Air Max 95 before this memory existed.
+if (!custQuote.has('1543771210')) custQuote.set('1543771210', { amt: 130, model: 'air max 95', at: Date.now() });
+function saveCustQuote() { try { if (CUST_QUOTE_FILE) require('fs').writeFileSync(CUST_QUOTE_FILE, JSON.stringify(Object.fromEntries(custQuote))); } catch (_) {} }
+function custQuoteFor(sub) { const q = custQuote.get(String(sub || '')); return q && Date.now() - q.at < 7 * 86400000 && q.model ? q : null; }
 function custQuoteFix(sub, text) {
   try {
     const q = custQuote.get(String(sub || ''));
-    if (!q || Date.now() - q.at > 3 * 3600000 || !q.model) return text;
+    if (!q || Date.now() - q.at > 7 * 86400000 || !q.model) return text;
     const words = String(q.model).toLowerCase().split(/\s+/).filter(Boolean);
     return String(text || '').split('\n').map(l => {
       const ll = l.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ');
@@ -8028,6 +8034,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (Date.now() - (driverAskPingAt.get(String(sub)) || 0) > 30 * 60000) driverAskPingAt.set(String(sub), Date.now()) && queueForOwner('🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* — please facilitate\n📞 ' + (_oc2.phone ? '+' + _oc2.phone : sub) + '\n👟 ' + (_oc2.shoe || '?') + (_oc2.size ? ' — size ' + _oc2.size : '') + (_oc2.price ? '\n💰 ' + _oc2.price : '') + '\n📍 ⚠️ NO PIN - customer is asking where the driver is: "' + String(userText || '').slice(0, 80) + '" - open the chat for where they are' + (_oc2.store ? '\n🏬 ' + _oc2.store : ''), 'Customer waiting, no pin');
       }
     } catch (_) {}
+    try { const _cq = custQuoteFor(sub); if (_cq && !staffNameFor(req)) system += '\n\n🏷 THIS CUSTOMER CAME WITH A PRICE: $' + _cq.amt + ' for the ' + _cq.model + ' (from our post). Every ' + _cq.model + ' you mention to them is $' + _cq.amt + '. Never say $100, "sale" or any lower price for it, and do not push other colours unless they ask.'; } catch (_) {}
     /* 📏 NEVER PROMISE A SIZE WE DON'T HAVE (11-22 TK Judson 808-0199: "Could you tell him to bring an 11 in case the ten is too
      * small" got "Bringing both the 10 and the 11" - that Air Max 97 Silver/Red has no 11). When a size comes up on an open order,
      * the live sizes of what they are buying ride in the prompt. */
@@ -8049,7 +8056,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           try {
             let _qm = lastModelNamed(customerWordsOnly(String(userText || '')));
             if (!_qm) { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); const _ins = (_th && _th.msgs || []).filter(m => m && m.dir === 'in' && Date.now() - (m.ts || 0) < 30 * 60000).slice(-4).map(m => m.text || '').join(' '); _qm = lastModelNamed(_ins); }
-            if (_qm) custQuote.set(String(sub), { amt: _amt, model: _qm, at: Date.now() });
+            if (_qm) { custQuote.set(String(sub), { amt: _amt, model: _qm, at: Date.now() }); saveCustQuote(); }
           } catch (_) {}
           system += '\n\n🏷 If $' + _amt + ' is HIGHER than our price for that shoe, it is the price they saw on our listing or ad: quote exactly $' + _amt + ' and NEVER mention the $100 sale or any lower price (Rodney 11-22).';
           system += '\n\n💵 THEY NAMED A PRICE: $' + _amt + '. If that is LOWER than our price for the shoe they want (sale prices only as allowed above), your reply STARTS with "We can\'t do $' + _amt + ' 🙏 it\'s $<our price>" and only then carries on. Never accept or ignore a lower price, never ask for the location as if it was agreed, and never invent a discount - only the owner can agree to one.';
@@ -11069,6 +11076,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       })()) {
         record(req, { endpoint: 'repeat-album-held', sub });
         result = { sent: 0, skipped: 'NOT SENT - you already sent them an album a few minutes ago and they did not ask for more. Do not send pictures again. Answer what they said in one short line (e.g. "Those up there are all in your 6.5 👆 which one you like?").' };
+      }
+      /* 🏷 NO SALE-PRICE CARDS FOR A MODEL THEY CAME WITH A PRICE FOR (Rodney 11-22, TK "." 827-1413: came with "$130" for an Air Max 95,
+       * then got other Air Max 95s on $100 SALE cards - "kiki changed the fucking price and sent him fucking options"). Those cards
+       * print the sale price, so they do not go; she names the pairs in words at the price they came with. */
+      else if (tu.name === 'send_photos' && !staffName && (() => {
+        const q = custQuoteFor(sub); if (!q) return false;
+        const _lm = liveShoeMap(); const words = String(q.model).toLowerCase().split(/\s+/);
+        const _ids = [].concat((tu.input || {}).ids || [], ...(Array.isArray((tu.input || {}).groups) ? tu.input.groups.map(g => (g && g.ids) || []) : []));
+        return _ids.some(id => { const sh = _lm[id]; if (!sh) return false; const n = (displayName(sh) || '').toLowerCase(); return words.every(w => n.includes(w)) && (parseFloat(adPrice(sh, ctx.store, sub)) || 0) < q.amt; });
+      })()) {
+        const q = custQuoteFor(sub);
+        record(req, { endpoint: 'quoted-price-cards-held', sub, amt: q.amt, model: q.model });
+        result = { sent: 0, skipped: 'NOT SENT - this customer came with a price of $' + q.amt + ' for the ' + q.model + ', and those pictures print a lower sale price. Name the pairs in ONE short line in words, each at $' + q.amt + ', and ask which one. Never say $100 or "sale" for the ' + q.model + '.' };
       }
       else if (tu.name === 'send_photos') {
         const inp = tu.input || {};
