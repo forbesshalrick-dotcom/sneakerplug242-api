@@ -4820,7 +4820,8 @@ const recentImageSeen = new Map(); // "sub|imageUrl" -> ts, to skip the same pho
 const recentMsgSeen = new Map();   // "sub|text" -> ts, to skip the same text message arriving twice (stops double replies)
 const agentPaused = new Map();      // sub -> pauseUntil ts: after a human hand-off (get_agent), Kiki stays QUIET for that chat so staff can take over without her talking over them
 const AGENT_PAUSE_MS = 6 * 60 * 60 * 1000; // 6h
-const CANCEL_RE = /\b(don['’]?t|do not|dont|no need to|no use to)\s+(come|bring|send (the )?driver)\b|\bcancel+(ed)?\b|\b(change|changed) my mind\b|\bdon['’]?t want (it|them|the shoes?)\s*(no ?more|any ?more)?\s*[.!🙏]*$|\bnot (buying|getting) (it|them)\b|\bno more\b.*\b(come|coming|order)\b/i;
+// TK Annie 828-1860 11-22 12:49: "Don’t need it any more" got "What size you wear?" - a no-longer-want is a cancel too.
+const CANCEL_RE = /\b(don['’]?t|do not|dont|no need to|no use to)\s+(come|bring|send (the )?driver)\b|\b(?:don['’]?t|do not|dont|no longer) (?:need|want) (?:it|them|that|those|the shoes?|the pair)\b(?!\s+(?:yet|until|till))|\bcancel+(ed)?\b|\b(change|changed) my mind\b|\bdon['’]?t want (it|them|the shoes?)\s*(no ?more|any ?more)?\s*[.!🙏]*$|\bnot (buying|getting) (it|them)\b|\bno more\b.*\b(come|coming|order)\b/i;
 const CANCEL_NOT_RE = /\b(yet|until|till|later|tomorrow|tmr?w|tmro|after|in a (bit|minute|min|few)|not home|at work|wait|right now|today|instead|swap|switch|exchange|rather|and get|get the|change (it|to|the))\b/i;   // "don't come yet" is a delay, "cancel the black and get the white" a swap - neither is a cancel
 const readyNowSentAt = new Map();    // sub -> when a READY NOW card last went (once per 2 h)
 const cancelHeldAt = new Map();      // sub -> when the 'we're 2/3 minutes away' hold was used (once per order)
