@@ -1510,9 +1510,16 @@ function noteComposeSub(sub) {
  * Kiki line that promises a driver / minutes away / bringing it is cut and the shipping answer goes out instead. */
 const islandSubs = new Map();   // sub -> { island, at }
 const ISLAND_RE = /\b(free\s?port|grand bahama|g\.?b\.?i|lucaya|eight mile rock|west end|holmes rock|abaco|marsh harbou?r|treasure cay|exuma|george town|eleuthera|harbou?r island|governor'?s harbou?r|andros|bimini|long island|cat island|inagua|acklins|crooked island|ragged island|san salvador|berry islands|mayaguana|rock sound)\b/i;
+/* 🧍 AN ISLAND CUSTOMER WITH A NASSAU LINK IS A NASSAU DELIVERY (11-22 TK Gippy 465-7770, in Exuma: "I have my guy who be doing my
+ * errands in Nassau... I don't want you to send the ship" - every "I am in Exuma" put the plane $35 / pay-first line back in front
+ * of him and he walked away angry). Once they say someone in Nassau takes the shoes, the island rules stop for 3 days. */
+const nassauProxy = new Map();
+const NASSAU_PROXY_RE = /\b(?:my|his|her|a)\s+(?:guy|link|man|cousin|brother|sister|friend|people|boy|girl|partner|family)\b[^.!?]{0,80}\bnassau\b|\bnassau\b[^.!?]{0,60}\b(?:my|his|her)\s+(?:guy|link|man|cousin|brother|sister|friend|people|boy|girl)\b|\b(?:doing|do|run|runs|running) my errands?\b|\bdon'?t (?:want|need) (?:you to )?(?:ship|send (?:it|them|the ship)|put (?:it|them) on the plane)\b/i;
 function noteIsland(sub, text) {
   try {
     const t = String(text || '');
+    if (NASSAU_PROXY_RE.test(t)) { nassauProxy.set(String(sub), Date.now()); islandSubs.delete(String(sub)); return; }
+    if (Date.now() - (nassauProxy.get(String(sub)) || 0) < 3 * 86400000) return;
     const m = t.match(ISLAND_RE);
     if (m && !/\b(not|nah|no)\s+(in|from)\s+/i.test(t.slice(Math.max(0, m.index - 12), m.index))) { islandSubs.set(String(sub), { island: m[1], at: Date.now() }); return; }
     const c = t.match(/(-?\d{2}\.\d{3,})\s*,\s*(-?\d{2}\.\d{3,})/);
@@ -1523,7 +1530,7 @@ function noteIsland(sub, text) {
     }
   } catch (_) {}
 }
-function islandOf(sub) { const r = islandSubs.get(String(sub)); return r && Date.now() - r.at < 14 * 86400000 ? r : null; }
+function islandOf(sub) { if (Date.now() - (nassauProxy.get(String(sub)) || 0) < 3 * 86400000) return null; const r = islandSubs.get(String(sub)); return r && Date.now() - r.at < 14 * 86400000 ? r : null; }
 const islandShipSaidAt = new Map();
 function shipLine(isl) {
   const where = /free\s?port|lucaya|grand bahama|g\.?b\.?i|eight mile|west end|holmes/i.test(isl) ? 'Freeport' : (isl === 'your island' ? 'your island' : isl.replace(/\b\w/g, c => c.toUpperCase()));
