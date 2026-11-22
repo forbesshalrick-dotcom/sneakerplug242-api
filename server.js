@@ -3302,6 +3302,11 @@ function stripNicknames(t) {
 }
 function searchInventory({ size, sizes, size_match, brand, brands, color, query, womens, max_price, min_price, exact_sizes, sneakers_only, on_sale } = {}) {
   let rows = liveCatalog();
+  // "Nike scketch / sketch / skech" from a Shoebox Shox ad is the Shox (11-22 Shoebox 565-3273: "Nike scketch 8.5" searched
+  // "Nike Sketch", found 0 and got "we don't have that exact one" while 3 Shox All Black sat in his 8.5).
+  if (query && /\bs(?:c?k|ch?)e?t?ch(?:e?s)?\b|\bskech(?:er)?s?\b|\bshocks?\b|\bshoxs\b/i.test(String(query)) && !/skechers?/i.test(JSON.stringify(liveCatalog().map(r => r.brand)))) {
+    query = String(query).replace(/\bs(?:c?k|ch?)e?t?ch(?:e?s)?\b|\bskech(?:er)?s?\b|\bshocks?\b|\bshoxs\b/ig, 'shox');
+  }
   // ⚫⚪ BLACK MEANS TRIPLE BLACK, WHITE MEANS TRIPLE WHITE (Rodney 2026-10-13: "TN plus black" in a
   // size 8 got blue/red, blue and green/white TNs — every shoe with black ANYWHERE in it). When black
   // or white is the ONLY colour they named, it is a colour filter on the shoe's colour, all of it,
