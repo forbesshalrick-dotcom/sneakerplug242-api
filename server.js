@@ -10984,6 +10984,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _seen = new Set((_rs.order || []).map(String));
         if (_seen.size && _ids.filter(x => _seen.has(String(x))).length * 2 < _ids.length) return false;
         if (/\b(?:no (?:me )?(?:lleg[oó]|ha llegado)|nada|didn'?t (?:get|come|see)|did not (?:get|come)|not (?:there|showing)|can'?t see|nothing came|no veo|no me (?:as|has) enviado)\b/.test(_cw)) return false;
+        // 11-22 TK P31 1664076643: got the whole size-12 album, then asked "Size 12 all black shoes" - the black pick was held as a
+        // repeat and she was told "Those up there are all in your 12 👆". A colour ask narrows the album; send the few that match.
+        if (_ids.length <= 8 && /\b(?:all[- ]?)?(?:black|white|red|blue|green|grey|gray|pink|brown|yellow|orange|purple|cream|tan|beige|navy)\b/.test(_cw)) return false;
         return !/\b(?:more|other|others|else|different|another|next|rest|show me|send (?:me )?(?:more|all|the rest)|all (?:the )?(?:jordans?|nikes?|shoes|of them))\b/.test(_cw);
       })()) {
         record(req, { endpoint: 'repeat-album-held', sub });
