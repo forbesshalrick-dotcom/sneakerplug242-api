@@ -4636,6 +4636,8 @@ function sizeFromCustomerWords(text) {
   .replace(/\b(\d{1,2})\s*[,\-]?\s*(?:1\s*\/\s*2|½)/g, '$1.5')
   // "8/2 to 9" is 8 and a half typed short (Rodney 11-04, TK Care Less Lees 636-5616: asked his size three more times after it).
   .replace(/\b([4-9]|1[0-5])\/2\b/g, '$1.5')
+  // "6/12" is "6 1/2" with the space lost (Shoe Lacky Netty 820-2983 11-22: got the 6.5 Jordans, then "Those doesn't come in a 6/12").
+  .replace(/\b([4-9]|1[0-5])\/12\b/g, '$1.5')
   // 🗣️ A SPOKEN SIZE IS STILL A SIZE. (Rodney 2026-09-23: a customer sent a voice note -
   // "That's the same one, if you get size nine or ten" - and was asked his size twice more
   // afterwards.) Every pattern below reads DIGITS, and Whisper writes spoken numbers out as
