@@ -8026,6 +8026,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (Date.now() - (driverAskPingAt.get(String(sub)) || 0) > 30 * 60000) driverAskPingAt.set(String(sub), Date.now()) && queueForOwner('🛵 *YOU\'VE GOT AN ORDER — DELIVERY READY* — please facilitate\n📞 ' + (_oc2.phone ? '+' + _oc2.phone : sub) + '\n👟 ' + (_oc2.shoe || '?') + (_oc2.size ? ' — size ' + _oc2.size : '') + (_oc2.price ? '\n💰 ' + _oc2.price : '') + '\n📍 ⚠️ NO PIN - customer is asking where the driver is: "' + String(userText || '').slice(0, 80) + '" - open the chat for where they are' + (_oc2.store ? '\n🏬 ' + _oc2.store : ''), 'Customer waiting, no pin');
       }
     } catch (_) {}
+    /* 📏 NEVER PROMISE A SIZE WE DON'T HAVE (11-22 TK Judson 808-0199: "Could you tell him to bring an 11 in case the ten is too
+     * small" got "Bringing both the 10 and the 11" - that Air Max 97 Silver/Red has no 11). When a size comes up on an open order,
+     * the live sizes of what they are buying ride in the prompt. */
+    try {
+      const _row = onTheTable.get(String(sub));
+      if (!staffNameFor(req) && _row && Array.isArray(_row.items) && /\b(?:[4-9]|1[0-5])(?:\.5)?\b|\b(?:half|size|bigger|smaller)\b/i.test(customerWordsOnly(String(userText || '')))) {
+        const _lm = liveShoeMap();
+        const _lines = _row.items.filter(i => i && i.id && _lm[i.id]).map(i => (displayName(_lm[i.id]) || i.name) + ': ' + ([...new Set((_lm[i.id].sizesRaw || _lm[i.id].sizes || []).map(v => String(parseFloat(v))))].sort((a, b) => a - b).join(', ') || 'none left'));
+        if (_lines.length) system += '\n\n📏 LIVE SIZES OF WHAT THEY ARE BUYING (the only sizes that exist): ' + _lines.join(' | ') + '. Never promise to bring, hold or have any other size of these shoes - say plainly it does not come in that size and offer the closest real one or a similar shoe that does.';
+      }
+    } catch (_) {}
     /* 💵 A COUNTER-OFFER IS ANSWERED, NEVER SKIPPED (Rodney 11-01, TK Kevin 422-0495: "Yes for $90" on a $120 AF1 got "Please send me
      * your location" - the driver was on the way to a sale at a price we never agreed; "No, I can't do 90"). */
     try {
