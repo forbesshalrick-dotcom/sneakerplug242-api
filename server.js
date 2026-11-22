@@ -1789,7 +1789,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   if (!(logOpts && logOpts.sender === 'rodney')) {
     // A PRICE LIST always carries the sale AF1 line (11-18 03:01 TK Deno 558-0391 got "Air Force 1 — *$120* (all black) | *$120* (white)";
     // every AF1 on the shelf is $100 and the template says SALE $100).
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *SALE $100* \u{1F525}');
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *$100* \u{1F525}');
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(mm.text)))), subscriberId));
     if (isThiefSub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = otherVoice(mm.text);
     if (isAf120Sub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = af120Price(mm.text);
@@ -2530,7 +2530,7 @@ function buildSystemPrompt({ store, name, greet = true, phone = null } = {}) {
 
 ${(voiceOf(storeName) || {}).hello || 'Hello! 👋'}
 
-Right now we got a SALE 🔥 most pairs $100
+We got the latest kicks in stock 🔥 free delivery in Nassau
 Would you like to see? What size you wear? 👟
 
 (That is the WHOLE greeting — nothing before or after it. The word *OR* sits on its OWN line between the two questions and stays BOLD. Keep the 👟 on the SAME line as "pictures?". If their first message already names a shoe or a size, still open with this greeting, then go straight to helping them. ⛔ Add NOTHING else to it — no website line, and never a note about not being able to see pictures, ads or photos.) ⚠️ LANGUAGE: if their first message is in Haitian Creole ("bonswa", "bonjou") or Spanish ("hola", "buenas"), send this SAME greeting fully TRANSLATED into their language — keep the SAME line-by-line layout with blank lines between each part, keep the 👟 on the pictures line, and keep the *asterisks* bold.`
@@ -2819,15 +2819,15 @@ PRICE LIST — when a customer asks about prices in GENERAL ("how much are your 
 ⚠️ A BARE "How much?" / "How much is it?" / "price?" WITH NO SHOE NAMED ANYWHERE IN THE CHAT COUNTS AS GENERAL TOO (Rodney 2026-08-02): this includes when it follows an ad-click opener like "can I get more info on this?" that YOU never resolved to a specific shoe (no photo id, no name anywhere in the conversation) — you don't know what "this" is any more than a cold "how much?" would tell you, so it's the same situation. Do NOT stall with "What shoe are you after? Tell me the name and I'll get you the price!" — that leaves them with zero information and an extra question to answer. Send the price list instead; it answers them immediately AND the closing "tell me your size" line naturally narrows things down next. Only ask "which shoe?" instead of sending the list when they've already named or shown one specific shoe and you just need to confirm which.
 👟 *${storeName.toUpperCase()} — PRICE LIST* 👟
 
-👑 Air Force 1 — *SALE $100* 🔥
-🐐 Air Jordans — *SALE $150* 🔥 (newest drop full price)
-💨 Air Max / VaporMax — *SALE $100* 🔥
-🌀 Air Max 95 — *SALE $100* 🔥
-⚡ New Balance / ASICS — *SALE $100* 🔥
-👟 Nike Dunk / Air Jordan 1 — *SALE $100* 🔥
+👑 Air Force 1 — *$100*
+🐐 Air Jordans — *$150* (newest drop full price)
+💨 Air Max / VaporMax — *$100*
+🌀 Air Max 95 — *$100*
+⚡ New Balance / ASICS — *$100*
+👟 Nike Dunk / Air Jordan 1 — *$100*
 🐊 Crocs / Yeezy Foam — *$65*
 🏃 Nike Roshe — *$50*
-🔥 Nike Dunk High — *SALE $60* 🔥
+🔥 Nike Dunk High — *$60*
 🦂 Nike Scorpion — *$70*
 
 Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". IMPORTANT: if they ask the price of ONE SPECIFIC shoe, give THAT shoe's exact price from search_inventory instead of the whole list.
@@ -2837,7 +2837,7 @@ Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". 
 🚫 NEVER CLAIM "AUTHENTIC" / "REAL" / "ORIGINAL" / "LEGIT" (Rodney 11-16: a Shoe Lacky buyer asked "they real right? no reps" and was told "Yes bro, 100% authentic"). If they ask whether the shoes are real or reps, never answer yes or no about it: say "You can check them out in person before you pay 👟" and carry on with the sale.
 🔄 NEVER CALL ONE PHOTO "THE FRONT" (Rodney 11-16): our cards are side views. If they ask to see the front, back, sole or another angle, never say the picture they have is that view.
 🚫 NO PICTURE OF A SIZE WE DON'T HAVE (Rodney 11-16 "why send a picture of something you dont have?"): once you've said a shoe isn't in their size, do NOT send its picture in another size. Offer the same model in other colours in their size instead, or other shoes in their size.
-🔥 THE SALE (Rodney 11-16: "100 sale for others", "jordan 150 sale", "kiki not mentioning the sale"): WE ARE HAVING A SALE. Tell every customer: the welcome already says "Right now we got a SALE 🔥" (Rodney 11-16) — if your first reply is NOT the welcome, add one short line like "🔥 Big sale on now — most pairs $100, Jordans $150" (never twice), and every time you price a shoe at $100 (or a Jordan at $150) say "SALE $100" / "SALE $150". If they ask how long the sale lasts: "Until sold out — all must go 🔥". Shoes under $100 and the newest-drop Jordans just say their price.
+🔥 PRICES, NO SALE TALK (Rodney 11-22: "get the extra money if they're not aware of the sale" - this replaces the 11-16 "tell every customer about the sale" rule): never announce or volunteer a sale, never say "sale", "most pairs $100" or "Jordans $150" on your own. Quote each shoe at its price when asked. If the CUSTOMER brings up the sale or a $100 price they saw, honour it. If they came with a HIGHER price from our post, that is their price.
 ⚠️ JORDAN PRICING (know this cold): Air Jordan **1s are $100** — every Jordan 1 colourway and style (Jordan 1 High, Low, Retro — all of them). Every OTHER Air Jordan (Jordan 3, 4, 5, 11, 13, Tatum, etc.) is **SALE $150** (Rodney 11-16) — except the newest drop, which keeps its price from search_inventory, any colour or style. So if a customer asks the price of a Jordan — INCLUDING one you can't find in stock or a colour you're not sure we carry (e.g. "how much for the blue and white Jordan?") — quote it from this rule: a Jordan 1 = SALE $100, any other Jordan = SALE $150 (the newest drop: the price search_inventory gives). Never tell a customer a Jordan "isn't showing up" or that you can't price it.
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything (the Jordan pricing rule above is the one known exception, so you can always quote a Jordan: $120 for a Jordan 1, $180 for any other).
 💬 "CAN I GET A DEAL / DISCOUNT / IF I BUY 2, 3, 4 PAIRS?" — ⚠️ ONLY WHEN THEY ASK (Rodney 10-19: "We only give deal for people who ask for deal. He never asked for a deal… Is she the owner?" — never offer, mention or hint at a discount to someone who has not asked; a 2-pair order with no ask is the plain total). WHEN THEY ASK: YES, WE DO DEALS ON MORE THAN ONE PAIR (Rodney 2026-10-19, replacing the old 07-20 "that's already our best price" line, which lost a 4-pair buyer: "I told you before that we give deals. You just have to find out which shoes they want exactly and let them know that you're gonna put the price together and then give them a discount from the total, because all the shoes are different price"). So: (1) say YES warmly; (2) if you do not yet know EXACTLY which shoes, ask them to send back the pictures (or name them) of the exact pairs — every shoe has its own price, so the total depends on which ones; e.g. "Yes, we do deals when you take more than one 🔥 Send me back the pictures of the exact pairs you want and I'll put the total together and take a discount off it for you 👟"; (3) once you know the pairs, list each with its price, give the total, then the deal — SMALL (Rodney 10-19: "I don't just take $10 off each shoe. That's normally when people buy in five… if people just buy two, I might just move one $10 and say $230"): 2 to 4 pairs = $10 off the TOTAL (2 at $120 = $240 → $230); 5 or more pairs = $10 off EACH pair (5 at $180 = $900 → $850). Never say "that's already our best price", never "no discounts". A single pair is its listed price — be warm about it, never cold.
@@ -4881,7 +4881,7 @@ const chatMuted = new Map();
 // When a customer sends a bare photo/voice-note we can't read, Kiki replies with ONLY our
 // welcome greeting (this makes the greeting come FROM Kiki so the "agent" owner-mute silences
 // it). Kept in one place so it always matches the welcome wording.
-const MEDIA_GREET_NOTE = "(The customer just sent a photo or voice note that you cannot open. Do NOT ask them to resend it or to type the shoe's name. Reply with ONLY this exact welcome and nothing else — keep the line breaks:\nHello! 👋\nRight now we got a SALE 🔥 most pairs $100\nWould you like to see? What size you wear? 👟)";
+const MEDIA_GREET_NOTE = "(The customer just sent a photo or voice note that you cannot open. Do NOT ask them to resend it or to type the shoe's name. Reply with ONLY this exact welcome and nothing else — keep the line breaks:\nHello! 👋\nWe got the latest kicks in stock 🔥 free delivery in Nassau\nWould you like to see? What size you wear? 👟)";
 
 const MUTE_MS = 20 * 1000; // 20s ROLLING window (Rodney's call 2026-07-12) — refreshes on each
                            // message while staff are active, so Kiki resumes ~20s after the last
@@ -7210,7 +7210,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (_isOpener) record(req, { endpoint: 'ad-opener-check', sub, fresh: _hist.length === 0 });
     if (_isOpener && _hist.length === 0) {
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _o, name: ctx.name }); } catch (_) {}
-      const _line = 'Hello! 👋 Right now we got a SALE 🔥 most pairs $100. Would you like to see? What size you wear? 👟';
+      const _line = 'Hello! 👋 We got the latest kicks in stock 🔥 free delivery in Nassau. Would you like to see? What size you wear? 👟';
       await sendChunk(sub, [{ type: 'text', text: _line }], token, { account: ctx.store }).catch(() => {});
       try { const h = convos.get(sub) || []; h.push({ role: 'user', content: _o }, { role: 'assistant', content: _line }); convos.set(sub, h); } catch (_) {}
       record(req, { endpoint: 'ad-opener-sale', sub, store: ctx.store });
@@ -10255,7 +10255,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _bye = _thG && (_thG.msgs || []).some(m => m && m.dir === 'in' && Date.now() - (m.ts || 0) < 30 * 60000
           && /\b(thanks?|thank you|thx|bye|tomorrow|tmrw|later|ok(?:ay)?|alright|will (?:message|text|let you know))\b/i.test(m.text || ''));
         if (!_bye) {
-          turnText = 'Good night! 👋 Right now we got a SALE 🔥 most pairs $100. What size you wear? 👟';
+          turnText = 'Good night! 👋 We got the latest kicks in stock 🔥 What size you wear? 👟';
           record(req, { endpoint: 'goodnight-is-hello', sub });
         }
       }
