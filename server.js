@@ -7383,9 +7383,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* "LET ME SEE" IS A REQUEST FOR PICTURES (Rodney 11-19, New Wave 803-7139: told "Yes, we have that one... $60", she said "Let me
      * see" and got "Take your time. Just let me know when you're ready." - "Let me see is like the customer saying they want more
      * pictures"). It is never browsing, whatever we said before it. */
+    /* 11-23 17:21: "where you at" REMOVED and the rule is OFF once an order is placed - Shoebox 826-6865 was at Marathon Mall asking
+     * "Where you at?" (= where is the DRIVER) and got "we right here in Nassau on Carmichael Rd". */
     /* 🇧🇸 "YOU NOT IN THE BAHAMAS" (11-23 Shoebox Woman Over Board 818-5783 tapped our ad, saw the +1 815 business number and wrote
      * "You not in the Bahamas sorry" - Kiki answered with Family Island boat/plane prices and she was left thinking we're foreign). */
-    if (/\bnot (?:in|from) (?:the )?bahamas\b|\by(?:ou|'?all|a)(?:'re| are| is)? (?:in|from) (?:the )?(?:states|us|usa|america|florida)\b|\b(?:us|american|foreign|florida|815) (?:number|#)\b|\bare y(?:ou|'?all) (?:really )?(?:in|from) (?:the )?bahamas\b|\bwhere (?:are |is )?y(?:ou|'?all) (?:located|based|at)\b|^\W*(?:where\s+)?(?:are\s+|is\s+)?(?:you|u|y'?all|ya|we'?re|were)?\s*(?:located|location|based)\W*$/i.test(_b)) {
+    if (/\bnot (?:in|from) (?:the )?bahamas\b|\by(?:ou|'?all|a)(?:'re| are| is)? (?:in|from) (?:the )?(?:states|us|usa|america|florida)\b|\b(?:us|american|foreign|florida|815) (?:number|#)\b|\bare y(?:ou|'?all) (?:really )?(?:in|from) (?:the )?bahamas\b|\bwhere (?:are |is )?y(?:ou|'?all) (?:located|based)\b|^\W*(?:where\s+)?(?:are\s+|is\s+)?(?:you|u|y'?all|ya|we'?re|were)?\s*(?:located|location|based)\W*$/i.test(_b) && !(() => { try { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); return ((_th && _th.msgs) || []).some(m => m && m.sender === 'system' && Date.now() - (m.ts || 0) < 8 * 3600000 && /NEW ORDER|DELIVERY READY/.test(m.text || '')); } catch (_) { return false; } })()) {
       userText = '(SYSTEM: they think we are NOT in the Bahamas, because our WhatsApp number looks foreign. Answer that first and plainly: we are right here in Nassau, Carmichael Road, and this is just our business WhatsApp number; delivery is free in Nassau and they check the shoes before paying. Do not talk about shipping to other islands unless they said they live on one.)\n' + userText;
       record(req, { endpoint: 'not-in-bahamas-answered', sub, store: ctx.store || '' });
     }
