@@ -7687,7 +7687,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (tagRequests.size > 200) tagRequests.delete(tagRequests.keys().next().value);
       record(req, { endpoint: 'tag-request', sub, q: _pt.slice(0, 40) });
       const _t0 = Date.now();
-      while (Date.now() - _t0 < 40000) {
+      while (Date.now() - _t0 < 40000 || ((tagRequests.get(String(sub)) || {}).reading && Date.now() - _t0 < 75000)) {
         const r = tagRequests.get(String(sub));
         if (r && r.done) break;
         await new Promise(z => setTimeout(z, 1000));
@@ -7715,6 +7715,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           try { tableAdd(sub, { name: displayName(_sh), id: _sh.id, price: _sh.price }); } catch (_) {}
           record(req, { endpoint: 'tag-resolved', sub, shoe: String(_sh.id), waitedMs: Date.now() - _t0 });
         }
+      } else if (r && r.seenName) {
+        userText = '(SYSTEM: they quote-replied a photo of a ' + r.seenName + ' - that is the shoe they mean; we do not stock that exact one. Never ask which shoe. Name it, then offer the closest pairs we DO have in their size.)\n' + _pt;
+        record(req, { endpoint: 'tag-photo-seen', sub, seen: r.seenName });
       } else record(req, { endpoint: 'tag-unresolved', sub, waitedMs: Date.now() - _t0 });
     }
   } catch (_) {}
@@ -15440,10 +15443,27 @@ app.post('/social/tag-found', (req, res) => {
   const sub = String(b.sub || '').replace(/\D/g, '');
   const r = tagRequests.get(sub);
   if (!r) return res.status(404).json({ ok: false, error: 'no tag request for that sub' });
+  let id = String(b.shoe_id || '').trim();
+  if (!id && b.image_url) id = ((String(b.image_url).match(/\/([A-Za-z0-9_-]+)-card(?:-[a-z0-9]+)*\.(?:jpg|png|webp)/i) || [])[1]) || '';
+  /* 📷 THE QUOTED PICTURE IS NOT ONE OF OUR CARDS (TK Pasyans Mom 11-22 20:41: quote-replied a shoe photo, "You have pink on this
+   * one woman size" - the reader found a photo, not a card, said "none", and Kiki asked "Pink in what?"). The quoted photo is read
+   * by the picture reader; the request stays open until that read is done (runChat waits up to 40 s). */
+  if (!id && b.image_url && /^https:\/\//i.test(String(b.image_url))) {
+    r.reading = true;
+    res.json({ ok: true, reading: true });
+    (async () => {
+      try {
+        const v = await identifyPhoto({ type: 'url', url: String(b.image_url) }, stockListForIdentify(), String(r.text || ''));
+        const got = shoeFromVerdict(v || '');
+        if (got.sh) { r.shoeId = String(got.sh.id); record(req, { endpoint: 'tag-found-photo', sub, shoe: r.shoeId }); }
+        else { if (got.gone) r.seenName = String(got.gone).slice(0, 80); record(req, { endpoint: 'tag-found-photo-none', sub, seen: String(v || '').slice(0, 160) }); }
+      } catch (e) { record(req, { endpoint: 'tag-found-photo-error', sub, error: String(e).slice(0, 80) }); }
+      r.done = true;
+    })();
+    return;
+  }
   r.done = true;
   if (b.none) { record(req, { endpoint: 'tag-found-none', sub }); return res.json({ ok: true, none: true }); }
-  let id = String(b.shoe_id || '').trim();
-  if (!id && b.image_url) id = ((String(b.image_url).match(/\/([A-Za-z0-9_-]+)-card\.jpg/) || [])[1]) || '';
   const lm = liveShoeMap(); let sh = null;
   for (const k in lm) { if (lm[k] && String(lm[k].id) === id) { sh = lm[k]; break; } }
   if (!sh) { record(req, { endpoint: 'tag-found-unknown', sub, id }); return res.status(404).json({ ok: false, error: 'unknown shoe id ' + id }); }
