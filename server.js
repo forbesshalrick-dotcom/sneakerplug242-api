@@ -1588,7 +1588,23 @@ function farSizeCut(sub, t) {
     return (before + (/[.!?🙏👟]$/u.test(before) ? ' ' : ' 🙏 ') + "I'll message you as soon as it comes in your size 👟" + (rest ? ' ' + rest : '')).trim();
   } catch (_) { return t; }
 }
+/* ✋ WE DON'T DO HOLDS (Rodney 11-23: "If you let us know you want something, we'll try, but if somebody comes and get it, we can't
+ * promise you. First come, first serve. Because sometimes we hold it for somebody and they never come. And then the person that wanted
+ * to buy it, we told them we hold it for somebody, which doesn't make any sense."). A sentence that promises to hold, keep, reserve or
+ * put a pair aside - or tells a buyer a pair is held for someone else - is replaced by the first-come line. */
+const HOLD_RE = /\b(?:i'?ll|we'?ll|i will|we will|i can|we can|i could|we could|gonna|going to|let me|lemme)\s+(?:hold|keep|reserve|save|put (?:it|them|that|those) (?:aside|away|to the side)|set (?:it|them) aside)\b|\b(?:on hold|held|reserved|saved|put aside|set aside) for (?:you|ya|u|him|her|someone|somebody|another (?:customer|person))\b|\b(?:it'?s|they'?re) (?:yours|on hold) (?:till|until|for)\b|\bholding (?:it|them|that|those) for\b/i;
+function noHoldPromise(t) {
+  try {
+    if (!t || !HOLD_RE.test(t)) return t;
+    const parts = String(t).split(/(?<=[.!?\n👟🔥🙏🙌📍])\s*/u);
+    const kept = parts.filter(p => !HOLD_RE.test(p));
+    const line = "We can't hold pairs - it's first come, first served, so grab it while it's here 👟";
+    try { record(null, { endpoint: 'hold-promise-cut', before: String(t).slice(0, 160) }); } catch (_) {}
+    return (kept.join(' ').replace(/\s{2,}/g, ' ').trim() + ' ' + line).trim();
+  } catch (_) { return t; }
+}
 function earlyHoursGuard(t) {
+  t = noHoldPromise(t);
   t = noSaleEndDate(t);
   try {
     const h = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10) % 24;
