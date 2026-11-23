@@ -1519,6 +1519,10 @@ function noteIsland(sub, text) {
   try {
     const t = String(text || '');
     if (NASSAU_PROXY_RE.test(t)) { nassauProxy.set(String(sub), Date.now()); islandSubs.delete(String(sub)); return; }
+    /* 🏙 "NASSAU" UNDOES AN ISLAND TAG (11-23 Shoebox rodaesharolle 826-6865: meeting at Kelly's Marathon Mall, typed "From Freeport",
+     * then answered "Nassau" - the tag stayed and "You meeting me or not" got the Freeport plane/boat line). A message that names
+     * Nassau and no island clears the tag. */
+    if (/\b(?:nassau|new providence|marathon|carmichael|cable beach|bay street|nassau village|yellow elder|elizabeth estates|fox hill|golden gates|soldier road)\b/i.test(t) && !ISLAND_RE.test(t)) { islandSubs.delete(String(sub)); return; }
     if (Date.now() - (nassauProxy.get(String(sub)) || 0) < 3 * 86400000) return;
     const m = t.match(ISLAND_RE);
     if (m && !/\b(not|nah|no)\s+(in|from)\s+/i.test(t.slice(Math.max(0, m.index - 12), m.index))) { islandSubs.set(String(sub), { island: m[1], at: Date.now() }); return; }
