@@ -1560,6 +1560,16 @@ const SEE_FIRST_RE = /\b(?:in person before (?:you )?pay|en persona antes de pag
 function earlyHoursGuard(t) {
   try {
     const h = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10) % 24;
+    /* 🌙 AFTER 10 PM TOO (Rodney 11-22 23:47: "we deliver tomorrow nomore tonight dude comeon" - TK Rollington 376-8752 got "Are
+     * you available now?" at 23:45 and "the driver will be right with you" at Wendy's Cable Beach at 23:46). Deliveries run
+     * 8 AM - 10 PM: after 10 nothing is "now" and no driver is coming. */
+    if (h >= 22) {
+      let o = String(t).replace(/\b(?:are|r)\s+(?:you|u)\s+(?:available|free|home|around|ready)\s+(?:right\s+)?now\s*\??/gi, 'We deliver tomorrow from 8 AM. What time works for you tomorrow?');
+      o = o.replace(/\b(?:the\s+)?driver\s+(?:will be|is|can come|'ll be|can be)\s+(?:right\s+)?(?:with you|there|on (?:the|his) way|over|right now|now|soon)[^.!?\n]*/gi, 'the driver will bring it tomorrow from 8 AM')
+           .replace(/\bthe driver can come right now\b/gi, 'the driver can come tomorrow from 8 AM');
+      if (/\b(?:driver|on (?:the|his|our) way|pull(?:ing)? up|bring it|deliver|delivery|be there|minutes? away|call you when|location|pin)\b/i.test(o) && !/\b8\s*(?:AM|a\.m\.|o'?clock)\b|tomorrow/i.test(o)) o = o.replace(/\s*$/, '') + ' Deliveries are done for tonight - we deliver tomorrow from 8 AM 🙏';
+      return o;
+    }
     if (!(h >= 0 && h < 8)) return t;
     let out = String(t).replace(/\b(?:are|r)\s+(?:you|u)\s+(?:available|free|home|around|ready)\s+(?:right\s+)?now\s*\??/gi, 'What time works for you after 8 AM?');
     if (/\b(?:driver|on (?:the|his|our) way|pull(?:ing)? up|bring it|deliver|delivery|be there|minutes? away|call you when)\b/i.test(out) && !/\b8\s*(?:AM|a\.m\.|o'?clock)\b/i.test(out)) out = out.replace(/\s*$/, '') + ' Our deliveries start at 8 AM 🙏';
