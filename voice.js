@@ -1006,7 +1006,14 @@ function mountVoice(app, deps) {
         // closes the call in her own words now.
         // Tell the caller when the number was missing, so a bot that CAN resolve it fixes its
         // own payload instead of us silently filing another contactless order.
+        /* 📍 AN ORDER WITH NO PLACE IS NOT AN ORDER (TK 11-23 09:49): Plug ordered two Air Max 97s by phone for "the same
+         * location" as a friend's order, Kiki said "You're set, the driver will call when he's close" - nobody had said where,
+         * and Rodney was about to leave with five pairs and no address. The tool result is read live by the agent, so the
+         * next step rides here (the prompt lives on Retell and is not pushed on deploy). */
+        const _hasPlace = /\b(?:street|st\.?|road|rd\.?|avenue|ave|drive|lane|corner|by the|near|at the|mall|wendy|kfc|plaza|beach|estates?|subdivision|carmichael|pin|location sent)\b/i.test(want);
         return { saved: true, delivered_to_whatsapp: waOk, on_task_board: true,
+                 next_step: _hasPlace ? undefined
+                   : 'If they are buying, you do NOT know where to bring it yet. Before you close, ask: "Where should the driver bring it?" Then say: "Send your location pin on WhatsApp to this same number right after this call." Do not say "you\'re set" until they have told you where.',
                  contact_number: num || null, contact_thread: thread || null,
                  warning: num ? undefined
                    : (thread
