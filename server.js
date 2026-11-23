@@ -12886,7 +12886,7 @@ function handleChat(req, res) {
       /* 🎙 A VOICE NOTE'S TEXT IS A GUESS (Rodney 11-23, TK Ricardo 553-8210: he was saying he is in Freeport coming over today;
        * the text read "Y'all doing more Nassau later or come out" and "What you got in my size?" - he got a 68-picture album.
        * "You have to understand them properly... just ask them, can you repeat it? I didn't hear you, I didn't understand."). */
-      text = '(SYSTEM: this message was a VOICE NOTE turned into text by a machine, and the words can be wrong. If it does not make clear sense as a whole, or you are not sure what they want, do NOT guess and do NOT send pictures - reply only: "Sorry, I didn\'t catch that 🙏 Can you say it again?")\n' + t;
+      text = '(SYSTEM: this message was a VOICE NOTE turned into text by a machine, and the words can be wrong. Words may be misspelt or run together - if you can tell what they want (a shoe, a colour, a price, a size, a time or a place), answer THAT. Only when you truly cannot tell what they mean, do NOT guess and do NOT send pictures - reply only: "Sorry, I didn\'t catch that 🙏 Can you say it again?" Never ask them to repeat twice in a row.)\n' + t;
       voiceInAt.set(String(sub), Date.now());
     }
     // Customer sent a PHOTO (its link arrives via Last Text Input). Pass the URL straight
