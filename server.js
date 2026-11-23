@@ -1596,7 +1596,7 @@ function farSizeCut(sub, t) {
  * promise you. First come, first serve. Because sometimes we hold it for somebody and they never come. And then the person that wanted
  * to buy it, we told them we hold it for somebody, which doesn't make any sense."). A sentence that promises to hold, keep, reserve or
  * put a pair aside - or tells a buyer a pair is held for someone else - is replaced by the first-come line. */
-const HOLD_RE = /\b(?:i'?ll|we'?ll|i will|we will|i can|we can|i could|we could|gonna|going to|let me|lemme)\s+(?:hold|keep|reserve|save|put (?:it|them|that|those) (?:aside|away|to the side)|set (?:it|them) aside)\b|\b(?:on hold|held|reserved|saved|put aside|set aside) for (?:you|ya|u|him|her|someone|somebody|another (?:customer|person))\b|\b(?:it'?s|they'?re) (?:yours|on hold) (?:till|until|for)\b|\bholding (?:it|them|that|those) for\b/i;
+const HOLD_RE = /\b(?:i'?ll|we'?ll|i will|we will|i can|we can|i could|we could|gonna|going to|let me|lemme)\s+(?:hold|keep|reserve|save|put (?:it|them|that|those) (?:aside|away|to the side)|set (?:it|them) aside)\b|\b(?:on hold|held|reserved|saved|put aside|set aside) for (?:you|ya|u|him|her|someone|somebody|another (?:customer|person))\b|\b(?:it'?s|they'?re) (?:yours|on hold) (?:till|until|for)\b|\bholding (?:it|them|that|those) for\b|\b(?:locked|lock) (?:it|them|that|those|this)? ?in\b|\b(?:it'?s|they'?re|that'?s) (?:locked|reserved|secured|saved|set aside)\b|\bsecured (?:it|them|that) for\b/i;
 function noHoldPromise(t) {
   try {
     if (!t || !HOLD_RE.test(t)) return t;
