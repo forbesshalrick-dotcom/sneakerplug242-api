@@ -7977,7 +7977,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (THIEF_NUMS.some(n => String(getPhone(req) || '').replace(/\D/g, '').includes(n))) thiefSubs.add(String(sub));
     if (AF120_NUMS.some(n => String(getPhone(req) || '').replace(/\D/g, '').includes(n))) af120Subs.add(String(sub));
     if (isAf120Sub(sub)) system += '\n\n💲 THIS CUSTOMER PAYS $120 FOR ANY AIR FORCE 1 (Rodney 11-22). Every Air Force 1 you quote or confirm here is $120, never $100 - say it plainly, no sale talk for AF1.';
-    if (isThiefSub(sub)) system += '\n\n🎭 A DIFFERENT VOICE IN THIS CHAT - THIS OVERRIDES EVERY STYLE RULE ABOVE (Rodney 11-18): write as a different salesperson would. Plain, polite, complete sentences. NO emojis at all. None of your usual lines - never "Yeah we got", "OK!", "Got it!", "For sure!", "rite now", "catches your eye", "Which one you like?", "What size you wear?", "bring it straight to you", "Are you available now?". Say things like "Good day", "Yes, that one is available in size 12", "Which pair would you like?", "What size do you need?". Never give yourself a name. Every fact rule above (prices, stock, sizes, totals) stays exactly the same. Payment in this chat is by bank transfer BEFORE delivery: say that once, plainly, when they are ready to order ("Payment is by bank transfer before delivery. We deliver the same day it shows in the account."), do not ask for a location or offer to come to them before the money is in, and do not repeat the payment line in every message.';
+    if (isThiefSub(sub)) system += '\n\n🎭 A DIFFERENT VOICE IN THIS CHAT - THIS OVERRIDES EVERY STYLE RULE ABOVE (Rodney 11-18): write as a different salesperson would. Plain, polite, complete sentences. NO emojis at all. None of your usual lines - never "Yeah we got", "OK!", "Got it!", "For sure!", "rite now", "catches your eye", "Which one you like?", "What size you wear?", "bring it straight to you", "Are you available now?". Say things like "Good day", "Yes, that one is available in size 12", "Which pair would you like?", "What size do you need?". Never give yourself a name. Every fact rule above (prices, stock, sizes, totals) stays exactly the same. Run it like a REGULAR sale (Rodney 11-23: telling them "pay first" up front looks suspicious): help them pick the pair and size, then ask where they are ("Where should we bring it?") like any customer. Do NOT bring up payment, bank transfer or paying first yourself. Only when THEY bring up paying by transfer do you talk about money: then give the bank details and say "We deliver once it shows in the account." Never offer cash on delivery or paying the driver, and never say the driver is on the way.';
   } catch (_) {}
   if (ctx.personal) {
     system += '\n\n🙋 PERSONAL ACCOUNT (Rodney 2026-09-07: "personal accounts dont need introducing just sell"): this conversation is on a personal Facebook/Instagram/TikTok account, not a shop page. Never introduce a shop, never say a shop name, no welcome script - just answer and sell as a person. The pictures you send arrive as Messenger images.';
@@ -9181,16 +9181,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     try {
       const _thP = String(getPhone(req) || '').replace(/\D/g, '') + '|' + String(sub || '');
       if (turnText && !staffName && ['2424782955', '2424666095'].some(n => _thP.includes(n))) {
-        const _delRe = /are you available|available now|send (?:me |us )?(?:your |the )?(?:location|pin)|location pin|where should (?:we|the driver|i)|where (?:do )?you want (?:it|them|to meet)|driver|on (?:the|our|his) way|bring (?:it|them|both)|deliver|drop (?:it|them) off|meet (?:you|up)|pay (?:when|on) (?:we|delivery|arrival)|cash on delivery|pay the driver/i;
+        /* 11-23 Rodney: "you didn't have to tell them to pay first, because it makes it look suspicious... carry on like it's a regular
+         * sale and try to ask him for the location. And then when he suggests that he's going to transfer the money, that's when we start
+         * talking about the money and the accounts." Asking where they are now goes through untouched; only a promise that the shoes are
+         * coming or that they can pay on arrival is cut - nothing leaves without money, but we never announce it. */
+        const _delRe = /driver (?:is|'s|will be) (?:coming|close|outside|there|on)|on (?:the|our|his|my) way|(?:bring|drop) (?:it|them|both) (?:now|right now|off now)|pay (?:when|on) (?:we|delivery|arrival|the driver)|cash on delivery|pay (?:the )?driver|pay when (?:you|they) (?:get|receive)/i;
         if (_delRe.test(turnText)) {
           const _keep = turnText.split(/(?<=[.!?👟🚗🔥🙏📍])\s+|\n+/).filter(x => x && !_delRe.test(x));
-          // 11-18 later: said once per 20 min, in the plain voice, and never as "on this order" (that singles him out).
-          turnText = _keep.join(' ').trim();
-          if (!turnText || Date.now() - (thiefPayToldAt.get(String(sub)) || 0) > 20 * 60000) {
-            turnText = (turnText + ' Payment is by bank transfer before delivery. We deliver the same day it shows in the account.').trim();
-            thiefPayToldAt.set(String(sub), Date.now());
-          }
-          record(req, { endpoint: 'thief-payment-first', sub });
+          turnText = _keep.join(' ').trim() || 'Where should we bring it?';
+          record(req, { endpoint: 'thief-no-promise', sub });
         }
       }
     } catch (_) {}
