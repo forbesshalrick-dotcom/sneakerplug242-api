@@ -1628,7 +1628,20 @@ function noDeadEndDenial(t) {
     return s.trim() + ' But we have other styles in your size 👟 Want me to send them?';
   } catch (_) { return t; }
 }
+/* 🤐 NO TALKING ABOUT OUR OWN NOTES (11-23 Shoebox Matthew Ferguson 544-8560: "I appreciate the system note, but I'm waiting for the
+ * actual customer question to answer!" went to the customer). A sentence that mentions system notes / "the customer" / instructions is cut. */
+const LEAK_RE = /\b(?:system note|system message|the system|note says|instructions?|prompt|the actual customer|the customer'?s? (?:question|message)|customer question|as an ai|language model|i'?m an ai)\b/i;
+function noLeakLines(t) {
+  try {
+    const parts = String(t || '').split(/(?<=[.!?\n👟🔥🙏🙌📍👇])\s*/u);
+    if (!parts.some(p => LEAK_RE.test(p))) return t;
+    const kept = parts.filter(p => !LEAK_RE.test(p)).join(' ').replace(/\s{2,}/g, ' ').trim();
+    try { record(null, { endpoint: 'leak-line-cut', before: String(t).slice(0, 160) }); } catch (_) {}
+    return kept || 'Which one you like? Send me the picture 👟';
+  } catch (_) { return t; }
+}
 function earlyHoursGuard(t) {
+  t = noLeakLines(t);
   t = noDeadEndDenial(t);
   t = noMetaParens(t);
   t = noHoldPromise(t);
