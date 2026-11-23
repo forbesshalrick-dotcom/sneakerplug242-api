@@ -10177,7 +10177,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     /* 🙅 NO "ALRIGHT, I SEE YOU 👀" (Rodney 10-16: "is not good, you can move it"). The phrase is cut; the rest of the reply stays. */
     if (turnText && !staffName && /\bi\s+see\s+you\b/i.test(turnText)) {
-      const _t = turnText.replace(/\s*(?:alright|aight|ok(?:ay)?|ahh?)?[,!\s]*\bi\s+see\s+you\b[!.,]*\s*(?:\u{1F440}\s*)*/giu, ' ').replace(/^[\s,!.—–-]+/, '').replace(/\s{2,}/g, ' ').trim();
+      // TK Wendy 11-22: "I see you're interested in…" was cut to "'re interested in…". "I see (that) you're/you've" -> "You're/You've".
+      const _t = turnText.replace(/\bi\s+see\s+(?:that\s+)?you(['’](?:re|ve|ll|d)\b)/giu, 'You$1')
+        .replace(/\s*(?:alright|aight|ok(?:ay)?|ahh?)?[,!\s]*\bi\s+see\s+you\b(?!['’])[!.,]*\s*(?:\u{1F440}\s*)*/giu, ' ').replace(/^[\s,!.—–-]+/, '').replace(/\s{2,}/g, ' ').trim();
       if (_t !== turnText.trim()) { turnText = _t ? _t.charAt(0).toUpperCase() + _t.slice(1) : 'Got you 👟'; record(req, { endpoint: 'i-see-you-cut', sub }); }
     }
     /* 🛵 NO "COME THROUGH" / "YOU OUTSIDE?" — WE DELIVER (Rodney 10-16, TK +1 242 824-3666: "I reach" after the boat got both). */
