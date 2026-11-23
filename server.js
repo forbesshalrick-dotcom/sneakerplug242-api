@@ -4670,6 +4670,13 @@ function sizeFromCustomerWords(text) {
         const us = near(eu);
         return ' size ' + (women ? Math.max(us, 3.5) : us) + ' ';
       })
+    // A BARE 35-48 IS ALWAYS EU - no US shoe size goes that high (Shoe Lacky 423-3523 11-23 08:03: "37 oh 38" got "No 37 in the Air
+    // Max 95 right now, we've got it in a 7" - a men's 7 is an EU 40). Not after "$", not before money/time words.
+    .replace(/(^|[^$\d.])(3[5-9]|4[0-8])(?![\d.])(?!\s*(?:\$|dollars?|bucks|mins?|minutes?|hrs?|hours?|%|k\b|years?|yrs?|lbs?|pounds?|degrees?))/gi,
+      (all, pre, n) => {
+        const MEN = { 35: 3.5, 36: 4, 37: 5, 38: 5.5, 39: 6.5, 40: 7, 41: 8, 42: 8.5, 43: 9.5, 44: 10, 45: 11, 46: 12, 47: 12.5, 48: 13.5 };
+        return pre + ' size ' + MEN[+n] + ' ';
+      })
     // A DATE IS NOT A SIZE (Rodney 11-17, New Wave 451-6649: "10 for dec 17" / "Dec17" made him a size 17 and he was asked his size three
     // more times). "dec 17", "dec17", "december 17th", "17 dec", "the 17th", "12/17".
     .replace(/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sept?|oct|nov|dec)[a-z]*\.?\s*\d{1,2}(?:st|nd|rd|th)?\b/g, ' ')
