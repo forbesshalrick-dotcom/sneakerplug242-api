@@ -8111,6 +8111,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // "the driver will meet you at ..." - a place never carries these words.
           // "Thru god" (TK C.G ENTERPRISE 823-3673, 11-19) is a yes said with faith, not an address - it became a DELIVERY READY card.
           && !/\b(?:god|gods|lord|jesus|amen|blessed|bless|grace|thru|through|swear|word|deal|done deal|for sure|fo sho|definitely|certainly|absolutely)\b/i.test(_ans)
+          // 11-23 Shoebox Banga 525-4578: "Calm down bro" (too many pictures) became "the driver will meet you at Calm down bro" + an order card.
+          && !/\b(?:calm|chill|relax|easy|stop|enough|too many|too much|slow down|hold up|hold on|wait|annoy|spam|stress)\b/i.test(_ans)
           // 11-20 Shoebox/TK Pressure 477-1621: "I thought yall was done by the mall" (he was told the driver was passing the mall) became
           // "The driver will meet you at I thought yall was done by the mall" and a DELIVERY READY card with that as the address.
           && !/\b(?:thought|think|thinking|figured|was done|y'?all was|yall was|you said|u said|supposed to|i was|wasn'?t|already)\b/i.test(_ans)
