@@ -1603,7 +1603,18 @@ function noHoldPromise(t) {
     return (kept.join(' ').replace(/\s{2,}/g, ' ').trim() + ' ' + line).trim();
   } catch (_) { return t; }
 }
+/* 🤐 NO BRACKETED NOTES ABOUT HER OWN RULES (11-23 TK Ronyson 552-0440: "these are the sizes we got 👇 (I already showed you this one earlier
+ * in our chat, so I'm not sending the picture again. If you want a different size, colour, or shoe, just let me know!)" - a tool's skip
+ * reason, read out to the customer). A bracket that talks about (not) sending/showing pictures is cut. */
+function noMetaParens(t) {
+  try {
+    const out = String(t).replace(/\s*\((?=[^()]*\b(?:pictures?|pics?|photos?|album)\b)(?=[^()]*\b(?:not send|won'?t send|not sending|already (?:sent|showed|shown)|showed you|sending (?:it|them|the))\b)[^()]*\)/gi, '').replace(/\s{2,}/g, ' ').trim();
+    if (out !== String(t)) { try { record(null, { endpoint: 'meta-paren-cut', before: String(t).slice(0, 160) }); } catch (_) {} }
+    return out || t;
+  } catch (_) { return t; }
+}
 function earlyHoursGuard(t) {
+  t = noMetaParens(t);
   t = noHoldPromise(t);
   t = noSaleEndDate(t);
   try {
