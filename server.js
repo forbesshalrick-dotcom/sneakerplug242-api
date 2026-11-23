@@ -2143,6 +2143,7 @@ function verdictSeenName(v) {
   const seen = (String(v || '').match(/SEEN:\s*([^\n]+)/i) || [])[1] || '';
   return seen.split(/[,;:]|\.\s/)[0].replace(/\([^)]*\)/g, '').replace(/["“”]/g, '').replace(/\s'\d\d\b|\bWB\b/g, ' ').replace(/\s+/g, ' ').trim();
 }
+const NO_SHOE_SEEN_RE = /\bno (?:sneakers?|shoes?|footwear)\b|\bnot an? (?:sneaker|shoe)\b|\b(?:sneakers?|shoes?|footwear) (?:is |are )?not visible\b|\bnothing (?:visible|shown)\b|\b(?:car|vehicle|sedan|truck|meme|person|man|woman|selfie|building|house)\b/i;
 // What a picture-reader verdict names: one of our shoes ({sh}), or a shoe we don't have, by what it shows ({gone}).
 function shoeFromVerdict(v) {
   const m = String(v || '').match(/OURS:\s*([^\n]+)/i), o = m ? m[1].trim() : '';
@@ -2152,7 +2153,11 @@ function shoeFromVerdict(v) {
     if (sh && sh.id != null) return { sh };
   }
   const seen = (String(v).match(/SEEN:\s*([^\n]+)/i) || [])[1] || '';
+  // OSC Yardy 11-22 19:46: a meme + two car photos came back as "The image no sneaker visible anywhere is sold out right now".
+  // A SEEN line that says there is no shoe is not a shoe name.
+  if (NO_SHOE_SEEN_RE.test(seen)) return {};
   const first = seen.split(/[.;]/)[0].replace(/\([^)]*\)/g, '').replace(/\s+/g, ' ').trim();
+  if (NO_SHOE_SEEN_RE.test(first) || /^(?:the |an? )?(?:image|photo|picture|screenshot)\b/i.test(first)) return {};
   const parts = first.split(/,|\s+in\s+(?:an?\s+|the\s+)?/);
   const model = parts[0].trim();
   const colour = (parts[1] || '').split(/\s+with\s+|\s+and\s+(?:a|an|the)\s+/)[0]
