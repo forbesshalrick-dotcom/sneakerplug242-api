@@ -1583,6 +1583,8 @@ function earlyHoursGuard(t) {
     }
     if (!(h >= 0 && h < 8)) return t;
     let out = String(t).replace(/\b(?:are|r)\s+(?:you|u)\s+(?:available|free|home|around|ready)\s+(?:right\s+)?now\s*\??/gi, 'What time works for you after 8 AM?');
+    // Shoebox shawn 11-23 07:25: "the driver can come right now 🚗 Our deliveries start at 8 AM" - both in one line.
+    out = out.replace(/\b(?:the\s+)?driver\s+(?:can come|will be|is|'ll be|can be)\s+(?:right\s+)?(?:now|with you|there|on (?:the|his) way)[^.!?\n]*/gi, 'the driver can come from 8 AM');
     if (/\b(?:driver|on (?:the|his|our) way|pull(?:ing)? up|bring it|deliver|delivery|be there|minutes? away|call you when)\b/i.test(out) && !/\b8\s*(?:AM|a\.m\.|o'?clock)\b/i.test(out)) out = out.replace(/\s*$/, '') + ' Our deliveries start at 8 AM 🙏';
     return out;
   } catch (_) { return t; }
