@@ -10175,6 +10175,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'location-answer-added', sub, q: _uq.slice(0, 40) });
       }
     }
+    /* 📏 NO MADE-UP FIT (TK Pasyans Mom 11-22 20:43: women's 8 asked, told "The 6.5 runs small so it'll fit you like a women's 8").
+     * We don't know how a pair fits - a sentence selling a different size as theirs is cut. */
+    if (turnText && !staffName && /\b(?:runs?|running|fits?) (?:a (?:bit|little|half(?: a)? size) )?(?:small|big|large|true to size|tight)\b|\bfit you like an? (?:women'?s |men'?s )?\d/i.test(turnText)) {
+      const _ft = turnText.split(/(?<=[.!?\u{1F45F}\u{1F525}\u{1F64F}])\s+/u).filter(x => !/\b(?:runs?|running|fits?) (?:a (?:bit|little|half(?: a)? size) )?(?:small|big|large|tight)\b|\bfit you like an? (?:women'?s |men'?s )?\d/i.test(x)).join(' ').trim();
+      if (_ft && _ft !== turnText.trim()) { turnText = _ft; record(req, { endpoint: 'fit-claim-cut', sub }); }
+    }
     /* 🙅 NO "ALRIGHT, I SEE YOU 👀" (Rodney 10-16: "is not good, you can move it"). The phrase is cut; the rest of the reply stays. */
     if (turnText && !staffName && /\bi\s+see\s+you\b/i.test(turnText)) {
       // TK Wendy 11-22: "I see you're interested in…" was cut to "'re interested in…". "I see (that) you're/you've" -> "You're/You've".
