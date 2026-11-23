@@ -1567,6 +1567,27 @@ function noSaleEndDate(t) {
     return out || "It's on right now 🔥";
   } catch (_) { return t; }
 }
+/* 📏 FAR SIZE IS NOT AN OPTION (Shoebox Rayyy 242-466-1728, 11-23 09:06 and again 09:23): he wears a 9, asked for the Air Max 95
+ * Sketch in a 9, and twice got "we've got it in a 7 - want me to bring it?". A size 2+ away from the customer's own is useless to
+ * him and makes the shop look like it isn't listening. The offer is cut; he is told we'll message him when his size comes in. */
+function farSizeCut(sub, t) {
+  try {
+    const cs = custSize.get(String(sub));
+    if (!cs || !cs.size || Date.now() - (cs.ts || 0) > 12 * 3600 * 1000) return t;
+    const mine = String(cs.size).split('/').map(parseFloat).filter(n => !isNaN(n));
+    if (!mine.length) return t;
+    const far = (n) => mine.every(m => Math.abs(n - m) >= 2);
+    const re = /\s*(?:[,—–-]\s*)?(?:\bbut\s+)?\b(?:we(?:'ve|’ve| have)?\s+)?(?:got|have)\s+(?:it|that one|them|that)\s+in\s+(?:a\s+|an\s+|size\s+){1,2}(\d{1,2}(?:\.5)?)\b/i;
+    const m = re.exec(t);
+    if (!m || /women/i.test(t) || !far(parseFloat(m[1]))) return t;
+    const before = t.slice(0, m.index).replace(/[\s,—–-]+$/, '');
+    const tail = t.slice(m.index + m[0].length);
+    const end = tail.search(/[?!]\s|[?!]$/);
+    const rest = end >= 0 && end < 160 ? tail.slice(end + 1).trim() : '';
+    try { record(null, { endpoint: 'far-size-cut', sub: String(sub), mine: cs.size, offered: m[1], before: String(t).slice(0, 200) }); } catch (_) {}
+    return (before + (/[.!?🙏👟]$/u.test(before) ? ' ' : ' 🙏 ') + "I'll message you as soon as it comes in your size 👟" + (rest ? ' ' + rest : '')).trim();
+  } catch (_) { return t; }
+}
 function earlyHoursGuard(t) {
   t = noSaleEndDate(t);
   try {
@@ -1813,7 +1834,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     // A PRICE LIST always carries the sale AF1 line (11-18 03:01 TK Deno 558-0391 got "Air Force 1 — *$120* (all black) | *$120* (white)";
     // every AF1 on the shelf is $100 and the template says SALE $100).
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *$100* \u{1F525}');
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(mm.text)))), subscriberId));
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(farSizeCut(subscriberId, mm.text))))), subscriberId));
     if (isThiefSub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = otherVoice(mm.text);
     if (isAf120Sub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = af120Price(mm.text);
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = custQuoteFix(subscriberId, mm.text);
@@ -12284,7 +12305,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // before you pay") but the voice note read her raw draft aloud: "All legit". The spoken words go through the same guards as the
       // written ones.
       let _guarded = String(lastText);
-      try { _guarded = adPriceInText(sub, noAuthClaim(islandGuard(sub, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(_guarded)))), sub)); } catch (_) {}
+      try { _guarded = adPriceInText(sub, noAuthClaim(islandGuard(sub, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(farSizeCut(sub, _guarded))))), sub)); } catch (_) {}
       const _spoken = String(_guarded).replace(/^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim, '').trim();
       const _url = _spoken ? await speakToVoiceNote(_spoken) : null;
       if (_url) {
