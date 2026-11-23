@@ -7404,6 +7404,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       userText = '(SYSTEM: they think we are NOT in the Bahamas, because our WhatsApp number looks foreign. Answer that first and plainly: we are right here in Nassau, Carmichael Road, and this is just our business WhatsApp number; delivery is free in Nassau and they check the shoes before paying. Do not talk about shipping to other islands unless they said they live on one.)\n' + userText;
       record(req, { endpoint: 'not-in-bahamas-answered', sub, store: ctx.store || '' });
     }
+    /* 🕙 "AFTER 10" IS PAST DELIVERY HOURS (11-23 TK SN 808-5295: "Can I pick up after 10 when I get off" got "Ok, anytime you ready"). */
+    if (/\b(?:after|past|around|bout|about|at)\s+(?:10|11|12|ten|eleven|twelve|midnight)(?::\d\d)?\s*(?:pm|p\.m\.|tonight|o'?clock)?\b|\b(?:10|11|ten|eleven)\s*(?:pm|p\.m\.)\b|\blate tonight\b/i.test(_b) && !/\b(?:am|a\.m\.|morning|tomorrow morning)\b/i.test(_b)) {
+      userText = '(SYSTEM: deliveries run 8 AM to 10 PM only. If they want it after 10 PM, say we deliver until 10 PM and offer before 10 tonight or tomorrow from 8 AM. Never say "anytime".)\n' + userText;
+      record(req, { endpoint: 'after-10-note', sub, store: ctx.store || '' });
+    }
     if (!image && /^\W*(let me|lemme) see\W*$/i.test(_b)) {
       userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
       record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
