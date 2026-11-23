@@ -1622,7 +1622,7 @@ function noMetaParens(t) {
 function noDeadEndDenial(t) {
   try {
     const s = String(t || '');
-    if (!/\b(?:don'?t|do not) have\b[^.!?\n]{0,60}\b(?:in (?:a |an |your )?(?:size )?\d|size \d)|\bnot (?:in|available in) (?:a |an |your )?(?:size )?\d/i.test(s)) return t;
+    if (!/\b(?:don'?t|do not) have\b[^.!?\n]{0,60}\b(?:in (?:a |an |your )?(?:size )?\d|size \d)|\bnot (?:in|available in) (?:a |an |your )?(?:size )?\d|\bno (?:size )?\d{1,2}(?:\.5)? in (?:the|that|this|those)\b|\bbiggest we (?:got|have)\b|\bsmallest we (?:got|have)\b/i.test(s)) return t;
     if (/\?|👇|want (?:to see|one|it|that)|here'?s what|we (?:have|got) (?:it|them|these|this|other|more)/i.test(s)) return t;
     try { record(null, { endpoint: 'dead-end-denial-opened', before: s.slice(0, 160) }); } catch (_) {}
     return s.trim() + ' But we have other styles in your size 👟 Want me to send them?';
