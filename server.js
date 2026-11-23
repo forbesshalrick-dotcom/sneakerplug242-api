@@ -11112,6 +11112,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'album-held-no-size', sub, n: [].concat((tu.input || {}).ids || []).length });
         result = { sent: 0, skipped: 'NOT SENT - you do not know their size yet. Ask "What size you need? 👟" in one short line and send nothing else; the album goes once they tell you their size.' };
       }
+      /* 🎙 NO ALBUM OFF A VOICE NOTE WHEN THEY ALREADY HAVE PICTURES (Rodney 11-23, TK Ricardo 553-8210: a voice note read as
+       * "what you got in my size" - he had the size-10 lineup 6 minutes before, deleted and re-sent the note, and got 68 more pictures;
+       * he was telling us he is coming over from Freeport). A voice note is a guess at their words: answer it, or ask them to repeat. */
+      else if (tu.name === 'send_photos' && !staffName && Date.now() - (voiceInAt.get(String(sub)) || 0) < 3 * 60 * 1000 && (() => {
+        const _ids = [].concat((tu.input || {}).ids || [], ...(Array.isArray((tu.input || {}).groups) ? tu.input.groups.map(g => (g && g.ids) || []) : []));
+        if (_ids.length < 3) return false;
+        const _rs = recentlySent.get(sub);
+        return !!(_rs && _rs.ts && Date.now() - _rs.ts < 30 * 60000 && Array.isArray(_rs.names) && _rs.names.length >= 3);
+      })()) {
+        record(req, { endpoint: 'voice-album-held', sub, q: customerWordsOnly(String(userText || '')).slice(0, 80) });
+        result = { sent: 0, skipped: 'NOT SENT - this was a VOICE NOTE and they already got pictures in the last half hour. Do not send pictures. If the words make clear sense, answer them in one short line in words. If they do not, reply only: "Sorry, I didn\'t catch that 🙏 Can you say it again?"' };
+      }
       /* 🔁 NO SECOND ALBUM ON TOP OF THE FIRST (Rodney 11-14 "made customer angry": NW Just 455-3866 asked "6 r 6.5", got a 66-picture
        * album at 14:30 and another at 14:34, and wrote "Ok stop"; TK Billy got the same Jordan 4s twice at 12:38 and 12:47). An album
        * of 3+ within 15 minutes of the last one is held unless they asked for more / other / different shoes. */
@@ -12817,7 +12829,10 @@ function handleChat(req, res) {
         await sendChunk(sub, [{ type: 'text', text: "Sorry, I couldn't quite catch that voice note 🙉 mind typing it or sending it again?" }], token).catch(() => {});
         return;
       }
-      text = t;
+      /* 🎙 A VOICE NOTE'S TEXT IS A GUESS (Rodney 11-23, TK Ricardo 553-8210: he was saying he is in Freeport coming over today;
+       * the text read "Y'all doing more Nassau later or come out" and "What you got in my size?" - he got a 68-picture album.
+       * "You have to understand them properly... just ask them, can you repeat it? I didn't hear you, I didn't understand."). */
+      text = '(SYSTEM: this message was a VOICE NOTE turned into text by a machine, and the words can be wrong. If it does not make clear sense as a whole, or you are not sure what they want, do NOT guess and do NOT send pictures - reply only: "Sorry, I didn\'t catch that 🙏 Can you say it again?")\n' + t;
       voiceInAt.set(String(sub), Date.now());
     }
     // Customer sent a PHOTO (its link arrives via Last Text Input). Pass the URL straight
