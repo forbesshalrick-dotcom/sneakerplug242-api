@@ -6140,30 +6140,32 @@ function scheduleOrderReminder(ms, store, lines, image, sub) {
 // Each one ENDS IN A QUESTION on purpose: WhatsApp only lets us message freely for 24 hours
 // after the customer's last message, and only THEIR reply restarts that clock. A line they
 // can answer keeps the door open; an announcement quietly closes it.
+// 11-23 Rodney: "We don't do holds... first come, first serve" - these lines used to say "still holding your order" / "set aside" /
+// "boxed and waiting". Now they only check the day is still on; nothing promises a pair is kept.
 const KEEP_WARM_T = {
   en: [
-    (d) => `Hey! 👋 Still holding your order for ${d} — all good on your end?`,
-    (d) => `Quick one — your pair's set aside for ${d} 👟 Want me to keep it?`,
-    (d) => `Just so you know, we've got your order boxed and waiting for ${d} 📦 Still works for you?`,
-    (d) => `Morning! Your ${d} order is ready whenever you are 👟 Anything change?`,
+    (d) => `Hey! 👋 Just checking in - still good for ${d}?`,
+    (d) => `Quick one - still want your pair for ${d}? 👟`,
+    (d) => `Just checking - ${d} still works for you? 📦`,
+    (d) => `Morning! Still on for ${d}? 👟 Anything change?`,
   ],
   es: [
-    (d) => `¡Hola! 👋 Sigo guardando tu pedido para ${d} — ¿todo bien?`,
-    (d) => `Tu par está apartado para ${d} 👟 ¿Te lo sigo guardando?`,
-    (d) => `Tu pedido está listo y esperando para ${d} 📦 ¿Te sirve todavía?`,
-    (d) => `¡Buenos días! Tu pedido de ${d} está listo cuando quieras 👟 ¿Algún cambio?`,
+    (d) => `¡Hola! 👋 Solo confirmando - ¿sigue bien para ${d}?`,
+    (d) => `Rápido - ¿todavía quieres tu par para ${d}? 👟`,
+    (d) => `Solo confirmando - ¿${d} te sigue sirviendo? 📦`,
+    (d) => `¡Buenos días! ¿Seguimos para ${d}? 👟 ¿Algún cambio?`,
   ],
   ht: [
-    (d) => `Alo! 👋 M ap kenbe kòmand ou a pou ${d} — tout bagay anfòm?`,
-    (d) => `Pè ou a sou kote pou ${d} 👟 Ou vle m kenbe l?`,
-    (d) => `Kòmand ou an pare e l ap tann pou ${d} 📦 Li toujou bon pou ou?`,
-    (d) => `Bonjou! Kòmand ${d} ou a pare lè ou pare 👟 Gen anyen ki chanje?`,
+    (d) => `Alo! 👋 M jis ap tcheke - li toujou bon pou ${d}?`,
+    (d) => `Vit vit - ou toujou vle pè ou a pou ${d}? 👟`,
+    (d) => `M jis ap tcheke - ${d} toujou bon pou ou? 📦`,
+    (d) => `Bonjou! Nou toujou sou ${d}? 👟 Gen anyen ki chanje?`,
   ],
   fr: [
-    (d) => `Salut ! 👋 Je garde ta commande pour ${d} — tout va bien ?`,
-    (d) => `Ta paire est mise de côté pour ${d} 👟 Je te la garde ?`,
-    (d) => `Ta commande est prête et t'attend pour ${d} 📦 Ça te va toujours ?`,
-    (d) => `Bonjour ! Ta commande de ${d} est prête quand tu veux 👟 Quelque chose a changé ?`,
+    (d) => `Salut ! 👋 Je vérifie juste - toujours bon pour ${d} ?`,
+    (d) => `Rapide - tu veux toujours ta paire pour ${d} ? 👟`,
+    (d) => `Je vérifie - ${d} te va toujours ? 📦`,
+    (d) => `Bonjour ! On reste sur ${d} ? 👟 Quelque chose a changé ?`,
   ],
 };
 function keepWarmLine(sub, dayLabel, n) {
@@ -6264,7 +6266,7 @@ const reminderTick = setInterval(async () => {
         const _th = inboxThreads.get(inboxSubIndex.get(String(r.sub)) || '');
         const _ms = (_th && _th.msgs) || [];
         const _20h = Date.now() - 20 * 3600 * 1000;
-        const _kw = /Still holding your order|pair's set aside for|order boxed and waiting|order is ready whenever you are|Sigo guardando tu pedido|M ap kenbe kòmand|Je garde ta commande/;
+        const _kw = /Still holding your order|pair's set aside for|order boxed and waiting|order is ready whenever you are|Sigo guardando tu pedido|M ap kenbe kòmand|Je garde ta commande|Just checking in - still good for|still want your pair for|still works for you\? 📦|Still on for .{1,30}\? 👟 Anything change|Solo confirmando|M jis ap tcheke|Je vérifie|Vit vit - ou toujou vle|Rápido - ¿todavía quieres|Seguimos para|Nou toujou sou|On reste sur/;
         const _nudged = _ms.some(m => m && m.dir === 'out' && (m.ts || 0) > _20h && _kw.test(m.text || ''));
         const _theySpoke = _ms.some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > _20h);
         if (_nudged || _theySpoke || (r.bookedAt && r.bookedAt > _20h)) {
