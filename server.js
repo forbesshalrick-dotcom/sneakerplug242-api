@@ -1613,7 +1613,19 @@ function noMetaParens(t) {
     return out || t;
   } catch (_) { return t; }
 }
+/* 🚪 A "DON'T HAVE IT" NEVER ENDS THE CHAT (11-23 TK 465-6027 tapped the Jordan 4 ad, asked "do you have a size 12" and got only "We don't
+ * have those Jordan 4s in a size 12 right now 🙏" - eight other Jordan 4s come in a 12). A denial with no question and no offer gets one. */
+function noDeadEndDenial(t) {
+  try {
+    const s = String(t || '');
+    if (!/\b(?:don'?t|do not) have\b[^.!?\n]{0,60}\b(?:in (?:a |an |your )?(?:size )?\d|size \d)|\bnot (?:in|available in) (?:a |an |your )?(?:size )?\d/i.test(s)) return t;
+    if (/\?|👇|want (?:to see|one|it|that)|here'?s what|we (?:have|got) (?:it|them|these|this|other|more)/i.test(s)) return t;
+    try { record(null, { endpoint: 'dead-end-denial-opened', before: s.slice(0, 160) }); } catch (_) {}
+    return s.trim() + ' But we have other styles in your size 👟 Want me to send them?';
+  } catch (_) { return t; }
+}
 function earlyHoursGuard(t) {
+  t = noDeadEndDenial(t);
   t = noMetaParens(t);
   t = noHoldPromise(t);
   t = noSaleEndDate(t);
