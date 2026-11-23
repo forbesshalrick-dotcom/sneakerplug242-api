@@ -1557,7 +1557,18 @@ const SEE_FIRST_RE = /\b(?:in person before (?:you )?pay|en persona antes de pag
 // ⏰ BEFORE 8 AM NOTHING IS "NOW" (Rodney 11-18: "you need to tell the customers we start at 8 o'clock... she couldn't been waiting on
 // me from 6" - Shoebox Yellow 820-4775 got "Are you available now?" at 06:40 and "wait for the driver to call you" at 06:46).
 // Between midnight and 8 AM Nassau time, "available now" becomes a time question and any driver/when line carries the 8 AM start.
+// 🗓 NO MADE-UP SALE END DATE (TK Naii 463-3496 11-23 06:06: "Sale runs through end of month!" - nobody set an end date, and a
+// minute later she said "I don't have info on when the sale ends"). A sentence giving the sale an end/run date is cut.
+const SALE_END_RE = /\bsale\b[^.!?\n]{0,40}\b(?:runs?|ends?|lasts?|goes|going|on)\b[^.!?\n]{0,30}\b(?:through|thru|till|til|until|to the end|end of|ends?|this (?:week|weekend|month)|next (?:week|month)|tomorrow|today only|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b/i;
+function noSaleEndDate(t) {
+  try {
+    if (!SALE_END_RE.test(String(t))) return t;
+    const out = String(t).split(/(?<=[.!?\n👟🔥🙏🙌📸👇])\s*/u).filter(x => !SALE_END_RE.test(x)).join(' ').replace(/\s{2,}/g, ' ').trim();
+    return out || "It's on right now 🔥";
+  } catch (_) { return t; }
+}
 function earlyHoursGuard(t) {
+  t = noSaleEndDate(t);
   try {
     const h = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10) % 24;
     /* 🌙 AFTER 10 PM TOO (Rodney 11-22 23:47: "we deliver tomorrow nomore tonight dude comeon" - TK Rollington 376-8752 got "Are
