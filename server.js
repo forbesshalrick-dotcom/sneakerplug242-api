@@ -1623,6 +1623,12 @@ function noDeadEndDenial(t) {
   try {
     const s = String(t || '');
     if (!/\b(?:don'?t|do not) have\b[^.!?\n]{0,60}\b(?:in (?:a |an |your )?(?:size )?\d|size \d)|\bnot (?:in|available in) (?:a |an |your )?(?:size )?\d|\bno (?:size )?\d{1,2}(?:\.5)? in (?:the|that|this|those)\b|\bbiggest we (?:got|have)\b|\bsmallest we (?:got|have)\b/i.test(s)) return t;
+    // 11-24 Shoe Lacky Million 433-0633: "We don't have the Air Max Plus TN — Pink/Yellow in an 8 right now 🙏 Want it?" - a bare
+    // "Want it?" after a denial offers nothing. Swap it for a real offer unless another size/shoe is named.
+    if (/\bwant it\?\s*(?:👟|🙏)?\s*$/i.test(s) && !/comes? in|\bwant the \d|we (?:have|got) (?:it|them|these|this|other|more)|👇/i.test(s)) {
+      try { record(null, { endpoint: 'dead-end-denial-opened', before: s.slice(0, 160) }); } catch (_) {}
+      return s.replace(/\s*\bwant it\?\s*(?:👟|🙏)?\s*$/i, '') + ' But we have other styles in your size 👟 Want me to send them?';
+    }
     if (/\?|👇|want (?:to see|one|it|that)|here'?s what|we (?:have|got) (?:it|them|these|this|other|more)/i.test(s)) return t;
     try { record(null, { endpoint: 'dead-end-denial-opened', before: s.slice(0, 160) }); } catch (_) {}
     return s.trim() + ' But we have other styles in your size 👟 Want me to send them?';
