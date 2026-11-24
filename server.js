@@ -5571,6 +5571,21 @@ function scheduleNudge(sub, token, text, ms, next, isCloser) {
     if (isHumanPaused(sub)) return;
     // 🙅 They told us they'd get back to us — don't chase them. Kill the whole chain.
     if (DEFER_RE.test(lastIncomingText.get(sub) || '')) { clearFollowUp(sub); return; }
+    // 📏 Size asked already (11-23 Shoe Lacky Jjjjj 826-8602: welcome asked size, the reply asked it again, then this nudge made it
+    // 3 times in 5 min with no answer). If Kiki already asked their size since their last message, the nudge stays quiet.
+    try {
+      if (/\bsize\b/i.test(String(text || ''))) {
+        const _t = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _m = (_t && _t.msgs) || [];
+        let _asked = 0;
+        for (let i = _m.length - 1; i >= 0; i--) {
+          const x = _m[i]; if (!x) continue;
+          if (x.dir === 'in' && x.sender !== 'system') break;
+          if (x.sender === 'kiki' && (SIZE_REASK_RE.test(String(x.text || '')) || /\bwhat size\b/i.test(String(x.text || '')))) _asked++;
+        }
+        if (_asked >= 1) { recent.unshift({ at: new Date().toISOString(), endpoint: 'nudge-skipped-size-asked', sub }); if (recent.length > 120) recent.length = 120; return; }
+      }
+    } catch (_) {}
     // "We're still on the way 🚗" only when a driver really was sent (the dispatch button). It used to go out 20 min
     // after every order, dispatched or not (dropped fix ded99b6/76f4547, ported back 2026-10-14).
     if ((Object.values(DELIVERY_FOLLOWUP_T).includes(text) || text === L(DELIVERY_FOLLOWUP_T, sub)) && !driverDispatchedAt.has(String(sub))) {
