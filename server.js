@@ -12060,7 +12060,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           inp.customer_name ? `👤 ${inp.customer_name}` : null,
           custPhone ? `📞 ${custPhone}  (wa.me/${custPhone.replace(/[^0-9]/g,'')})` : null,
           inp.shoe ? `👟 ${inp.shoe}${inp.size ? ` — size ${inp.size}` : ''}` : (inp.size ? `👟 size ${inp.size}` : null),
-          inp.price ? `💰 ${inp.price}${inp.payment ? ` (${inp.payment})` : ''}` : (inp.payment ? `💰 ${inp.payment}` : null),
+          inp.price ? (() => { try {
+            // ✈️ ISLAND SHIPMENT: the card shows the TOTAL with the plane/boat (11-24 lesleyrolle74 Freeport card said "$100 (plane shipping)" for a $135 order)
+            const _shipTxt = String(inp.payment || '') + ' ' + String(inp.location || '');
+            const _sh = /\bplane\b/i.test(_shipTxt) ? 35 : (/\bboat\b/i.test(_shipTxt) ? 10 : 0);
+            const _pn = parseFloat(String(inp.price).replace(/[^\d.]/g, ''));
+            if (_sh && _pn && !/\+|total/i.test(String(inp.price))) {
+              const _how = _sh === 35 ? 'plane' : 'boat';
+              const _pay = inp.payment && !/plane|boat/i.test(inp.payment) ? ' (' + inp.payment + ')' : '';
+              return '💰 $' + (_pn + _sh) + ' total ($' + _pn + ' shoe + $' + _sh + ' ' + _how + ')' + _pay;
+            }
+          } catch (_) {} return `💰 ${inp.price}${inp.payment ? ` (${inp.payment})` : ''}`; })() : (inp.payment ? `💰 ${inp.payment}` : null),
           // 🏦 A RECEIPT IS NOT MONEY (Rodney 10-22, FF Make It Happen 478-2955: two Scotia receipts, $950, card said paid, shoes handed over,
           // nothing in CIBC two days later). Any transfer/receipt payment carries the check on the card itself.
           (/receipt|transfer|scotia|cibc|fcib|firstcaribbean|suncash|bank|paid/i.test(String(inp.payment || '') + ' ' + String(inp.price || '')))
@@ -12076,6 +12086,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             // A TYPED PLACE GETS A GOOGLE MAPS LINK (Rodney 10-18: "forward the location ... to whatsapp using google maps"). "Kemp Road,
             // green house #11" opens in Maps for the driver instead of being read off a card.
             const _loc = String(inp.location || '').trim();
+            // an island SHIPMENT has no Nassau address to drive to (11-24: Freeport card searched '..., Nassau, Bahamas')
+            if (/\b(shipment|ship(?:ping)? to|via (?:plane|boat)|by (?:plane|boat))\b/i.test(_loc)) return null;
             if (_loc && !/https?:\/\//.test(_loc) && !/\b(no location|not sent|pin (?:to come|coming)|location (?:to come|still coming)|open the chat|scheduled)\b/i.test(_loc) && /[a-z]{3}/i.test(_loc))
               return '🗺️ https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(_loc.replace(/[—–-]\s*(?:location|pin).*$/i, '').trim() + ', Nassau, Bahamas');
           } catch (_) {} return null; })(),
@@ -12086,6 +12098,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // a maps link and "auto-detected from an attachment" - the customer had only TYPED "I'm in the Lyford cay area" and the attachments
           // were two shoe cards; no pin ever came.) A place they typed is labelled as typed, and the driver is told to get the pin first.
           (!earlyStage && !forLater && !_pinIn && inp.location
+            && !/\b(shipment|ship(?:ping)? to|via (?:plane|boat)|by (?:plane|boat))\b/i.test(String(inp.location) + ' ' + String(inp.payment || ''))   // nobody drives to Freeport
             && !history.slice(-24).some(h => h && h.role === 'user' && /https?:\/\/maps\.google\.com\/\?q=-?[\d.]+,/.test(typeof h.content === 'string' ? h.content : JSON.stringify(h.content || '')))   // a YCloud pin earlier in the chat
             && !/https?:\/\/maps\.google\.com\/\?q=|\b(pin|open the chat|shared|sent (?:a |their |the )?location)\b/i.test(String(inp.location))
             // an attachment just came in that the Mac has not yet read as "no pin" may still BE the pin - that case keeps the VERIFY line below
