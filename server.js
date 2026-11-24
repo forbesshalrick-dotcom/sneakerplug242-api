@@ -12097,7 +12097,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const _loc = String(inp.location || '').trim();
             // an island SHIPMENT has no Nassau address to drive to (11-24: Freeport card searched '..., Nassau, Bahamas')
             if (/\b(shipment|ship(?:ping)? to|via (?:plane|boat)|by (?:plane|boat))\b/i.test(_loc)) return null;
-            if (_loc && !/https?:\/\//.test(_loc) && !/\b(no location|not sent|pin (?:to come|coming)|location (?:to come|still coming)|open the chat|scheduled)\b/i.test(_loc) && /[a-z]{3}/i.test(_loc))
+            if (_loc && !/https?:\/\//.test(_loc) && !/\b(no location|not sent|pin (?:to come|coming)|location (?:to come|still coming)|open the chat|scheduled|awaiting|not confirmed|check with the customer|before driving)\b/i.test(_loc) && !/[⏰⚠️]/u.test(_loc) && /[a-z]{3}/i.test(_loc))
               return '🗺️ https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(_loc.replace(/[—–-]\s*(?:location|pin).*$/i, '').trim() + ', Nassau, Bahamas');
           } catch (_) {} return null; })(),
           // The "pin" may actually have been a photo/sticker WhatsApp couldn't deliver
