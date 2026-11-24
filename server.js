@@ -12698,7 +12698,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const fb = _lt || _ptr || (image
         ? "That's a clean pair 👀 — what size you looking for and I'll pull up what we've got 👟"
         : _okOnly ? '👍'
-        : "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
+        // 11-24 TK chef 437-1149: an order was already on file (2 pairs, $250, Guyto's Bakery) when an attachment came in, and he got
+        // "Tell me the shoe (and your size)". With an order on file, the fallback names the order and asks only where they are.
+        : (() => { try { const _oc = orderCheckins.get(String(sub)); if (_oc && _oc.shoe && Date.now() - (_oc.at || 0) < 3 * 24 * 3600000)
+            return 'Got it 👍 your ' + _oc.shoe + (_oc.size ? ' in ' + _oc.size : '') + ' is set. If that was your location, perfect - if you moved, just type where you are now 🙏'; } catch (_) {} return null; })()
+        || "Sorry, that didn't come through right 🙈 Tell me the shoe (and your size if you have one) and I'll pull it right up 👟");
       await sendChunk(sub, [{ type: 'text', text: fb }], token).catch(() => {});
     }
     sentToCustomer = true;
