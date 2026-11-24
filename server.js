@@ -10339,6 +10339,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* 🏝️ THEY NAMED AN ISLAND - GIVE THE SHIPPING TERMS IN THAT REPLY (11-24 TK Terrance 533-4835: "Freeport" got "we ship to Freeport!
+     * What size you need?" and never heard plane/boat/payment-first, then a later "we'll bring it straight to you"). */
+    try {
+      const _isl = String(userText || '').match(/\b(freeport|grand bahama|exuma|abaco|marsh harbou?r|eleuthera|andros|harbou?r island|bimini|long island|cat island|inagua|spanish wells|berry islands?|ragged island|acklins|crooked island|mayaguana|san salvador)\b/i);
+      if (_isl && turnText && !/\$\s*35\b|\$\s*10\b/.test(turnText)) {
+        const _thI = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _told = (((_thI && _thI.msgs) || []).filter(m => m && m.sender !== 'customer').slice(-30)).some(m => /\$\s*35\b/.test(m.text || '') && /\$\s*10\b/.test(m.text || ''));
+        if (!_told) {
+          turnText = turnText.trim() + '\n\nFor ' + _isl[1].replace(/\b\w/g, c => c.toUpperCase()) + ' we ship: ✈️ plane $35 (same day if paid before 3 PM) or 📦 boat $10 (weekly). Payment first, then we ship 👟';
+          record(req, { endpoint: 'island-terms-added', sub, island: _isl[1] });
+        }
+      }
+    } catch (_) {}
     /* 💲 DEAL TAKEN TWICE (11-24 Shoebox 423-1379): "$290 total, $280 with the deal" after she had already said "I'll take $290".
      * If an earlier Kiki message already named the first figure, drop the second, lower one. */
     try {
