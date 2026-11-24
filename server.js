@@ -2949,6 +2949,7 @@ Then add ONE line: "Tell me your size 👟 and I'll send pics of what we got!". 
 ⚠️ JORDAN PRICING (know this cold): Air Jordan **1s are $100** — every Jordan 1 colourway and style (Jordan 1 High, Low, Retro — all of them). Every OTHER Air Jordan (Jordan 3, 4, 5, 11, 13, Tatum, etc.) is **SALE $150** (Rodney 11-16) — except the newest drop, which keeps its price from search_inventory, any colour or style. So if a customer asks the price of a Jordan — INCLUDING one you can't find in stock or a colour you're not sure we carry (e.g. "how much for the blue and white Jordan?") — quote it from this rule: a Jordan 1 = SALE $100, any other Jordan = SALE $150 (the newest drop: the price search_inventory gives). Never tell a customer a Jordan "isn't showing up" or that you can't price it.
 Only ever mention shoes, prices and sizes that search_inventory returns — never invent anything (the Jordan pricing rule above is the one known exception, so you can always quote a Jordan: $120 for a Jordan 1, $180 for any other).
 💬 "CAN I GET A DEAL / DISCOUNT / IF I BUY 2, 3, 4 PAIRS?" — ⚠️ ONLY WHEN THEY ASK (Rodney 10-19: "We only give deal for people who ask for deal. He never asked for a deal… Is she the owner?" — never offer, mention or hint at a discount to someone who has not asked; a 2-pair order with no ask is the plain total). WHEN THEY ASK: YES, WE DO DEALS ON MORE THAN ONE PAIR (Rodney 2026-10-19, replacing the old 07-20 "that's already our best price" line, which lost a 4-pair buyer: "I told you before that we give deals. You just have to find out which shoes they want exactly and let them know that you're gonna put the price together and then give them a discount from the total, because all the shoes are different price"). So: (1) say YES warmly; (2) if you do not yet know EXACTLY which shoes, ask them to send back the pictures (or name them) of the exact pairs — every shoe has its own price, so the total depends on which ones; e.g. "Yes, we do deals when you take more than one 🔥 Send me back the pictures of the exact pairs you want and I'll put the total together and take a discount off it for you 👟"; (3) once you know the pairs, list each with its price, give the total, then the deal — SMALL (Rodney 10-19: "I don't just take $10 off each shoe. That's normally when people buy in five… if people just buy two, I might just move one $10 and say $230"): 2 to 4 pairs = $10 off the TOTAL (2 at $120 = $240 → $230); 5 or more pairs = $10 off EACH pair (5 at $180 = $900 → $850). Never say "that's already our best price", never "no discounts". A single pair is its listed price — be warm about it, never cold.
+💲 THE DEAL COMES OFF ONCE (11-24 Shoebox 423-1379: Kiki said "$300 total, I'll take $290", then on his next message "$290 total, $280 with the deal" - $20 off for 2 pairs). Once you have given a deal price, THAT is the price for those pairs - repeat it exactly; never take the deal off again or lower it on your own.
 🏷️ QUOTE EACH SHOE'S OWN PRICE — DON'T LUMP THEM (Rodney 2026-07-20): NOT every Jordan is $150 — Air Jordan 1s, Dunks, Air Force 1s, Air Max, Air Max 95, New Balance and ASICS are $100 (Rodney 11-16), etc. So NEVER say "all Jordans are $150" or blanket-price a mixed order. Price each pair by its ACTUAL price (from search_inventory, or the Jordan rule above: Jordan 1 = $100, any other Jordan = $150), and when they're buying two different shoes, add their two real prices for the total — don't assume they're the same.
 🛒 WHOLESALE / BULK ENQUIRIES: when a customer asks about "wholesale", "wholesale prices", "bulk", "buying to resell", or "trade prices" — do NOT say we're retail only. Instead, refer them to a good supplier we know. Send exactly: "Here's a good supplier you can check out 👟 *sneakerinventory.com* — use code *${(process.env.WHOLESALE_CODE || 'W242').toUpperCase()}* to browse their full catalog 🙌" Then stop — don't push them to buy retail or ask their size next.`;
 }
@@ -10300,6 +10301,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     }
+    /* 💲 DEAL TAKEN TWICE (11-24 Shoebox 423-1379): "$290 total, $280 with the deal" after she had already said "I'll take $290".
+     * If an earlier Kiki message already named the first figure, drop the second, lower one. */
+    try {
+      const _dm = turnText && turnText.match(/\$(\d{2,4})\s*total,?\s*\$(\d{2,4})\s*with (?:the|a|our) (?:deal|discount)/i);
+      if (_dm && Number(_dm[2]) < Number(_dm[1])) {
+        const _thD = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _prevK = (((_thD && _thD.msgs) || []).filter(m => m && m.sender === 'kiki' && m.text).slice(-6)).map(m => m.text).join(' ');
+        if (new RegExp('\\$' + _dm[1] + '\\b').test(_prevK)) {
+          turnText = turnText.replace(_dm[0], '$' + _dm[1] + ' total');
+          record(req, { endpoint: 'deal-not-doubled', sub, kept: _dm[1], dropped: _dm[2] });
+        }
+      }
+    } catch (_) {}
     /* 🚫 "DID ANYTHING CATCH YOUR EYE?" → "LET ME KNOW IF YOU'D LIKE A DELIVERY" (Rodney 10-16, +1 242 455-2751: "Okay where are you
      * located" got the address plus "Did anything catch your eye from those pictures?"). */
     if (turnText && !staffName && /\b(?:catch(?:es|ing)?|caught)\s+your\s+eye\b/i.test(turnText)) {
