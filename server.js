@@ -6325,6 +6325,31 @@ const reminderTick = setInterval(async () => {
         const _kw = /Still holding your order|pair's set aside for|order boxed and waiting|order is ready whenever you are|Sigo guardando tu pedido|M ap kenbe kòmand|Je garde ta commande|Just checking in - still good for|still want your pair for|still works for you\? 📦|Still on for .{1,30}\? 👟 Anything change|Solo confirmando|M jis ap tcheke|Je vérifie|Vit vit - ou toujou vle|Rápido - ¿todavía quieres|Seguimos para|Nou toujou sou|On reste sur/;
         const _nudged = _ms.some(m => m && m.dir === 'out' && (m.ts || 0) > _20h && _kw.test(m.text || ''));
         const _theySpoke = _ms.some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > _20h);
+        /* 🧾 THE PAIR MUST STILL BE HERE (11-23 TK Faddah 559-5147: "still want your pair for the day you said?" - he said "Yes, Friday",
+         * but his AM90 Brown/Black 11 sold to Rollington that afternoon). Before a check-in, the last single-pair order card is
+         * matched against live stock; if no matching shoe still has that size, the check-in becomes an honest "it sold" + offer. */
+        try {
+          const _card = [..._ms].reverse().find(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || ''));
+          const _mm = _card && /👟\s*([^,\n]+?)\s+—\s+size\s+([\d.]+)/.exec(String(_card.text || ''));
+          if (_mm && !/,/.test(_mm[1])) {
+            const _desc = _mm[1].replace(/—/g, ' ').toLowerCase(), _size = parseFloat(_mm[2]);
+            const _toks = _desc.split(/[^a-z0-9.]+/).filter(t => t && t !== 'nike' && t !== 'air' && t.length > 1);
+            const _map = liveShoeMap(); let _matched = 0, _has = false;
+            for (const id in _map) {
+              const sh = _map[id]; const hay = [sh.brand, sh.name, sh.color, sh.nickname].join(' ').toLowerCase();
+              if (_toks.length && _toks.every(t => hay.includes(t))) { _matched++; if ((sh.sizesRaw || []).some(x => parseFloat(x) === _size)) _has = true; }
+            }
+            if (_matched && !_has) {
+              reminders = reminders.filter(x => !(String(x.sub || '') === String(r.sub) && x.kind === 'keep-warm'));
+              saveReminders();
+              const _tk = (r.store && storeTokens.get(r.store)) || lastToken || process.env.MANYCHAT_TOKEN;
+              const _line = 'Sorry 🙏 the ' + _mm[1].replace(/\s+—\s+/g, ' ') + ' in ' + _mm[2] + ' sold - it\'s first come, first served. Want me to send what we got in your ' + _mm[2] + '? 👟';
+              try { await sendChunk(r.sub, [{ type: 'text', text: _line }], _tk); } catch (_) {}
+              recent.unshift({ at: new Date().toISOString(), endpoint: 'keep-warm-pair-sold', sub: r.sub, pair: _mm[1], size: _mm[2] }); if (recent.length > 120) recent.length = 120;
+              continue;
+            }
+          }
+        } catch (_) {}
         if (_nudged || _theySpoke || (r.bookedAt && r.bookedAt > _20h)) {
           reminders = reminders.filter(x => !(String(x.sub || '') === String(r.sub) && x.kind === 'keep-warm'));
           if (!r.finalAt || Date.now() + 44 * 3600 * 1000 < r.finalAt) reminders.push(Object.assign({}, r, { at: Date.now() + 24 * 3600 * 1000 }));
