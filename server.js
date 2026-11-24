@@ -1635,7 +1635,7 @@ function noLeakLines(t) {
   try {
     // 11-24 TK chef 437-1149: "The very sure Jordan Air Jordan 4 Retro SB \"Navy\" and ..." - the photo reader's "SEEN: ...; very sure"
     // confidence words rode into the reply. Strip the confidence words, keep the sentence.
-    t = String(t || '').replace(/\b(?:the\s+)?(?:very|fairly|pretty|quite|not)\s+sure\s+(?=[A-Z"'])/g, 'The ').replace(/[;,]?\s*\((?:very|fairly|pretty|quite|not)\s+sure\)/gi, '').replace(/\bJordan Air Jordan\b/g, 'Air Jordan');
+    t = String(t || '').replace(/\b(?:[Tt]he\s+)?(?:very|fairly|pretty|quite|not)\s+sure\s+(?=[A-Z"'])/g, 'The ').replace(/[;,]?\s*\((?:very|fairly|pretty|quite|not)\s+sure\)/gi, '').replace(/\bJordan Air Jordan\b/g, 'Air Jordan');
     const parts = String(t || '').split(/(?<=[.!?\n👟🔥🙏🙌📍👇])\s*/u);
     if (!parts.some(p => LEAK_RE.test(p))) return t;
     const kept = parts.filter(p => !LEAK_RE.test(p)).join(' ').replace(/\s{2,}/g, ' ').trim();
