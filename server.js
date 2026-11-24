@@ -1633,6 +1633,9 @@ function noDeadEndDenial(t) {
 const LEAK_RE = /\b(?:system note|system message|the system|note says|instructions?|prompt|the actual customer|the customer'?s? (?:question|message)|customer question|as an ai|language model|i'?m an ai|what they'?re asking|once you share|waiting for (?:the|their) (?:actual|real)|(?:appreciate|thanks for) the (?:note|context|heads up)|what they send|no reply (?:is )?needed|waiting to see what)\b/i;
 function noLeakLines(t) {
   try {
+    // 11-24 TK chef 437-1149: "The very sure Jordan Air Jordan 4 Retro SB \"Navy\" and ..." - the photo reader's "SEEN: ...; very sure"
+    // confidence words rode into the reply. Strip the confidence words, keep the sentence.
+    t = String(t || '').replace(/\b(?:the\s+)?(?:very|fairly|pretty|quite|not)\s+sure\s+(?=[A-Z"'])/g, 'The ').replace(/[;,]?\s*\((?:very|fairly|pretty|quite|not)\s+sure\)/gi, '').replace(/\bJordan Air Jordan\b/g, 'Air Jordan');
     const parts = String(t || '').split(/(?<=[.!?\n👟🔥🙏🙌📍👇])\s*/u);
     if (!parts.some(p => LEAK_RE.test(p))) return t;
     const kept = parts.filter(p => !LEAK_RE.test(p)).join(' ').replace(/\s{2,}/g, ' ').trim();
