@@ -4922,7 +4922,8 @@ try {
     const sizeCutoff = Date.now() - 12 * 60 * 60 * 1000;
     let sizesBack = 0;
     for (const [sub, v] of Object.entries(saved.sizes || {})) {
-      if (v && v.size && (v.ts || 0) > sizeCutoff) { custSize.set(sub, v); sizesBack++; }
+      // A size the CUSTOMER typed is kept 30 days across restarts (11-24 Shoebox Road Daddii said 12 on 11-20 and was asked "What size?" twice on 11-24).
+      if (v && v.size && ((v.ts || 0) > sizeCutoff || (v.fromCustomer && (v.ts || 0) > Date.now() - 30 * 24 * 3600 * 1000))) { custSize.set(sub, v); sizesBack++; }
     }
     console.log('[convos] restored', convos.size, 'conversations,', sizesBack, 'sizes');
   }
@@ -8464,6 +8465,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _myS = custSize.get(sub);
       if (_myS && _myS.fromCustomer && Date.now() - (_myS.ts || 0) < 48 * 3600 * 1000 && !saidNow)
         userText = '(SYSTEM: this customer told us their size is ' + _myS.size + ' - use ' + _myS.size + ' for any shoe they ask about, NOT a size from an older order card or an earlier message of yours.)\n' + userText;
+      else if (_myS && _myS.fromCustomer && Date.now() - (_myS.ts || 0) < 30 * 24 * 3600 * 1000 && !saidNow)
+        userText = '(SYSTEM: on ' + new Date(_myS.ts).toISOString().slice(5, 10) + ' this customer told us their size is ' + _myS.size + '. Do NOT ask "what size?" - if you need it, ask "Still a ' + _myS.size + '? 👟" and carry on with that size.)\n' + userText;
     } catch (_) {}
     // Her own women's number, kept apart: a search overwrites custSize with whatever Kiki passed.
     if (saidNow && /\b(wom[ae]n'?s?|ladies|lady|female|girls?|for her|my (?:wife|girl|daughter|mom|mother|sister))\b/i.test(customerWordsOnly(userText))) womensSaid.set(String(sub), { size: parseFloat(saidNow), at: Date.now() });
