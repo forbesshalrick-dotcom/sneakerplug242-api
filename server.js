@@ -10332,8 +10332,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const _cp = (_ct.match(/💰\s*\$(\d+)/) || [])[1];
         if (_ship && _cp && Number(_pm[1]) === Number(_cp)) {
           const _tot = Number(_cp) + _ship;
-          turnText = turnText.replace(_pm[0], '242plug.com/pay?amount=' + _tot);
-          if (!new RegExp('\\$' + _tot + '\\b').test(turnText)) turnText = turnText.replace(/(242plug\.com\/pay\?amount=\d+)/, '$1 (total $' + _tot + ' = $' + _cp + ' + $' + _ship + ' ' + (_ship === 35 ? 'plane' : 'boat') + ')');
+          const _note = ' (total $' + _tot + ' = $' + _cp + ' + $' + _ship + ' ' + (_ship === 35 ? 'plane' : 'boat') + ')';
+          const _had = new RegExp('\\$' + _tot + '\\b').test(turnText);
+          turnText = turnText.replace(_pm[0], () => '242plug.com/pay?amount=' + _tot + (_had ? '' : _note));
           record(req, { endpoint: 'island-paylink-shipping-added', sub, from: _pm[1], to: _tot });
         }
       }
