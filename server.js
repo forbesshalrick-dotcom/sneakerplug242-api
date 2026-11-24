@@ -1637,7 +1637,7 @@ function noLeakLines(t) {
     if (!parts.some(p => LEAK_RE.test(p))) return t;
     const kept = parts.filter(p => !LEAK_RE.test(p)).join(' ').replace(/\s{2,}/g, ' ').trim();
     try { record(null, { endpoint: 'leak-line-cut', before: String(t).slice(0, 160) }); } catch (_) {}
-    return kept || 'Which one you like? Send me the picture 👟';
+    return kept || '👍';
   } catch (_) { return t; }
 }
 function earlyHoursGuard(t) {
