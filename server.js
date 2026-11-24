@@ -7424,6 +7424,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       userText = '(SYSTEM: deliveries run 8 AM to 10 PM only. If they want it after 10 PM, say we deliver until 10 PM and offer before 10 tonight or tomorrow from 8 AM. Never say "anytime".)\n' + userText;
       record(req, { endpoint: 'after-10-note', sub, store: ctx.store || '' });
     }
+    /* 🧾 WHAT THEY ALREADY BOUGHT (11-23 TK Plug 819-6381: "the shoes run small" was about yesterday's AM97 White/Blue 9.5, but Kiki
+     * only knew tonight's 3-pair order - she mapped "White blue" to the Silver/Red and said "you good"). Any talk of a past buy, a
+     * swap or a fit problem gets their earlier order cards from this chat (last 10 days) so she can tell an old pair from a new one. */
+    try {
+      if (/\b(?:bought|buy|got|purchase[d]?|earlier|yesterday|last (?:week|night|time)|this morning|run(?:s|ning)? (?:small|big)|too (?:small|big|tight)|tight|swap|exchange|change (?:it|them|the size)|don'?t fit|doesn'?t fit|not fit)\b/i.test(_b)) {
+        const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _cards = ((_th && _th.msgs) || []).filter(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY/.test(m.text || '') && Date.now() - (m.ts || 0) < 10 * 86400000);
+        const _seen = new Set(); const _lines = [];
+        for (const c of _cards) {
+          const t = String(c.text || '').replace(/\s+/g, ' ').replace(/📍.*$/, '').trim().slice(0, 160);
+          if (_seen.has(t)) continue; _seen.add(t);
+          _lines.push(new Date(c.ts).toLocaleDateString('en-US', { timeZone: 'America/Nassau', weekday: 'short', month: 'short', day: 'numeric' }) + ': ' + t);
+        }
+        if (_lines.length) {
+          userText = '(SYSTEM: this customer\'s ORDERS in this chat, oldest first - an older day is a pair they ALREADY HAVE, today\'s latest is the one still coming:\n' + _lines.slice(-6).join('\n') + '\nWork out which pair they mean from THEIR words (colour, model, day). If it is a pair they already have and it does not fit, that is a swap: say which pair and size you understood, and that you will check with the team. Never guess another shoe, never say "you good".)\n' + userText;
+          record(req, { endpoint: 'past-orders-note', sub, n: _lines.length });
+        }
+      }
+    } catch (_) {}
     if (!image && /^\W*(let me|lemme) see\W*$/i.test(_b)) {
       userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
       record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
