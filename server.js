@@ -6213,6 +6213,17 @@ const KEEP_WARM_T = {
     (d) => `Bonjour ! On reste sur ${d} ? 👟 Quelque chose a changé ?`,
   ],
 };
+/* 11-23 TK Faddah 559-5147 got "Still holding your order for the day you said" at 22:29 - reminders keep the text they were BOOKED with,
+ * so ones queued before the no-holds rewrite still said "holding". Rewrite the old lines as they go out. */
+function unHoldOld(t) {
+  try {
+    return String(t || '')
+      .replace(/Still holding your order for (.+?) [—-] all good on your end\?/i, 'Just checking in - still good for $1?')
+      .replace(/Your pair'?s set aside for (.+?)[.!]?\s*/i, 'Still want your pair for $1? ')
+      .replace(/(?:your )?order(?:'s)? boxed and waiting[^.!?]*[.!?]?/i, 'Still good for that day? 👟')
+      .replace(/\b(?:still )?holding (?:it|them|your (?:pair|order|shoes?)) for you\b/ig, 'checking in');
+  } catch (_) { return t; }
+}
 function keepWarmLine(sub, dayLabel, n) {
   const list = KEEP_WARM_T[subLang.get(sub) || 'en'] || KEEP_WARM_T.en;
   return list[n % list.length](dayLabel);
@@ -6295,7 +6306,7 @@ const reminderTick = setInterval(async () => {
         const _pinned = r.clock && ((() => { const _p = pinReceived.get(String(r.sub)); return !!(_p && Date.now() - (_p.at || 0) < 12 * 3600 * 1000); })()
           || (_th && (_th.msgs || []).some(m => m && (m.ts || 0) > Date.now() - 12 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|Shared a location/i.test(m.text || '')))));
         if (!_spoke) {
-          const res = await sendChunk(r.sub, [{ type: 'text', text: await say(_pinned && r.textPinned ? r.textPinned : r.text, r.sub) }], tk);
+          const res = await sendChunk(r.sub, [{ type: 'text', text: await say(unHoldOld(_pinned && r.textPinned ? r.textPinned : r.text), r.sub) }], tk);
           recent.unshift({ at: new Date().toISOString(), endpoint: 'checkin-sent', sub: r.sub, ok: !!(res && res.ok) });
         } else recent.unshift({ at: new Date().toISOString(), endpoint: 'checkin-skipped-they-spoke', sub: r.sub });
         if (recent.length > 120) recent.length = 120;
