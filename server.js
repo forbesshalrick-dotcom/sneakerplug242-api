@@ -11021,8 +11021,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const _nums = []; try { for (const t of (_cw0.match(/(?<![\d$.,:])\d{1,2}(?:\.\d)?(?![\d:]|\s*(?:dollars?|bucks|pairs?|am|pm|o'?clock|mins?|minutes?|hours?|hrs?)\b)/gi) || [])) { _nums.push(parseFloat(t)); for (const q of t.split('.')) _nums.push(parseFloat(q)); } } catch (_) {}
             const _near = (z) => _nums.some(n => n >= 4 && n <= 16 && Math.abs(n - parseFloat(z)) <= 0.5);
             const _said = (z) => new RegExp('(?<![\\d.])' + String(parseFloat(z)).replace('.', '\\.') + '(?![\\d])').test(_cw0) || !!sizeFromCustomerWords(_cw0) || _near(z);
+            // 11-24 Shoe Lacky Donte 822-7855: we settled his 11 with him by hand at 11:33 and 12:29 ("the all-white Jordan 11 in an 11"),
+            // he OK'd it at 18:06 and asked to "look at everything again" - his 11 was dropped as invented, the album was "too broad",
+            // and he got "I'll send you everything" over nothing. A size the shop named to him in the last 48 h, or his own size from
+            // the last 30 days, is his.
+            const _staffW = _th0 ? _th0.msgs.filter(m => m.dir !== 'in' && m.sender === 'rodney' && Date.now() - m.ts < 48 * 3600 * 1000).map(m => m.text || '').join(' \n ') : '';
+            const _known = (z) => (_cs0 && _cs0.fromCustomer && Date.now() - (_cs0.ts || 0) < 30 * 24 * 3600 * 1000 && parseFloat(_cs0.size) === parseFloat(z))
+              || new RegExp('\\b(?:in an?|your|size)\\s+' + String(parseFloat(z)).replace('.', '\\.') + '(?![\\d.])', 'i').test(_staffW);
             const _all = [].concat(p.size != null ? [p.size] : [], Array.isArray(p.sizes) ? p.sizes : []).filter(z => !/all/i.test(String(z)));
-            if (_all.length && !_all.some(_said)) {
+            if (_all.length && !_all.some(z => _said(z) || _known(z))) {
               record(req, { endpoint: 'search-size-invented-dropped', sub, size: p.size, sizes: p.sizes });
               delete p.size; delete p.sizes; delete p.size_match;
             }
