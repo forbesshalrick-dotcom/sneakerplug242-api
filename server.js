@@ -11232,7 +11232,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         const hasSize = p.size != null || (Array.isArray(p.sizes) && p.sizes.length);
         const restrictive = !!(p.color || p.query || p.max_price != null || p.min_price != null || p.womens);
         if (String(p.size_match || '').toLowerCase() === 'all') turnMatchingPair = true;
-        if (restrictive) turnHadRestrictiveSearch = true;
+        // 11-24 Shoe Lacky Trayways Auto 827-9751, from an Air Max ad: "Wa all you have in 8 1/2" got only the 10 Air Max - the ad's
+        // model rode in as a query and made the album 'restrictive'. A customer asking for EVERYTHING in their size gets the whole size.
+        const _allAsk = /\b(?:wa|wat|what|wha)\s*all\b|\beverything\b|\ball (?:you|u|y'?all|ya) (?:have|got|has)\b|\bshow me all\b|\bwhat (?:you|u|y'?all) (?:have|got) in (?:a |size )?\d/i.test(String(userText || ''));
+        if (restrictive && _allAsk && !p.color && p.max_price == null && p.min_price == null) record(req, { endpoint: 'all-ask-not-restrictive', sub, query: p.query || '' });
+        if (restrictive && !(_allAsk && !p.color && p.max_price == null && p.min_price == null)) turnHadRestrictiveSearch = true;
         if (hasSize && !restrictive) {
           [].concat(Array.isArray(p.sizes) ? p.sizes : (p.sizes != null ? [p.sizes] : []))
             .concat(p.size != null ? [p.size] : [])
