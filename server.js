@@ -7499,6 +7499,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'yes-more-pics-note', sub });
       }
     } catch (_) {}
+    /* 🙅 "NO" AFTER PICTURES (11-24 Belamour: "No like stil", "No like new balence" -> two whole-size albums, then "Stop"). */
+    try {
+      if (!image && /^\W*(?:no+|nah|nope|not|don'?t|dont)\b/i.test(_b)) {
+        const _thN = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _picsRecent = (((_thN && _thN.msgs) || []).filter(m => m && m.sender === 'kiki' && m.ts > Date.now() - 60 * 60 * 1000 && /— \*\$\d+\*/.test(m.text || ''))).length;
+        if (_picsRecent >= 5) {
+          userText = '(SYSTEM: they are saying NO to the pictures you sent (' + _picsRecent + ' already went in the last hour). Do NOT send their size album or any big album again. Ask in ONE short line what style/shoe they want, or send at most 2 cards that match what they named.)\n' + userText;
+          record(req, { endpoint: 'said-no-after-pics-note', sub, pics: _picsRecent });
+        }
+      }
+    } catch (_) {}
     if (!image && /^\W*(let me|lemme) see\W*$/i.test(_b)) {
       userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
       record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
@@ -11750,7 +11761,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             record(req, { endpoint: 'size-topup-not-merged', sub, why: { staff: !!staffName, generic: !!turnGenericSizeAlbum, restrictive: !!turnHadRestrictiveSearch,
               matching: !!turnMatchingPair, namedModel: namedModel || '', sizes: turnSizeSearchSizes.slice(0, 4), brandWord: ((_cust.match(BRAND_WORD_RE) || [])[0] || ''), brands: _brandKeys } });
           }
-          if (!staffName && !inp._adCapped && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
+          // 11-24 Shoe Lacky Belamour +509: "No like stil" / "No like new balence" each got the WHOLE size-8 album (85 + 83 pictures) - a
+          // "no" is them turning the pictures down, never a request for all of them. Then "Stop".
+          const _saidNo = /^\W*(?:no+|nah|not|nope|don'?t|dont|stop)\b/i.test(String(userText || '').trim());
+          if (_saidNo) record(req, { endpoint: 'size-topup-blocked-said-no', sub });
+          if (!staffName && !inp._adCapped && !_saidNo && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
               && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1) {
             const _onlyBrand = _brandKeys[0] ? _brandKeys[0].split('+') : null;
             // The size table decides the set (a 9 ask is the 9s AND the 9.5s, TK 10-15 got 43 nines and none of the 37
