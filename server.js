@@ -17154,7 +17154,20 @@ app.post('/inbox/send', async (req, res) => {
   try {
     const r = await sendChunk(sub, messages, token, { sender: 'rodney', account });
     // Fold the human turn into Kiki's own convo history so she has context when she resumes.
-    try { const note = (imageUrl ? '[sent a photo] ' : '') + (audioUrl ? '[sent a voice note] ' : '') + (text || ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note.trim() || '[sent media]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
+    // 11-24 Shoebox Boss Lady 826-6166: I hand-sent the pink/white Jordan 4 card, she said "I need a pink" and Kiki asked "Which shoe
+    // you mean?" - the note only said "[sent a photo]". A shoe CARD now names its shoe in her memory and in recentlySent, so a reply
+    // to it ("that one", "the pink", "price?") is read as THAT shoe.
+    let _cardShoe = null;
+    try {
+      const _cm = imageUrl && String(imageUrl).match(/\/([A-Za-z0-9_-]+?)-(?:card|0|thumb)(?:-nw)?\.jpg/);
+      if (_cm) { const _x = liveShoeMap()[_cm[1]]; if (_x) _cardShoe = { id: _cm[1], name: displayName(_x), price: _x.price, sizes: (_x.sizesRaw || _x.sizes || []).join(', ') }; }
+      if (_cardShoe) {
+        const _rs = recentlySent.get(String(sub));
+        const _names = [_cardShoe.name].concat(((_rs && Date.now() - (_rs.ts || 0) < 6 * 3600000 && _rs.names) || []).filter(n => n !== _cardShoe.name)).slice(0, 25);
+        recentlySent.set(String(sub), { ts: Date.now(), names: _names, order: (_rs && _rs.order) || '' }); saveRecentlySent();
+      }
+    } catch (_) {}
+    try { const note = (imageUrl ? (_cardShoe ? '[sent the picture card of the ' + _cardShoe.name + ' (id ' + _cardShoe.id + ', $' + _cardShoe.price + ', sizes ' + _cardShoe.sizes + ')] ' : '[sent a photo] ') : '') + (audioUrl ? '[sent a voice note] ' : '') + (text || ''); const h = convos.get(sub) || []; h.push({ role: 'assistant', content: note.trim() || '[sent media]' }); rememberConvo(sub, trimHistory(h)); } catch (_) {}
     record(req, { endpoint: 'inbox-send', sub, account, hasPhoto: !!imageUrl, hasAudio: !!audioUrl, audioMode: audioUrl ? (isGraph ? 'native' : 'link') : '', ok: !!(r && r.ok), body: (r && r.body) ? String(r.body).slice(0, 180) : '' });
     if (r && r.ok) {
       // Log the human's messages to the thread ONLY now that the send actually succeeded — sendChunk
