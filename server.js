@@ -7510,6 +7510,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* ✋ "KEEP THEM PLEASE" (11-24 Shoe Lacky Moblife 828-1740: "Friday I coming these ok" + "Keep them please" got "Bet 🔥" - a hold by
+     * silence). They ASKED us to hold it - the answer is the first-come rule, said plainly, never "bet"/"ok". */
+    try {
+      if (!image && /\b(?:keep|hold|save|reserve)\s+(?:it|them|that|those|this|these|the\s+\w+|for me|one for me)\b|\bput (?:it|them|that|those) (?:aside|away|to the side)\b|\bset (?:it|them) aside\b|\bdon'?t sell (?:it|them)\b/i.test(_b)) {
+        userText = '(SYSTEM: they are asking us to HOLD this pair. We do NOT hold pairs - first come, first served (Rodney). Do NOT say "bet", "ok", "got you" or anything that sounds like yes. Say it plainly: we can\'t hold pairs, first come first served - it is here right now, we can bring it today, or message us that day and if it is still here we bring it.)\n' + userText;
+        record(req, { endpoint: 'hold-asked-note', sub });
+      }
+    } catch (_) {}
     if (!image && /^\W*(let me|lemme) see\W*$/i.test(_b)) {
       userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
       record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
