@@ -1630,7 +1630,7 @@ function noDeadEndDenial(t) {
 }
 /* 🤐 NO TALKING ABOUT OUR OWN NOTES (11-23 Shoebox Matthew Ferguson 544-8560: "I appreciate the system note, but I'm waiting for the
  * actual customer question to answer!" went to the customer). A sentence that mentions system notes / "the customer" / instructions is cut. */
-const LEAK_RE = /\b(?:system note|system message|the system|note says|instructions?|prompt|the actual customer|the customer'?s? (?:question|message)|customer question|as an ai|language model|i'?m an ai|what they'?re asking|once you share|waiting for (?:the|their) (?:actual|real)|(?:appreciate|thanks for) the (?:note|context|heads up)|what they send|no reply (?:is )?needed|waiting to see what)\b/i;
+const LEAK_RE = /\b(?:system note|system message|the system|note says|instructions?|prompt|the actual customer|the customer'?s? (?:question|message)|customer question|as an ai|language model|i'?m an ai|what they'?re asking|once you share|waiting for (?:the|their) (?:actual|real)|(?:appreciate|thanks for) the (?:note|context|heads up)|what they send|no reply (?:is )?needed|waiting to see what|stay(?:ing)? (?:quiet|silent)|(?:quiet|silent) on (?:this|the) (?:turn|re-?delivery)|shouldn'?t (?:send|reply|say) anything|(?:won'?t|will not|not going to) (?:send|reply|respond)|this turn|re-?delivery)\b|^\W*you'?re (?:absolutely |totally |so )?right\W*$/i;
 function noLeakLines(t) {
   try {
     // 11-24 TK chef 437-1149: "The very sure Jordan Air Jordan 4 Retro SB \"Navy\" and ..." - the photo reader's "SEEN: ...; very sure"
