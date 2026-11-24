@@ -1958,6 +1958,8 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       if (!/Customer said:/i.test(mm.text)) continue;
       const stripped = String(mm.text)
         .replace(TRANS_LINE, '')
+        // 11-24 TK Beroule 434-0001: the note sat MID-LINE ("...👟 🔎 _Customer said: \"...\"_ Our deliveries...") so the line-start pattern missed it.
+        .replace(/[ \t]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:\s*["“][^"”\n]*["”]_*/gi, '')
         .replace(ORPHAN_RULE, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
