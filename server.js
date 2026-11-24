@@ -7513,7 +7513,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* ✋ "KEEP THEM PLEASE" (11-24 Shoe Lacky Moblife 828-1740: "Friday I coming these ok" + "Keep them please" got "Bet 🔥" - a hold by
      * silence). They ASKED us to hold it - the answer is the first-come rule, said plainly, never "bet"/"ok". */
     try {
-      if (!image && /\b(?:keep|hold|save|reserve)\s+(?:it|them|that|those|this|these|the\s+\w+|for me|one for me)\b|\bput (?:it|them|that|those) (?:aside|away|to the side)\b|\bset (?:it|them) aside\b|\bdon'?t sell (?:it|them)\b/i.test(_b)) {
+      if (!image && !/\b(?:i|we|u|you|they|he|she)\s+(?:keep|hold|save)\b/i.test(_b) && /\b(?:keep|hold|save|reserve)\s+(?:it|them|that|those|this|these|the\s+\w+|for me|one for me)\b|\bput (?:it|them|that|those) (?:aside|away|to the side)\b|\bset (?:it|them) aside\b|\bdon'?t sell (?:it|them)\b/i.test(_b)) {
         userText = '(SYSTEM: they are asking us to HOLD this pair. We do NOT hold pairs - first come, first served (Rodney). Do NOT say "bet", "ok", "got you" or anything that sounds like yes. Say it plainly: we can\'t hold pairs, first come first served - it is here right now, we can bring it today, or message us that day and if it is still here we bring it.)\n' + userText;
         record(req, { endpoint: 'hold-asked-note', sub });
       }
