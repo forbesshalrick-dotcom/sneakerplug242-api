@@ -10377,6 +10377,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* ✅ THEY ALREADY PICKED - DON'T ASK "WHICH ONE" AGAIN (11-24: Boss Lady "Which shoe you mean?" after her pick; chef "Tell me the shoe"
+     * with 2 pairs on order; Rodney: "she already show interest in 1 pair why would you ask again which 1?"). With an order filed in the
+     * last 6 h, a reply that only asks which one / to send the picture becomes a confirmation of THAT order + the next step. */
+    try {
+      const _ocW = !staffName && orderCheckins.get(String(sub));
+      const _askWhich = /\b(?:which one (?:you|u) (?:like|want|mean)|which (?:shoe|pair|one) (?:you|u) (?:mean|talking about|want)|send me (?:the|that) picture|tell me the shoe|what (?:shoe|pair) (?:you|u) (?:mean|want))\b/i;
+      if (_ocW && _ocW.shoe && Date.now() - (_ocW.at || 0) < 6 * 3600000 && turnText && _askWhich.test(turnText)
+          && !/\b(another|second|2nd|one more|also|too|other)\b/i.test(String(userText || ''))) {
+        const _keep = turnText.split(/(?<=[.!?\n👟🔥🙏])\s*/u).filter(x => !_askWhich.test(x) && /[A-Za-z]/.test(x)).join(' ').trim();
+        turnText = ((_keep ? _keep + ' ' : '') + 'Your ' + _ocW.shoe + (_ocW.size ? ' in ' + _ocW.size : '') + ' is set 👍 ' + (_ocW.ready ? 'The team will call you when the driver\'s close 🚗' : 'Send your location pin 📍 and we\'ll bring it to you 👟')).trim();
+        record(req, { endpoint: 'which-after-pick-replaced', sub, shoe: _ocW.shoe });
+      }
+    } catch (_) {}
     /* 🚫 "DID ANYTHING CATCH YOUR EYE?" → "LET ME KNOW IF YOU'D LIKE A DELIVERY" (Rodney 10-16, +1 242 455-2751: "Okay where are you
      * located" got the address plus "Did anything catch your eye from those pictures?"). */
     if (turnText && !staffName && /\b(?:catch(?:es|ing)?|caught)\s+your\s+eye\b/i.test(turnText)) {
