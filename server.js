@@ -8458,6 +8458,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // rule text "in an 8" - Claudia/Ricky 10-14 19:59 was told "in a size 8" off that), so only the words before it count.
     const saidNow = sizeFromCustomerWords(customerWordsOnly(userText));
     if (saidNow) { custSize.set(sub, { size: saidNow, ts: Date.now(), fromCustomer: true }); saveConvos(); }
+    // 11-24 TK chef 437-1149: said "8.5" at 15:24, sent a photo at 15:35 and got "we got the 5.5 in that ... in your 5.5" - the size on
+    // last night's wrong order card won over his own word. Their own stated size rides on every turn for 48 h.
+    try {
+      const _myS = custSize.get(sub);
+      if (_myS && _myS.fromCustomer && Date.now() - (_myS.ts || 0) < 48 * 3600 * 1000 && !saidNow)
+        userText = '(SYSTEM: this customer told us their size is ' + _myS.size + ' - use ' + _myS.size + ' for any shoe they ask about, NOT a size from an older order card or an earlier message of yours.)\n' + userText;
+    } catch (_) {}
     // Her own women's number, kept apart: a search overwrites custSize with whatever Kiki passed.
     if (saidNow && /\b(wom[ae]n'?s?|ladies|lady|female|girls?|for her|my (?:wife|girl|daughter|mom|mother|sister))\b/i.test(customerWordsOnly(userText))) womensSaid.set(String(sub), { size: parseFloat(saidNow), at: Date.now() });
   } catch (_) {}
