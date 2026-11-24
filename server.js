@@ -12048,6 +12048,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       }
       else if (tu.name === 'notify_manager') {
         const inp = tu.input || {};
+        /* 📏 THE CARD CARRIES THE SIZE THE CUSTOMER SAID (11-24 TK chef 437-1149: said "8.5" at 15:24 and again at 16:22; the 16:26
+         * DELIVERY READY card still said "SB Navy - size 5.5" off last night's wrong card). If they typed a size in the last 48 h,
+         * the card uses it - when that shoe comes in that size - and records the swap. */
+        try {
+          const _cs = custSize.get(sub);
+          if (_cs && _cs.fromCustomer && Date.now() - (_cs.ts || 0) < 48 * 3600 * 1000 && inp.size != null
+              && !/\band\b|\/|,/.test(String(inp.size)) && parseFloat(inp.size) !== parseFloat(_cs.size)) {
+            const _words = String(inp.shoe || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1);
+            const _lm = liveShoeMap();
+            const _has = Object.values(_lm).some(x => x && _words.length && _words.filter(w => (String(displayName(x)) + ' ' + String(x.color || '') + ' ' + String(x.nickname || '')).toLowerCase().includes(w)).length >= Math.min(3, _words.length)
+              && (x.sizesRaw || x.sizes || []).some(z => parseFloat(z) === parseFloat(_cs.size)));
+            if (_has) { record(req, { endpoint: 'card-size-from-customer', sub, was: String(inp.size), now: String(_cs.size), shoe: String(inp.shoe || '').slice(0, 60) }); inp.size = String(_cs.size); }
+          }
+        } catch (_) {}
         /* ✌️ TWO SIZES PROMISED = TWO SIZES ON THE CARD (Rodney 11-07, TK A1 824-4745: "bring the 10 too" - Kiki said "We'll bring both the
          * 10 and 10.5", the card said 10.5 and the driver only knew one). If she promised both sizes in this chat in the last 3 hours,
          * the card's size carries both. */
