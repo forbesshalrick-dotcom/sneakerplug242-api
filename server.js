@@ -10275,7 +10275,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     // tag note sits in front of his words, so the turn read as wordless and he got "What size you need?" both times. His own words are
     // what follows the tag note; and when the size is known the fallback never asks for it again.
     const _ownWords = (() => { const u = String(userText || ''); const m = /^\(SYSTEM: the customer TAGGED[\s\S]*?\.\)\n([\s\S]*)$/.exec(u); return (m ? m[1] : u.split('(SYSTEM')[0]).trim(); })();
-    if (turnText && !staffName && image && !_ownWords && /send (?:me )?your location/i.test(turnText)) {
+    // 11-23 TK chef 437-1149: "Ohhh I love it" + photo, then "This" + photo twice - each got "Want this one in your 8.5?" again. When
+    // we JUST asked that, the same picture again is the yes: let the location ask through.
+    const _askedPick = (() => { try { const _t = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); const _m = ((_t && _t.msgs) || []).filter(m => m && m.sender === 'kiki' && m.text); const _l = _m[_m.length - 1]; return !!(_l && /^Want this one in your /.test(_l.text) && Date.now() - (_l.ts || 0) < 30 * 60 * 1000); } catch (_) { return false; } })();
+    if (turnText && !staffName && image && !_ownWords && !_askedPick && /send (?:me )?your location/i.test(turnText)) {
       const _pz = (() => { try { const z = custSize.get(sub); return (z && z.size) ? String(z.size) : ''; } catch (_) { return ''; } })();
       turnText = turnText.replace(/(?:^|\n)[^\n]*send (?:me )?your location[^\n]*/gi, '').trim() || (_pz ? 'Want this one in your ' + _pz + '? \u{1f45f}' : 'What size you need? \u{1f45f}');
       record(req, { endpoint: 'photo-not-a-yes', sub });
