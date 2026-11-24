@@ -4956,6 +4956,7 @@ const readyNowSentAt = new Map();    // sub -> when a READY NOW card last went (
 const cancelHeldAt = new Map();      // sub -> when the 'we're 2/3 minutes away' hold was used (once per order)
 const cancelPending = new Map();    // sub -> { at, text, raw, order }: they said "don't come" on an open order; the NEXT message decides the alert (Rodney 10-17)
 const lastInboundPhoto = new Map(); // sub -> { img (url or {data,media_type}), at } — the customer's latest photo, kept even if its own turn is lost
+const deadEndAlbumSent = new Map();   // sub -> {key, at}: the dead-end album last sent, so a 2nd/3rd photo doesn't resend it (11-24)
 const recentlySent = new Map();    // sub -> {ts, names:[]} of shoes we JUST showed, so if the customer sends one of those pics BACK we recognise it as that exact shoe
 // Persist recentlySent too (2026-07-13): a customer echoed back the exact NB photo Kiki had
 // just sent and she didn't recognise it — a restart had wiped this map mid-conversation.
@@ -10117,7 +10118,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               record(req, { endpoint: 'colour-first-album', sub, store: ctx.store || '', colour, model, size: theirSize, n: _cIds.length });
             } catch (_) {}
           }
-          if (theirShoeTheirSize.length && !_colourFirst) {
+          /* 🔁 SAME ALBUM TWICE (11-24 Shoebox 423-1379: three photos of Jordans we don't stock, each answered with the same 15-picture
+           * Jordans-in-a-10 album he already had). If this exact set went to them in the last hour, don't resend it. */
+          let _albumRepeat = false;
+          try {
+            const _k = theirShoeTheirSize.map(r => r.id).sort().join(',');
+            const _prev = deadEndAlbumSent.get(String(sub));
+            if (_k && _prev && _prev.key === _k && Date.now() - _prev.at < 60 * 60 * 1000) _albumRepeat = true;
+            else if (_k) deadEndAlbumSent.set(String(sub), { key: _k, at: Date.now() });
+            if (_albumRepeat) record(req, { endpoint: 'dead-end-album-not-repeated', sub, n: theirShoeTheirSize.length });
+          } catch (_) {}
+          if (theirShoeTheirSize.length && !_colourFirst && !_albumRepeat) {
             try {
               model = model.split(' ').filter((w, i, a) => a.indexOf(w) === i).join(' ');   // "air force 1 air force 1" → once
               // Only words that are in the names of the shoes going out (11-18 Shoebox 803-8623: "What y'all have in air max" + "a block
@@ -10139,7 +10150,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             + 'have it and sent no pictures. We are salesmen — a no with nothing attached ends '
             + 'the sale, and words alone never sell a shoe. Here is what we REALLY have:\n'
             + lines.join('\n') + '\n';
-          const _tail = _sentHere > 0
+          const _tail = _albumRepeat
+            ? 'THEY ALREADY HAVE THESE PICTURES - the same album went to them within the hour. Do NOT call send_photos and do NOT resend it. '
+              + 'Say the honest no in half a line, then name the ONE or TWO closest shoes in their size from the list above in words (name + price) and ask if they want one of those.)'
+            : _sentHere > 0
             ? 'THE PICTURES ARE ALREADY SENT — ' + _sentHere + ' of them, every colour of their '
               + 'shoe in their size, went out just now. Do NOT call send_photos again and do NOT '
               + 'list those shoes in words. Write ONE short line around them: the honest no in '
