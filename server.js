@@ -10037,7 +10037,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 
         const COLOURS = ['black','white','red','blue','green','pink','purple','orange','yellow',
                          'brown','cream','navy','grey','gray','gold','silver','tan','burgundy'];
-        const colour = COLOURS.find(c => new RegExp('\\b' + c + '\\b').test(T)) || '';
+        // 11-24 Shoe Lacky Belamour: "air marc 90 color brown/black size 8" became colour = "black" (first in THIS list, not in his
+        // words) - "No black Air Max 90 in your 8" and 26 black shoes. The colours go in the order THEY said them; a second one
+        // ("brown/black") narrows the results to shoes that carry both, when any do.
+        const _cInT = COLOURS.map(c => [c, T.search(new RegExp('\\b' + c + '\\b'))]).filter(x => x[1] >= 0).sort((a, b) => a[1] - b[1]).map(x => x[0]);
+        const colour = _cInT[0] || '';
+        const colour2 = (_cInT[1] && new RegExp('\\b' + _cInT[0] + '\\s*(?:/|&|and|n|-)\\s*' + _cInT[1] + '\\b').test(T)) ? _cInT[1] : '';
 
         const cs = custSize.get(sub);
         const sizeNums = [...T.matchAll(/\b(\d{1,2}(?:\.5)?)\b/g)].map(m => parseFloat(m[1]))
@@ -10080,8 +10085,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // The three a salesman runs: their shoe in their size (every colour), their colour in
         // their size (any shoe), and their shoe in their colour (any size, to try on).
         const theirShoeTheirSize  = (model && theirSize) ? S({ query: model, size: theirSize }) : [];
-        const theirColourTheirSize = (colour && theirSize) ? S({ color: colour, size: theirSize }) : [];
-        const theirShoeTheirColour = (model && colour) ? S({ query: model, color: colour }) : [];
+        const _both = (arr) => { if (!colour2 || !Array.isArray(arr)) return arr; const b = arr.filter(r => new RegExp('\\b' + colour2 + '\\b', 'i').test(String((r && (r.color || r.name)) || ''))); return b.length ? b : arr; };
+        const theirColourTheirSize = _both((colour && theirSize) ? S({ color: colour, size: theirSize }) : []);
+        const theirShoeTheirColour = _both((model && colour) ? S({ query: model, color: colour }) : []);
 
         /* 🔑 HAND HER THE IDS, NOT JUST THE NAMES. This is why forcing send_photos was not
          * enough on its own: the guard runs its own searches, so she never "saw" a
