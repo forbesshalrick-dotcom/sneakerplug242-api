@@ -10320,6 +10320,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     }
+    /* ✈️ ISLAND PAY LINK MUST CARRY THE SHIPPING (11-24 TK lesleyrolle74 817-5576, Freeport by plane: link said amount=100, the total
+     * was $135). If the customer's latest order card says plane/boat shipping and the link is just the shoe price, add the shipping. */
+    try {
+      const _pm = turnText && turnText.match(/242plug\.com\/pay\?amount=(\d+(?:\.\d+)?)/);
+      if (_pm) {
+        const _thP = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _card = [...(((_thP && _thP.msgs) || []))].reverse().find(m => m && m.sender === 'system' && /(?:NEW ORDER|DELIVERY READY)/.test(m.text || ''));
+        const _ct = String((_card && _card.text) || '');
+        const _ship = /plane/i.test(_ct) ? 35 : (/boat/i.test(_ct) ? 10 : 0);
+        const _cp = (_ct.match(/💰\s*\$(\d+)/) || [])[1];
+        if (_ship && _cp && Number(_pm[1]) === Number(_cp)) {
+          const _tot = Number(_cp) + _ship;
+          turnText = turnText.replace(_pm[0], '242plug.com/pay?amount=' + _tot);
+          if (!new RegExp('\\$' + _tot + '\\b').test(turnText)) turnText = turnText.replace(/(242plug\.com\/pay\?amount=\d+)/, '$1 (total $' + _tot + ' = $' + _cp + ' + $' + _ship + ' ' + (_ship === 35 ? 'plane' : 'boat') + ')');
+          record(req, { endpoint: 'island-paylink-shipping-added', sub, from: _pm[1], to: _tot });
+        }
+      }
+    } catch (_) {}
     /* 💲 DEAL TAKEN TWICE (11-24 Shoebox 423-1379): "$290 total, $280 with the deal" after she had already said "I'll take $290".
      * If an earlier Kiki message already named the first figure, drop the second, lower one. */
     try {
