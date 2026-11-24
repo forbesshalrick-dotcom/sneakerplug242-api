@@ -7444,6 +7444,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       }
     } catch (_) {}
+    /* 📍 "SEND A PICK LOCATION" = WHERE DO I PICK UP (11-23 TK SN 808-5295 "Hi can you sen a pick location" got "send your location pin"). */
+    if (/\b(?:pick ?up|pick)\s*(?:up\s*)?(?:location|spot|place|address)\b|\bwhere (?:can|do|could) i (?:come )?(?:pick|get|collect)\b|\bsend (?:me )?(?:your|the|ya) (?:location|address)\b/i.test(_b)) {
+      userText = '(SYSTEM: they are asking where THEY can pick up - give our pick-up spot: Carmichael Rd, by the car rental on the corner and the wash house, https://maps.google.com/?q=25.006563,-77.414422 (8 AM - 10 PM). Do NOT ask for their location pin.)\n' + userText;
+      record(req, { endpoint: 'pickup-spot-note', sub });
+    }
     if (!image && /^\W*(let me|lemme) see\W*$/i.test(_b)) {
       userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
       record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
