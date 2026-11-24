@@ -7485,6 +7485,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       userText = '(SYSTEM: they are asking where THEY can pick up - give our pick-up spot: Carmichael Rd, by the car rental on the corner and the wash house, https://maps.google.com/?q=25.006563,-77.414422 (8 AM - 10 PM). Do NOT ask for their location pin.)\n' + userText;
       record(req, { endpoint: 'pickup-spot-note', sub });
     }
+    /* 📸 "YES PLEASE SEND THE PICTURES" AFTER "MORE STYLES IN YOUR SIZE IF YOU WANT TO SEE THEM" (11-24 Shoe Lacky 431-3253 got only
+     * "Which one you like?"). They said yes to more pictures - send the rest of their size, not another question. */
+    try {
+      const _thY = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _lastK = [...(((_thY && _thY.msgs) || []))].reverse().find(m => m && m.sender === 'kiki' && m.text);
+      if (!image && _lastK && /more styles|want to see (?:them|more)|want me to send/i.test(_lastK.text) && /^\W*(?:yes|yeah|yea|yh|ya|ok(?:ay)?|sure|please|pls)?\W*(?:please|pls)?\W*(?:send|show)?\s*(?:me\s*)?(?:the\s*)?(?:pics?|pictures?|photos?|them|more|all)?\W*(?:please|pls)?\W*$/i.test(_b) && _b.trim().length > 1) {
+        userText = '(SYSTEM: they said YES to seeing more styles in their size - call search_inventory with their size and send_photos of the OTHER styles (not the ones already sent) right now. Do not ask "which one you like" first.)\n' + userText;
+        record(req, { endpoint: 'yes-more-pics-note', sub });
+      }
+    } catch (_) {}
     if (!image && /^\W*(let me|lemme) see\W*$/i.test(_b)) {
       userText = '(SYSTEM: "Let me see" means SHOW ME - they want pictures now. If one shoe was just being talked about, send more pictures of THAT shoe with send_photos; otherwise send more styles in their size. Do not say "take your time".)\n' + _b;
       record(req, { endpoint: 'let-me-see-is-pictures', sub, store: ctx.store || '' });
