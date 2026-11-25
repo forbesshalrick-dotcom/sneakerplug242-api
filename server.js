@@ -7607,7 +7607,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (!image && _bs) {
         const _thB = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
         const _albumB = _thB && (_thB.msgs || []).some(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 30 * 60 * 1000 && /This is what we have in (?:a |size )?\d/i.test(m.text || ''));
-        if (_albumB) {
+        // 11-24 TK Cassano: "1" / "2" after an 8.5 album were searched as sizes 1 and 2 ("we stop at a 14"). Only a real shoe size counts.
+        if (_albumB && parseInt(_bs[1], 10) >= 4) {
           const _szB = _bs[1] + (/(1\/2|½|and a half|\.5)/i.test(_b) ? '.5' : '');
           userText = '(SYSTEM: they just got a full album and now gave a NEW size, ' + _szB + '. Search ALL brands in size ' + _szB + ' and send_photos the whole album. Do not ask which shoe or brand.)\n' + userText;
           record(req, { endpoint: 'bare-new-size-after-album', sub, store: ctx.store || '', size: _szB });
