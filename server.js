@@ -1971,7 +1971,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     // NOTHING — each glass is two UTF-16 units, so a class holds four surrogate
     // halves and none of them is a whole emoji. My first attempt at this fix had
     // exactly that bug and a test caught it.
-    const TRANS_LINE = /^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim;
+    const TRANS_LINE = /^[ \t>_*]*(?:🔍|🔎|🔬|🔭|🤖|📝|💬)?[ \t]*_*\s*Customer said:.*$/gim;   // 11-25 Shoebox 467-5886 got "🤖 _Customer said: ..." - 🤖 was not in the list
     const ORPHAN_RULE = /^\s*(?:-{3,}|—{2,}|\*{3,})\s*$/gm;
     for (const mm of (messages || [])) {
       if (!(mm && mm.type === 'text' && mm.text)) continue;
@@ -1979,7 +1979,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
       const stripped = String(mm.text)
         .replace(TRANS_LINE, '')
         // 11-24 TK Beroule 434-0001: the note sat MID-LINE ("...👟 🔎 _Customer said: \"...\"_ Our deliveries...") so the line-start pattern missed it.
-        .replace(/[ \t]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:\s*["“][^"”\n]*["”]_*/gi, '')
+        .replace(/[ \t]*(?:🔍|🔎|🔬|🔭|🤖|📝|💬)?[ \t]*_*\s*Customer said:\s*["“][^"”\n]*["”]_*/gi, '')
         .replace(ORPHAN_RULE, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
@@ -2680,7 +2680,7 @@ Would you like to see? What size you wear? 👟
 ${SITE_LIVE ? '' : `
 🚧 TEMPORARY — OUR WEBSITE IS DOWN (CRITICAL, overrides anything below): the online store is offline right now, so DO NOT send the website link, do NOT tell customers to "browse/search/shop on our site", and do NOT offer paying "on the website / with card online" — those all lead to a dead page. Sell 100% IN THE CHAT: show shoes as PHOTOS here and take the order here. If a customer asks for the website or "the full lineup", say the site is down for maintenance and offer to send photos in their size instead ("Our site's down for a lil maintenance 🙈 tell me your size and I'll show you everything we got right here 👟"). Payment options while the site is down: 💵 cash on delivery, 🏦 bank transfer (Scotiabank or CIBC), or 📲 SunCash — never card-on-website. This rule wins over every other mention of the website anywhere in these instructions.
 `}
-YOUR NAME IS KIKI. You're part of the ${storeName} team. Never introduce yourself or say your name unprompted — no "I'm Kiki", no "Kiki from ${storeName}" (Rodney 2026-10-14: "she don't have to mention her name or introduce herself"). Only if a customer asks your name, you're Kiki 😊. Never call yourself "Claude", an "AI", a "bot", or "automated", and don't bring it up. If someone asks straight up if you're a bot or a real person, keep it light and friendly and steer back to helping them find shoes (e.g. "Haha I'm with ${storeName} 😊 what size you looking for?").
+YOUR NAME IS KIKI. You're part of the ${storeName} team. Never introduce yourself or say your name unprompted — no "I'm Kiki", no "Kiki from ${storeName}" (Rodney 2026-10-14: "she don't have to mention her name or introduce herself"). Only if a customer asks your name, you're Kiki 😊. Never call yourself "Claude", an "AI", a "bot", or "automated", and don't bring it up. If someone asks straight up if you're a bot, AI or a real person, NEVER say no or deny it (11-25: "nah, just The Shoebox team" went to a customer who asked "get AI here?") - answer honestly in one light line and carry on, e.g. "Yep, I'm the ${storeName} assistant 😊 a real person can jump in anytime - what size you looking for?".
 
 How to chat:
 - This is WhatsApp. Keep EVERY reply short and natural — a sentence or two, casual, at most a couple of emojis. Never write paragraphs.
