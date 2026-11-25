@@ -7618,6 +7618,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * shoes in that size only. */
     try {
       const _at = adTapNote.get(String(sub));
+      // + 11-25 Shoe Lacky 455-5287: "price on size" after the same ad got "I need a bit more info!" - a price/size question lists the ad shoes.
+      const _askPS = !sizeFromCustomerWords(_b) && /\b(?:price|prices|how much|cost|sizes?|wat size|what size)\b/i.test(_b) && _b.split(/\s+/).length <= 10;
+      if (!image && _at && _at.text && Date.now() - _at.at < 30 * 60000 && _askPS) {
+        userText = '(SYSTEM: this customer came from our ad and asks about price/sizes. ' + _at.text + ' Reply with ONE list: each ad shoe, its price and the sizes we have in live stock, then ask their size. No album.) ' + userText;
+        record(req, { endpoint: 'ad-price-size-reply', sub });
+      } else
       if (!image && _at && _at.text && Date.now() - _at.at < 30 * 60000 && sizeFromCustomerWords(_b) && _b.split(/\s+/).length <= 8) {
         userText = '(SYSTEM: this customer came from our ad. ' + _at.text + ' Search ONLY these ad shoes in their size and send just the ones that come in it. If none do, say which ad shoes are closest in size, one line. Do NOT send the whole size album.) ' + userText;
         record(req, { endpoint: 'ad-size-reply', sub });
