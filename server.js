@@ -6390,7 +6390,10 @@ const reminderTick = setInterval(async () => {
         const _20h = Date.now() - 20 * 3600 * 1000;
         const _kw = /Still holding your order|pair's set aside for|order boxed and waiting|order is ready whenever you are|Sigo guardando tu pedido|M ap kenbe kòmand|Je garde ta commande|Just checking in - still good for|still want your pair for|still works for you\? 📦|Still on for .{1,30}\? 👟 Anything change|Solo confirmando|M jis ap tcheke|Je vérifie|Vit vit - ou toujou vle|Rápido - ¿todavía quieres|Seguimos para|Nou toujou sou|On reste sur/;
         const _nudged = _ms.some(m => m && m.dir === 'out' && (m.ts || 0) > _20h && _kw.test(m.text || ''));
-        const _theySpoke = _ms.some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > _20h);
+        // 11-25 Shoebox Jto 825-4374: "Ok" at 10:41, "Just checking in - still good for the day you said?" at 10:42 - a message
+        // logged as sender 'customer' without dir 'in' did not count. Either marker counts now.
+        const _theySpoke = _ms.some(m => m && (m.dir === 'in' || m.sender === 'customer') && m.sender !== 'system' && (m.ts || 0) > _20h)
+          || Date.now() - (lastIncoming.get(String(r.sub)) || 0) < 20 * 3600 * 1000;
         /* 🧾 THE PAIR MUST STILL BE HERE (11-23 TK Faddah 559-5147: "still want your pair for the day you said?" - he said "Yes, Friday",
          * but his AM90 Brown/Black 11 sold to Rollington that afternoon). Before a check-in, the last single-pair order card is
          * matched against live stock; if no matching shoe still has that size, the check-in becomes an honest "it sold" + offer. */
