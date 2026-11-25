@@ -1636,7 +1636,7 @@ function noDeadEndDenial(t) {
 }
 /* 🤐 NO TALKING ABOUT OUR OWN NOTES (11-23 Shoebox Matthew Ferguson 544-8560: "I appreciate the system note, but I'm waiting for the
  * actual customer question to answer!" went to the customer). A sentence that mentions system notes / "the customer" / instructions is cut. */
-const LEAK_RE = /\b(?:system note|system message|the system|note says|instructions?|prompt|the actual customer|the customer'?s? (?:question|message)|customer question|as an ai|language model|i'?m an ai|what they'?re asking|once you share|waiting for (?:the|their) (?:actual|real)|(?:appreciate|thanks for) the (?:note|context|heads up)|what they send|no reply (?:is )?needed|waiting to see what|stay(?:ing)? (?:quiet|silent)|(?:quiet|silent) on (?:this|the) (?:turn|re-?delivery)|shouldn'?t (?:send|reply|say) anything|(?:won'?t|will not|not going to) (?:send|reply|respond)|this turn|re-?delivery)\b|^\W*you'?re (?:absolutely |totally |so )?right\W*$/i;
+const LEAK_RE = /\b(?:let me (?:correct|update|fix|redo) (?:that|this|the (?:alert|card|order))|(?:here'?s|sending) the (?:proper|correct|corrected|updated|right) (?:alert|card)|let me get the team on (?:this|it)|(?:they|the customer) (?:sent|dropped|shared) (?:a|the|their) (?:maps? link|pin|location)|(?:the|this|that) (?:alert|card) (?:was wrong|needs)|system note|system message|the system|note says|instructions?|prompt|the actual customer|the customer'?s? (?:question|message)|customer question|as an ai|language model|i'?m an ai|what they'?re asking|once you share|waiting for (?:the|their) (?:actual|real)|(?:appreciate|thanks for) the (?:note|context|heads up)|what they send|no reply (?:is )?needed|waiting to see what|stay(?:ing)? (?:quiet|silent)|(?:quiet|silent) on (?:this|the) (?:turn|re-?delivery)|shouldn'?t (?:send|reply|say) anything|(?:won'?t|will not|not going to) (?:send|reply|respond)|this turn|re-?delivery)\b|^\W*you'?re (?:absolutely |totally |so )?right\W*$/i;
 function noLeakLines(t) {
   try {
     // 11-24 TK chef 437-1149: "The very sure Jordan Air Jordan 4 Retro SB \"Navy\" and ..." - the photo reader's "SEEN: ...; very sure"
@@ -6320,7 +6320,7 @@ const reminderTick = setInterval(async () => {
         const _spoke = !r.clock && _th && (_th.msgs || []).some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > (r.bookedAt || 0));
         // A time they gave is checked whether or not they chatted since; a pin already in changes the words, not the check.
         const _pinned = r.clock && ((() => { const _p = pinReceived.get(String(r.sub)); return !!(_p && Date.now() - (_p.at || 0) < 12 * 3600 * 1000); })()
-          || (_th && (_th.msgs || []).some(m => m && (m.ts || 0) > Date.now() - 12 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|Shared a location/i.test(m.text || '')))));
+          || (_th && (_th.msgs || []).some(m => m && (m.ts || 0) > Date.now() - 12 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|maps\.apple\.com\S*coordinate=|Shared a location/i.test(m.text || '')))));
         if (!_spoke) {
           const res = await sendChunk(r.sub, [{ type: 'text', text: await say(unHoldOld(_pinned && r.textPinned ? r.textPinned : r.text), r.sub) }], tk);
           recent.unshift({ at: new Date().toISOString(), endpoint: 'checkin-sent', sub: r.sub, ok: !!(res && res.ok) });
@@ -10842,7 +10842,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // line asks for one; nobody can drive to a customer whose location we do not have.
           let _pinIn = false;
           try { const _p = pinReceived.get(String(sub)); _pinIn = !!(_p && Date.now() - (_p.at || 0) < 24 * 3600 * 1000); } catch (_) {}
-          try { const _thP = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); if (_thP && (_thP.msgs || []).some(m => m && (m.ts || 0) > Date.now() - 24 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|Shared a location/i.test(m.text || '')))) _pinIn = true; } catch (_) {}
+          try { const _thP = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); if (_thP && (_thP.msgs || []).some(m => m && (m.ts || 0) > Date.now() - 24 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|maps\.apple\.com\S*coordinate=|Shared a location/i.test(m.text || '')))) _pinIn = true; } catch (_) {}
           turnText = ((_keep ? _keep + ' ' : '') + (_pinIn ? "I've passed it to the team — they'll call you when the driver's close 👟" : "Send me your location pin 📍 so the team can get it to you 👟")).trim();
           record(req, { endpoint: 'on-the-way-claim-cut', sub, pin: _pinIn });
         }
@@ -12110,7 +12110,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         try {
           if (!earlyStage && /dropped a whatsapp location pin|location pin in the chat/i.test(String(inp.location || '')) && !_pinIn) {
             const _thPn = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
-            const _locMsg = _thPn && (_thPn.msgs || []).some(m => m && m.dir === 'in' && Date.now() - (m.ts || 0) < 6 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|Shared a location/i.test(m.text || '')));
+            const _locMsg = _thPn && (_thPn.msgs || []).some(m => m && m.dir === 'in' && Date.now() - (m.ts || 0) < 6 * 3600 * 1000 && (m.loc || /maps\.google\.com\/\?q=|maps\.apple\.com\S*coordinate=|Shared a location/i.test(m.text || '')));
             if (!_locMsg) { inp.location = 'not sent yet'; inp.stage = 'order_confirmed'; earlyStage = true; record(req, { endpoint: 'pin-claim-without-pin', sub }); }
           }
         } catch (_) {}
@@ -12766,6 +12766,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 
 function handleChat(req, res) {
   let userText = extractQuery(req);
+  /* 📍 AN APPLE / GOOGLE MAPS LINK WITH COORDINATES IS A PIN (11-24 Shoebox A380 636-3863 sent a maps.apple.com link with
+   * coordinate=25.049213,-77.336795 - Kiki said "Got your pin!", then filed three "location still coming" cards and told him
+   * "Let me correct that — they sent a maps link. Here's the proper alert:"). The coordinates are added as a Google pin link,
+   * which every pin check already reads. */
+  try {
+    const _ut = String(userText || '');
+    if (/https?:\/\/\S*(?:maps\.apple\.com|google\.[a-z.]+\/maps|maps\.google\.)/i.test(_ut) && !/maps\.google\.com\/\?q=-?\d/.test(_ut)) {
+      const _m = _ut.match(/(?:coordinate|ll|q|sll|daddr)=(-?\d{1,2}\.\d+)(?:,|%2C)(-?\d{1,3}\.\d+)/i) || _ut.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);
+      if (_m && Math.abs(parseFloat(_m[1])) <= 90 && Math.abs(parseFloat(_m[2])) <= 180) {
+        userText = _ut + ' https://maps.google.com/?q=' + parseFloat(_m[1]).toFixed(6) + ',' + parseFloat(_m[2]).toFixed(6);
+        try { record(req, { endpoint: 'maps-link-pin', lat: _m[1], lng: _m[2] }); } catch (_) {}
+      }
+    }
+  } catch (_) {}
   let audioUrl = getAudioUrl(req);
   let imageUrl = getImageUrl(req);
   const inboxPhotoUrl = imageUrl || ''; // keep the customer's photo URL for the Inbox even when PHOTO_VISION blanks it for the AI
