@@ -4103,7 +4103,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   let redirectedMidAlbum = false;
   if (interrupted && !manualStopped) {
     const txt = lastIncomingText.get(sub) || '';
-    if (REDIRECT.test(txt) && !STOPPISH.test(txt)) {
+    // 11-25 Shoe Lacky Snipe 561-562-9219 + Shoebox Yh: a TAG of the next shoe cut a one-card album and got "Say less - switching
+    // to that now" - a pick is not a change of mind. No line for tags/quote-replies/photos or a one-shoe send.
+    if (REDIRECT.test(txt) && !STOPPISH.test(txt) && !_oneShoe && !/TAGGED|quote-replied|^\s*↩️|manybot-files|^\[photo\]$/i.test(txt)) {
       redirectedMidAlbum = true;
       try { await sendChunk(sub, [{ type: 'text', text: `Say less — switching to that now 👌` }], token); } catch (e) { /* non-fatal */ }
     }
