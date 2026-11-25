@@ -3762,7 +3762,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
   // album (chatLocks), so Kiki answers the NEW request the moment the album stops.
   // Rodney 2026-10-14: "I meant Harachis", "I mean New Balance", "I mean Jordans" — "i mean" and the
   // spellings customers really type now count, and so does "no I want…".
-  const REDIRECT = /\b(i meant|i mean|i ment|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|(no|nah),? i want|new balance|nb|jordans?|jays?|j'?s|nikes?|asics|dunks?|vapor ?max(es)?|air ?max(es)?|air ?force|af1s?|forces|tns?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|harachi?s?|huarachi?s?|hurache?s?|shox|mules?|yeezys?|scorpions?|balenciagas?)\b/i;
+  // 11-25 TK Mar 822-5080: "I oy want see the 4 jrd" mid a 150-shoe women's-7 album - no match, 88 pictures went and her
+  // message sat unanswered. "only/just want", "jrd" spellings and "j4 / aj11 / the 4" now stop it.
+  const REDIRECT = /\b(i meant|i mean|i ment|o(?:n)?ly want|i o(?:n)?ly|just want|jrds?|jrdns?|jordns?|jodans?|aj ?\d{1,2}|j ?\d{1,2}s?|the \d{1,2}s? (?:jrd|jordan|j)\w*|meant to (say|type)|actually|instead|my bad|wrong (one|shoe|size|colou?r)|not (those|them|these|that one)|(no|nah),? i want|new balance|nb|jordans?|jays?|j'?s|nikes?|asics|dunks?|vapor ?max(es)?|air ?max(es)?|air ?force|af1s?|forces|tns?|foams?|foam ?runners?|slides?|slippers?|crocs?|huaraches?|harachi?s?|huarachi?s?|hurache?s?|shox|mules?|yeezys?|scorpions?|balenciagas?)\b/i;
   // A bare "no" mid-album, and a PICTURE sent mid-album (they are pointing at the shoe they want — the forwarded
   // Dunk High card on 2026-10-14 sat unanswered behind a 99-shoe album), also stop the pictures.
   const NO_ONLY = /^\s*(no+|nah+|nope|no no|no thanks?|no thank you)\s*[!.]*\s*$/i;
