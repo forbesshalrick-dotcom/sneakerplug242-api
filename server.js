@@ -4762,6 +4762,8 @@ function sizeFromCustomerWords(text) {
     // got "We don't have a size 3", then "smallest is a 5.5", then everything in 5.5).
     .replace(/\b\d+\s*(?:colou?rs?|colorways?|colourways?|shades?|styles?|kinds?|of (?:them|those|these|dem))\b/g, ' ')
     .replace(/\b\d[\d\s().-]{6,}\b/g, ' ')
+    // ½ "SIZE 9 HALF" / "9 n half" / "9half" IS A 9.5 (11-24 Shoe Lacky Ty'$in 474-2302: "size 9 half" became "your 9").
+    .replace(/\b(\d{1,2})\s*(?:n|an|and|&|\+)?\s*(?:a\s+)?half\b/gi, '$1.5')
     // ⏰ WORK HOURS ARE NOT A SIZE (11-24 Shoebox A380 636-3863: "i have work from 7-3 so ... delivered for 4" made his order card
     // "size 7/3"). An hour range after work/from/between/shift, or with am/pm, is cut before sizes are read.
     .replace(/\b(?:work(?:ing)?|from|between|shift|off|busy|school|class)\b[^\d\n]{0,12}\d{1,2}(?::\d\d)?\s*(?:am|pm)?\s*(?:-|–|to|til+|until|and)\s*\d{1,2}(?::\d\d)?\s*(?:am|pm)?/gi, ' ')
