@@ -6305,10 +6305,14 @@ const reminderTick = setInterval(async () => {
         }
         const _ds = (() => { try { return driverNow(r.sub); } catch (_) { return null; } })();
         const _twice = Date.now() - (reminderSentAt.get(String(r.sub)) || 0) < 20 * 3600 * 1000;
-        if (_done || (_ds && _ds.step === 'done') || _twice) {
+        // 11-24 Shoebox Tashawn 807-9020: only got the size-9 lineup at 22:04 with "we deliver tomorrow from 8 AM" - never picked -
+        // and at 19:17 the next day got "You had a delivery set for today — still want it?". No order card in the last 3 days = no
+        // delivery was set; this reminder does not go.
+        const _noOrder = !!(_th && (r.kind || 'day') === 'day' && !(_th.msgs || []).some(m => m && m.sender === 'system' && (m.ts || 0) > Date.now() - 3 * 24 * 3600 * 1000 && /NEW ORDER|ORDER SET FOR LATER|DELIVERY READY|YOU'VE GOT AN ORDER/i.test(m.text || '')));
+        if (_done || (_ds && _ds.step === 'done') || _twice || _noOrder) {
           reminders = reminders.filter(x => String(x.sub || '') !== String(r.sub));
           saveReminders();
-          recent.unshift({ at: new Date().toISOString(), endpoint: 'reminder-skipped', sub: r.sub, kind: r.kind || 'day', why: _done ? 'order-already-moved' : _twice ? 'already-sent-today' : 'done-pressed' });
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'reminder-skipped', sub: r.sub, kind: r.kind || 'day', why: _done ? 'order-already-moved' : _twice ? 'already-sent-today' : _noOrder ? 'no-order-was-set' : 'done-pressed' });
           if (recent.length > 120) recent.length = 120;
           continue;
         }
@@ -7541,6 +7545,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (!image && !/\b(?:i|we|they|he|she)\s+(?:keep|hold|save)\b/i.test(_b) && /\b(?:keep|hold|save|reserve)\s+(?:it|them|that|those|this|these|the\s+\w+|for me|one for me)\b|\bput (?:it|them|that|those) (?:aside|away|to the side)\b|\bset (?:it|them) aside\b|\bdon'?t sell (?:it|them)\b/i.test(_b)) {
         userText = '(SYSTEM: they are asking us to HOLD this pair. We do NOT hold pairs - first come, first served (Rodney). Do NOT say "bet", "ok", "got you" or anything that sounds like yes. Say it plainly: we can\'t hold pairs, first come first served - it is here right now, we can bring it today, or message us that day and if it is still here we bring it.)\n' + userText;
         record(req, { endpoint: 'hold-asked-note', sub });
+      }
+    } catch (_) {}
+    /* 🏁 "THAT'S IT" = THAT'S ALL (11-24 Shoe Lacky 827-6938: AF1 All Black 10 set + pin in, she listed three all-black pairs, he said
+     * "thats it" and got "The New Balance 2000 All Black is $100... Where should the driver come?" + a second order card). With an order
+     * on file, "that's it / that's all / nothing else" closes the order they have - it never picks another shoe. */
+    try {
+      if (!image && /^\W*(?:(?:no(?:pe)?,?\s*)?(?:that'?s|thats|dat|das)\s+(?:it|all|everything)(?:\s+(?:for now|for me|thanks?|thank you|ty|bro|fam|boss))*|nothing else(?:\s+(?:thanks?|thank you|ty))?|that'?s all i need|just (?:that|those|the one)|only (?:that|the one))\W*$/i.test(_b)) {
+        const _oc = orderCheckins.get(String(sub));
+        if (_oc && Date.now() - (_oc.at || _oc.ts || 0) < 6 * 3600 * 1000) {
+          userText = '(SYSTEM: "' + _b.slice(0, 40) + '" means THAT IS ALL they want - the order they already have. Confirm it in one line (shoe, size, price) and the next step. Do NOT pick or offer another shoe, do NOT file a new order.) ' + userText;
+          record(req, { endpoint: 'thats-it-closes-order', sub });
+        }
       }
     } catch (_) {}
     if (!image && /^\W*(let me|lemme) see\W*$/i.test(_b)) {
