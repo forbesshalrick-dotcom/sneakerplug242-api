@@ -4868,7 +4868,9 @@ function sizeFromCustomerWords(text) {
   // A RANGE first — "14/15", "14 or 15", "14-15". Two sizes in one breath is a big-foot
   // customer telling you he sits between them; keep BOTH so nobody quietly rounds him down.
   const r = s.match(new RegExp(NUM + '\\s*(?:/|-|\\bor\\b|\\bto\\b)\\s*' + NUM));
-  if (r && ok(r[1]) && ok(r[2])) {
+  // 11-25 Shoebox A380 636-3863: "work from 7-3" became size "7/3" on every card and in Kiki's mouth. A real between-sizes
+  // range is at most 1.5 apart (10/10.5, 12/13); anything wider is hours, a score or a date - not a size.
+  if (r && ok(r[1]) && ok(r[2]) && Math.abs(parseFloat(normSize(r[1])) - parseFloat(normSize(r[2]))) <= 1.5) {
     const a = normSize(r[1]), b = normSize(r[2]);
     return a === b ? a : (a + '/' + b);
   }
