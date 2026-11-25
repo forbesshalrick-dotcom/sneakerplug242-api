@@ -7586,7 +7586,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _bm = (String(_b).match(/\b(sketch(?:er|ers)?|skechers?|vans|converse|puma|reebok|fila|crocs|hoka|on cloud|birkenstock|timberlands?|ugg|under armou?r|balenciaga|gucci|lv|louis vuitton)\b/i) || [])[1];
       if (!image && _bm) {
         const _key = _bm.toLowerCase().replace(/^sketch.*$/, 'skech').replace(/s$/, '').slice(0, 5);
-        const _have = Object.values(liveShoeMap() || {}).some(x => x && ((x.name || '') + ' ' + (x.brand || '')).toLowerCase().includes(_key) && (x.sizesRaw || x.sizes || []).length);
+        // 11-25 Shoebox Yh 943-292-3799: "Sketch" is also our Air Max 95 Sketch colourway - if the word as typed is in any live
+        // name (or the ad/tag talked about one of ours), it is ours, not the Skechers brand.
+        const _raw = _bm.toLowerCase().replace(/s$/, '');
+        const _have = /\(SYSTEM: (?:the customer TAGGED|they quote-replied|this customer opened the chat by tapping)/i.test(String(userText || ''))
+          || Object.values(liveShoeMap() || {}).some(x => x && (() => { const n = ((x.name || '') + ' ' + (x.brand || '') + ' ' + (x.colorway || x.color || '')).toLowerCase(); return n.includes(_key) || n.includes(_raw); })());
         if (!_have) {
           userText = '(SYSTEM: they asked for ' + _bm + ' - we do NOT carry that brand right now. Say so plainly in one line ("We don\'t carry ' + _bm + ' right now 🙏"), then send 2-3 of the closest shoes we DO have in their size and colour. Never send an album without saying this first.) ' + userText;
           record(req, { endpoint: 'brand-not-carried', sub, brand: _bm });
