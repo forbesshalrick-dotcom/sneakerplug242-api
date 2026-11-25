@@ -7871,7 +7871,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
    * know how far are you - I can let you know in your personal chat, then you go back to the customer with the answer.") */
   try {
     const _dw = customerWordsOnly(String(userText || ''));
-    const _thirdP = /\b(?:you|u|y'?all|ya|someone|somebody|the driver|your driver)\s+(?:did\s+)?(?:call(?:ed)?|ring|rang|phone(?:d)?)\s+me\b|\b(?:did|have|has)\s+(?:you|u|y'?all)\s+(?:find|found|reach(?:ed)?)\s+(?:the|that)\s+(?:person|guy|man|lady|customer)|\b(?:the|that)\s+(?:person|guy|man|lady|one)\s+(?:who|that|dat)\s+(?:order(?:ed)?|bought|want(?:ed)?)\b|\b(?:no ?one|nobody|no body)\s+(?:was\s+)?(?:at|here|there|came|reach)\b/i.test(_dw);
+    // 11-24 TK 823-7131: "I need want 50 tru jah bui clear my rent" got "we only sell sneakers here — no cash advances". A money / personal
+    // ask is for Rodney (personal-message rule, 11-22): the standard line + the owner alert, not Kiki's answer.
+    const _personal = /\b(?:lend|borrow|loan)\b[^.?!]{0,25}\$?\d|\b(?:need|want)\s+(?:want\s+)?\$?\d{2,4}\b[^.?!]{0,30}\b(?:rent|bill|light bill|food|help|till|until|tru|thru|through)\b|\b(?:help me (?:out )?with|clear my|pay my)\s+(?:my\s+)?(?:rent|bill|light|school|fees)\b/i.test(_dw);
+    const _thirdP = _personal || /\b(?:you|u|y'?all|ya|someone|somebody|the driver|your driver)\s+(?:did\s+)?(?:call(?:ed)?|ring|rang|phone(?:d)?)\s+me\b|\b(?:did|have|has)\s+(?:you|u|y'?all)\s+(?:find|found|reach(?:ed)?)\s+(?:the|that)\s+(?:person|guy|man|lady|customer)|\b(?:the|that)\s+(?:person|guy|man|lady|one)\s+(?:who|that|dat)\s+(?:order(?:ed)?|bought|want(?:ed)?)\b|\b(?:no ?one|nobody|no body)\s+(?:was\s+)?(?:at|here|there|came|reach)\b/i.test(_dw);
     if (!staffName && (/\b(?:call|ring|phone)\s+(?:me|him|her)\b/i.test(_dw) || /\b(?:give|gimme)\s+(?:me\s+)?a\s+(?:call|ring)\b/i.test(_dw)
         || /\bhow (?:far|long)\b/i.test(_dw) || /\bwhere\s+(?:is|r|are|u|you|ya|the)\b[^.?!]{0,15}\b(?:driver|him|you|u|ya|man)\b/i.test(_dw)
         || /\b(?:eta|on (?:the|ur|your) way|(?:u|you|he|driver)\s+(?:close|coming|reach(?:ing)?|here|outside|almost))\b/i.test(_dw)
