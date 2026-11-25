@@ -1655,6 +1655,15 @@ function earlyHoursGuard(t) {
   t = noMetaParens(t);
   t = noHoldPromise(t);
   t = noSaleEndDate(t);
+  /* ⏰ A TIME THAT HAS PASSED IS TOMORROW (11-24 Shoebox A380 636-3863 at 19:05: "ready for the 4 PM delivery today" - he works
+   * 7-3 and meant tomorrow). "N PM ... today" when N PM is already gone becomes "tomorrow". */
+  try {
+    const _hNow = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10) % 24;
+    t = String(t).replace(/\b(\d{1,2})(?::\d\d)?\s*(am|pm)\b([^.!?\n]{0,30}?)\b(today|this (?:afternoon|evening))\b/gi, (all, n, ap, mid, w) => {
+      let hh = parseInt(n, 10) % 12 + (/pm/i.test(ap) ? 12 : 0);
+      return hh <= _hNow ? all.slice(0, all.length - w.length) + 'tomorrow' : all;
+    });
+  } catch (_) {}
   try {
     const h = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10) % 24;
     /* 🌙 AFTER 10 PM TOO (Rodney 11-22 23:47: "we deliver tomorrow nomore tonight dude comeon" - TK Rollington 376-8752 got "Are
@@ -4749,6 +4758,10 @@ function sizeFromCustomerWords(text) {
     // got "We don't have a size 3", then "smallest is a 5.5", then everything in 5.5).
     .replace(/\b\d+\s*(?:colou?rs?|colorways?|colourways?|shades?|styles?|kinds?|of (?:them|those|these|dem))\b/g, ' ')
     .replace(/\b\d[\d\s().-]{6,}\b/g, ' ')
+    // ⏰ WORK HOURS ARE NOT A SIZE (11-24 Shoebox A380 636-3863: "i have work from 7-3 so ... delivered for 4" made his order card
+    // "size 7/3"). An hour range after work/from/between/shift, or with am/pm, is cut before sizes are read.
+    .replace(/\b(?:work(?:ing)?|from|between|shift|off|busy|school|class)\b[^\d\n]{0,12}\d{1,2}(?::\d\d)?\s*(?:am|pm)?\s*(?:-|–|to|til+|until|and)\s*\d{1,2}(?::\d\d)?\s*(?:am|pm)?/gi, ' ')
+    .replace(/\b\d{1,2}(?::\d\d)?\s*(?:am|pm|a\.m\.|p\.m\.|o'?clock)\b/gi, ' ')
     .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/g, ' ')
     // 🇪🇺 AN EU SIZE IS A US SIZE IN DISGUISE (11-18 04:02 New Wave +51 918-079082: "37 para mujer", "talla 40 para hombre" got "we stop at
     // size 14" - we stock both). With a size word next to it, EU 35-48 becomes the US men's size (Nike chart; women's EU = US women's,
