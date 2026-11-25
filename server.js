@@ -7551,6 +7551,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'hold-asked-note', sub });
       }
     } catch (_) {}
+    /* 🔢 A BARE 1 / 2 / 3 IS NOT A SIZE WHEN WE KNOW THEIRS (11-24 TK Cassano +509 3296-1649: size 8.5, got the black+blue album, then
+     * typed "1", "2", "3" and got "no size 1 - is it for a baby?", "no size 2", "we stop at a 14"). It is a picture number or a count. */
+    try {
+      const _bn = (String(_b).match(/^\W*([1-3])\W*$/) || [])[1];
+      const _csB = custSize.get(String(sub));
+      if (!image && _bn && _csB && _csB.size && parseFloat(_csB.size) >= 5) {
+        userText = '(SYSTEM: "' + _bn + '" is NOT a shoe size - their size is ' + _csB.size + '. It is a picture number or how many pairs. Ask in one short line which pictures they mean: "Tap the picture you like and reply on it 👟". Never say we don\'t have a size ' + _bn + '.) ' + userText;
+        record(req, { endpoint: 'bare-small-number-not-size', sub, n: _bn });
+      }
+    } catch (_) {}
     /* 🏁 "THAT'S IT" = THAT'S ALL (11-24 Shoe Lacky 827-6938: AF1 All Black 10 set + pin in, she listed three all-black pairs, he said
      * "thats it" and got "The New Balance 2000 All Black is $100... Where should the driver come?" + a second order card). With an order
      * on file, "that's it / that's all / nothing else" closes the order they have - it never picks another shoe. */
