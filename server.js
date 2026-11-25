@@ -10691,7 +10691,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     try {
       const _utG = String(userText || '').split('(SYSTEM')[0].trim();
       if (turnText && !staffName && /^(?:hi+|hey+|hello+|ok+ay?)?[\s,!.]*g(?:oo)?d\s*n(?:i|ig)ght?[\s,!.🙏👋😊]*(?:to you)?[\s!.]*$|^gn[\s!.]*$/i.test(_utG)
-          && /sleep well|sweet dreams|rest up|have a (?:good|great|blessed) night|holl[ae]r? when you'?re ready|good night!? ?[🙏👋]/i.test(turnText)) {
+          // 11-24 Shoebox 467-5886: a brand-new "Goodnight" got "Ok, anytime you ready just hit us up 👟" - another send-off.
+          && /sleep well|sweet dreams|rest up|have a (?:good|great|blessed) night|holl[ae]r? when you'?re ready|good night!? ?[🙏👋]|any ?time you(?:'?re| are)? ready|hit us up|just let (?:us|me) know|whenever you(?:'?re| are)? ready/i.test(turnText)) {
         const _thG = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
         const _bye = _thG && (_thG.msgs || []).some(m => m && m.dir === 'in' && Date.now() - (m.ts || 0) < 30 * 60000
           && /\b(thanks?|thank you|thx|bye|tomorrow|tmrw|later|ok(?:ay)?|alright|will (?:message|text|let you know))\b/i.test(m.text || ''));
