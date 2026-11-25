@@ -5573,6 +5573,12 @@ function armOrderCheckin(sub) {
       // 11-17: Alfonzo ("4 PM, Silver Gates") and Shoebox 395-4277 ("will send it when I get off") had already set a time and still got
       // "Still want it? Say yes" at 9 AM. Anyone who wrote to us after ordering has answered already - never chase them.
       try { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); if (((_th && _th.msgs) || []).some(m => m && m.dir === 'in' && (m.ts || 0) > (cur.at || 0) + 60000)) return; } catch (_) {}
+      // 11-25 TK 827-6938: the card said 9.5, the shop corrected it to "your size is the 10" - the 9 AM check-in still said 9.5.
+      // A shop message after the order card that names their size wins over the card.
+      try { const _th2 = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _fix = ((_th2 && _th2.msgs) || []).filter(m => m && m.dir === 'out' && m.sender === 'rodney' && (m.ts || 0) > (cur.at || 0) && m.text)
+          .map(m => (String(m.text).match(/\b(?:your size is(?: the)?|in your|in a|your)\s+(\d{1,2}(?:\.5)?)\b/i) || [])[1]).filter(Boolean).pop();
+        if (_fix && +_fix >= 4 && +_fix <= 16) cur.size = _fix; } catch (_) {}
       const size = cur.size ? ' in a ' + cur.size : '';
       let text = L(ORDER_CHECKIN_T, sub).replace('{shoe}', cur.shoe || 'pair you picked').replace('{size}', size);
       try { text = await say(text, sub) || text; } catch (_) {}
