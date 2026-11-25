@@ -7867,10 +7867,15 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
    * know how far are you - I can let you know in your personal chat, then you go back to the customer with the answer.") */
   try {
     const _dw = customerWordsOnly(String(userText || ''));
+    const _thirdP = /\b(?:you|u|y'?all|ya|someone|somebody|the driver|your driver)\s+(?:did\s+)?(?:call(?:ed)?|ring|rang|phone(?:d)?)\s+me\b|\b(?:did|have|has)\s+(?:you|u|y'?all)\s+(?:find|found|reach(?:ed)?)\s+(?:the|that)\s+(?:person|guy|man|lady|customer)|\b(?:the|that)\s+(?:person|guy|man|lady|one)\s+(?:who|that|dat)\s+(?:order(?:ed)?|bought|want(?:ed)?)\b|\b(?:no ?one|nobody|no body)\s+(?:was\s+)?(?:at|here|there|came|reach)\b/i.test(_dw);
     if (!staffName && (/\b(?:call|ring|phone)\s+(?:me|him|her)\b/i.test(_dw) || /\b(?:give|gimme)\s+(?:me\s+)?a\s+(?:call|ring)\b/i.test(_dw)
         || /\bhow (?:far|long)\b/i.test(_dw) || /\bwhere\s+(?:is|r|are|u|you|ya|the)\b[^.?!]{0,15}\b(?:driver|him|you|u|ya|man)\b/i.test(_dw)
         || /\b(?:eta|on (?:the|ur|your) way|(?:u|you|he|driver)\s+(?:close|coming|reach(?:ing)?|here|outside|almost))\b/i.test(_dw)
-        || /\b(?:i'?m|im|i am)\s+(?:outside|here|waiting|downstairs|at the)\b/i.test(_dw))) {
+        || /\b(?:i'?m|im|i am)\s+(?:outside|here|waiting|downstairs|at the)\b/i.test(_dw) || _thirdP)) {
+      // 11-24 TK Guyto Joseph 814-4601 (Guyto's Bakery, chef's drop spot): "You did call me this morning... There was no one at the
+      // bakery... did you find the person who ordered the tennis?" got "What size you wear? I'll send you pics". Talk about a drop,
+      // a call from us, or the person who ordered is for Rodney: the standard line, and the alert above.
+      if (_thirdP) userText = '(SYSTEM: this message is about a delivery / our driver / someone else\'s order - NOT a new shoe ask. Reply with EXACTLY: "I passed on your message. Someone will be right with you 🙏" and nothing else. No sizes, no pictures, no questions.) ' + userText;
       const _k = 'driverq|' + sub;
       if (Date.now() - (nonTextAlertAt.get(_k) || 0) > 10 * 60000) {
         nonTextAlertAt.set(_k, Date.now());
