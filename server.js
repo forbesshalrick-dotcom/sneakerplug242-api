@@ -4291,6 +4291,7 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
 // When each customer's LATEST real message arrived — sendShoePhotos checks this
 // between shoes; a STOP-worded message ("stop", "that's enough") halts the rest,
 // while questions let the album finish (they queue and get answered right after).
+const adTapNote = new Map();   // sub -> {at, text}: the ad they tapped, so the size they send next answers THAT ad (11-25)
 const lastIncoming = new Map();
 const priceAskAt = new Map();   // sub -> when they last asked the price ("how much"), so the album's closing line says it
 // sub|shoeId -> ts of the last photo of that shoe sent to that chat. record_sale is
@@ -7610,6 +7611,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           userText = '(SYSTEM: they asked for ' + _bm + ' - we do NOT carry that brand right now. Say so plainly in one line ("We don\'t carry ' + _bm + ' right now 🙏"), then send 2-3 of the closest shoes we DO have in their size and colour. Never send an album without saying this first.) ' + userText;
           record(req, { endpoint: 'brand-not-carried', sub, brand: _bm });
         }
+      }
+    } catch (_) {}
+    /* 📢 THE SIZE AFTER AN AD TAP ANSWERS THAT AD (11-25 Shoe Lacky ✨ 468-4034: tapped the IN STOCK NOW Jordans ad, sent "10", got
+     * all 56 shoes in a 10. Same with Mar, Louis, Shoebox 818-0541). Within 30 min of a known-ad tap, a size reply gets the ad's
+     * shoes in that size only. */
+    try {
+      const _at = adTapNote.get(String(sub));
+      if (!image && _at && _at.text && Date.now() - _at.at < 30 * 60000 && sizeFromCustomerWords(_b) && _b.split(/\s+/).length <= 8) {
+        userText = '(SYSTEM: this customer came from our ad. ' + _at.text + ' Search ONLY these ad shoes in their size and send just the ones that come in it. If none do, say which ad shoes are closest in size, one line. Do NOT send the whole size album.) ' + userText;
+        record(req, { endpoint: 'ad-size-reply', sub });
       }
     } catch (_) {}
     /* 🕒 "NOT AVAILABLE NOW, TOMORROW" IS ABOUT WHEN, NOT WHAT (11-24 Shoe Lacky Bless Jahh 817-1520: picked the AM90 Brown/Black 13, then
@@ -16433,10 +16444,12 @@ app.post('/ycloud/webhook', async (req, res) => {
          * its source_id - the exact shoes, prices and our live row ids. NO round brackets in the text: customerWordsOnly ends the
          * SYSTEM note at the first ')' and the rest is read as the customer's words (11-25 the album was trimmed to the AM95). */
         const KNOWN_ADS = {
+          '120252621846590542': 'The IN STOCK NOW ad shows exactly 5 Jordans: Air Jordan 4 Taupe = id jordan4taupe001, Air Jordan 4 Red/Black = id co630, Air Jordan 11 Black patent = id jordan11black001, Air Jordan 11 CDG Triple Black = id jordan11cdg001, Air Jordan 4 White/Black = id jordan4military001. Only these - never the whole size album.',
           '120255772809460581': 'The JUST LANDED ad shows exactly 4 shoes: Air Max 95 Sketch $100 = id airmax95bkwht001, Nike Zoom Vomero 5 Triple White $100 = id vomero5white001, Air Jordan 11 All White $200 = id jordan11cdgwhite001, Air Max Plus Napoli Blue $120 = id airmaxplusnapoli001. Use THESE names - no Jordan 1, no Air Max Plus 3.',
         };
         const _known = KNOWN_ADS[String(rf.source_id || rf.sourceId || '')] || '';
         if (_known) record(req, { endpoint: 'known-ad', sub: from, ad: String(rf.source_id || rf.sourceId || '') });
+        try { adTapNote.set(String(from), { at: Date.now(), text: _known || '' }); } catch (_) {}
         text = '(SYSTEM: this customer opened the chat by tapping one of OUR ADS' + (_known ? ' - ' + _known : '')
           + (hl ? ' - ad headline "' + hl + '"' : '') + (bd ? ', ad text "' + bd + '"' : '') + '. '
           + (gotAdPic ? 'The attached picture IS that ad, not a photo they took. ' : '')
