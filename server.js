@@ -7627,7 +7627,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * "Sorry Im not available now but tomorrow for sure" got a search for "navy Air Max 90" nobody asked for and "the Brown/Black just
      * went out"). A timing answer gets a timing reply - no search, no pictures. */
     try {
-      if (!image && /\b(?:not available|not home|can'?t (?:now|today|tonight)|busy|at work|tomorrow|tmrw|tmr|tommorow|later|next week|in the morning|after work)\b/i.test(_b)
+      // 11-25 Shoe Lacky 🕷️ 565-1210: "I should be available sometime after 12" got a Navy search + a Jordan album.
+      if (!image && /\b(?:not available|not home|can'?t (?:now|today|tonight)|busy|at work|tomorrow|tmrw|tmr|tommorow|later|next week|in the morning|after work|available (?:sometime|some time|after|around|by|from|at|tomorrow|later)|after \d{1,2}(?::\d\d)?\s*(?:am|pm)?)\b/i.test(_b)
           && !/\b(?:size|colou?r|black|white|red|blue|green|pink|grey|gray|navy|jordan|nike|air max|new balance|yeezy|show|send|pic)\b/i.test(_b)) {
         userText = '(SYSTEM: this is about WHEN they can receive it, not a new shoe. Do NOT search, do NOT send pictures, do NOT name another colour. Confirm the pair they already picked (shoe, size, price) and ask for the time + pin for that day. No holds - never say we keep it for them.) ' + userText;
         record(req, { endpoint: 'timing-only-reply', sub });
