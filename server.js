@@ -7566,6 +7566,21 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'hold-asked-note', sub });
       }
     } catch (_) {}
+    /* 💸 A LOWER COUNTER-OFFER IS NOT ACCEPTED (11-24 TK Cassano: quoted Jordan $150 + Nike $100 = $250, he typed "$200" and got
+     * "Okay! $200 pour les 2 paires 👍"). Prices are fixed - say so kindly and offer a cheaper combo that really costs that. */
+    try {
+      const _offer = (String(_b).match(/^\W*\$\s?(\d{2,4})\W*$|^\W*(\d{2,4})\s*(?:\$|dollars?|for (?:both|all|the two|2)|for dem|for them)\W*$/i) || []);
+      const _ov = parseInt(_offer[1] || _offer[2] || '', 10);
+      if (!image && _ov) {
+        const _thO = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _lastOut = _thO && [...(_thO.msgs || [])].reverse().find(m => m && m.dir === 'out' && /\$\s?\d{2,4}/.test(m.text || ''));
+        const _quoted = _lastOut ? Math.max(...((_lastOut.text || '').match(/\$\s?(\d{2,4})/g) || []).map(x => parseInt(x.replace(/\D/g, ''), 10))) : 0;
+        if (_quoted && _ov < _quoted) {
+          userText = '(SYSTEM: they are offering $' + _ov + ' against our $' + _quoted + '. Our prices are FIXED - do NOT accept, do NOT say ok. Say kindly the total stays $' + _quoted + ', and if a cheaper pick really costs $' + _ov + ' or less (e.g. two $100 pairs), offer that instead.) ' + userText;
+          record(req, { endpoint: 'counter-offer-held', sub, offer: _ov, quoted: _quoted });
+        }
+      }
+    } catch (_) {}
     /* 🔢 A BARE 1 / 2 / 3 IS NOT A SIZE WHEN WE KNOW THEIRS (11-24 TK Cassano +509 3296-1649: size 8.5, got the black+blue album, then
      * typed "1", "2", "3" and got "no size 1 - is it for a baby?", "no size 2", "we stop at a 14"). It is a picture number or a count. */
     try {
