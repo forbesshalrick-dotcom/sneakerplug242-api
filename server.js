@@ -3687,7 +3687,11 @@ async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photo
     if (!isStaff && Array.isArray(ids) && ids.length) {
       const _now = Date.now(); const _log = (_picFlood.get(String(sub)) || []).filter(e => _now - e.at < 10 * 60000);
       const _sent = _log.reduce((a, e) => a + e.n, 0);
-      if (_sent >= 25 && ids.length > 3) { try { record(null, { endpoint: 'pic-flood-capped', sub, had: ids.length, sent10m: _sent }); } catch (_) {} ids = ids.slice(0, 3); groups = null; }
+      // 11-25 Shoe Lacky One Link 455-0900: after the size-11 album he asked "Jordan's?" - 10 Jordans in 11, the cap sent 3. A brand or
+      // model they just NAMED is a real request: it gets up to 12 cards; only an unasked lineup is cut to 3.
+      const _named = /\b(?:jordans?|jays?|j ?\d{1,2}|aj ?\d{1,2}|nike|new balance|nb|asics|air ?max|air ?force|af1|forces?|dunks?|vomero|vapou?r ?max|tns?|plus|9060|2000|1906|530|yeezys?|foam|crocs?|slides?|shox|95s?|97s?|90s?)\b/i.test(String(lastIncomingText.get(String(sub)) || ''));
+      const _capTo = _named ? 12 : 3;
+      if (_sent >= 25 && ids.length > _capTo) { try { record(null, { endpoint: 'pic-flood-capped', sub, had: ids.length, sent10m: _sent, to: _capTo }); } catch (_) {} ids = ids.slice(0, _capTo); groups = null; }
       _log.push({ at: _now, n: ids.length }); _picFlood.set(String(sub), _log);
     }
   } catch (_) {}
