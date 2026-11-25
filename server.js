@@ -16401,7 +16401,15 @@ app.post('/ycloud/webhook', async (req, res) => {
             }
           } catch (_) {}
         }
-        text = '(SYSTEM: this customer opened the chat by tapping one of OUR ADS'
+        /* 🗂️ KNOWN ADS (11-25 Shoebox Ju 428-6702: the ad thumbnail is 315px, she read the prices right but named "Air Max Plus",
+         * "Jordan 1 All White", "Air Max Plus 3" for the Vomero 5, Jordan 11 and Plus Napoli). An ad we have read by eye is pinned by
+         * its source_id - the exact shoes, prices and our live row ids. */
+        const KNOWN_ADS = {
+          '120255772809460581': 'This ad ("JUST LANDED") shows exactly 4 shoes: Air Max 95 Sketch $100 (row airmax95bkwht001), Nike Zoom Vomero 5 Triple White $100 (vomero5white001), Air Jordan 11 All White $200 (jordan11cdgwhite001), Air Max Plus Napoli Blue $120 (airmaxplusnapoli001). Use THESE names - no Jordan 1, no Air Max Plus 3.',
+        };
+        const _known = KNOWN_ADS[String(rf.source_id || rf.sourceId || '')] || '';
+        if (_known) record(req, { endpoint: 'known-ad', sub: from, ad: String(rf.source_id || rf.sourceId || '') });
+        text = '(SYSTEM: this customer opened the chat by tapping one of OUR ADS' + (_known ? ' - ' + _known : '')
           + (hl ? ' - ad headline "' + hl + '"' : '') + (bd ? ', ad text "' + bd + '"' : '') + '. '
           + (gotAdPic ? 'The attached picture IS that ad, not a photo they took. ' : '')
           + 'The shoes in that ad are what they are asking about - name THOSE shoes. Any price printed on the ad IS the price, honour it. '
