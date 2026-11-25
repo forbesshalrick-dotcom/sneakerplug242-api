@@ -7569,6 +7569,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'hold-asked-note', sub });
       }
     } catch (_) {}
+    /* 🏷️ A BRAND WE DON'T CARRY - SAY SO, THEN THE CLOSEST (11-25 Shoe Lacky Sarah Mya 556-4883: "Black and white sketch 9.5" (Skechers) got
+     * the whole 9.5 Air Max album with no word about Skechers). Named brand, none in live stock = one honest line + 2-3 closest in their size. */
+    try {
+      const _bm = (String(_b).match(/\b(sketch(?:er|ers)?|skechers?|vans|converse|puma|reebok|fila|crocs|hoka|on cloud|birkenstock|timberlands?|ugg|under armou?r|balenciaga|gucci|lv|louis vuitton)\b/i) || [])[1];
+      if (!image && _bm) {
+        const _key = _bm.toLowerCase().replace(/^sketch.*$/, 'skech').replace(/s$/, '').slice(0, 5);
+        const _have = Object.values(liveShoeMap() || {}).some(x => x && ((x.name || '') + ' ' + (x.brand || '')).toLowerCase().includes(_key) && (x.sizesRaw || x.sizes || []).length);
+        if (!_have) {
+          userText = '(SYSTEM: they asked for ' + _bm + ' - we do NOT carry that brand right now. Say so plainly in one line ("We don\'t carry ' + _bm + ' right now 🙏"), then send 2-3 of the closest shoes we DO have in their size and colour. Never send an album without saying this first.) ' + userText;
+          record(req, { endpoint: 'brand-not-carried', sub, brand: _bm });
+        }
+      }
+    } catch (_) {}
     /* 🕒 "NOT AVAILABLE NOW, TOMORROW" IS ABOUT WHEN, NOT WHAT (11-24 Shoe Lacky Bless Jahh 817-1520: picked the AM90 Brown/Black 13, then
      * "Sorry Im not available now but tomorrow for sure" got a search for "navy Air Max 90" nobody asked for and "the Brown/Black just
      * went out"). A timing answer gets a timing reply - no search, no pictures. */
