@@ -10957,7 +10957,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     }
     /* 📍 A SIZE IS NOT A MEETING (Salethia, Tami 10-15: "8" got "…Where should we meet you? 📍"). Their size alone never gets a
      * location or meet-up ask; it is cut before it goes out. */
-    if (turnText && !staffName && /^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(customerWordsOnly(userText))) {
+    // 11-25 TK Nesha 801-1817: confirming her booked Jordan 4 (size 6.5, Friday) - the pin ask was cut and "when you get a chance 👟"
+    // was left dangling. A customer with an order on file in the last 7 days SHOULD be asked for the pin.
+    const _ocL = (() => { try { const o = orderCheckins.get(String(sub)); return !!(o && Date.now() - (o.at || 0) < 7 * 24 * 3600 * 1000); } catch (_) { return false; } })();
+    if (turnText && !staffName && !_ocL && /^\W*(size\s*)?(\d{1,2}(\.5)?|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen)(\s*(and a half|½|w|womens?|men'?s))?\W*$/i.test(customerWordsOnly(userText))) {
       const _locAsk = /\b(where (?:should|can|do|shall) (?:we|i) (?:meet|bring|deliver|drop)|where (?:you|u) (?:at|located)|send (?:me )?(?:your|ur|a) (?:whatsapp )?(?:location|pin|address)|drop (?:me )?(?:a |your )?(?:whatsapp )?(?:location|pin)|location pin|what'?s (?:your|ur) (?:location|address))\b/i;
       const _parts = turnText.split(/(?<=[.!?\n])\s+|(?<=\p{Extended_Pictographic})\s+/u);
       if (_parts.some(x => _locAsk.test(x))) {
