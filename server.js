@@ -10821,7 +10821,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           : (Array.isArray(m.content) ? m.content.filter(b => b && b.type === 'text').map(b => b.text).join(' ') : '')).filter(t => /\?/.test(t)).slice(-1).join(' ');   // the latest QUESTION we asked
         const _cw = customerWordsOnly(String(userText || '')).trim();
         if (/available now\s*\?/i.test(_lkT) && _cw && _cw.length < 80) {
-          if (/^(?:no+|nah+|not (?:now|yet|right now|today)|later|tomorrow|after\b|when i\b|i'?m (?:at work|working|busy|out|not)|at work|working|busy|not available|give me|in a (?:bit|while|few))/i.test(_cw)) {
+          // 11-25 Shoe Lacky Louis 509-4254-3656: "How much" + "No discount?" got "let me know when you're ready" - a QUESTION
+          // (price / discount / how much) after "available now?" is answered, never read as "no".
+          if (!/\?|\b(?:how much|price|cost|discount|deal|cheaper|last price|best price|why|what|which|how)\b/i.test(_cw)
+              && /^(?:no+|nah+|not (?:now|yet|right now|today)|later|tomorrow|after\b|when i\b|i'?m (?:at work|working|busy|out|not)|at work|working|busy|not available|give me|in a (?:bit|while|few))/i.test(_cw)) {
             turnText = 'Okay, just let me know when you\'re ready 👟';
             record(req, { endpoint: 'available-now-no', sub });
           // "Ok could you ship to the family island or pick up only?" is a QUESTION that starts with ok (Rodney 11-07, Shoe Lacky
