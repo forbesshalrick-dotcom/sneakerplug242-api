@@ -4181,7 +4181,11 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
             if (_ws.length) {
               const _share = (z) => _ws.filter(a => a.includes(String(parseFloat(z)))).length / _ws.length;
               const _cur = (what.match(/^a (\d{1,2}(?:\.5)?)$/) || [])[1];
-              if (!_cur || _share(_cur) < 0.3) {
+              // 11-24 TK Belt2Ass 558-7429: saved size 8.5, asked "What u got in 9", got 33 size-9 pictures closed "in a 8.5" - many 9s
+              // also come in 8.5, so the 30% test passed. The size nearly every picture comes in wins over the saved one.
+              let _top = null; try { const _c2 = {}; _ws.forEach(a => [...new Set(a)].forEach(z => { _c2[z] = (_c2[z] || 0) + 1; })); _top = Object.keys(_c2).sort((a, b) => _c2[b] - _c2[a])[0]; } catch (_) {}
+              if (_cur && _top && _top !== String(parseFloat(_cur)) && _share(_top) >= 0.9 && _share(_top) > _share(_cur) + 0.15) what = 'a ' + _top.replace(/\.0$/, '');
+              else if (!_cur || _share(_cur) < 0.3) {
                 const _cnt = {}; _ws.forEach(a => [...new Set(a)].forEach(z => { _cnt[z] = (_cnt[z] || 0) + 1; }));
                 const _best = Object.keys(_cnt).sort((a, b) => _cnt[b] - _cnt[a] || parseFloat(a) - parseFloat(b))[0];
                 if (_best && _cnt[_best] / _ws.length >= 0.4) what = 'a ' + _best.replace(/\.0$/, '');
