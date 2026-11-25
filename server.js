@@ -4198,7 +4198,9 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
               // 11-24 TK Belt2Ass 558-7429: saved size 8.5, asked "What u got in 9", got 33 size-9 pictures closed "in a 8.5" - many 9s
               // also come in 8.5, so the 30% test passed. The size nearly every picture comes in wins over the saved one.
               let _top = null; try { const _c2 = {}; _ws.forEach(a => [...new Set(a)].forEach(z => { _c2[z] = (_c2[z] || 0) + 1; })); _top = Object.keys(_c2).sort((a, b) => _c2[b] - _c2[a])[0]; } catch (_) {}
-              if (_cur && _top && _top !== String(parseFloat(_cur)) && _share(_top) >= 0.9 && _share(_top) > _share(_cur) + 0.15) what = 'a ' + _top.replace(/\.0$/, '');
+              // ...but never over a size the customer typed in the last hour (11-25 Shoebox Perfound: "Sizes 7and half" -> 7.5 album closed "in a 8").
+              const _csF = custSize.get(sub); const _fresh = !!(_csF && _csF.fromCustomer && Date.now() - (_csF.ts || 0) < 3600000 && parseFloat(_csF.size) === parseFloat(_cur));
+              if (!_fresh && _cur && _top && _top !== String(parseFloat(_cur)) && _share(_top) >= 0.9 && _share(_top) > _share(_cur) + 0.15) what = 'a ' + _top.replace(/\.0$/, '');
               else if (!_cur || _share(_cur) < 0.3) {
                 const _cnt = {}; _ws.forEach(a => [...new Set(a)].forEach(z => { _cnt[z] = (_cnt[z] || 0) + 1; }));
                 const _best = Object.keys(_cnt).sort((a, b) => _cnt[b] - _cnt[a] || parseFloat(a) - parseFloat(b))[0];
