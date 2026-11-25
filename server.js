@@ -4931,7 +4931,19 @@ function sizeFromCustomerWords(text) {
 // The customer's own words in a turn: drops a "(SYSTEM: …)" line and everything from the first "[" (a Facebook
 // listing note, which quotes stock sizes and our own rule text) so neither is ever read as their size.
 function customerWordsOnly(text) {
-  return String(text || '').replace(/\(SYSTEM[\s\S]*?\)\n?/gi, ' ').replace(/\[[\s\S]*$/, ' ').trim();
+  // 11-25 TK P31 468-4477: a SYSTEM note with brackets INSIDE it was cut at the first ')' and its tail ("; asics gel-1130 ...")
+  // was read as the customer's words - "Size 7 in women's all black" got 1 card of 15. Strip each note up to its BALANCED ')'.
+  let t = String(text || ''), out = '', i = 0;
+  const up = t.toUpperCase();
+  while (i < t.length) {
+    const j = up.indexOf('(SYSTEM', i);
+    if (j < 0) { out += t.slice(i); break; }
+    out += t.slice(i, j) + ' ';
+    let d = 0, k = j;
+    for (; k < t.length; k++) { if (t[k] === '(') d++; else if (t[k] === ')' && --d === 0) break; }
+    i = k + 1; if (t[i] === '\n') i++;
+  }
+  return out.replace(/\[[\s\S]*$/, ' ').trim();
 }
 // Every men's size actually on the shelf right now. Used to tell the difference between
 // "we're out of his size today" and "we do not go that big at all".
