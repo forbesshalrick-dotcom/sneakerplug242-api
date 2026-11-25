@@ -3676,7 +3676,20 @@ const LATER_REPLY = "Okay, let me know when you're ready \u{1f45f}";
 // the server in the middle of a 99-shoe album and killed the customer's queued photo with it.
 let albumsInFlight = 0;
 const albumBusySubs = new Map();   // sub -> albums going out to that customer right now
+const _picFlood = new Map(); // sub -> [{at, n}] pictures handed to sendShoePhotos
 async function sendShoePhotos(sub, ids, token, groups = null, leadIn = '', photosOnly = false, isStaff = false, requestAt = 0, sizeKnown = true) {
+  /* 🌊 NO PICTURE FLOOD (11-24 Shoe Lacky Ty'$in 474-2302: four photos of shoes we don't carry, each one answered with a fresh 8-14
+   * picture album - 50 pictures in 4 minutes, and WhatsApp started refusing our messages: "too many messages sent from this phone
+   * number to the same phone number in a short period"). After 25 pictures to one customer in 10 minutes, Kiki's albums are cut
+   * to 3 cards. Staff sends are not limited. */
+  try {
+    if (!isStaff && Array.isArray(ids) && ids.length) {
+      const _now = Date.now(); const _log = (_picFlood.get(String(sub)) || []).filter(e => _now - e.at < 10 * 60000);
+      const _sent = _log.reduce((a, e) => a + e.n, 0);
+      if (_sent >= 25 && ids.length > 3) { try { record(null, { endpoint: 'pic-flood-capped', sub, had: ids.length, sent10m: _sent }); } catch (_) {} ids = ids.slice(0, 3); groups = null; }
+      _log.push({ at: _now, n: ids.length }); _picFlood.set(String(sub), _log);
+    }
+  } catch (_) {}
   albumsInFlight++;
   albumBusySubs.set(String(sub), (albumBusySubs.get(String(sub)) || 0) + 1);
   try {
