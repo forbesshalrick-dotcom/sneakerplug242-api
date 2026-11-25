@@ -11923,7 +11923,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // "no" is them turning the pictures down, never a request for all of them. Then "Stop".
           const _saidNo = /^\W*(?:no+|nah|not|nope|don'?t|dont|stop)\b/i.test(String(userText || '').trim());
           if (_saidNo) record(req, { endpoint: 'size-topup-blocked-said-no', sub });
-          if (!staffName && !inp._adCapped && !_saidNo && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
+          // 11-24 TK Pj 821-2016 (Rodney had just called him for the drop): typed "11.5", then shared his location, and got a 21-picture
+          // size album - "he never asks for pictures". The whole-size album goes only to someone who asked to see, or who was just
+          // offered a look ("Would you like to see? What size you wear?").
+          let _wantsPics = /\b(?:see|show|send|pics?|pictures?|photos?|what (?:you|u|y'?all) (?:got|have)|wha?t? ?(?:u|you) (?:got|have)|options|everything|anything|whatever)\b/i.test(_cust);
+          try { if (!_wantsPics) { const _thW = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); _wantsPics = !!(_thW && (_thW.msgs || []).some(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 30 * 60000 && /would you like to see|want to see|i'?ll send you|wanna see/i.test(m.text || ''))); } } catch (_) {}
+          if (!_wantsPics) record(req, { endpoint: 'size-topup-blocked-no-ask', sub });
+          if (!staffName && !inp._adCapped && !_saidNo && _wantsPics && turnGenericSizeAlbum && !turnHadRestrictiveSearch && !turnMatchingPair && !namedModel
               && turnSizeSearchSizes.length && !BRAND_WORD_RE.test(_cust) && _brandKeys.length === 1) {
             const _onlyBrand = _brandKeys[0] ? _brandKeys[0].split('+') : null;
             // The size table decides the set (a 9 ask is the 9s AND the 9.5s, TK 10-15 got 43 nines and none of the 37
