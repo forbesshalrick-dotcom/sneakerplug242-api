@@ -10630,8 +10630,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 📏 NO MADE-UP FIT (TK Pasyans Mom 11-22 20:43: women's 8 asked, told "The 6.5 runs small so it'll fit you like a women's 8").
      * We don't know how a pair fits - a sentence selling a different size as theirs is cut. */
     if (turnText && !staffName && /\b(?:runs?|running|fits?) (?:a (?:bit|little|touch|tad|half(?: a)? size) )?(?:small|big|large|true to size|tight)\b|\b(?:fit you like|wears? like|feels? like|fits? like) an? (?:women'?s |men'?s )?\d/i.test(turnText)) {
-      const _ft = turnText.split(/(?<=[.!?\u{1F45F}\u{1F525}\u{1F64F}])\s+/u).filter(x => !/\b(?:runs?|running|fits?) (?:a (?:bit|little|touch|tad|half(?: a)? size) )?(?:small|big|large|tight)\b|\b(?:fit you like|wears? like|feels? like|fits? like) an? (?:women'?s |men'?s )?\d/i.test(x)).join(' ').trim();
-      if (_ft && _ft !== turnText.trim()) { turnText = _ft; record(req, { endpoint: 'fit-claim-cut', sub }); }
+      let _ft = turnText.split(/(?<=[.!?\u{1F45F}\u{1F525}\u{1F64F}])\s+/u).filter(x => !/\b(?:runs?|running|fits?) (?:a (?:bit|little|touch|tad|half(?: a)? size) )?(?:small|big|large|tight)\b|\b(?:fit you like|wears? like|feels? like|fits? like) an? (?:women'?s |men'?s )?\d/i.test(x)).join(' ').trim();
+      if (_ft && _ft !== turnText.trim()) {
+        // 11-25 Shoebox Ju 428-6702: "Do these run small??" - the fit sentence was cut and the question went unanswered.
+        // When they ASKED about fit, the cut sentence is replaced with the honest answer: try them on before paying.
+        if (/\b(?:run|runs|fit|fits|true to size|small|big|tight)\b[^?]*\?|\bhow (?:do|does) (?:they|it|these|this) fit\b/i.test(customerWordsOnly(String(userText || ''))))
+          _ft = 'You try them on before you pay 👟 if they don\'t fit, no charge. ' + _ft;
+        turnText = _ft; record(req, { endpoint: 'fit-claim-cut', sub }); }
     }
     /* 🙅 NO "ALRIGHT, I SEE YOU 👀" (Rodney 10-16: "is not good, you can move it"). The phrase is cut; the rest of the reply stays. */
     if (turnText && !staffName && /\bi\s+see\s+you\b/i.test(turnText)) {
