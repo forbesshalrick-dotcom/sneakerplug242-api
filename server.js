@@ -1686,6 +1686,33 @@ function earlyHoursGuard(t) {
     return out;
   } catch (_) { return t; }
 }
+/* 📍 NO PIN = NOBODY IS COMING (Rodney 11-26 11:19, Shoebox 467-5886 said "Pinewood gardens" and Kiki answered "Got you 📍 Pinewood
+ * Gardens — the driver will come right now 🚗": "How can I go anywhere if I don't have the location? ... we still need the pin. I don't
+ * know how she can tell them somebody's coming and we don't even know where the location is"). An area name is not a pin. Until a
+ * real pin is in the chat (a shared location / maps link) or Rodney pressed a driver step, any "driver is coming / on the way /
+ * will come now" becomes a plain ask for the pin. */
+function noDriverWithoutPin(sub, t) {
+  try {
+    const s = String(t || '');
+    const DRV = /\b(?:the\s+)?driver\s+(?:will|'ll|can|is|gonna|going to)\s+(?:be\s+)?(?:come|coming|head(?:ing)?|on (?:the|his) way|right (?:with you|over|there)|there|over|leav(?:e|ing)|pull(?:ing)? up)[^.!?\n]*|\b(?:we(?:'re| are)|driver(?:'s| is))\s+(?:on (?:the|our|his) way|heading (?:over|to you|your way)|coming (?:now|right now|to you))[^.!?\n]*/gi;
+    if (!DRV.test(s)) return t;
+    DRV.lastIndex = 0;
+    // Rodney's own ask ("Please send me your location 📍 the driver can come right now") already asks for the pin - leave it.
+    if (/\bsend\b[^.!?\n]{0,20}\b(?:location|pin|address)\b/i.test(s)) return t;
+    const ds = typeof driverState !== 'undefined' && driverState.get(String(sub));
+    if (ds && ds.step && ds.step !== 'done' && Date.now() - (ds.at || 0) < 12 * 3600 * 1000) return t;
+    const th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+    if (!th) return t;
+    const since = Date.now() - 24 * 3600 * 1000;
+    const pin = (th.msgs || []).some(m => m && (m.ts || 0) > since && m.sender === 'customer'
+      && (m.loc || /maps\.google|goo\.gl\/maps|maps\.app\.goo|LOCATION PIN|Shared a location|Sent a pin/i.test(m.text || '')));
+    if (pin) return t;
+    let o = s.replace(DRV, 'please send me your pin 📍 on WhatsApp so the driver can find you');
+    o = o.replace(/(^|[.!?]\s+|—\s*|-\s+)please send/g, (a, p) => p + 'Please send').replace(/\s{2,}/g, ' ').trim();
+    try { recent.unshift({ at: new Date().toISOString(), endpoint: 'driver-without-pin-cut', sub, was: s.slice(0, 160) }); } catch (_) {}
+    return o;
+  } catch (_) { return t; }
+}
 function noAuthClaim(t, sub) {
   try {
     const isl = sub != null && islandOf(sub);
@@ -1910,7 +1937,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     // A PRICE LIST always carries the sale AF1 line (11-18 03:01 TK Deno 558-0391 got "Air Force 1 — *$120* (all black) | *$120* (white)";
     // every AF1 on the shelf is $100 and the template says SALE $100).
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text && /PRICE LIST/.test(mm.text)) mm.text = mm.text.replace(/^[^\n]*Air Force 1[^\n]*$/m, '\u{1F451} Air Force 1 — *$100* \u{1F525}');
-    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(farSizeCut(subscriberId, mm.text))))), subscriberId));
+    for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = noDriverWithoutPin(subscriberId, adPriceInText(subscriberId, noAuthClaim(islandGuard(subscriberId, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(farSizeCut(subscriberId, mm.text))))), subscriberId)));
     if (isThiefSub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = otherVoice(mm.text);
     if (isAf120Sub(subscriberId)) for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = af120Price(mm.text);
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = custQuoteFix(subscriberId, mm.text);
@@ -5186,8 +5213,16 @@ function isHumanPaused(sub) {
   return true;
 }
 function pausedUntilOf(sub) { const u = humanPaused.get(String(sub)); return (u && Date.now() < u) ? u : 0; }
+/* 🔒 A PAUSE ONLY GROWS (Rodney 11-26 11:19, Shoebox mechanic 446-7568: "I want to pause Kiki. I tried to pause it, but it's keep
+ * unpausing"). The ✋ button gave 45 minutes, and every inbox send / album / hand reply set a NEW 45-minute pause over a longer one,
+ * and the end of an album cleared it outright. Now: a shorter pause never replaces a longer one, and a long (manual) pause is only
+ * ended by Rodney pressing resume. */
+const MANUAL_PAUSE_MS = 30 * 24 * 3600 * 1000;
+function isManualPause(sub) { const u = humanPaused.get(String(sub)); return !!u && u - Date.now() > 24 * 3600 * 1000; }
 function setHumanPause(sub, ms) {
-  humanPaused.set(String(sub), Date.now() + (ms || HUMAN_PAUSE_MS));
+  const _until = Date.now() + (ms || HUMAN_PAUSE_MS);
+  if ((humanPaused.get(String(sub)) || 0) > _until) return;
+  humanPaused.set(String(sub), _until);
   if (humanPaused.size > 1000) { const f = humanPaused.keys().next().value; humanPaused.delete(f); }
   inboxRev++; saveInbox();
 }
@@ -12879,7 +12914,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       // before you pay") but the voice note read her raw draft aloud: "All legit". The spoken words go through the same guards as the
       // written ones.
       let _guarded = String(lastText);
-      try { _guarded = adPriceInText(sub, noAuthClaim(islandGuard(sub, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(farSizeCut(sub, _guarded))))), sub)); } catch (_) {}
+      try { _guarded = noDriverWithoutPin(sub, adPriceInText(sub, noAuthClaim(islandGuard(sub, fixShopNumbers(sayOkNotPerfect(earlyHoursGuard(farSizeCut(sub, _guarded))))), sub))); } catch (_) {}
       const _spoken = String(_guarded).replace(/^[ \t>_*]*(?:🔍|🔎|🔬|🔭)?[ \t]*_*\s*Customer said:.*$/gim, '').trim();
       const _url = _spoken ? await speakToVoiceNote(_spoken) : null;
       if (_url) {
@@ -17524,7 +17559,8 @@ app.post('/inbox/pause', (req, res) => {
   const sub = String((req.body || {}).sub || '').replace(/[^0-9]/g, '');
   if (!sub) return res.status(400).json({ ok: false, error: 'no sub' });
   const mins = Number((req.body || {}).minutes);
-  setHumanPause(sub, (mins > 0 ? mins : 45) * 60 * 1000);
+  // The ✋ button sends no minutes = Rodney is taking this chat over until HE turns Kiki back on.
+  setHumanPause(sub, mins > 0 ? mins * 60 * 1000 : MANUAL_PAUSE_MS);
   record(req, { endpoint: 'inbox-pause', sub });
   res.json({ ok: true, pausedUntil: pausedUntilOf(sub) });
 });
@@ -17870,7 +17906,7 @@ app.post('/inbox/send-shoe', async (req, res) => {
       // 🔓 THE ALBUM IS DONE = KIKI IS BACK (Rodney 11-17 "why wasn't the card ever sent?": Shoebox 455-2569 got the 8.5 album from
       // the inbox, then sent his picks - the J13 Bred - and "I am here" while the send's 45-min pause was still on: no answer, no
       // order card). The pause only keeps her quiet while the pictures go out; it ends with the last batch.
-      try { clearHumanPause(sub); checkResumedUnanswered(sub); } catch (_) {}
+      try { if (!isManualPause(sub)) { clearHumanPause(sub); checkResumedUnanswered(sub); } } catch (_) {}
       record(req, { endpoint: 'inbox-send-shoe', sub, account, what, found: allIds.length, sent: totalSent, batches: batches.length, stopped });
     }
   })();
