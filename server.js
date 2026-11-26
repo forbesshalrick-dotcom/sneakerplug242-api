@@ -6327,9 +6327,23 @@ const reminderTick = setInterval(async () => {
   const now = Date.now();
   const due = reminders.filter(r => r.at <= now);
   if (!due.length) return;
+  // 🌙 QUIET HOURS (11-26 TK Nesha 801-1817 got "Just checking in - still good for the day you said?" at 3:54 AM). No customer
+  // nudge goes out 9 PM - 8 AM Nassau; anything due then is moved to 9 AM. Clock-time check-ins the customer asked for still go.
+  const _hN = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/Nassau', hour: 'numeric', hour12: false }), 10) % 24;
+  if (_hN >= 21 || _hN < 8) {
+    const _hold = due.filter(r => !(r.kind === 'checkin' && r.clock));
+    if (_hold.length) {
+      const _to9 = ((_hN >= 21 ? 24 - _hN : 0) + (9 - (_hN >= 21 ? 0 : _hN))) * 3600 * 1000;
+      for (const r of _hold) r.at = now + _to9;
+      recent.unshift({ at: new Date().toISOString(), endpoint: 'reminders-quiet-hours', n: _hold.length });
+      if (recent.length > 120) recent.length = 120;
+    }
+  }
+  const _dueNow = due.filter(r => r.at <= now);
+  if (!_dueNow.length) { saveReminders(); return; }
   reminders = reminders.filter(r => r.at > now);
   saveReminders();
-  for (const r of due) {
+  for (const r of _dueNow) {
     const tk = (r.store && storeTokens.get(r.store)) || lastToken || process.env.MANYCHAT_TOKEN;
     /* ✅ AN ORDER THAT ALREADY HAPPENED GETS NO "STILL HOLDING YOUR ORDER" (Rodney 10-18, TK Adrian +1 242 818-7623: paid $120 by
      * transfer and got his VaporMax 10-17, then two "Still holding your order for the day you said" at 7:27 and 7:31 the next
