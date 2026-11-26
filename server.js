@@ -7557,6 +7557,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     try { const _th0 = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); _hist = ((_th0 && _th0.msgs) || []).filter(m => m && m.dir === 'out' && Date.now() - (m.ts || 0) < 12 * 3600 * 1000); } catch (_) {}
     const _isOpener = /^(?:hello!?|hi!?|hey!?)?\s*can i get more info(?:rmation)? on this\??$/i.test(_o);
     if (_isOpener) record(req, { endpoint: 'ad-opener-check', sub, fresh: _hist.length === 0 });
+    /* 📢 A MANYCHAT AD TAP IS REMEMBERED TOO (11-26 TK tayy mob 468-1615: tapped an ad at 17:01, asked "every shoe or jus the shoes in
+     * the pic", sent "7" at 18:18 and got 60 pictures - every 7 in the shop). Only YCloud lines stored the tap, so the size-after-ad
+     * rule never fired on TK/OSC. The opener now stores the running-ads list as the ad the size reply is about. */
+    if (_isOpener) {
+      try {
+        if (!adTapNote.has(String(sub))) {
+          const _ab = String(adsBlock(ctx.store) || '').split(/Facebook does not tell/)[0].replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+          if (_ab) adTapNote.set(String(sub), { at: Date.now(), text: 'We do not know which of our running ads they tapped - it is one of these. ' + _ab });
+        }
+      } catch (_) {}
+    }
     if (_isOpener && _hist.length === 0) {
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _o, name: ctx.name }); } catch (_) {}
       const _line = 'Hello! 👋 We got the latest kicks in stock 🔥 free delivery in Nassau. Would you like to see? What size you wear? 👟';
@@ -7721,11 +7732,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       const _at = adTapNote.get(String(sub));
       // + 11-25 Shoe Lacky 455-5287: "price on size" after the same ad got "I need a bit more info!" - a price/size question lists the ad shoes.
       const _askPS = !sizeFromCustomerWords(_b) && /\b(?:price|prices|how much|cost|sizes?|wat size|what size)\b/i.test(_b) && _b.split(/\s+/).length <= 10;
-      if (!image && _at && _at.text && Date.now() - _at.at < 30 * 60000 && _askPS) {
+      if (!image && _at && _at.text && Date.now() - _at.at < 3 * 3600000 && _askPS) {
         userText = '(SYSTEM: this customer came from our ad and asks about price/sizes. ' + _at.text + ' Reply with ONE list: each ad shoe, its price and the sizes we have in live stock, then ask their size. No album.) ' + userText;
         record(req, { endpoint: 'ad-price-size-reply', sub });
       } else
-      if (!image && _at && _at.text && Date.now() - _at.at < 30 * 60000 && sizeFromCustomerWords(_b) && _b.split(/\s+/).length <= 8) {
+      if (!image && _at && _at.text && Date.now() - _at.at < 3 * 3600000 && sizeFromCustomerWords(_b) && _b.split(/\s+/).length <= 8) {
         userText = '(SYSTEM: this customer came from our ad. ' + _at.text + ' Search ONLY these ad shoes in their size and send just the ones that come in it. If none do, say which ad shoes are closest in size, one line. Do NOT send the whole size album.) ' + userText;
         record(req, { endpoint: 'ad-size-reply', sub });
       }
