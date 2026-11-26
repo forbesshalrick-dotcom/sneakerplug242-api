@@ -4844,6 +4844,9 @@ function sizeFromCustomerWords(text) {
     // got "We don't have a size 3", then "smallest is a 5.5", then everything in 5.5).
     .replace(/\b\d+\s*(?:colou?rs?|colorways?|colourways?|shades?|styles?|kinds?|of (?:them|those|these|dem))\b/g, ' ')
     .replace(/\b\d[\d\s().-]{6,}\b/g, ' ')
+    // 🚫 "10 NOT 9.5" - THE SIZE AFTER "NOT" IS THE ONE THEY DON'T WANT (11-26 Shoebox 467-5886: "10 not 9.5" put 9.5 on his
+    // DELIVERY READY card). A size after not / no / instead of / rather than is cut before sizes are read.
+    .replace(/\b(?:not|no|nah|instead of|rather than|but not|except)\s+(?:the\s+|a\s+|an\s+|size\s+|sz\s+)*\d{1,2}(?:\.5)?\b/g, ' ')
     // ½ "SIZE 9 HALF" / "9 n half" / "9half" IS A 9.5 (11-24 Shoe Lacky Ty'$in 474-2302: "size 9 half" became "your 9").
     .replace(/\b(\d{1,2})\s*(?:n|an|and|&|\+)?\s*(?:a\s+)?half\b/gi, '$1.5')
     // ⏰ WORK HOURS ARE NOT A SIZE (11-24 Shoebox A380 636-3863: "i have work from 7-3 so ... delivered for 4" made his order card
