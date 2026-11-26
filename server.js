@@ -11622,6 +11622,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // 11-22 TK P31 1664076643: a 7.5 Asics album, then "Size 7 asics" twice -> "Those Asics up there are all in your 7" - one of them
         // has no 7, and five Asics that DO come in a 7 were never sent. A new size is a new album unless every shoe up there fits it.
         try {
+          // 11-25 TK DH 557-0809: album for 8/9, then "Size 10/10.5" -> held, "Those up there are all in your sizes" (none were).
+          // Any size the customer just typed that a shown shoe lacks makes this a NEW album.
+          const _typed = (_cw.match(/\b\d{1,2}(?:\.5)?\b/g) || []).map(parseFloat).filter(n => n >= 4 && n <= 16);
+          if (_typed.length) { const _lm0 = liveShoeMap(); if (_typed.some(z => [..._seen].some(id => _lm0[id] && !(_lm0[id].sizesRaw || _lm0[id].sizes || []).some(v => parseFloat(v) === z)))) return false; }
           const _sz = parseFloat((tu.input || {}).size);
           if (_sz) {
             const _lm = liveShoeMap();
