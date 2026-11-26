@@ -1538,10 +1538,24 @@ function islandOf(sub) { if (Date.now() - (nassauProxy.get(String(sub)) || 0) < 
 const islandShipSaidAt = new Map();
 function shipLine(isl) {
   const where = /free\s?port|lucaya|grand bahama|g\.?b\.?i|eight mile|west end|holmes/i.test(isl) ? 'Freeport' : (isl === 'your island' ? 'your island' : isl.replace(/\b\w/g, c => c.toUpperCase()));
-  return `We ship to ${where} ✈️ plane $35 (goes out today if paid before 3 PM) or boat $10 on the weekly sail day. Payment first, then we ship 👟`;
+  return `We're in Nassau 🇧🇸 and we ship to ${where} ✈️ plane $35 (goes out today if paid before 3 PM) or boat $10 on the weekly sail day. Payment first, then we ship 👟`;
 }
 const ISLAND_BAD_RE = /\b(driver|minutes? away|min away|on (?:the|his|our) way|we(?:'re| are) (?:here|outside|close|pulling up)|bring it (?:straight )?(?:to you|over)|we(?:'ll| will) bring|free delivery|meet you|see you (?:in a|soon|shortly)|pull(?:ing)? up)\b/i;
+/* 🇧🇸 SAY WE'RE IN NASSAU (Rodney 11-26 11:25, TK waytooshort242 asked "Is this freeport" and got the Freeport terms with no word of
+ * where we are: "you have to let them know we're in Nassau. That's the way they feel more safe, because Nassau is the capital.
+ * Sometimes they might think this is the U.S. because ... we have U.S. numbers as well"). Any reply that offers shipping to an
+ * island but never says Nassau gets "We're in Nassau 🇧🇸" put in front of the shipping. */
+function sayWereInNassau(text) {
+  try {
+    const t = String(text || '');
+    if (/nassau/i.test(t) || !/\b(?:we\s+(?:can\s+)?ship|shipping)\s+(?:it\s+)?(?:to|out to|over to)\b|\bplane\s+\$?35\b|\bboat\s+\$?10\b/i.test(t)) return text;
+    const m = t.match(/\b(?:and\s+)?(?:yes,?\s+)?we\s+(?:can\s+)?ship\b|\bshipping\s+to\b/i);
+    if (m) return t.slice(0, m.index) + "We're in Nassau 🇧🇸 and " + m[0].replace(/^(?:and\s+)?(?:yes,?\s+)?/i, '').replace(/^shipping to/i, 'we ship to').replace(/^We/, 'we') + t.slice(m.index + m[0].length);
+    return "We're in Nassau 🇧🇸 " + t;
+  } catch (_) { return text; }
+}
 function islandGuard(sub, text) {
+  text = sayWereInNassau(text);
   const r = islandOf(sub); if (!r) return text;
   const parts = String(text).split(/(?<=[.!?👟🚗🔥🙏])\s+|\n+/);
   const keep = parts.filter(x => !ISLAND_BAD_RE.test(x));
