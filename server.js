@@ -12279,6 +12279,24 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (sentToCustomer) orderRefusedAfterText = true;
         result = { ok: false, not_filed: 'They only gave their size (or sent a picture) — that is NOT an order, so nothing was filed. Do not ask for their location yet. If you already told them we have it in their size, send nothing more; otherwise say so in one line. File order_confirmed only when they say they want it (I\'ll take it, yes, bring it, how do I pay, send me the location ask, etc.).' };
       }
+      /* 🗓️ AN OLD ORDER IS NOT TONIGHT'S ORDER (11-25 Shoebox Amos 804-8640: dropped a pin at 22:04 before naming a shoe; the card
+       * re-filed his Nov 20 order "AF1 + AM97 - $200 (paid)" - he wanted one AM97, $100, the next day). If the only order card on
+       * this chat is older than 48 h and the shoe is the same, nothing is filed: ask what they want this time. */
+      else if (tu.name === 'notify_manager' && !staffName && (() => {
+        try {
+          const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+          const _cards = ((_th && _th.msgs) || []).filter(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY|ORDER SET FOR LATER/.test(m.text || ''));
+          if (!_cards.length) return false;
+          const _last = _cards[_cards.length - 1];
+          if (Date.now() - (_last.ts || 0) < 48 * 3600 * 1000) return false;
+          const _shoe = String((tu.input || {}).shoe || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !/^(nike|air|jordan|retro|the|and|size)$/.test(w));
+          const _old = String(_last.text || '').toLowerCase();
+          return _shoe.length > 0 && _shoe.every(w => _old.includes(w));
+        } catch (_) { return false; }
+      })()) {
+        record(req, { endpoint: 'order-refused-stale-card', sub, shoe: String((tu.input || {}).shoe || '').slice(0, 60) });
+        result = { ok: false, not_filed: 'That shoe is their OLD order from days ago - it is not this order, nothing was filed. Do not mention the old order or any payment. Thank them for the pin and ask in one short line which shoe and size they want this time.' };
+      }
       else if (tu.name === 'notify_manager') {
         const inp = tu.input || {};
         /* 📏 THE CARD CARRIES THE SIZE THE CUSTOMER SAID (11-24 TK chef 437-1149: said "8.5" at 15:24 and again at 16:22; the 16:26
