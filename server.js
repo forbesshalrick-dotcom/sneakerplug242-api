@@ -6359,6 +6359,14 @@ const reminderTick = setInterval(async () => {
           if (recent.length > 120) recent.length = 120;
           continue;
         }
+        // 11-25 Shoe Lacky Bradley 421-2477: "I will call tomorrow afternoon" at 20:48, order card at 20:48, and this day reminder fired
+        // the same minute: "You had a delivery set for today". A same-day reminder is dropped when they said tomorrow in the last 3 hours;
+        // only THIS one is dropped, not tomorrow's.
+        if ((r.kind || 'day') === 'day' && _th && (_th.msgs || []).some(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > Date.now() - 3 * 3600 * 1000 && /\b(?:tomorrow|tmr|tmrw|tomorow|2morrow|2mrw)\b/i.test(m.text || ''))) {
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'reminder-skipped', sub: r.sub, kind: 'day', why: 'they-said-tomorrow' });
+          if (recent.length > 120) recent.length = 120;
+          continue;
+        }
         const _ds = (() => { try { return driverNow(r.sub); } catch (_) { return null; } })();
         const _twice = Date.now() - (reminderSentAt.get(String(r.sub)) || 0) < 20 * 3600 * 1000;
         // 11-24 Shoebox Tashawn 807-9020: only got the size-9 lineup at 22:04 with "we deliver tomorrow from 8 AM" - never picked -
