@@ -2156,6 +2156,10 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // carried a text label (photoWithLabel sends [image, "🟢 L3 · Jordan 4 … $180 📏 sizes"]),
   // send that TEXT alone so the customer still gets the shoe's name, price, sizes and order
   // code instead of silence — they can reply with the code or see the pic on the website.
+  /* 🤥 "SUBSCRIBER DOES NOT EXIST" IS A LIE - IT DELIVERS (CLAUDE.md; 11-26 TK 810-6855 "Wat all u have in size 9": every picture
+   * came back with that 400, so he ALSO got three text price lists, "Ugh, the photos aren't sending on my end", the same lines
+   * twice and two "Good night"s). It is logged above as send-fail, then treated as sent: no text fallback, no failure path. */
+  if (/Subscriber does not exist/i.test(body)) return { ok: true, status: r.status, body: 'ManyChat said Subscriber does not exist - it delivers anyway, not resent', assumed: true };
   const hadImage = (messages || []).some(m => m && m.type === 'image');
   const textParts = (messages || []).filter(m => m && m.type === 'text' && m.text && String(m.text).trim());
   if (hadImage && textParts.length && !(logOpts && logOpts.noTextFallback)) {
