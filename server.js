@@ -1957,6 +1957,20 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
     for (const mm of (messages || [])) if (mm && mm.type === 'text' && mm.text) mm.text = custQuoteFix(subscriberId, mm.text);
     messages = (messages || []).filter(mm => !(mm && mm.type === 'text' && !String(mm.text || '').trim()));
   }
+  /* ✋ A PAUSED CHAT GETS NO KIKI TEXT (11-26 12:12 TK Big Abe 827-1684, refund in progress, Kiki paused 4h: his "ok" hit the
+   * just-looking branch, which runs before the pause check, and she sent "Take your time. Just let me know when you're ready.").
+   * Any early branch can do that, so the last door is here: while a chat is paused for 50+ more minutes (Rodney's hand or a
+   * handover), Kiki's own text lines are dropped. Rodney's sends and inbox albums still go. */
+  try {
+    if (!(logOpts && logOpts.sender === 'rodney') && !inboxAlbumInFlight.has(String(subscriberId)) && (pausedUntilOf(subscriberId) - Date.now()) > 50 * 60 * 1000) {
+      const _n = (messages || []).filter(mm => mm && mm.type === 'text').length;
+      if (_n) {
+        messages = (messages || []).filter(mm => !(mm && mm.type === 'text'));
+        recent.unshift({ at: new Date().toISOString(), endpoint: 'paused-kiki-text-dropped', sub: String(subscriberId), n: _n });
+        if (!messages.length) return { ok: true, status: 0, body: 'paused - Kiki text dropped', dropped: _n };
+      }
+    }
+  } catch (_) {}
   const _sink = composeSink.get(String(subscriberId));
   if (!_sink && isComposeSub(subscriberId)) {
     try {
@@ -7602,7 +7616,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     const _offeredToShow = /\b(want to see|wanna see|like to see|show you|send you|send (it|them|that|those|one)|want me to send|see (some |the )?(pics|pictures|more)|which one)\b/i.test(_lastA.slice(-200))
       || (() => { try { const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || ''); const _lo = _th && (_th.msgs || []).slice().reverse().find(m => m && m.dir === 'out' && m.text);
              return !!(_lo && Date.now() - (_lo.ts || 0) < 15 * 60 * 1000 && /\b(want to see|wanna see|like to see|show you|send (it|them|that|those|one)|want me to send|which one)\b/i.test(_lo.text)); } catch (_) { return false; } })();
-    if (!image && _b && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !/^\W*(let me|lemme) see\b/i.test(_b) && !/\b(size|how much|price|deliver|\d|pics?|pix|pictures?|photos?|show|send|catalog|what you got|what you have)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
+    if (!image && _b && !isHumanPaused(sub) && _b.split(/\s+/).length <= 9 && BROWSING.test(_b) && !/^\W*(let me|lemme) see\b/i.test(_b) && !/\b(size|how much|price|deliver|\d|pics?|pix|pictures?|photos?|show|send|catalog|what you got|what you have)\b|\b(looking|lookin|checking) for\b|\b(jordans?|js|nike|nb|new balance|tns?|dunks?|air ?max|force|af1|asics|yeezy|crocs?|slides?|vapor ?max|scorpion|shox|black|white|red|blue|green|pink|grey|gray)\b/i.test(_b)) {
       try { clearFollowUp(sub); } catch (_) {}
       try { inboxRecord(ctx.store, sub, { dir: 'in', sender: 'customer', text: _b, name: ctx.name }); } catch (_) {}
       const line = await say("Take your time. Just let me know when you're ready.", sub).catch(() => "Take your time. Just let me know when you're ready.");
