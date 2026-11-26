@@ -10327,7 +10327,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
               // 11-20 TK 441-7406: this album said "in your 9.5" and then closed "This is what we have in a 8.5" - the closer fell
               // back to a stale saved size. The size this album is for is the one the closer must name.
               try { const _cs0 = custSize.get(sub); if (!_cs0 || parseFloat(_cs0.size) !== parseFloat(theirSize)) custSize.set(sub, { size: String(theirSize), ts: Date.now() }); } catch (_) {}
-              const _cLead = 'No ' + colour + (model ? ' ' + model.replace(/\b[a-z]/g, c => c.toUpperCase()) : '') + ' in your ' + theirSize + ' right now \u{1F64F} But we have these ' + colour + ' ones in your ' + theirSize + ' if you still want them \u{1F447}';
+              // 11-25 Shoe Lacky 455-5287: "No red Jordan in your 7" over an album OF red Jordans in a 7. If the album holds that brand, it was the exact shoe we lack.
+              const _mw = String(model || '').trim().replace(/s$/i, '');
+              const _hasBrand = !!_mw && theirColourTheirSize.slice(0, 12).some(r => new RegExp('\\b' + _mw.replace(/[^a-z0-9 ]/gi, ''), 'i').test(String(r.name || r.displayName || '')));
+              const _cLead = (_hasBrand ? 'Not that exact one' : 'No ' + colour + (model ? ' ' + model.replace(/\b[a-z]/g, c => c.toUpperCase()) : '')) + ' in your ' + theirSize + ' right now \u{1F64F} But we have these ' + colour + ' ones in your ' + theirSize + ' if you still want them \u{1F447}';
               const _rc = await sendShoePhotos(sub, _cIds, token, null, _cLead, false, false, ctx.turnAt || 0, true);
               _sentHere = (_rc && _rc.sent) || 0;
               if (_sentHere > 0) photosSentRun = true;
