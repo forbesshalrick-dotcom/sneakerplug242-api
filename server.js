@@ -11610,7 +11610,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           const _noCrit = p.size == null && !(Array.isArray(p.sizes) && p.sizes.length) && !p.brand && !(Array.isArray(p.brands) && p.brands.length)
             && !p.color && !String(p.query || '').trim() && p.max_price == null && p.min_price == null;
           if (_noCrit && found.length > 40) {
-            result = { shoes: [], note: 'TOO BROAD - ' + found.length + ' pairs, nothing sent. Do NOT say "here\'s what we have". Ask their size in one short line ("What size you wear? 👟 I\'ll send you everything we have in your size") and send nothing this turn.' };
+            result = { shoes: [], note: 'TOO BROAD - ' + found.length + ' pairs, nothing sent. Do NOT say "here\'s what we have". Ask their size in one short line ("What size you wear? 👟 I\'ll send you everything we have in your size") and send nothing this turn. If their message ALSO asked something else (where we are located, delivery, price, hours), answer THAT first in the same message - e.g. "We\'re in Nassau, free delivery 🚗 What size you wear? 👟" (11-27 TK Sassy 468-7020: "Good morning whre are you located" got only "What size you wear?").' };
             lastSearchIds = [];
             record(req, { endpoint: 'search-too-broad', sub, found: found.length });
           }
