@@ -12552,6 +12552,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             const _has = Object.values(_lm).some(x => x && _words.length && _words.filter(w => (String(displayName(x)) + ' ' + String(x.color || '') + ' ' + String(x.nickname || '')).toLowerCase().includes(w)).length >= Math.min(3, _words.length)
               && (x.sizesRaw || x.sizes || []).some(z => parseFloat(z) === parseFloat(_cs.size)));
             if (_has) { record(req, { endpoint: 'card-size-from-customer', sub, was: String(inp.size), now: String(_cs.size), shoe: String(inp.shoe || '').slice(0, 60) }); inp.size = String(_cs.size); }
+            /* 11-27 Shoebox Staywoke 421-5594 wears a men's 8.5; the AF1 All Black has no 8.5, Kiki asked "Want the 8?" and the group got
+             * a NEW ORDER card for size 8 before she said anything about an 8. When the customer's own words never named the card's size,
+             * the card says so. */
+            else {
+              const _cw = String(userText || '').split('(SYSTEM NOTE')[0];
+              const _sz = String(inp.size).replace('.', '\\.');
+              if (!new RegExp('(^|[^\\d.])' + _sz + '(?!\\.?\\d)').test(_cw)) {
+                record(req, { endpoint: 'card-size-not-agreed', sub, card: String(inp.size), theirs: String(_cs.size) });
+                inp.size = String(inp.size) + ' ⚠️ NOT CONFIRMED - customer wears ' + String(_cs.size) + ', never said yes to ' + String(inp.size);
+              }
+            }
           }
         } catch (_) {}
         /* ✌️ TWO SIZES PROMISED = TWO SIZES ON THE CARD (Rodney 11-07, TK A1 824-4745: "bring the 10 too" - Kiki said "We'll bring both the
