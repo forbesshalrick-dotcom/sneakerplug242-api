@@ -801,7 +801,7 @@ app.get('/debug/mc-tokens', (req, res) => {
   const acct = (t) => String(t || '').split(':')[0] || null;
   const fixCount = {};
   for (const t of subTokenFix.values()) fixCount[acct(t)] = (fixCount[acct(t)] || 0) + 1;
-  res.json({ stores: Object.fromEntries([...storeTokens].map(([k, v]) => [k, acct(v)])), last: acct(lastToken), env: acct(process.env.MANYCHAT_TOKEN), subFix: fixCount });
+  res.json({ stores: Object.fromEntries([...storeTokens].map(([k, v]) => [k, acct(v)])), last: acct(lastToken), env: acct(process.env.MANYCHAT_TOKEN), subFix: fixCount, accts: [...acctTokens.keys()] });
 });
 app.get('/last', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
@@ -2112,7 +2112,7 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   /* 11-27 (OSC Unruly 448-7442, Mr.H.P): a brand-new OSC contact was filed under TK and every reply bounced "Subscriber does not
    * exist" - the rotation only knew the store tokens, while the token that DOES work for OSC customers (Sassy, BasedNino, Lexy got
    * their replies) was remembered only per-customer in subTokenFix. Every token that has ever delivered is now a candidate too. */
-  const candidates = [fixed, token, ...storeTokens.values(), lastToken, ...new Set(subTokenFix.values()), process.env.MANYCHAT_TOKEN]
+  const candidates = [fixed, token, ...storeTokens.values(), lastToken, ...new Set(subTokenFix.values()), ...acctTokens.values(), process.env.MANYCHAT_TOKEN]
     .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
   let last = null;
   for (const tk of candidates) {
@@ -5192,6 +5192,11 @@ const MUTE_MS = 20 * 1000; // 20s ROLLING window (Rodney's call 2026-07-12) — 
 const recentCustomers = new Map(); // sub -> {sub, name, store, lastText, at}
 const storeTokens = new Map();     // store name -> latest ManyChat token seen for it
 let lastToken = null;              // most-recent token of any account (fallback)
+/* 11-27: one token per ManyChat ACCOUNT, never overwritten by another account's. The OSC flow sends the TK key with typed messages and
+ * the OSC key with photos, so the store map flipped between them and, after a restart, held no OSC key at all - every OSC reply
+ * bounced "Subscriber does not exist" (Mandy 1209370424). Every account we have ever seen keeps its key here for the rotation. */
+const acctTokens = new Map();      // account id (before the ':') -> latest token for that account
+function noteAcctToken(t) { try { const a = String(t || '').split(':')[0]; if (/^\d{5,}$/.test(a)) acctTokens.set(a, String(t)); } catch (_) {} }
 // Tokens survive restarts (2026-07-14: every deploy wiped them, so console sends, shift
 // reminders and manager alerts were mute until a customer happened to text; 3 restarts
 // in one night = 3 deaf spells). Best-effort persistence on the /data disk.
@@ -5207,6 +5212,9 @@ try {
     const saved = JSON.parse(require('fs').readFileSync(TOKENS_FILE, 'utf8')) || {};
     for (const [k, v] of Object.entries(saved.stores || {})) storeTokens.set(k, v);
     lastToken = saved.last || null;
+    for (const v of Object.values(saved.accts || {})) noteAcctToken(v);
+    for (const v of Object.values(saved.stores || {})) noteAcctToken(v);
+    noteAcctToken(lastToken);
     console.log('[tokens] restored', storeTokens.size, 'store token(s)');
   }
 } catch (e) { console.log('[tokens] restore failed:', e.message); }
@@ -5215,7 +5223,7 @@ function saveTokens() {
   if (!TOKENS_FILE) return;
   clearTimeout(tokensSaveT);
   tokensSaveT = setTimeout(() => {
-    try { require('fs').writeFileSync(TOKENS_FILE, JSON.stringify({ stores: Object.fromEntries(storeTokens), last: lastToken })); } catch (_) {}
+    try { require('fs').writeFileSync(TOKENS_FILE, JSON.stringify({ stores: Object.fromEntries(storeTokens), last: lastToken, accts: Object.fromEntries(acctTokens) })); } catch (_) {}
   }, 1000);
   if (tokensSaveT.unref) tokensSaveT.unref();
 }
@@ -5224,6 +5232,7 @@ function rememberCustomer(sub, name, store, text, token) {
     recentCustomers.set(sub, { sub, name: name || '', store: store || '', lastText: (text || '').slice(0, 80), at: new Date().toISOString() });
     if (recentCustomers.size > 80) { const first = recentCustomers.keys().next().value; recentCustomers.delete(first); }
     if (store) storeTokens.set(store, token);
+    noteAcctToken(token);
     lastToken = token;
     // Hand the live token down to the modules that send staff/customer WhatsApp texts.
     // They only ever read MANYCHAT_TOKEN from the environment, which isn't set on Railway
