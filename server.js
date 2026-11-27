@@ -3676,7 +3676,10 @@ function searchInventory({ size, sizes, size_match, brand, brands, color, query,
   // foam clogs (Rodney 2026-08-04). See SLIP_ON_RE.
   if (sneakers_only) rows = rows.filter(({ s }) => !isSlipOn(s));
   // 🏷️ ON SALE (FF brownantoinette1976 10-21: "anything size 8 on sale?" got every Jordan in an 8 — the search had no sale filter).
-  if (on_sale) rows = rows.filter(({ s }) => s && s.sale);
+  /* 11-27 Shoebox God Bless Mannie 822-6694: "Do y'all have any sales going on?" on the Air Max got "we don't have Air Max on sale right
+   * now" - only a few shoes carry the sale flag, while Rodney's rule this Black Friday is "sale prices are on each shoe": the app
+   * price IS the sale price. When the flag filter leaves nothing, the shoes they asked about are still the sale answer. */
+  if (on_sale) { const _sale = rows.filter(({ s }) => s && s.sale); if (_sale.length) rows = _sale; }
   // Price filter: "under $150" → max_price 150; "over $100" → min_price 100; a range uses both.
   const maxP = parseFloat(max_price), minP = parseFloat(min_price);
   if (!isNaN(maxP)) rows = rows.filter(({ s }) => (parseFloat(s.price) || 0) <= maxP);
