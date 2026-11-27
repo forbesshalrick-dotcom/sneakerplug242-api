@@ -1923,7 +1923,11 @@ function adPriceInText(sub, t) {
           const ap = parseFloat(a.price); if (!ap || ap === _lp) continue;
           const sh = lm[a.id]; const _nm = String(a.name || (sh && sh.name) || '');
           const _short = _nm.split(/\s+/).slice(0, 2).join(' ');   // "Jordan 4"
-          if (_short.length > 4 && new RegExp('\\b' + _short.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'i').test(out) && !_odd.some(o => o.s === _short)) _odd.push({ s: _short, p: ap });
+          /* 11-27 Shoebox Ju 428-6702: "$150 each, except the Jordan 4 at $100" for a Cozy Girl + Yellow Thunder (both $150) - the $100 ad
+           * shoe is a DIFFERENT Jordan 4. The model words alone are not enough: the ad shoe's own colour or nickname must be in the text. */
+          const _own = [sh && sh.nickname, sh && sh.color, a.name && String(a.name).split(/\s+/).slice(2).join(' ')].filter(x => x && String(x).trim().length >= 3)
+            .some(w => String(out).toLowerCase().includes(String(w).toLowerCase().split('/')[0].trim()));
+          if (_short.length > 4 && _own && new RegExp('\\b' + _short.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+'), 'i').test(out) && !_odd.some(o => o.s === _short)) _odd.push({ s: _short, p: ap });
         }
         if (_odd.length) {
           const _w = String(_allEach[2]).toLowerCase();
