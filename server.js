@@ -11665,6 +11665,25 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           try { custSize.set(sub, Object.assign({ size: String(p.size).trim(), ts: Date.now() }, (_own && _own.fromCustomer && parseFloat(_own.size) === parseFloat(p.size)) ? { fromCustomer: true, ts: _own.ts || Date.now() } : {})); saveConvos(); } catch (_) {}
         // Log every search (params + hit count) — "she can't find it" bugs were
         // impossible to diagnose without seeing what she actually searched (2026-07-14).
+        /* 🖼️ SEVERAL SHOES IN THE PICTURE = ONLY THOSE SHOES (11-27 TK boss wendy 423-3221 sent the six-Jordan Black Friday ad; the
+         * photo reader listed six Jordans and "no single shoe was marked", but she searched "Air Force 1" and sent the AF1 All Black
+         * card. While a several-shoe picture is this turn's picture, a search whose hits are none of the shoes in it comes back empty
+         * with a note to ask which one. */
+        try {
+          const _vv = String(_idVerdict || '');
+          const _shoesLine = (_vv.match(/SHOES:\s*([\s\S]*?)(?:\n[A-Z]{3,}:|$)/) || [])[1] || '';
+          if (image && _shoesLine && Array.isArray(found) && found.length) {
+            const _norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            const _sl = _norm(_shoesLine);
+            const _inPic = found.filter(x => x && ((x.id && _sl.includes(_norm(x.id))) || (x.name && _sl.includes(_norm(String(x.name).replace(/^(nike|jordan|adidas|asics|new balance)\s+/i, ''))))));
+            if (!_inPic.length) {
+              record(req, { endpoint: 'search-not-in-the-picture', sub, params: p, found: found.length });
+              found = [];
+              lastSearchIds = [];
+              result = { shoes: [], note: 'The customer sent a picture with SEVERAL shoes and none of them is what you searched. Do NOT send any other shoe. Name the shoes in the picture briefly and ask which one they want and their size. Never ask "top left/top right" - use the shoe names.' };
+            }
+          }
+        } catch (_) {}
         record(req, { endpoint: 'search', sub, params: p, found: found.length });
         if (p.color && String(p.color).trim()) turnSearchColors.push(String(p.color).trim());
         // 🙅 "WANT SOME PICTURES" IS NOT "SEND ALL 351" (FF Eddie +1 242 818-5730 10-18: an empty search found 351, the album was too big to
