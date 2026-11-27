@@ -5277,6 +5277,7 @@ function pausedUntilOf(sub) { const u = humanPaused.get(String(sub)); return (u 
  * and the end of an album cleared it outright. Now: a shorter pause never replaces a longer one, and a long (manual) pause is only
  * ended by Rodney pressing resume. */
 const MANUAL_PAUSE_MS = 30 * 24 * 3600 * 1000;
+const WOMENS_SAID_RE = /\b(?:wom[ae]n'?s?|ladies|lady'?s|female)\b|\b\d{1,2}(?:\.5)?\s*w\b|\bin\s+(?:a\s+)?wom/i;
 function isManualPause(sub) { const u = humanPaused.get(String(sub)); return !!u && u - Date.now() > 24 * 3600 * 1000; }
 function setHumanPause(sub, ms) {
   const _until = Date.now() + (ms || HUMAN_PAUSE_MS);
@@ -9551,6 +9552,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           + 'you asked, not a request for the whole shelf. Call search_inventory with query "' + namedModel + '" and their size(s), and send what it finds. '
           + 'If we do not have it in their size, say so plainly and give the sizes it DOES come in before offering anything else.';
         record(req, { endpoint: 'bare-size-kept-the-shoe', sub, model: namedModel, q: _said.slice(0, 30) });
+        /* 👠 "I WANT THEM IN A WOMAN SIZE 7" IS CHECKED, NOT CONFIRMED (11-27 TK Mar 822-5080: tagged the grey Jordan 4, said
+         * "woman size 7", Kiki replied "Wet Cement in a women's 7 — $150" without searching; the order card said "size 7" and the
+         * shoe has no men's 5.5). A women's size on a named shoe now forces the search, and the search is made a women's search. */
+        if (WOMENS_SAID_RE.test(_said)) {
+          forceSearchNext = true;
+          system += '\n\n👠 That is a WOMEN\'S size: call search_inventory with womens=true (women\'s minus 1.5 = our men\'s size). If the shoe does not come in it, say so and offer what does.';
+          record(req, { endpoint: 'womens-size-forced-search', sub, model: namedModel });
+        }
       }
     }
   } catch (_) {}
@@ -11411,6 +11420,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             }
           }
         } catch (_) {}
+        // 👠 The customer said women's but the search came in as men's: make it a women's search (see womens-size-forced-search).
+        try { if (p.womens !== true && (p.size != null || (Array.isArray(p.sizes) && p.sizes.length)) && WOMENS_SAID_RE.test(String(userText || '').split('(SYSTEM')[0])) { p.womens = true; record(req, { endpoint: 'womens-flag-added', sub, size: p.size }); } } catch (_) {}
         found = searchInventory(p);
         // 🏷️ The line's model price (The Shoebox 9060 = $100, Rodney 11-16) is what she reads in the results.
         try { const _st = ctx.store || storeOfSub(sub); const _ads = adShoeIds(_st); found = found.map(x => { const mp = x && storeModelPrice(x, _st); if (mp) return Object.assign({}, x, { price: mp }); const _a = x && _ads.find(a => String(a.id) === String(x.id)); return (_a && _a.price && parseFloat(_a.price) < parseFloat(x.price || 0)) ? Object.assign({}, x, { price: parseFloat(_a.price) }) : x; }); } catch (_) {}
