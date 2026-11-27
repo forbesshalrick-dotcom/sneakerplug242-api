@@ -13595,6 +13595,21 @@ function handleChat(req, res) {
     return; // silent — the lastIncoming stamp above already halts any album mid-send
   }
 
+  /* 11-27 Shoebox Living Life 465-0353: Kiki offered "Want me to send everything we got in your size?" (size 12), he said "Yh",
+   * and got the Jordan 11 he had already seen - the yes was read against the last shoe on the table, not the offer. A yes to that
+   * offer is a request for the whole size, said plainly to her. */
+  try {
+    if (!staffNameFor(req) && /^\W*(?:y(?:es|eah|ea|h|up|ep)?|ok(?:ay)?|sure|please|pls|send(?: it| them| em)?|go ahead|bet|ight|aight|alright)\W*$/i.test(String(userText || '').trim())) {
+      const _thE = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _lastOutE = _thE && (_thE.msgs || []).slice().reverse().find(m => m && m.dir === 'out' && m.text);
+      const _mE = _lastOutE && Date.now() - (_lastOutE.ts || 0) < 30 * 60 * 1000 && /send everything we got in (?:a |your )?(\d{1,2}(?:\.5)?|size)/i.exec(_lastOutE.text);
+      if (_mE) {
+        const _szE = (/in (?:a |your )?(\d{1,2}(?:\.5)?)/i.exec(_lastOutE.text) || [])[1] || '';
+        userText = '(SYSTEM: they just said YES to "Want me to send everything we got in your size?". Search with ONLY their size' + (_szE ? ' (' + _szE + ')' : '') + ' - no model, no colour - and send those pictures now. Do not resend a shoe they already saw.)\n' + userText;
+        record(req, { endpoint: 'yes-to-whole-size', sub, size: _szE });
+      }
+    }
+  } catch (_) {}
   const prev = chatLocks.get(sub) || Promise.resolve();
   const next = prev.then(async () => {
     let text = userText;
