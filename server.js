@@ -12580,6 +12580,28 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
             record(req, { endpoint: 'card-both-sizes', sub, size: inp.size });
           }
         } catch (_) {}
+        /* 📦 EVERY SIZE ON THE CARD MUST BE ON THE SHELF (Rodney 11-27, Shoebox Tarboy 447-2697: "bring 8 and 8.5" for the AM95
+         * Yellow/Black - Kiki said "Both the 8 and the 8.5 - driver's got you" and the card said "size 8 and 8.5 (bring both)"; the shoe
+         * had no 8 at all). A card size the named shoe does not have is marked on the card for the driver. */
+        try {
+          const _lm2 = liveShoeMap();
+          let _shoe = inp.shoe_id != null ? _lm2[String(inp.shoe_id)] : null;
+          if (!_shoe && inp.shoe) {
+            const _w = String(inp.shoe).toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1 && !/^(nike|air|the|size)$/.test(w));
+            const _c = Object.values(_lm2).filter(x => x && _w.length && _w.every(w => (String(displayName(x)) + ' ' + String(x.color || '') + ' ' + String(x.nickname || '')).toLowerCase().includes(w)));
+            if (_c.length === 1) _shoe = _c[0];
+          }
+          if (_shoe && inp.size != null && !/NOT CONFIRMED|NOT ON THE SHELF/.test(String(inp.size))) {
+            const _have = (_shoe.sizesRaw || _shoe.sizes || []).map(z => parseFloat(z));
+            const _asked = (String(inp.size).match(/\d{1,2}(?:\.5)?/g) || []).map(parseFloat).filter(n => n >= 3 && n <= 16);
+            const _miss = [...new Set(_asked.filter(n => !_have.includes(n)))];
+            if (_asked.length && _miss.length) {
+              record(req, { endpoint: 'card-size-not-on-shelf', sub, shoe: String(_shoe.id), size: String(inp.size), missing: _miss });
+              inp._shelfNote = 'The ' + displayName(_shoe) + ' has NO ' + _miss.join(' or ') + ' on the shelf (it has ' + ([...new Set(_have)].sort((a, b) => a - b).join(', ') || 'none') + '). Tell the customer that plainly now - never say the driver is bringing a size we do not have.';
+              inp.size = String(inp.size) + ' ⚠️ NOT ON THE SHELF: ' + _miss.join(', ') + ' (has ' + ([...new Set(_have)].sort((a, b) => a - b).join(', ') || 'none') + ')';
+            }
+          }
+        } catch (_) {}
         // Pull the customer's WhatsApp number so staff can call/message them for the
         // drop-off. Prefer what Kiki passed or the request field; else ask ManyChat.
         let custPhone = inp.customer_phone || getPhone(req);
@@ -12754,7 +12776,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // then offers to call the driver). Reuses the one-pending-nudge timer.
         // (Skip for the early "order_confirmed" heads-up — nobody's driving yet.)
         if (!earlyStage) try { scheduleNudge(sub, token, L(DELIVERY_FOLLOWUP_T, sub), DELIVERY_FOLLOWUP_MS); } catch (_) {}
-        result = { ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true };
+        result = Object.assign({ ok: true, owner_alerted_whatsapp: waOk, posted_to_website: true }, inp._shelfNote ? { note: inp._shelfNote } : {});
       }
       else if (tu.name === 'record_expense') {
         const inp = tu.input || {};
