@@ -10831,7 +10831,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (_shoeLine && !/\b(another|different|other|new|also|too|second|extra|add|plus)\b/i.test(String(userText || ''))
             && !/\b(how much|price|total|cost|amount|pay|owe)\b|\$/i.test(String(userText || ''))) {
           const _pr = ((String(_ord.text).match(/💰\s*([^\n]+)/) || [])[1] || '').trim();
-          turnText = 'Your order is set 🙏 ' + _shoeLine + (_pr ? ' — ' + _pr : '') + '. The driver will call you when he\'s close 👟';
+          /* 11-27 TK Mob K 432-4572: order card had "📍 not sent yet", he wrote "Golden isles" and got "Your order is set... The driver
+           * will call you" - no pin, nothing went to the group. Without a pin the swap asks for the pin instead. */
+          const _ordPinned = _ord.text && /DELIVERY READY/.test(_ord.text) && /maps\.google|-?\d{1,2}\.\d{3,},\s*-?\d{1,3}\.\d{3,}/.test(_ord.text);
+          turnText = _ordPinned
+            ? 'Your order is set 🙏 ' + _shoeLine + (_pr ? ' — ' + _pr : '') + '. The driver will call you when he\'s close 👟'
+            : 'OK 👍 ' + _shoeLine + (_pr ? ' — ' + _pr : '') + '. Please send your location pin so the driver finds you 📍 Tap 📎 → Location → Send your current location';
           record(req, { endpoint: 'order-on-file-not-reasked', sub, shoe: _shoeLine.slice(0, 60) });
         }
       } catch (_) {}
