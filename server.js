@@ -1566,6 +1566,14 @@ function sayWereInNassau(text) {
     const t = String(text || '');
     if (/nassau/i.test(t) || !/\b(?:we\s+(?:can\s+)?ship|shipping)\s+(?:it\s+)?(?:to|out to|over to)\b|\bplane\s+\$?35\b|\bboat\s+\$?10\b/i.test(t)) return text;
     const m = t.match(/\b(?:and\s+)?(?:yes,?\s+)?we\s+(?:can\s+)?ship\b|\bshipping\s+to\b/i);
+    /* 11-27 TK Woman Over Board 818-5783: "For shipping to Freeport, we've got two options" became "For We're in Nassau 🇧🇸 and we ship
+     * to Freeport". When the shipping words sit inside a phrase ("For shipping to", "about shipping to"), the Nassau line goes at the
+     * start of that sentence instead of being spliced into it. */
+    if (m && /\b(?:for|about|on|of|re|regarding)\s+$/i.test(t.slice(0, m.index))) {
+      const _pm = /^([\s\S]*(?:[.!?]|\p{Extended_Pictographic})\s+)/u.exec(t.slice(0, m.index));
+      const _at = _pm ? _pm[1].length : 0;
+      return t.slice(0, _at) + "We're in Nassau \u{1F1E7}\u{1F1F8} " + t.slice(_at);
+    }
     if (m) return t.slice(0, m.index) + "We're in Nassau 🇧🇸 and " + m[0].replace(/^(?:and\s+)?(?:yes,?\s+)?/i, '').replace(/^shipping to/i, 'we ship to').replace(/^We/, 'we') + t.slice(m.index + m[0].length);
     return "We're in Nassau 🇧🇸 " + t;
   } catch (_) { return text; }
