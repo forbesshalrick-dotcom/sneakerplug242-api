@@ -12450,6 +12450,14 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           if (!_cards.length) return false;
           const _last = _cards[_cards.length - 1];
           if (Date.now() - (_last.ts || 0) < 48 * 3600 * 1000) return false;
+          /* 11-27 TK Nesha 801-1817: her card was filed Tuesday FOR FRIDAY ("FRIDAY 12:00 PM - Forth Street"); on Friday her pin was
+           * called an old order and she was asked "Which shoe and size you want?". A card booked for today (its weekday) or still
+           * being talked about in the last 48 h is the live order, not an old one. */
+          const _today = new Date().toLocaleDateString('en-US', { weekday: 'long', timeZone: 'America/Nassau' }).toUpperCase();
+          if (new RegExp('\\b' + _today + '\\b|\\bTODAY\\b|ORDER SET FOR LATER', 'i').test(String(_last.text || ''))) return false;
+          const _recentTalk = ((_th && _th.msgs) || []).some(m => m && m.sender !== 'system' && Date.now() - (m.ts || 0) < 48 * 3600 * 1000
+            && /delivery set|still want it|your order|still holding|still good for/i.test(m.text || ''));
+          if (_recentTalk) return false;
           const _shoe = String((tu.input || {}).shoe || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !/^(nike|air|jordan|retro|the|and|size)$/.test(w));
           const _old = String(_last.text || '').toLowerCase();
           return _shoe.length > 0 && _shoe.every(w => _old.includes(w));
