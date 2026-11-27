@@ -2126,7 +2126,34 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // so the error is noise about a message that landed: stop here, exactly like a timeout —
   // no retry, no text fallback. A sub we have NEVER reached keeps all its retries, because
   // for them the error might actually be true.
-  if (last && !last.timedOut && GHOST_ERROR_RE.test(body) && isProvenAlive(subscriberId)) {
+  /* 🐣 A BRAND-NEW CONTACT IS NOT READY YET (11-26 TK Jay 434-4902, Instagram ad tap at 19:28: every reply for ~2 minutes and the
+   * whole size-13 album came back "Subscriber does not exist" - his phone showed none of it, only the texts from 19:30 on. Same for
+   * 810-6855, "hand pick by God", BAGAMONEY. The same sends from the inbox a few minutes later all landed.) ManyChat needs a minute
+   * or two to create a new WhatsApp contact. For a chat that started under 15 minutes ago, this error is retried at +45 s and +2 min
+   * instead of being assumed delivered or dropped. */
+  try {
+    if (last && !last.timedOut && GHOST_ERROR_RE.test(body) && !(logOpts && logOpts._newRetry)) {
+      const _thN = inboxThreads.get(inboxSubIndex.get(String(subscriberId)) || '');
+      const _first = _thN && (_thN.msgs || []).length ? Math.min(...(_thN.msgs || []).map(m => Number(m.ts) || Date.now())) : 0;
+      if (_first && Date.now() - _first < 15 * 60 * 1000) {
+        const _opts = Object.assign({}, logOpts || {}, { _newRetry: 1 });
+        let _done = false;
+        for (const _wait of [45000, 120000]) {
+          setTimeout(() => {
+            if (_done) return;
+            sendChunk(subscriberId, messages, token, _opts).then(rr => {
+              if (rr && rr.ok && !rr.ghosted && !rr.newRetry) _done = true;
+              try { recent.unshift({ at: new Date().toISOString(), endpoint: 'new-contact-retry', sub: subscriberId, wait: _wait, ok: !!(rr && rr.ok && !rr.ghosted) }); } catch (_) {}
+            }).catch(() => {});
+          }, _wait);
+        }
+        recent.unshift({ at: new Date().toISOString(), endpoint: 'new-contact-not-ready', sub: subscriberId, tried: (messages || []).map(m => (m.type || '?') + ':' + String(m.text || m.url || '').slice(0, 60)).join(' | ').slice(0, 200) });
+        if (recent.length > 120) recent.length = 120;
+        return { ok: true, status: 0, body: 'new contact not ready - retry scheduled', newRetry: true };
+      }
+    }
+  } catch (_) {}
+  if (last && !last.timedOut && GHOST_ERROR_RE.test(body) && isProvenAlive(subscriberId) && !(logOpts && logOpts._newRetry)) {
     saveRecent();
     markShakyDelivery(subscriberId);
     recent.unshift({ at: new Date().toISOString(), endpoint: 'send-ghost-error-assumed-delivered', sub: subscriberId,
