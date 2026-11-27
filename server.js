@@ -13550,6 +13550,13 @@ function handleChat(req, res) {
         try {
           const _thS = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
           staleRepeat = !!(_thS && prevAt && (_thS.msgs || []).some(m => m && m.dir === 'out' && m.text && (m.ts || 0) > prevAt));
+          /* 11-27 TK Desha 453-1619: she said "ok thank u" on the 26th, we wrote her twice today about her flight, and she typed
+           * "ok thank u" again - a real reply to the new messages. It was called stale words, and Kiki told a customer who had
+           * already paid "Send me that picture again 🙏 What size you wear?". A short thanks/ok after our newer messages is a reply. */
+          if (staleRepeat && /^(?:ok(?:ay|k)?|kk?|alright|aight|cool|yes|yeah|yh|yea|thanks?|thank (?:u|you)|ty|thx|ok(?:ay)? thank(?:s| u| you)|👍|🙏)[\s!.🙏👍🏽🏾🏿]*$/i.test(nowTxt)) {
+            staleRepeat = false;
+            record(req, { endpoint: 'ack-repeat-is-a-reply', sub, q: nowTxt.slice(0, 20) });
+          }
         } catch (_) {}
         record(req, { endpoint: 'stale-text-wordless', sub, stale: staleRepeat, q: nowTxt.slice(0, 40), sincePrevS: prevAt ? Math.round((Date.now() - prevAt) / 1000) : null });
       } catch (e) { record(req, { endpoint: 'late-repeat-pin-check-error', sub, error: String(e).slice(0, 120) }); }
