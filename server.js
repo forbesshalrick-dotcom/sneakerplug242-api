@@ -10350,7 +10350,12 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
      * It never invents stock - every line comes from a real search; with nothing found her reply goes through untouched. */
     try {
       const OUT_RE = /\b(we(?:'|’)?re out of|out of stock|sold out|don(?:'|’)?t have|dont have|don(?:'|’)?t come in|do not have|none (?:left|in)|no .{0,16} in (?:a |an )?\d|only (?:comes|come|got it|have it|got|in) in (?:a |an )?\d|only in (?:a |an )?\d)/i;
-      if (turnText && !staffName && !photosSentRun && !pinnedPickIds.size && deadEnds < 1 && OUT_RE.test(turnText)) {
+      /* 11-27 TK Brandon Carr 817-1941: he quote-replied photos of a Jordan 5 Raging Bull and an Air Max Plus; that turn's text is our
+       * own "(SYSTEM: they quote-replied a photo...)" line, which the customer-words filter below drops - so the guard searched his OLD
+       * words ("how much for yellow air max 95") and sent yellow Jordan 4s as "the black and white heat", twice. A turn about a quoted
+       * photo is answered from the photo, never from stale words. */
+      const _quoteTurn = /quote-replied|the customer TAGGED/i.test(String(userText || '').slice(0, 300));
+      if (turnText && !staffName && !photosSentRun && !pinnedPickIds.size && deadEnds < 1 && !_quoteTurn && OUT_RE.test(turnText)) {
         // Everything THEY have said this conversation - the shoe is often named a message or
         // two before the size, which is exactly how the first version missed Million.
         /* ⚠️ ONLY THE CUSTOMER'S OWN WORDS. Caught on the first live test of this guard: the
