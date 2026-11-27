@@ -8592,6 +8592,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // A lone adverb / filler word is not a place (Rodney 11-10, Shoe Lacky 'the boss' 827-3479: a voice note transcribed as
           // "Subsequently" got "the driver will meet you at Subsequently 🚗", a DELIVERY READY card, and "Subsequently is the location we got for you").
           && !/^[a-z']+ly[\s!.,?]*$/i.test(_ans)
+          // 11-27 Shoebox Alan 816-3344: sent his pin, then "Meet me here" - it became "the driver will meet you at Meet me here 🚗" and a
+          // card reading 📍 Meet me here. "Here / there / my location / this spot" points at the pin, it is not an address.
+          && !/^\s*(?:(?:meet|find|see)\s+(?:me|us)\s*)?(?:right\s+)?(?:here|there|at (?:my|the) (?:location|pin|spot)|my location|this (?:spot|place|location)|where i(?:'?m| am))[\s!.]*$/i.test(_ans)
           // 11-17: "Morning sorry yes I want them" (NW Alfonzo 817-4558) and "Nothing else" (Shoebox Virgo 815-0363) both became
           // "the driver will meet you at ..." - a place never carries these words.
           // "Thru god" (TK C.G ENTERPRISE 823-3673, 11-19) is a yes said with faith, not an address - it became a DELIVERY READY card.
