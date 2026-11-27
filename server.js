@@ -12434,6 +12434,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'order-refused-stale-card', sub, shoe: String((tu.input || {}).shoe || '').slice(0, 60) });
         result = { ok: false, not_filed: 'That shoe is their OLD order from days ago - it is not this order, nothing was filed. Do not mention the old order or any payment. Thank them for the pin and ask in one short line which shoe and size they want this time.' };
       }
+      /* 📍 A PIN IS NOT AN ORDER (11-27 TK Ryan 824-2694: a new contact's first message was a location pin; Kiki filed a
+       * "DELIVERY READY" card with no shoe, no size, no price and told him "I've sent this straight to the team"). With no shoe
+       * named on the call and no order card on this chat in 48 h, nothing is filed: ask which shoe and size. */
+      else if (tu.name === 'notify_manager' && !staffName && !String((tu.input || {}).shoe || '').trim() && !(tu.input || {}).shoe_id && !(() => {
+        try {
+          const _th = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+          return ((_th && _th.msgs) || []).some(m => m && m.sender === 'system' && /NEW ORDER|DELIVERY READY|ORDER SET FOR LATER/.test(m.text || '') && Date.now() - (m.ts || 0) < 48 * 3600 * 1000);
+        } catch (_) { return true; }
+      })()) {
+        record(req, { endpoint: 'order-refused-no-shoe', sub, store: ctx.store || '' });
+        if (sentToCustomer) orderRefusedAfterText = true;
+        result = { ok: false, not_filed: 'No shoe has been chosen on this chat - a pin alone is NOT an order, nothing was filed and the team was NOT told. Thank them for the location and ask in one short line which shoe and size they want.' };
+      }
       else if (tu.name === 'notify_manager') {
         const inp = tu.input || {};
         /* 📏 THE CARD CARRIES THE SIZE THE CUSTOMER SAID (11-24 TK chef 437-1149: said "8.5" at 15:24 and again at 16:22; the 16:26
