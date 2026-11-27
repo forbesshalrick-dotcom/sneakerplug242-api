@@ -2314,6 +2314,7 @@ const END_OF_PHOTOS_MSG = `let me know if you need a delivery`;
 const endMsgSentAt = {}; // sub -> last time the closing line went out, so a multi-batch send (e.g. two colours) gets ONE closing line, not three
 const lastAsk = new Map(); // sub -> { p, ids, at }: the last search_inventory ask, so the closing line repeats what they asked for
 const cardBurst = new Map(); // sub -> [{ id | gone, at }]: shoes from pictures held back because another picture was right behind
+const photoPicksRecent = new Map(); // sub -> [{ name, at }]: every in-stock shoe their pictures were read as, last 30 min (two pictures + "these" = both)
 const photoVerdicts = new Map(); // sub -> { v, at }: the picture reader's last verdict, so "No the tan" a minute later still knows the shoe was an Air Force 1
 // The shoe a NOT-IN-STOCK verdict saw, cleaned for a customer: 'Nike Air Force 1 Low '07 WB "Flax/Wheat", tan…' -> 'Nike Air Force 1 Low Flax/Wheat'.
 function verdictSeenName(v) {
@@ -7752,6 +7753,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         record(req, { endpoint: 'timing-only-reply', sub });
       }
     } catch (_) {}
+    /* 📸📸 TWO PICTURES + "THESE" = BOTH SHOES (11-26 Shoe Lacky 🕷️ 565-1210: sent the ASICS Gel-1130 White/Black and the NB 1906
+     * Grey/Silver, wrote "Can I have these size 8.5" - the order card carried only the 1906; the driver went with one pair and he had
+     * to say "I also ordered the white and black ASICS"). Only the last picture's reading was kept. With 2+ different shoes read
+     * from their pictures in the last 30 min and a plural pick word, Kiki is told it is ALL of them. */
+    try {
+      const _pp = (photoPicksRecent.get(String(sub)) || []).filter(x => Date.now() - x.at < 30 * 60 * 1000);
+      if (_pp.length >= 2 && /\b(?:these|both|them|dem|all of them|all|the two|2 of them|this 2|those|each)\b/i.test(_b)) {
+        userText = '(SYSTEM: in the last few minutes they sent ' + _pp.length + ' pictures we read as: ' + _pp.map(x => x.name).join(' + ') + '. "these/both" means ALL ' + _pp.length + ' shoes. Confirm every one by name with its price and the total, in their size, and when you file the order with notify_manager put EVERY shoe in it - never just one.) ' + userText;
+        record(req, { endpoint: 'multi-photo-pick', sub, n: _pp.length });
+      }
+    } catch (_) {}
     /* 💸 A LOWER COUNTER-OFFER IS NOT ACCEPTED (11-24 TK Cassano: quoted Jordan $150 + Nike $100 = $250, he typed "$200" and got
      * "Okay! $200 pour les 2 paires 👍"). Prices are fixed - say so kindly and offer a cheaper combo that really costs that. */
     try {
@@ -8808,6 +8820,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       if (_seen) {
         _idVerdict = _seen;
         photoVerdicts.set(String(sub), { v: _seen, at: Date.now() });
+        try {
+          const _on = ((String(_seen).match(/OURS:\s*([^\n]+)/i) || [])[1] || '').trim();
+          if (_on && !/not in stock|none|unknown|not ours|n\/a/i.test(_on)) {
+            const _l = (photoPicksRecent.get(String(sub)) || []).filter(x => Date.now() - x.at < 30 * 60 * 1000 && x.name !== _on);
+            _l.push({ name: _on.slice(0, 120), at: Date.now() }); photoPicksRecent.set(String(sub), _l.slice(-6));
+          }
+        } catch (_) {}
         /* THEIR PHOTO IS A PAIR WE JUST SHOWED THEM (Rodney 11-19, New Wave 803-7139: "she's still sending the same picture she said
          * she didn't have... that's not a human did that"). She sent back our own photo of the Olive/Khaki VaporMax Plus twice; the
          * reader called it "cream/beige... NOT IN STOCK" both times and named that very pair as CLOSEST, so Kiki said "Don't have that
