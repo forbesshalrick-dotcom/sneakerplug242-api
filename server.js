@@ -1847,8 +1847,11 @@ function namedSizeWrong(turnText, shoes) {
   for (const sen of pieces) {
     const sl = sen.toLowerCase();
     if (/\b(no|not|don'?t|doesn'?t|out|sold|isn'?t|aren'?t|only|closest|nearest|instead|stops?|biggest|smallest|up to|which|what|women'?s|womens|ladies|kids?)\b|\?/.test(sl)) continue;
-    const nm = names.find(n => sl.includes(n)); if (!nm) continue;
-    if (names.some(n => n !== nm && !nm.includes(n) && sl.includes(n))) continue;      // two different shoes in one clause - cannot tell whose size it is
+    /* whole names only (11-27 OSC Unruly: "the Air Jordan 11" matched the name "air jordan 1", so "we have it in a 7" was blocked as a
+     * wrong size and she told him "We don't have the Gamma Blue in a 7" - two 7s on the shelf) */
+    const _hasName = n => new RegExp('(^|[^a-z0-9])' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![a-z0-9])').test(sl);
+    const nm = names.find(n => _hasName(n)); if (!nm) continue;
+    if (names.some(n => n !== nm && !nm.includes(n) && _hasName(n))) continue;      // two different shoes in one clause - cannot tell whose size it is
     const rest = sl.split(nm).join(' ').replace(/\$\s*\d+(?:\.\d+)?/g, ' ');
     const sizes = [];
     for (const m of rest.matchAll(/\b(?:in (?:a |an |your |the |my )?(?:size )?|size )(\d{1,2}(?:\.5)?)\b(?!\s*(?:pairs?|pics?|photos?|%|am|pm|mins?|minutes?|hours?|days?|colou?rs?|styles?))/g)) sizes.push(parseFloat(m[1]));
