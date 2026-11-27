@@ -795,6 +795,14 @@ app.get('/debug-manager-ping-test', async (req, res) => {
 // Diagnostic: see the last requests ManyChat sent.
 // ?q=<digits/text> filters to entries mentioning it (e.g. ?q=4324406) and returns a SMALL,
 // phone-readable summary of each — easy to eyeball on a phone. Omit q for the full raw dump.
+// Which ManyChat accounts the server holds a token for (account id + count only, never the token itself).
+app.get('/debug/mc-tokens', (req, res) => {
+  if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
+  const acct = (t) => String(t || '').split(':')[0] || null;
+  const fixCount = {};
+  for (const t of subTokenFix.values()) fixCount[acct(t)] = (fixCount[acct(t)] || 0) + 1;
+  res.json({ stores: Object.fromEntries([...storeTokens].map(([k, v]) => [k, acct(v)])), last: acct(lastToken), env: acct(process.env.MANYCHAT_TOKEN), subFix: fixCount });
+});
 app.get('/last', (req, res) => {
   if (req.query.key !== DEBUG_KEY) return res.status(403).json({ error: 'bad key' });
   const q = String(req.query.q || '').trim();
@@ -2093,7 +2101,10 @@ async function sendChunk(subscriberId, messages, token, logOpts) {
   // MOBB and a size-4.5 customer all lost service this way). Try the suggested token
   // first; on those errors, try every other token we know. Remember what worked.
   const fixed = subTokenFix.get(String(subscriberId));
-  const candidates = [fixed, token, ...storeTokens.values(), lastToken, process.env.MANYCHAT_TOKEN]
+  /* 11-27 (OSC Unruly 448-7442, Mr.H.P): a brand-new OSC contact was filed under TK and every reply bounced "Subscriber does not
+   * exist" - the rotation only knew the store tokens, while the token that DOES work for OSC customers (Sassy, BasedNino, Lexy got
+   * their replies) was remembered only per-customer in subTokenFix. Every token that has ever delivered is now a candidate too. */
+  const candidates = [fixed, token, ...storeTokens.values(), lastToken, ...new Set(subTokenFix.values()), process.env.MANYCHAT_TOKEN]
     .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
   let last = null;
   for (const tk of candidates) {
