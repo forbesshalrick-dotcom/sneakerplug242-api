@@ -946,6 +946,14 @@ function getContactId(req) {
 // Which store the message came from (each ManyChat flow sends a constant "store"),
 // used to greet with the right shop name.
 function getStore(req) {
+  /* 11-27: the OSC flow's External Request sends store "Trendy Kicks" in its body while its token is the OSC account (5476640), so the
+   * OSC key was saved as TK's and TK's as OSC's - every reply then went out on the wrong account first. The token says which account
+   * the message really came through; for the two retail accounts it wins over the typed-in store name. */
+  try {
+    const _a = String((req.headers && req.headers['x-mc-token']) || '').split(':')[0];
+    if (_a === '3732738' || _a === '5595630') return 'Trendy Kicks';
+    if (_a === '5476640' || _a === '3732170') return 'Official Sneaker Crew';
+  } catch (_) {}
   const srcs = [req.query || {}, (req.body && typeof req.body === 'object') ? req.body : {}];
   for (const src of srcs) {
     if (src.store != null && !isJunk(src.store)) return String(src.store).trim();
