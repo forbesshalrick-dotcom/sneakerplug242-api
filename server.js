@@ -8055,7 +8055,10 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         && !/\b(home|house|yard|address|apartment|apt|crib|gate|road|street|drive|avenue|corner|number|my (?:work|job|office|place|spot|area|name)|i (?:live|stay|work))\b/i.test(_pt)
         // "One sec" is not pointing at a shoe (11-19 Shoebox 466-3462, Exuma: she picked the Black Cat Jordan 4, said "One sec", the
         // "one" brought an earlier picture back and she was told "Yep, we got the 8 in that - Air Max 97 All Black, you available now?").
-        && !/\b(?:one|a|1|just a|gimme a|give me a?)\s*(?:sec|second|secs|min|minute|mins|moment|bit)\b|\bhold (?:on|up)\b|\bwait\b|\bbrb\b|\bone time\b/i.test(_pt)) {
+        && !/\b(?:one|a|1|just a|gimme a|give me a?)\s*(?:sec|second|secs|min|minute|mins|moment|bit)\b|\bhold (?:on|up)\b|\bwait\b|\bbrb\b|\bone time\b/i.test(_pt)
+        // "NOT RIGHT NOW BUT LOVE IT" IS A NO, NOT A POINT (11-26 Shoe Lacky BTC 429-6430: the "it" brought his earlier photo back and he got
+        // "I can see the photo - that's a heat lineup!" plus two more albums after saying not now).
+        && !/\b(?:not (?:right )?now|not today|maybe later|later|no thanks|nah|i'?m good|im good|just looking|next time|another time)\b/i.test(_pt)) {
       image = _lp.img;
       userText = '(SYSTEM: this message is about the picture the customer sent a moment ago — it is attached again here. Answer about that shoe.)\n' + _pt;
       record(req, { endpoint: 'pointer-photo-reattached', sub, q: _pt.slice(0, 40), agoS: Math.round((Date.now() - _lp.at) / 1000) });
