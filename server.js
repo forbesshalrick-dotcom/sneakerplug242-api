@@ -11047,6 +11047,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         if (/want some pictures\?|would you like to see\?/i.test(_lastK) && /^(?:(?:yes|yeah|ya|yh|ok|okay|sure)[\s,!.]*)?(?:the\s+)?(?:pics?|pix|pictures?|photos?|send (?:me )?(?:some |the )?(?:pics?|pictures?|photos?)|(?:pics?|pictures?|photos?) (?:please|pls|plz))[\s!.👀🙏]*$/i.test(_cw2)) {
           turnText = ((voiceOf(ctx.store) || {}).size) || 'What size you looking for? 👟';
           record(req, { endpoint: 'pic-means-pictures-option', sub });
+          /* 📸 THEY ASKED FOR PICTURES - SEND PICTURES (Rodney 11-27, TK Nikki 466-8398 "Send photo" after the ad greeting got "What size you
+           * wear?": "The lady asked for pictures, and you still asking the question. Just send her the pictures.") The shoes on the ads this
+           * line is running go out first, then the size question. */
+          try {
+            const _lmP = liveShoeMap(); const _byP = {}; for (const k in _lmP) { const x = _lmP[k]; if (x && x.id != null) _byP[String(x.id)] = x; }
+            const _adP = [...new Set(adShoeIds(ctx.store || storeOfSub(sub)).map(a => String(a.id)))]
+              .filter(id => _byP[id] && (_byP[id].sizesRaw || _byP[id].sizes || []).length).slice(0, 6);
+            if (_adP.length && !photosSentRun) {
+              const _rP = await sendShoePhotos(sub, _adP, token, null, "Here's what we have from the ad 👇", false, false, ctx.turnAt || 0, false).catch(() => null);
+              if (_rP && _rP.sent > 0) { photosSentRun = true; sentToCustomer = true; turnText = 'What size you wear? I\'ll show you what we have in your size 👟'; }
+              record(req, { endpoint: 'pic-request-sent-ad-shoes', sub, ids: _adP, sent: (_rP && _rP.sent) || 0 });
+            }
+          } catch (_) {}
         }
       }
     } catch (_) {}
