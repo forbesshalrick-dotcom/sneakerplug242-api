@@ -8610,6 +8610,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // 11-27 TK Blacks 454-5791: pin sent, then "I going by the bank right now" (to get cash) - it became "the driver will meet you
           // at the bank right now" and a second card with 📍 "by the bank right now" over his pin. An errand is not a meeting place.
           && !/\b(?:i(?:'?m|\s*am)?\s*(?:going|goin|gone|heading|headed|running|stepping|passing)|going\s+(?:to|by)|gotta\s+(?:go|run)|be\s+(?:back|right\s+back)|back\s+in\s+\d+|bank|atm|get(?:ting)?\s+(?:the\s+|some\s+)?(?:money|cash))\b/i.test(_ans)
+          // 11-28 TK Hilfiger Baby 810-3681 asked about Family Island shipping, then "I'm on the island" became "the driver will meet you on
+          // the island" + a DELIVERY READY card. An island is a shipment, never a meeting place.
+          && !/\b(?:island|islands|eleuthera|exuma|abaco|andros|bimini|freeport|grand bahama|long island|cat island|inagua|harbour island|berry islands?|acklins|crooked island|mayaguana|ragged island|san salvador)\b/i.test(_ans)
           // 11-17: "Morning sorry yes I want them" (NW Alfonzo 817-4558) and "Nothing else" (Shoebox Virgo 815-0363) both became
           // "the driver will meet you at ..." - a place never carries these words.
           // "Thru god" (TK C.G ENTERPRISE 823-3673, 11-19) is a yes said with faith, not an address - it became a DELIVERY READY card.
