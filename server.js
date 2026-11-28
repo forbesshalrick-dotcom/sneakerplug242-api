@@ -11224,6 +11224,13 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         turnText = "Our first delivery run is at 8 AM, so 8 AM is the earliest we can be there 🙏 Does 8 work for you?";
       }
     } catch (_) {}
+    /* 🗣️ A REPLY WRITTEN TO THE OWNER, NOT THE CUSTOMER (11-28 Shoebox Blade Gotti 525-6952: "Got it! They're asking about the Air Jordan
+     * 4 Retro (Lakers) in the pic they tagged. What's their question? (Once you tell me, I'll reply in one warm line...)" went to the
+     * customer). Talk about "they/the customer" or a note to whoever reads it = the whole reply is replaced with a plain ask. */
+    if (turnText && !staffName && /\b(?:what'?s their question|once you tell me|they'?re asking about|the customer (?:is|wants|said|asked|tagged)|in the pic they tagged|they tagged|I'?ll reply in one|reply to them|tell me what they)\b/i.test(turnText)) {
+      record(req, { endpoint: 'owner-meta-reply-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 200) });
+      turnText = "That picture didn't come through clear on my side 🙈 Tell me the shoe name (or send a screenshot) and I'll check it in your size 👟";
+    }
     // "Let me search what we've got ... and get you the price" - narration, not an answer (Rodney 10-19). The sentence goes.
     if (turnText && !staffName && /\blet me (?:search|check|look|pull|see what|find)\b|\bget you the price\b/i.test(turnText)) {
       const _k = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !/\blet me (?:search|check|look|pull|see what|find)\b|\bget you the price\b/i.test(x) && /[A-Za-z0-9]/.test(x)).join(' ').trim();
