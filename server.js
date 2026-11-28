@@ -12556,7 +12556,11 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
          * the card uses it - when that shoe comes in that size - and records the swap. */
         try {
           const _cs = custSize.get(sub);
-          if (_cs && _cs.fromCustomer && Date.now() - (_cs.ts || 0) < 48 * 3600 * 1000 && inp.size != null
+          /* 11-27 TK 🐼 827-6116 said 9.5 earlier, then picked "The 9 is fine" twice - the card was switched back to 9.5. The size
+           * they name in this turn's own words wins over the one they typed before. */
+          const _turnWords = String(userText || '').split('(SYSTEM NOTE')[0];
+          const _namesCardSize = inp.size != null && new RegExp('(^|[^\\d.])' + String(parseFloat(inp.size)).replace('.', '\\.') + '(?!\\.?\\d)').test(_turnWords);
+          if (_cs && _cs.fromCustomer && !_namesCardSize && Date.now() - (_cs.ts || 0) < 48 * 3600 * 1000 && inp.size != null
               && !/\band\b|\/|,/.test(String(inp.size)) && parseFloat(inp.size) !== parseFloat(_cs.size)) {
             const _words = String(inp.shoe || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 1);
             const _lm = liveShoeMap();
