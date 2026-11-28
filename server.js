@@ -13355,6 +13355,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
 
 function handleChat(req, res) {
   let userText = extractQuery(req);
+  /* ½ "51/2" IS FIVE AND A HALF, NOT $51 (11-28 TK Npinder 466-1782: "Ok I see you have 51/2" got "Here's what we have under $51 in a
+   * women's 5.5"). A glued "N1/2" (N = 4-15) is written as N.5 before Kiki reads it. */
+  try { if (typeof userText === 'string') userText = userText.replace(/(^|[^\d$.])([4-9]|1[0-5])\s?1\/2(?!\d)/g, '$1$2.5'); } catch (_) {}
   /* 📍 AN APPLE / GOOGLE MAPS LINK WITH COORDINATES IS A PIN (11-24 Shoebox A380 636-3863 sent a maps.apple.com link with
    * coordinate=25.049213,-77.336795 - Kiki said "Got your pin!", then filed three "location still coming" cards and told him
    * "Let me correct that — they sent a maps link. Here's the proper alert:"). The coordinates are added as a Google pin link,
