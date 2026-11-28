@@ -11208,7 +11208,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         // 11-16: a 👍 / "ok" that sat 10 minutes got "Sorry for the late reply, my phone went dead 🙏 👍" (Shoebox Polymath) - the excuse is
         // only for a real message that waited, never for an acknowledgement.
         const _waiting = _ms.filter(m => m && m.dir === 'in' && m.sender !== 'system' && (m.ts || 0) > _lastOut);
-        const _ackOnly = _waiting.length && _waiting.every(m => /^[\s👍🏻🏼🏽🏾🏿👌🙏✊💯🔥.!]*$|^\s*(ok(ay)?|k+|cool|bet|thanks?|thank you|ty|alright|aight|great|got it|nice)[\s👍🙏!.]*$/i.test(String(m.text || '')));
+        const _ackOnly = _waiting.length && _waiting.every(m => /^[\s👍🏻🏼🏽🏾🏿👌🙏✊💯🔥.!]*$|^\s*(?:(?:ok(?:ay)?|k+|cool|bet|thanks?|thank\s*(?:you|u)|thx|ty|alright|aight|great|got it|nice|no problem|np|bless(?:ed)?)[\s,👍🙏!.❤️🏻🏼🏽🏾🏿]*)+$/i.test(String(m.text || '')));
         if (_firstIn && !_ackOnly && Date.now() - _firstIn.ts > 10 * 60 * 1000 && !/\bsorry\b/i.test(turnText)) {
           turnText = 'Sorry for the late reply, my phone went dead 🙏 ' + turnText;
           record(req, { endpoint: 'late-reply-sorry', sub, waitedMin: Math.round((Date.now() - _firstIn.ts) / 60000) });
