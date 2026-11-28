@@ -11261,6 +11261,17 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         turnText = "Our first delivery run is at 8 AM, so 8 AM is the earliest we can be there 🙏 Does 8 work for you?";
       }
     } catch (_) {}
+    /* 📞 "NUMBER LOCATION" GETS THE NUMBER AND THE SPOT (11-28 TK Plumbing Dynasty 395-7210: "Number location" got a markdown menu -
+     * "Are you looking for: - **Our location** ... - **A shoe by n...**"). A short ask for our number and/or where we are = the
+     * number to give out (Rodney: 242-803-3126) and the Carmichael Rd spot, plain. */
+    try {
+      const _ask = customerWordsOnly(String(userText || '')).trim();
+      if (turnText && !staffName && _ask.split(/\s+/).length <= 6 && /\b(?:number|phone|contact|digits|location|where (?:yall|y'?all|you|u) (?:at|located)|address)\b/i.test(_ask) && !/803-?3126/.test(turnText) && !/\b(?:my|mine)\b/i.test(_ask)) {
+        const _wantsNum = /\b(?:number|phone|contact|digits)\b/i.test(_ask), _wantsLoc = /\b(?:location|where|address)\b/i.test(_ask);
+        turnText = (_wantsNum ? 'Our number is 242-803-3126 📞 ' : '') + (_wantsLoc ? "We're on Carmichael Rd by the car rental on the corner and the wash house 📍 https://maps.google.com/?q=25.006563,-77.414422 " : '') + 'We also deliver free anywhere in Nassau 🚗 What size you wear? 👟';
+        record(req, { endpoint: 'number-location-answered', sub, ask: _ask.slice(0, 40) });
+      }
+    } catch (_) {}
     /* (…) A BRACKETED NOTE TO HERSELF IS CUT, THE REST STAYS (11-28 TK Captain Fox: "Here's what we have in a 10/11 rite now 👇 Ready to
      * Order! (I'm ready to search and send photos once you let me know what you're looking for — a brand, ...)"). */
     if (turnText && !staffName) {
