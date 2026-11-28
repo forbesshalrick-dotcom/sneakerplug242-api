@@ -4675,7 +4675,8 @@ function fixShopNumbers(t) {
 // "dont say perfect say OK" (Rodney 11-16). A sentence-opening "Perfect" becomes "OK"; "a perfect fit" mid-sentence stays.
 function sayOkNotPerfect(t) {
   // 11-17 New Wave 451-6649 got "🙌 Perfect!" - an emoji in front hid it from the old start-of-sentence check.
-  return String(t).replace(/(^|[.!?\n]\s*)((?:\p{Extended_Pictographic}|\uFE0F|\u200D|\s)*)Perfect\b/giu, '$1$2OK');
+  // 11-28 TK K T: "...my phone went dead 🙏 Perfect! 🙌" - after an emoji is a new sentence too.
+  return String(t).replace(/(^|[.!?\n]\s*|\p{Extended_Pictographic}\uFE0F?\s+)((?:\p{Extended_Pictographic}|\uFE0F|\u200D|\s)*)Perfect\b/giu, '$1$2OK');
 }
 async function speakToVoiceNote(text, opt = {}) {
   if (!process.env.OPENAI_API_KEY) return null;
