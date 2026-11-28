@@ -8648,6 +8648,8 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // 11-28 TK Hilfiger Baby 810-3681 asked about Family Island shipping, then "I'm on the island" became "the driver will meet you on
           // the island" + a DELIVERY READY card. An island is a shipment, never a meeting place.
           && !/\b(?:island|islands|eleuthera|exuma|abaco|andros|bimini|freeport|grand bahama|long island|cat island|inagua|harbour island|berry islands?|acklins|crooked island|mayaguana|ragged island|san salvador)\b/i.test(_ans)
+          // 11-28 Shoebox Lano 467-4224: "Good day" became "the driver will meet you at Good day" + a card reading 📍 Good day. A greeting is not a place.
+          && !/^\s*(?:good\s*(?:day|morning|mornin|afternoon|evening|night)|morning|mornin|afternoon|evening|hi+|hey+|hello+|yo+|wassup|what'?s up|sup|bless(?:ed)?(?:\s+(?:up|morning|day))?|greetings)[\s!.,🙏👋]*$/i.test(_ans)
           // 11-17: "Morning sorry yes I want them" (NW Alfonzo 817-4558) and "Nothing else" (Shoebox Virgo 815-0363) both became
           // "the driver will meet you at ..." - a place never carries these words.
           // "Thru god" (TK C.G ENTERPRISE 823-3673, 11-19) is a yes said with faith, not an address - it became a DELIVERY READY card.
