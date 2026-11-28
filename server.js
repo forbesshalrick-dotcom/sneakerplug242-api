@@ -11227,7 +11227,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     /* 🗣️ A REPLY WRITTEN TO THE OWNER, NOT THE CUSTOMER (11-28 Shoebox Blade Gotti 525-6952: "Got it! They're asking about the Air Jordan
      * 4 Retro (Lakers) in the pic they tagged. What's their question? (Once you tell me, I'll reply in one warm line...)" went to the
      * customer). Talk about "they/the customer" or a note to whoever reads it = the whole reply is replaced with a plain ask. */
-    if (turnText && !staffName && /\b(?:what'?s their question|once you tell me|they'?re asking about|the customer (?:is|wants|said|asked|tagged)|in the pic they tagged|they tagged|I'?ll reply in one|reply to them|tell me what they)\b/i.test(turnText)) {
+    if (turnText && !staffName && /\b(?:what'?s their question|once you tell me|they'?re asking about|the customer (?:is|wants|said|asked|tagged)|in the pic they tagged|they tagged|I'?ll reply in one|reply to them|tell me what they|whenever they reply|when they reply|ready to help \S+ whenever|if they (?:reply|respond|come back))\b/i.test(turnText)) {
       record(req, { endpoint: 'owner-meta-reply-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 200) });
       turnText = "That picture didn't come through clear on my side 🙈 Tell me the shoe name (or send a screenshot) and I'll check it in your size 👟";
     }
