@@ -8133,6 +8133,20 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
       record(req, { endpoint: 'pointer-photo-reattached', sub, q: _pt.slice(0, 40), agoS: Math.round((Date.now() - _lp.at) / 1000) });
     }
   } catch (_) {}
+  /* 🎨 A BARE SIZE KEEPS THE COLOUR THEY JUST ASKED FOR (11-28 TK Captain Fox 429-6348: "which all white sneakers you have?" then "10/11"
+   * got purple, red and yellow Jordan 4s). A size-only message within 15 min of their colour ask carries that colour into the search. */
+  try {
+    const _bare = String(userText || '').trim();
+    if (/^(?:size\s*)?\d{1,2}(?:\.5)?(?:\s*(?:\/|or|-|&|and)\s*\d{1,2}(?:\.5)?)?\s*(?:men'?s|mens)?\.?$/i.test(_bare)) {
+      const _thC = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _prevIn = ((_thC && _thC.msgs) || []).filter(m => m && m.sender === 'customer' && Date.now() - (m.ts || 0) < 15 * 60000 && String(m.text || '').trim() !== _bare).slice(-1)[0];
+      const _col = _prevIn && (String(_prevIn.text || '').match(/\b(?:all|triple|full)[\s-]*(?:white|black|red|grey|gray|pink|blue|brown|cream)\b/i) || [])[0];
+      if (_col) {
+        userText = _bare + '\n(SYSTEM: just before this they asked for ' + _col.toLowerCase() + ' sneakers. Search ' + _col.toLowerCase() + ' in this size and send only ' + _col.toLowerCase() + ' pairs.)';
+        record(req, { endpoint: 'colour-carried-to-size', sub, colour: _col, size: _bare });
+      }
+    }
+  } catch (_) {}
   // 📍 WAIT FOR THE PIN BEFORE ASKING FOR IT (Rodney 10-16, Money Move TK: his pin was read 12 s after Kiki had already asked
   // "What's your location?"). A pin check queued for this message holds the reply up to 20 s while the Mac reader is polling.
   try {
@@ -11247,10 +11261,16 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         turnText = "Our first delivery run is at 8 AM, so 8 AM is the earliest we can be there 🙏 Does 8 work for you?";
       }
     } catch (_) {}
+    /* (…) A BRACKETED NOTE TO HERSELF IS CUT, THE REST STAYS (11-28 TK Captain Fox: "Here's what we have in a 10/11 rite now 👇 Ready to
+     * Order! (I'm ready to search and send photos once you let me know what you're looking for — a brand, ...)"). */
+    if (turnText && !staffName) {
+      const _np = turnText.replace(/\s*\([^()]*\b(?:I'?m ready to|once you (?:let me know|tell me)|let me know what (?:you'?re|they'?re) looking for|I'?ll (?:search|reply|send)|waiting (?:on|for) (?:them|the customer))\b[^()]*\)?/gi, '').trim();
+      if (_np && _np !== turnText) { record(req, { endpoint: 'bracket-note-cut', sub, text: turnText.slice(0, 160) }); turnText = _np; }
+    }
     /* 🗣️ A REPLY WRITTEN TO THE OWNER, NOT THE CUSTOMER (11-28 Shoebox Blade Gotti 525-6952: "Got it! They're asking about the Air Jordan
      * 4 Retro (Lakers) in the pic they tagged. What's their question? (Once you tell me, I'll reply in one warm line...)" went to the
      * customer). Talk about "they/the customer" or a note to whoever reads it = the whole reply is replaced with a plain ask. */
-    if (turnText && !staffName && /\b(?:what'?s their question|once you tell me|they'?re asking about|the customer (?:is|wants|said|asked|tagged)|in the pic they tagged|they tagged|I'?ll reply in one|reply to them|tell me what they|whenever they reply|when they reply|ready to help \S+ whenever|if they (?:reply|respond|come back))\b/i.test(turnText)) {
+    if (turnText && !staffName && /\b(?:what'?s their question|once you tell me|they'?re asking about|the customer (?:is|wants|said|asked|tagged)|in the pic they tagged|they tagged|I'?ll reply in one|reply to them|tell me what they|whenever they reply|when they reply|ready to help \S+ whenever|if they (?:reply|respond|come back)|I'?m ready to search|once you let me know what you'?re looking for)\b/i.test(turnText)) {
       record(req, { endpoint: 'owner-meta-reply-replaced', sub, store: ctx.store || '', text: turnText.slice(0, 200) });
       turnText = "That picture didn't come through clear on my side 🙈 Tell me the shoe name (or send a screenshot) and I'll check it in your size 👟";
     }
