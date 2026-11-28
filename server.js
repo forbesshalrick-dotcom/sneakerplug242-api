@@ -4257,7 +4257,7 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
       // Rodney 2026-10-14: the line AFTER the pictures is "This is what we have in <category>" — "in TNs", "in
       // Jordans" — and "let me know if you need a delivery" moved to the later follow-up. The category is read
       // off the shoes that actually went out: one model → that model; one brand → the brand; a mix → their size.
-      let what = '';
+      let what = ''; let _fbSize = false;
       try {
         const fam = (sh) => { const n = ((sh.brand || '') + ' ' + (sh.name || '')).toLowerCase();
           if (/vapor ?max/.test(n)) return ['VaporMax', 'Air Max'];
@@ -4316,7 +4316,7 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
           const _cs = custSize.get(sub);
           // Never "in a 14" when we stop at a 13: only a size the album could really be in.
           let _carried = true; try { const _have = sizesWeStock(); _carried = !_have.size || String((_cs && _cs.size) || '').split('/').some(x => _have.has(parseFloat(x))); } catch (_) {}
-          if (_cs && _cs.size && _carried) what = 'a ' + _cs.size;
+          if (_cs && _cs.size && _carried) { what = 'a ' + _cs.size; _fbSize = true; }
           /* 11-20 TK 805-0509: "I don't wear 8" got a 72-pair album of 9s and 9.5s that closed "This is what we have in a 8" -
            * the saved size was the stale 8 from the AF1 offer. The fallback size must be one a fair share (30%+) of the pictures come in (11-21 Shoebox 451-5156 asked 9 and got "in a 9.5" over a 9s+9.5s album at 60%);
            * otherwise name the size the most pictures come in. */
@@ -4362,6 +4362,17 @@ async function _sendShoePhotos(sub, ids, token, groups = null, leadIn = '', phot
             closing = _allUp ? 'These are the closest we got to a ' + _m[1] + ' 👟 They run a little small, so a size up will fit you just right'
               : _allAFdn ? 'These are the closest we got to a ' + _m[1] + ' 👟 Air Forces run a little big, so a size down will fit you just right'
               : 'These are the closest we got to a ' + _m[1] + ' 👟';
+          }
+          /* 11-28 TK Naii 463-3496: "What size do you have in a 7.5" landed while the 8-pair car trunk ad album was going out; it closed
+           * "This is what we have in a 7.5" over 3 Jordan 4s with no 7.5. A size taken from the saved size (not from the search these
+           * pictures came from) only heads the line when EVERY picture comes in it; otherwise name the ones that do. */
+          else if (_fbSize && _ids.length) {
+            const _yes = _ids.filter(id => ((_lm[id].sizesRaw || _lm[id].sizes || [])).some(z => parseFloat(z) === _w));
+            if (_yes.length < _ids.length) {
+              const _nm = [...new Set(_yes.map(id => { try { return displayName(_lm[id]); } catch (_) { return ''; } }).filter(Boolean))];
+              closing = _nm.length && _nm.length <= 6 ? 'From these, the ones that come in a ' + _m[1] + ': ' + _nm.join(', ') + ' 👟'
+                : 'Not all of these come in a ' + _m[1] + ' 👟 Tell me the one you like and I\'ll check your size';
+            }
           }
         }
       } catch (_) {}
