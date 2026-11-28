@@ -9865,6 +9865,18 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       } catch (_) {}
     }
+    /* ⏱️ "HOW LONG?" WITH A PIN IN = "AT LEAST 20 TO 30 MINUTES" (Rodney 11-28: "if you ask how long it be, soon as they send the
+     * location, just tell them at least 20 to 30 minutes"). Shoebox D asked "How long before they come" and got "Let me call the
+     * driver now... He'll be right with you". */
+    try {
+      const _q = customerWordsOnly(String(userText || ''));
+      if (turnText && !staffName && /\b(?:how long|how much longer|how far|what time (?:y'?all|yall|you|u|he|the driver) (?:coming|reach|come)|when (?:y'?all|yall|you|u|he|the driver|they)(?:'?re| are| is)? (?:coming|reach|come|be here)|eta|delivery time)\b/i.test(_q)) {
+        const _thL = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _pinL = pinReceived.has(String(sub)) || ((_thL && _thL.msgs) || []).some(m => m && Date.now() - (m.ts || 0) < 24 * 3600 * 1000
+          && ((m.sender === 'customer' && (m.loc || /Shared a location|maps\.google|maps\.app/i.test(m.text || ''))) || (m.sender === 'system' && /DELIVERY READY/.test(m.text || ''))));
+        if (_pinL) { turnText = "It'll be at least 20 to 30 minutes 🚗 The driver will call you when he's close 👟"; record(req, { endpoint: 'how-long-20-30', sub }); }
+      }
+    } catch (_) {}
     /* 📍 NEVER ASK FOR A PIN WE ALREADY HAVE (11-28 Shoe Lacky Bradley Butler 421-2477: shared his location 11-27 19:04, then "good
      * morning" next day got "...Just send your location pin 📍"). A customer pin in this chat in the last 48 h = the ask comes out and
      * the reply says we have it. */
