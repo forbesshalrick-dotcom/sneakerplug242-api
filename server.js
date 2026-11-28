@@ -6592,6 +6592,16 @@ const reminderTick = setInterval(async () => {
         // logged as sender 'customer' without dir 'in' did not count. Either marker counts now.
         const _theySpoke = _ms.some(m => m && (m.dir === 'in' || m.sender === 'customer') && m.sender !== 'system' && (m.ts || 0) > _20h)
           || Date.now() - (lastIncoming.get(String(r.sub)) || 0) < 20 * 3600 * 1000;
+        /* 🤫 THEY SAID THEY'D REACH OUT (11-28 Shoe Lacky Louis seize Firstson 509-4254-3656: "Don't worry I will text you" on 11-26, then a
+         * check-in every morning 11-27 and 11-28). Their last words saying they'll message us = the daily check-ins stop for good. */
+        const _lastIn = [..._ms].reverse().find(m => m && (m.dir === 'in' || m.sender === 'customer') && m.sender !== 'system' && /[a-z]/i.test(m.text || ''));
+        if (_lastIn && /\b(?:i(?:'ll|ll| will| gon(?:na)?| ga| go)|imma|ima)\s+(?:text|message|msg|call|hit|holla|reach|let)\s*(?:you|u|yall|y'all|ya)?\b|\bdon'?t worry\b|\bi'?ll let (?:you|u) know\b/i.test(_lastIn.text || '')) {
+          reminders = reminders.filter(x => !(String(x.sub || '') === String(r.sub) && x.kind === 'keep-warm'));
+          saveReminders();
+          recent.unshift({ at: new Date().toISOString(), endpoint: 'keep-warm-stopped-they-will-text', sub: r.sub, said: String(_lastIn.text || '').slice(0, 60) });
+          if (recent.length > 120) recent.length = 120;
+          continue;
+        }
         /* 🧾 THE PAIR MUST STILL BE HERE (11-23 TK Faddah 559-5147: "still want your pair for the day you said?" - he said "Yes, Friday",
          * but his AM90 Brown/Black 11 sold to Rollington that afternoon). Before a check-in, the last single-pair order card is
          * matched against live stock; if no matching shoe still has that size, the check-in becomes an honest "it sold" + offer. */
