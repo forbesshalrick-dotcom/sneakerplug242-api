@@ -8606,6 +8606,9 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
           // 11-27 Shoebox Alan 816-3344: sent his pin, then "Meet me here" - it became "the driver will meet you at Meet me here 🚗" and a
           // card reading 📍 Meet me here. "Here / there / my location / this spot" points at the pin, it is not an address.
           && !/^\s*(?:(?:meet|find|see)\s+(?:me|us)\s*)?(?:right\s+)?(?:here|there|at (?:my|the) (?:location|pin|spot)|my location|this (?:spot|place|location)|where i(?:'?m| am))[\s!.]*$/i.test(_ans)
+          // 11-27 TK Blacks 454-5791: pin sent, then "I going by the bank right now" (to get cash) - it became "the driver will meet you
+          // at the bank right now" and a second card with 📍 "by the bank right now" over his pin. An errand is not a meeting place.
+          && !/\b(?:i(?:'?m|\s*am)?\s*(?:going|goin|gone|heading|headed|running|stepping|passing)|going\s+(?:to|by)|gotta\s+(?:go|run)|be\s+(?:back|right\s+back)|back\s+in\s+\d+|bank|atm|get(?:ting)?\s+(?:the\s+|some\s+)?(?:money|cash))\b/i.test(_ans)
           // 11-17: "Morning sorry yes I want them" (NW Alfonzo 817-4558) and "Nothing else" (Shoebox Virgo 815-0363) both became
           // "the driver will meet you at ..." - a place never carries these words.
           // "Thru god" (TK C.G ENTERPRISE 823-3673, 11-19) is a yes said with faith, not an address - it became a DELIVERY READY card.
@@ -9798,7 +9801,7 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
            * customer insist"). Our meet-up spot goes out instead. */
           record(req, { endpoint: 'coming-to-us-spot-sent', sub, store: ctx.store || '' });
           turnText = "We're on Carmichael Rd 📍 by the car rental on the corner and the wash house https://maps.google.com/?q=25.006563,-77.414422\n\nText us when you're on the way so we have your order ready 🙏👟";
-        } else if (_hasPin && /\b(?:he'?s (?:right )?(?:there|outside|out front|pulling up|around the corner|close|calling you(?: now)?)|calling you now|look (?:out )?for the|(?:burgundy|grey|gray|black|white|silver|blue|red) (?:nissan|honda|toyota|car)|\d+\s*min(?:ute)?s? away|almost there|just around)\b/i.test(turnText)) {
+        } else if (_hasPin && /\b(?:(?:driver|he)(?:'ll| will) be (?:there |right there )?waiting|(?:be )?waiting (?:there )?for you|meet you (?:at|by) [^.!?\n]{0,30}right now|he'?s (?:right )?(?:there|outside|out front|pulling up|around the corner|close|calling you(?: now)?)|calling you now|look (?:out )?for the|(?:burgundy|grey|gray|black|white|silver|blue|red) (?:nissan|honda|toyota|car)|\d+\s*min(?:ute)?s? away|almost there|just around)\b/i.test(turnText)) {
           /* 🚗 WITH A PIN SHE STILL DOESN'T KNOW WHERE THE DRIVER IS (Shoebox Saltlife Johnny 815-5684 11-21 15:24: "He's calling you now
            * bro", then "He's right there — look out for the burgundy Nissan Dayz" - both made up; the driver hadn't called and nobody
            * knew where he was. Rodney: driver questions go to him; never claim the driver's position). */
