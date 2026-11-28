@@ -9828,6 +9828,23 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
         }
       } catch (_) {}
     }
+    /* 📍 NEVER ASK FOR A PIN WE ALREADY HAVE (11-28 Shoe Lacky Bradley Butler 421-2477: shared his location 11-27 19:04, then "good
+     * morning" next day got "...Just send your location pin 📍"). A customer pin in this chat in the last 48 h = the ask comes out and
+     * the reply says we have it. */
+    if (turnText && !staffName && /\b(?:send|drop|share)\s+(?:me\s+|us\s+)?(?:your|ur|the|a)\s+(?:current\s+)?(?:location|pin|address)|location pin\b|need your (?:location|pin)\b/i.test(turnText)) {
+      try {
+        const _th2 = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+        const _since2 = Date.now() - 48 * 3600 * 1000;
+        const _pin2 = pinReceived.has(String(sub)) || ((_th2 && _th2.msgs) || []).some(m => m && (m.ts || 0) > _since2
+          && ((m.sender === 'customer' && (m.loc || /Shared a location|maps\.google|maps\.app/i.test(m.text || '')))
+            || (m.sender === 'system' && /DELIVERY READY[\s\S]*(?:https?:\/\/maps\.|dropped a WhatsApp location pin)/i.test(m.text || ''))));
+        if (_pin2) {
+          const _kept2 = turnText.split(/(?<=[.!?\n])\s+/).filter(x => !/\b(?:send|drop|share)\s+(?:me\s+|us\s+)?(?:your|ur|the|a)\s+(?:current\s+)?(?:location|pin|address)|location pin\b|need your (?:location|pin)\b|Tap 📎/i.test(x)).join(' ').trim();
+          record(req, { endpoint: 'pin-on-file-not-reasked', sub, store: ctx.store || '', text: turnText.slice(0, 160) });
+          turnText = ((_kept2 ? _kept2 + ' ' : '') + 'We got your location ✅ 📍').trim();
+        }
+      } catch (_) {}
+    }
     if (turnText && !staffName && namedSizeBlocks < 1) {
       try {
         const _nqw = namedQtyWrong(turnText, Object.values(liveShoeMap()));
