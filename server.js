@@ -8856,6 +8856,19 @@ async function runChat(req, sub, userText, token, ctx = {}, image = null) {
     if (saidNow && /\b(wom[ae]n'?s?|ladies|lady|female|girls?|for her|my (?:wife|girl|daughter|mom|mother|sister))\b/i.test(customerWordsOnly(userText))) womensSaid.set(String(sub), { size: parseFloat(saidNow), at: Date.now() });
   } catch (_) {}
   let sizeCtx = '';
+  /* 📏 THE ORDER CARD REMEMBERS THE SIZE (11-28 Shoebox Og Doe 819-8409: two Jordan 4s in size 8 ordered 11-27, next morning "Where you
+   * located?" got "What size you looking for?" - custSize lives in memory, is wiped by every deploy and ages out at 12 h). No live size
+   * = take it off this chat's own order card from the last 48 h. */
+  try {
+    const _c0 = custSize.get(sub);
+    if (!(_c0 && _c0.size && (Date.now() - (_c0.ts || 0)) < 12 * 60 * 60 * 1000)) {
+      const _thS = inboxThreads.get(inboxSubIndex.get(String(sub)) || '');
+      const _card = ((_thS && _thS.msgs) || []).slice().reverse().find(m => m && m.sender === 'system' && Date.now() - (m.ts || 0) < 48 * 3600 * 1000
+        && /NEW ORDER|DELIVERY READY|READY NOW/.test(m.text || '') && /size\s+\d{1,2}(?:\.5)?\b/i.test(m.text || ''));
+      const _sz = _card && (String(_card.text).match(/size\s+(\d{1,2}(?:\.5)?)\b/i) || [])[1];
+      if (_sz) { custSize.set(sub, { size: _sz, ts: Date.now() }); record(req, { endpoint: 'size-from-order-card', sub, size: _sz }); }
+    }
+  } catch (_) {}
   const cs = custSize.get(sub);
   let knownSize = '';
   if (cs && cs.size && (Date.now() - (cs.ts || 0)) < 12 * 60 * 60 * 1000) {
